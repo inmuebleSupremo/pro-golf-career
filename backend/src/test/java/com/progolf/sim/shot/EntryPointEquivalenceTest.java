@@ -58,12 +58,28 @@ class EntryPointEquivalenceTest {
     }
 
     @Test
-    void roundTerminatesAndAccumulatesStrokes() {
+    void roundHolesOutAndAccumulatesStrokes() {
         RoundOutcome round = resolve();
         assertThat(round.shots()).isNotEmpty();
-        assertThat(round.shots().size()).isLessThanOrEqualTo(SimConstants.MAX_SHOTS_PER_HOLE);
+        assertThat(round.shots().size()).isLessThan(SimConstants.MAX_SHOTS_PER_HOLE);
         int summed = round.shots().stream().mapToInt(ShotOutcome::strokes).sum();
         assertThat(round.totalStrokes()).isEqualTo(summed);
+
+        // The round must actually hole out (not just hit the shot cap): the final shot is not a hazard
+        // and finishes within the holed threshold. This guards against distance-independent dispersion.
+        ShotOutcome last = round.shots().get(round.shots().size() - 1);
+        assertThat(last.hazardEntered()).isFalse();
+        assertThat(last.distanceRemaining()).isLessThanOrEqualTo(SimConstants.HOLED_THRESHOLD);
+    }
+
+    @Test
+    void competentGolferHolesOutInRealisticStrokeCount() {
+        RoundOutcome round = RoundResolver.resolveHole(HOLE, Attributes.uniform(70), GolferState.fresh(),
+                Environment.calm(), Strategy.BALANCED, HOLE_COORD);
+        ShotOutcome last = round.shots().get(round.shots().size() - 1);
+        assertThat(last.distanceRemaining()).isLessThanOrEqualTo(SimConstants.HOLED_THRESHOLD);
+        // A competent golfer on a ~410y hole should hole out in a believable number of strokes.
+        assertThat(round.totalStrokes()).isBetween(2, 8);
     }
 
     private static RoundOutcome resolve() {

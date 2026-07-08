@@ -40,13 +40,21 @@ public final class RoundResolver {
         double remaining = hole.startDistance();
 
         for (int shotNo = 1; shotNo <= SimConstants.MAX_SHOTS_PER_HOLE; shotNo++) {
+            double preShotRemaining = remaining;
             ShotContext context = buildContext(hole, attributes, state, environment, policy, remaining, holeCoordinate, shotNo);
             ShotOutcome outcome = ShotResolver.resolveShot(context);
             shots.add(outcome);
             totalStrokes += outcome.strokes();
-            remaining = outcome.distanceRemaining();
-            if (remaining <= SimConstants.HOLED_THRESHOLD) {
-                break;
+            if (outcome.hazardEntered()) {
+                // Water / Out of Bounds: stroke-and-distance. The penalty stroke is already counted in
+                // outcome.strokes(); play resumes from the previous position, not the lost-ball spot.
+                // (A full water-drop model is a later refinement; stroke-and-distance is the V1 rule.)
+                remaining = preShotRemaining;
+            } else {
+                remaining = outcome.distanceRemaining();
+                if (remaining <= SimConstants.HOLED_THRESHOLD) {
+                    break;
+                }
             }
         }
 

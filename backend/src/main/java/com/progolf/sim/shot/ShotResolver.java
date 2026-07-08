@@ -61,14 +61,19 @@ public final class ShotResolver {
         double crossMult = 1.0 + Math.abs(env.crossWind()) * SimConstants.CROSSWIND_SIGMA_WEIGHT * (1.0 - windResist);
         double lieMult = 1.0 + (1.0 - env.lieQuality()) * SimConstants.LIE_SIGMA_WEIGHT;
 
-        double sigmaLateral = SimConstants.BASE_SIGMA_LATERAL / lateralFactor
+        // Dispersion scales with the intended shot length: a short putt is far tighter than a full drive.
+        double maxReach = club.baseDistance() * (SimConstants.REACH_FLOOR + SimConstants.REACH_SPAN * distanceNorm);
+        double shotDistance = Math.min(decision.targetDistance(), maxReach);
+        double baseLateral = SimConstants.LATERAL_DISPERSION_FRACTION * shotDistance + SimConstants.LATERAL_DISPERSION_FLOOR;
+        double baseDistanceDispersion = SimConstants.DISTANCE_DISPERSION_FRACTION * shotDistance + SimConstants.DISTANCE_DISPERSION_FLOOR;
+
+        double sigmaLateral = baseLateral / lateralFactor
                 * strategyMult * pressureMult * fatigueSigmaMult * crossMult * lieMult;
-        double sigmaDistance = SimConstants.BASE_SIGMA_DISTANCE / distanceFactor
+        double sigmaDistance = baseDistanceDispersion / distanceFactor
                 * strategyMult * pressureMult * fatigueSigmaMult * lieMult;
 
         // Mean carry: bounded by reachable distance; reduced by headwind and fatigue; aided by distance skill.
-        double maxReach = club.baseDistance() * (SimConstants.REACH_FLOOR + SimConstants.REACH_SPAN * distanceNorm);
-        double meanCarry = Math.min(decision.targetDistance(), maxReach);
+        double meanCarry = shotDistance;
         double headWind = env.headWind();
         if (headWind > 0) {
             meanCarry -= headWind * (1.0 - windResist) * SimConstants.HEADWIND_MEAN_WEIGHT;
