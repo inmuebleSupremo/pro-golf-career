@@ -17,13 +17,13 @@ public final class SimConstants {
     // shot length is what makes a short putt far tighter than a full drive; a fixed absolute sigma made
     // putts scatter like drives, so holes never actually holed out.
     /** Lateral dispersion as a fraction of intended shot distance. */
-    public static final double LATERAL_DISPERSION_FRACTION = 0.025;
-    /** Minimum lateral dispersion (yards) regardless of shot length. */
-    public static final double LATERAL_DISPERSION_FLOOR = 0.5;
+    public static final double LATERAL_DISPERSION_FRACTION = 0.048;
+    /** Minimum lateral dispersion (yards) regardless of shot length. Small so short putts are accurate. */
+    public static final double LATERAL_DISPERSION_FLOOR = 0.10;
     /** Longitudinal dispersion as a fraction of intended shot distance. */
-    public static final double DISTANCE_DISPERSION_FRACTION = 0.020;
-    /** Minimum longitudinal dispersion (yards) regardless of shot length. */
-    public static final double DISTANCE_DISPERSION_FLOOR = 1.0;
+    public static final double DISTANCE_DISPERSION_FRACTION = 0.038;
+    /** Minimum longitudinal dispersion (yards) regardless of shot length. Small so tap-ins hole reliably. */
+    public static final double DISTANCE_DISPERSION_FLOOR = 0.20;
 
     // --- Attribute influence ---
     /** Attribute normalised value maps to a factor in [MIN_FACTOR, MIN_FACTOR + FACTOR_SPAN]. */
@@ -70,8 +70,8 @@ public final class SimConstants {
     public static final double SAFETY_HARD_MULTIPLE = 2.0;
 
     // --- Round resolution ---
-    /** Distance (yards) at or under which the ball is considered holed during round resolution. */
-    public static final double HOLED_THRESHOLD = 2.0;
+    /** Distance (yards) at or under which the ball is considered holed — roughly a one-foot tap-in. */
+    public static final double HOLED_THRESHOLD = 0.35;
     /** Maximum shots resolved for a single hole (guards against pathological loops). */
     public static final int MAX_SHOTS_PER_HOLE = 12;
 }

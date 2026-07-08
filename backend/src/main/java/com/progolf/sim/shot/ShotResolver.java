@@ -64,8 +64,11 @@ public final class ShotResolver {
         // Dispersion scales with the intended shot length: a short putt is far tighter than a full drive.
         double maxReach = club.baseDistance() * (SimConstants.REACH_FLOOR + SimConstants.REACH_SPAN * distanceNorm);
         double shotDistance = Math.min(decision.targetDistance(), maxReach);
-        double baseLateral = SimConstants.LATERAL_DISPERSION_FRACTION * shotDistance + SimConstants.LATERAL_DISPERSION_FLOOR;
-        double baseDistanceDispersion = SimConstants.DISTANCE_DISPERSION_FRACTION * shotDistance + SimConstants.DISTANCE_DISPERSION_FLOOR;
+        double clubDispersion = club.dispersionMultiplier();
+        double baseLateral = SimConstants.LATERAL_DISPERSION_FRACTION * shotDistance * clubDispersion
+                + SimConstants.LATERAL_DISPERSION_FLOOR;
+        double baseDistanceDispersion = SimConstants.DISTANCE_DISPERSION_FRACTION * shotDistance * clubDispersion
+                + SimConstants.DISTANCE_DISPERSION_FLOOR;
 
         double sigmaLateral = baseLateral / lateralFactor
                 * strategyMult * pressureMult * fatigueSigmaMult * crossMult * lieMult;
