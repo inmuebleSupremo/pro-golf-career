@@ -1,0 +1,28 @@
+# ---- Java / Maven ----
+target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+dependency-reduced-pom.xml
+
+# ---- Node / Frontend ----
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# ---- Environment / secrets ----
+.env
+.env.local
+.env.*.local
+
+# ---- IDE / editor ----
+.idea/
+*.iml
+.vscode/
+*.swp
+.DS_Store
+
+# ---- Logs ----
+*.log
