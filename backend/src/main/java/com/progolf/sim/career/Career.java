@@ -1,0 +1,171 @@
+package com.progolf.sim.career;
+
+import com.progolf.sim.player.CareerStatus;
+import com.progolf.sim.player.Player;
+import com.progolf.sim.tournament.TournamentResult;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+/**
+ * The Career entity (REQ-025–037): the complete playable history of one golfer, owned by a {@link Player}.
+ * It tracks the golfer's competitive Age (advancing once per season, never decreasing), enforces
+ * mandatory retirement at 65, folds tournament results into cumulative statistics / milestones / a
+ * chronological history, and evaluates Hall-of-Fame eligibility on retirement.
+ *
+ * <p>Analytical and append-only: it never mutates player attributes or tournament results, and its
+ * historical records are only appended, so a completed career is reconstructible from them.
+ */
+public final class Career {
+
+    private final Player player;
+    private final int startAge;
+    private int age;
+
+    private final CareerStatistics statistics = new CareerStatistics();
+    private final EnumSet<CareerMilestone> milestones = EnumSet.noneOf(CareerMilestone.class);
+    private final List<CareerHistoryEntry> history = new ArrayList<>();
+    private final List<SeasonRecord> seasons = new ArrayList<>();
+
+    private CareerRuntimeState runtimeState = CareerRuntimeState.ACTIVE;
+    private HallOfFameResult hallOfFameResult;
+
+    /**
+     * Starts a Career for an activated Player at a starting age (REQ-025/026/028). The Player must be
+     * ACTIVE; the starting age must be within the permitted range.
+     */
+    public Career(Player player, int startAge) {
+        this.player = Objects.requireNonNull(player, "player");
+        if (player.status() != CareerStatus.ACTIVE) {
+            throw new IllegalStateException("A Career begins only for an ACTIVE player; status=" + player.status());
+        }
+        if (startAge < CareerConstants.MIN_START_AGE || startAge > CareerConstants.MAX_START_AGE) {
+            throw new IllegalArgumentException("Starting age must be "
+                    + CareerConstants.MIN_START_AGE + "-" + CareerConstants.MAX_START_AGE + ": " + startAge);
+        }
+        this.startAge = startAge;
+        this.age = startAge;
+    }
+
+    /** The golfer this Career belongs to (never reassigned). */
+    public Player player() {
+        return player;
+    }
+
+    public int startAge() {
+        return startAge;
+    }
+
+    /** Current competitive age in whole years. */
+    public int age() {
+        return age;
+    }
+
+    public boolean isRetired() {
+        return player.status() == CareerStatus.RETIRED;
+    }
+
+    public CareerStatistics statistics() {
+        return statistics;
+    }
+
+    public boolean hasMilestone(CareerMilestone milestone) {
+        return milestones.contains(milestone);
+    }
+
+    /** The chronological (date-ordered) immutable history view. */
+    public List<CareerHistoryEntry> history() {
+        List<CareerHistoryEntry> ordered = new ArrayList<>(history);
+        ordered.sort(Comparator.comparing(CareerHistoryEntry::date));
+        return List.copyOf(ordered);
+    }
+
+    /** Archived season boundaries, in order. */
+    public List<SeasonRecord> seasons() {
+        return List.copyOf(seasons);
+    }
+
+    public CareerRuntimeState runtimeState() {
+        return runtimeState;
+    }
+
+    /** Sets the runtime (execution) state; this never advances or alters gameplay progression. */
+    public void setRuntimeState(CareerRuntimeState state) {
+        this.runtimeState = Objects.requireNonNull(state, "state");
+    }
+
+    /** The Hall-of-Fame evaluation recorded at retirement, if the career has retired. */
+    public Optional<HallOfFameResult> hallOfFameResult() {
+        return Optional.ofNullable(hallOfFameResult);
+    }
+
+    /**
+     * Advances one completed season (REQ-029): archives the season and increases Age by one. If this
+     * reaches the mandatory retirement age, the golfer retires automatically (REQ-028) and cannot be
+     * advanced further.
+     */
+    public void advanceSeason(LocalDate seasonEndDate) {
+        Objects.requireNonNull(seasonEndDate, "seasonEndDate");
+        if (isRetired()) {
+            throw new IllegalStateException("A retired career cannot advance further");
+        }
+        age += 1; // Age only ever advances (no setter, never decreases)
+        seasons.add(new SeasonRecord(seasons.size() + 1, age));
+        if (age >= CareerConstants.RETIREMENT_AGE) {
+            retire(seasonEndDate);
+        }
+    }
+
+    /**
+     * Records the golfer's participation in a completed tournament (REQ-031/032/033): folds statistics,
+     * fires any first-occurrence milestones, and appends history. Rejected once the career is retired.
+     */
+    public void recordTournament(TournamentResult result, LocalDate date) {
+        Objects.requireNonNull(result, "result");
+        Objects.requireNonNull(date, "date");
+        if (isRetired()) {
+            throw new IllegalStateException("A retired career is read-only");
+        }
+        TournamentResult.Finish finish = result.finishingOrder().stream()
+                .filter(f -> f.golfer().player().id().equals(player.id()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Golfer did not play in tournament " + result.tournamentName()));
+
+        statistics.recordResult(finish.position(), finish.madeCut(), finish.withdrawn(), finish.prize());
+        history.add(new CareerHistoryEntry(date, CareerHistoryEntry.Type.TOURNAMENT,
+                result.tournamentName() + " — position " + finish.position()));
+
+        fireMilestone(CareerMilestone.FIRST_EVENT, date);
+        if (!finish.withdrawn()) {
+            if (finish.madeCut()) {
+                fireMilestone(CareerMilestone.FIRST_MADE_CUT, date);
+            }
+            if (finish.position() <= CareerConstants.TOP_10) {
+                fireMilestone(CareerMilestone.FIRST_TOP_10, date);
+            }
+            if (finish.position() == 1) {
+                fireMilestone(CareerMilestone.FIRST_WIN, date);
+            }
+        }
+    }
+
+    /** Records a milestone the first time it occurs (REQ-031 duplicate prevention). */
+    private void fireMilestone(CareerMilestone milestone, LocalDate date) {
+        if (milestones.add(milestone)) {
+            history.add(new CareerHistoryEntry(date, CareerHistoryEntry.Type.MILESTONE, milestone.name()));
+        }
+    }
+
+    /** Retires the golfer: coordinates the Player status, records history, and evaluates the Hall of Fame. */
+    private void retire(LocalDate date) {
+        // Both ACTIVE and INJURED may transition to RETIRED (the career is guarded against being
+        // already retired before this is called).
+        player.transitionTo(CareerStatus.RETIRED);
+        history.add(new CareerHistoryEntry(date, CareerHistoryEntry.Type.RETIREMENT, "Retired at age " + age));
+        hallOfFameResult = HallOfFame.evaluate(statistics);
+    }
+}
