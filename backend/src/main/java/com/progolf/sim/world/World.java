@@ -33,6 +33,13 @@ import com.progolf.sim.media.MediaConstants;
 import com.progolf.sim.media.MediaSystem;
 import com.progolf.sim.media.NewsEvent;
 import com.progolf.sim.media.NewsFactory;
+import com.progolf.sim.statistics.CareerComparison;
+import com.progolf.sim.statistics.Championship;
+import com.progolf.sim.statistics.EventOutcome;
+import com.progolf.sim.statistics.RecordHolder;
+import com.progolf.sim.statistics.RecordType;
+import com.progolf.sim.statistics.StatLine;
+import com.progolf.sim.statistics.StatisticsArchive;
 import com.progolf.sim.player.AttributeChange;
 import com.progolf.sim.staff.HiringPolicy;
 import com.progolf.sim.staff.StaffConstants;
@@ -101,6 +108,7 @@ public final class World {
     private final MediaSystem media = new MediaSystem();
     private String previousNumberOne; // for detecting world number-one changes
     private final Set<String> announcedProspects = new LinkedHashSet<>(); // rising prospects reported once
+    private final StatisticsArchive statistics = new StatisticsArchive();
     private final TourSystem tours = new TourSystem();
     private final WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
@@ -318,6 +326,14 @@ public final class World {
         }
         if (winnerRankBefore > MediaConstants.UPSET_RANKING_THRESHOLD) {
             media.publish(NewsFactory.majorUpset(season, winnerId, winnerName, def.name(), winnerRankBefore));
+        }
+
+        // Statistics: record every finish and the champion into the authoritative archive (REQ-251/254/256).
+        for (TournamentResult.Finish finish : result.finishingOrder()) {
+            String id = finish.golfer().player().id();
+            EventOutcome outcome = new EventOutcome(season, id, finish.position(), finish.score(),
+                    finish.madeCut(), finish.withdrawn(), finish.prize());
+            statistics.observeEvent(outcome, def.name(), tier.name(), id.equals(winnerId));
         }
 
         // Economy: competing costs entry + travel; a paying finish awards prize money (REQ-178/182).
@@ -662,6 +678,36 @@ public final class World {
     /** All news about a particular golfer. */
     public List<NewsEvent> newsForGolfer(String golferId) {
         return media.newsForGolfer(golferId);
+    }
+
+    /** A golfer's complete career statistics from the archive, permanent after retirement (REQ-253). */
+    public StatLine careerStatisticsOf(String golferId) {
+        return statistics.careerStatistics(golferId);
+    }
+
+    /** A golfer's preserved statistics for a specific season (REQ-252). */
+    public StatLine seasonStatisticsOf(String golferId, int season) {
+        return statistics.seasonStatistics(golferId, season);
+    }
+
+    /** The champions of a given season from the historical archive (REQ-256/258). */
+    public List<Championship> championsOfSeason(int season) {
+        return statistics.championsOfSeason(season);
+    }
+
+    /** The current holders of every world record (REQ-254). */
+    public Map<RecordType, RecordHolder> records() {
+        return statistics.records();
+    }
+
+    /** The full progression of a record, each successive holder preserved (REQ-255). */
+    public List<RecordHolder> recordProgression(RecordType type) {
+        return statistics.recordProgression(type);
+    }
+
+    /** A read-only comparison of two golfers' careers (REQ-259). */
+    public CareerComparison compareCareers(String golferA, String golferB) {
+        return statistics.compareCareers(golferA, golferB);
     }
 
     /** A golfer's current descriptive Career Narrative (REQ-244). */
