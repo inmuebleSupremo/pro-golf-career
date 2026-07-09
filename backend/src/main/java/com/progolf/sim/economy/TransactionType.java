@@ -16,6 +16,7 @@ public enum TransactionType {
     ACCOMMODATION(Category.EXPENSE),
     STAFF_HIRING(Category.EXPENSE),
     STAFF_SALARY(Category.EXPENSE),
+    EQUIPMENT_PURCHASE(Category.EXPENSE),
     DISCRETIONARY(Category.EXPENSE);
 
     /** The career total a transaction contributes to. */

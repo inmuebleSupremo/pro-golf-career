@@ -15,6 +15,15 @@ import com.progolf.sim.economy.SponsorshipAgreement;
 import com.progolf.sim.economy.SponsorshipMarket;
 import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.economy.TransactionType;
+import com.progolf.sim.equipment.AcquisitionPolicy;
+import com.progolf.sim.equipment.EquipmentAcquisition;
+import com.progolf.sim.equipment.EquipmentCatalogue;
+import com.progolf.sim.equipment.EquipmentCategory;
+import com.progolf.sim.equipment.EquipmentConstants;
+import com.progolf.sim.equipment.EquipmentInventory;
+import com.progolf.sim.equipment.EquipmentItem;
+import com.progolf.sim.equipment.GolfBag;
+import com.progolf.sim.equipment.TournamentLoadout;
 import com.progolf.sim.health.HealthConstants;
 import com.progolf.sim.health.HealthEvent;
 import com.progolf.sim.health.HealthSystem;
@@ -82,6 +91,8 @@ public final class World {
     private final List<HealthEvent> healthHistory = new ArrayList<>();
     private final Map<String, SupportTeam> supportTeams = new LinkedHashMap<>();
     private final StaffMarket staffMarket = new StaffMarket();
+    private final Map<String, EquipmentInventory> equipment = new LinkedHashMap<>();
+    private final Map<String, TournamentLoadout> loadouts = new LinkedHashMap<>();
     private final TourSystem tours = new TourSystem();
     private final WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
@@ -163,6 +174,14 @@ public final class World {
         physicalStates.put(id, HealthSystem.initialState(
                 new SplitMix64Rng(Seeds.deriveSeed(Seeds.deriveSeed(masterSeed, HealthConstants.HEALTH_SALT), id.hashCode()))));
         supportTeams.put(id, new SupportTeam());
+        // Standard starting kit: one baseline item per category (owned), and a loadout selecting them.
+        EquipmentInventory inventory = new EquipmentInventory();
+        for (EquipmentCategory category : EquipmentCategory.values()) {
+            inventory.add(EquipmentCatalogue.standardItem(category), calendar.currentSeason(),
+                    EquipmentAcquisition.Method.INITIAL);
+        }
+        equipment.put(id, inventory);
+        loadouts.put(id, TournamentLoadout.bestFrom(inventory));
         tours.register(id, tier);
         activeGolfers.add(id);
     }
@@ -244,9 +263,13 @@ public final class World {
                 calendar.currentSeason(), event.tournamentId(), seasonPhase,
                 course.identity().classification(), def.format().rounds());
 
-        // Sync each competitor's accumulated fatigue into the shot engine so tired golfers play worse (REQ-225).
+        // Before play, sync each competitor's temporary state into the shot engine: accumulated fatigue
+        // (REQ-225) and the active Golf Bag's characteristics (REQ-206), both read via toGolferState.
         for (ProfessionalGolfer g : field) {
-            g.player().state().setFatigue(physicalStates.get(g.player().id()).fatigue());
+            String id = g.player().id();
+            g.player().state().setFatigue(physicalStates.get(id).fatigue());
+            GolfBag bag = GolfBag.fromLoadout(loadouts.get(id));
+            g.player().state().setEquipment(bag.forgivenessBonus(), bag.powerBonus());
         }
 
         Tournament tournament = new Tournament(def, weather);
@@ -344,6 +367,7 @@ public final class World {
             if (!careers.get(id).isRetired()) {
                 runFinancialSeason(id, season, date);
                 runStaffSeason(id, season, date);
+                runEquipmentSeason(id, season, date);
             }
         }
 
@@ -423,6 +447,26 @@ public final class World {
             if (HiringPolicy.canAfford(account.availableFunds(), candidate)
                     && account.spend(TransactionType.STAFF_HIRING, candidate.hiringCost(), date, "Hire: " + role)) {
                 team.hire(candidate, season);
+            }
+        });
+    }
+
+    /**
+     * Runs one golfer's end-of-season equipment acquisition (REQ-210): a deterministic policy proposes an
+     * upgrade for the weakest category; if affordable, it is purchased through the Economy, added to the
+     * inventory, and selected into the loadout. Deterministic from an isolated per-golfer/season seed.
+     */
+    private void runEquipmentSeason(String id, int season, LocalDate date) {
+        EquipmentInventory inventory = equipment.get(id);
+        FinancialAccount account = accounts.get(id);
+        Rng rng = new SplitMix64Rng(Seeds.deriveSeed(
+                Seeds.deriveSeed(Seeds.deriveSeed(masterSeed, EquipmentConstants.EQUIPMENT_SALT), season),
+                id.hashCode()));
+        AcquisitionPolicy.chooseUpgrade(inventory, rng).ifPresent(item -> {
+            if (AcquisitionPolicy.canAfford(account.availableFunds(), item)
+                    && account.spend(TransactionType.EQUIPMENT_PURCHASE, item.cost(), date, "Equipment: " + item.category())) {
+                inventory.add(item, season, EquipmentAcquisition.Method.PURCHASE);
+                loadouts.put(id, loadouts.get(id).with(item));
             }
         });
     }
@@ -541,6 +585,16 @@ public final class World {
     /** A golfer's Support Team (current staff plus relationship history) (REQ-191). */
     public SupportTeam supportTeamOf(String golferId) {
         return supportTeams.get(golferId);
+    }
+
+    /** A golfer's Equipment Inventory (owned items + ownership history) (REQ-203). */
+    public EquipmentInventory equipmentInventoryOf(String golferId) {
+        return equipment.get(golferId);
+    }
+
+    /** A golfer's current Tournament Loadout (REQ-205). */
+    public TournamentLoadout tournamentLoadoutOf(String golferId) {
+        return loadouts.get(golferId);
     }
 
     /** The current World Ranking as of the calendar date. */

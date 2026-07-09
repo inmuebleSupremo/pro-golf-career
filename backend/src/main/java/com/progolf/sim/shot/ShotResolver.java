@@ -61,8 +61,14 @@ public final class ShotResolver {
         double crossMult = 1.0 + Math.abs(env.crossWind()) * SimConstants.CROSSWIND_SIGMA_WEIGHT * (1.0 - windResist);
         double lieMult = 1.0 + (1.0 - env.lieQuality()) * SimConstants.LIE_SIGMA_WEIGHT;
 
+        // Equipment: forgiveness tightens dispersion, power extends reach (spec: equipment-influence).
+        // Neutral (standard) equipment leaves both factors at 1.0, reproducing prior behaviour exactly.
+        double equipmentReach = 1.0 + state.equipmentPower();
+        double equipmentDispersion = 1.0 - state.equipmentForgiveness();
+
         // Dispersion scales with the intended shot length: a short putt is far tighter than a full drive.
-        double maxReach = club.baseDistance() * (SimConstants.REACH_FLOOR + SimConstants.REACH_SPAN * distanceNorm);
+        double maxReach = club.baseDistance() * (SimConstants.REACH_FLOOR + SimConstants.REACH_SPAN * distanceNorm)
+                * equipmentReach;
         double shotDistance = Math.min(decision.targetDistance(), maxReach);
         double clubDispersion = club.dispersionMultiplier();
         double baseLateral = SimConstants.LATERAL_DISPERSION_FRACTION * shotDistance * clubDispersion
@@ -71,9 +77,9 @@ public final class ShotResolver {
                 + SimConstants.DISTANCE_DISPERSION_FLOOR;
 
         double sigmaLateral = baseLateral / lateralFactor
-                * strategyMult * pressureMult * fatigueSigmaMult * crossMult * lieMult;
+                * strategyMult * pressureMult * fatigueSigmaMult * crossMult * lieMult * equipmentDispersion;
         double sigmaDistance = baseDistanceDispersion / distanceFactor
-                * strategyMult * pressureMult * fatigueSigmaMult * lieMult;
+                * strategyMult * pressureMult * fatigueSigmaMult * lieMult * equipmentDispersion;
 
         // Mean carry: bounded by reachable distance; reduced by headwind and fatigue; aided by distance skill.
         double meanCarry = shotDistance;
