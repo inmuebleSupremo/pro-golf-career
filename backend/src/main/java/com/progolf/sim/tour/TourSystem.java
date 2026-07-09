@@ -66,6 +66,15 @@ public final class TourSystem {
         return tier.equals(membership.get(golferId)) || invited;
     }
 
+    /**
+     * Removes a golfer from Tour membership when they leave the active world (e.g. retirement). The golfer
+     * no longer holds a membership and is excluded from future standings and reviews; their recorded
+     * movement history is preserved.
+     */
+    public void deregister(String golferId) {
+        membership.remove(Objects.requireNonNull(golferId, "golferId"));
+    }
+
     /** Grants membership of a tier via a transparent qualification pathway; recorded as QUALIFICATION. */
     public void grantMembership(String golferId, TourTier tier, String reason) {
         Objects.requireNonNull(golferId, "golferId");
