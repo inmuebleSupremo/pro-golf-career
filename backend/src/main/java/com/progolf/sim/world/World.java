@@ -3,7 +3,18 @@ package com.progolf.sim.world;
 import com.progolf.sim.career.Career;
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
+import com.progolf.sim.core.Rng;
 import com.progolf.sim.core.SeedCoordinate;
+import com.progolf.sim.core.Seeds;
+import com.progolf.sim.core.SplitMix64Rng;
+import com.progolf.sim.economy.CommercialReputation;
+import com.progolf.sim.economy.EconomyConstants;
+import com.progolf.sim.economy.FinancialAccount;
+import com.progolf.sim.economy.PerformanceSnapshot;
+import com.progolf.sim.economy.SponsorshipAgreement;
+import com.progolf.sim.economy.SponsorshipMarket;
+import com.progolf.sim.economy.SponsorshipOffer;
+import com.progolf.sim.economy.TransactionType;
 import com.progolf.sim.player.AttributeChange;
 import com.progolf.sim.course.Course;
 import com.progolf.sim.course.CourseGenerator;
@@ -55,6 +66,8 @@ public final class World {
     private final List<Course> coursePool = new ArrayList<>();
     private final WeatherSystem weatherSystem;
     private final List<EnvironmentalRecord> environmentalHistory = new ArrayList<>();
+    private final SponsorshipMarket sponsorshipMarket = new SponsorshipMarket();
+    private final Map<String, FinancialAccount> accounts = new LinkedHashMap<>();
     private final TourSystem tours = new TourSystem();
     private final WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
@@ -132,6 +145,7 @@ public final class World {
         String id = golfer.player().id();
         golfers.put(id, golfer);
         careers.put(id, new Career(golfer.player(), startAgeOf(golfer)));
+        accounts.put(id, new FinancialAccount(id, calendar.currentDate()));
         tours.register(id, tier);
         activeGolfers.add(id);
     }
@@ -212,7 +226,32 @@ public final class World {
         for (ProfessionalGolfer g : field) {
             careers.get(g.player().id()).recordTournament(result, date);
         }
+
+        // Economy: competing costs entry + travel; a paying finish awards prize money (REQ-178/182).
+        double entryFee = entryFeeFor(event.tier());
+        for (ProfessionalGolfer g : field) {
+            FinancialAccount account = accounts.get(g.player().id());
+            account.charge(TransactionType.ENTRY_FEE, entryFee, date, "Entry: " + def.name());
+            account.charge(TransactionType.TRAVEL, EconomyConstants.TRAVEL_COST, date, "Travel: " + def.name());
+        }
+        for (TournamentResult.Finish finish : result.finishingOrder()) {
+            if (finish.prize() > 0) {
+                accounts.get(finish.golfer().player().id())
+                        .award(TransactionType.PRIZE_MONEY, finish.prize(), date, "Prize: " + def.name());
+            }
+        }
+
         seasonResults.add(result);
+    }
+
+    /** Per-event entry fee by tour tier (more prestigious tours cost more to enter). */
+    private static double entryFeeFor(TourTier tier) {
+        return switch (tier) {
+            case ELITE -> EconomyConstants.ENTRY_FEE_ELITE;
+            case PRIMARY -> EconomyConstants.ENTRY_FEE_PRIMARY;
+            case SECONDARY -> EconomyConstants.ENTRY_FEE_SECONDARY;
+            case DEVELOPMENT -> EconomyConstants.ENTRY_FEE_DEVELOPMENT;
+        };
     }
 
     // --- Seasonal transition ---
@@ -239,6 +278,13 @@ public final class World {
             }
         }
 
+        // 3.5. Financial season for every surviving golfer: pay/evaluate sponsors, then sign new offers.
+        for (String id : new ArrayList<>(activeGolfers)) {
+            if (!careers.get(id).isRetired()) {
+                runFinancialSeason(id, season, date);
+            }
+        }
+
         // 4. Replenish departures so the population stays sufficient.
         for (String id : retirees) {
             activeGolfers.remove(id);
@@ -252,6 +298,88 @@ public final class World {
         archives.add(new SeasonArchive(season, schedule, seasonResults));
         seasonResults = new ArrayList<>();
         schedule = generateSchedule(season + 1);
+    }
+
+    /**
+     * Runs one golfer's end-of-season financial cycle (REQ-178/183/187/188): pay active sponsorships and
+     * evaluate their objectives (bonuses + standing), conclude ended agreements, then generate
+     * reputation-gated offers and sign the ones a deterministic policy accepts. The economy random stream
+     * is derived from an isolated per-golfer/season seed, so the world stays reproducible.
+     */
+    private void runFinancialSeason(String id, int season, LocalDate date) {
+        FinancialAccount account = accounts.get(id);
+        PerformanceSnapshot snapshot = buildPerformanceSnapshot(id, date);
+
+        for (SponsorshipAgreement agreement : account.activeAgreements(season)) {
+            account.award(TransactionType.SPONSORSHIP_INCOME, agreement.perSeasonPayment(), date,
+                    "Sponsor: " + agreement.sponsor());
+            var review = agreement.evaluate(snapshot);
+            if (review.bonusEarned() > 0) {
+                account.award(TransactionType.SPONSORSHIP_BONUS, review.bonusEarned(), date,
+                        "Objectives met: " + agreement.sponsor());
+            }
+            if (review.objectivesTotal() > 0) {
+                account.recordObjectiveOutcome(review.metFraction());
+            }
+        }
+        account.concludeExpiredAgreements(season);
+
+        long seed = Seeds.deriveSeed(
+                Seeds.deriveSeed(Seeds.deriveSeed(masterSeed, season), EconomyConstants.ECONOMY_SALT),
+                id.hashCode());
+        Rng rng = new SplitMix64Rng(seed);
+        CommercialReputation reputation = CommercialReputation.fromCompetitive(competitiveReputation(id, date), rng);
+        List<SponsorshipOffer> offers = sponsorshipMarket.generateOffers(reputation, season + 1, rng);
+        for (SponsorshipOffer offer : com.progolf.sim.economy.AcceptancePolicy.choose(account, offers, season + 1)) {
+            account.signSponsorship(offer.agreement(), date);
+        }
+    }
+
+    /** Builds a golfer's season performance from this season's results and the current ranking. */
+    private PerformanceSnapshot buildPerformanceSnapshot(String id, LocalDate date) {
+        int events = 0;
+        int wins = 0;
+        int madeCuts = 0;
+        int best = Integer.MAX_VALUE;
+        for (TournamentResult result : seasonResults) {
+            for (TournamentResult.Finish finish : result.finishingOrder()) {
+                if (finish.golfer().player().id().equals(id) && !finish.withdrawn()) {
+                    events++;
+                    if (finish.madeCut()) {
+                        madeCuts++;
+                    }
+                    if (finish.position() == 1) {
+                        wins++;
+                    }
+                    best = Math.min(best, finish.position());
+                    break;
+                }
+            }
+        }
+        int rankingPosition = ranking.rankingAsOf(date).positionOf(id).orElse(Integer.MAX_VALUE);
+        int careerWins = careers.get(id).statistics().wins();
+        return new PerformanceSnapshot(events, wins, madeCuts, best, rankingPosition, careerWins);
+    }
+
+    /**
+     * A golfer's [0,1] competitive reputation from ranking position and career wins, nudged by their
+     * commercial momentum (past objective outcomes). Fed to the sponsorship market (REQ-183/186).
+     */
+    private double competitiveReputation(String id, LocalDate date) {
+        RankingSnapshot snapshot = ranking.rankingAsOf(date);
+        int size = Math.max(1, snapshot.size());
+        double positionReputation = snapshot.positionOf(id)
+                .map(p -> 1.0 - (p - 1.0) / size)
+                .orElse(0.0);
+        int wins = careers.get(id).statistics().wins();
+        double winReputation = Math.min(1.0, wins * EconomyConstants.WIN_REPUTATION_WEIGHT);
+        double base = clamp01(EconomyConstants.POSITION_REPUTATION_WEIGHT * positionReputation
+                + EconomyConstants.WINS_REPUTATION_WEIGHT * winReputation);
+        return clamp01(base + accounts.get(id).commercialMomentum());
+    }
+
+    private static double clamp01(double v) {
+        return v < 0 ? 0 : Math.min(v, 1.0);
     }
 
     private List<ScheduledTournament> generateSchedule(int season) {
@@ -301,6 +429,11 @@ public final class World {
     /** Significant environmental history: events played under severe/record conditions (REQ-235). */
     public List<EnvironmentalRecord> environmentalHistory() {
         return List.copyOf(environmentalHistory);
+    }
+
+    /** A golfer's financial identity (funds, earnings, expenses, ledger, sponsorships) (REQ-177). */
+    public FinancialAccount financialAccountOf(String golferId) {
+        return accounts.get(golferId);
     }
 
     /** The current World Ranking as of the calendar date. */
