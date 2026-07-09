@@ -3,11 +3,12 @@ package com.progolf.sim.tournament;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.player.DecisionPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
-import com.progolf.sim.shot.Environment;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.RoundOutcome;
 import com.progolf.sim.shot.RoundResolver;
 import com.progolf.sim.shot.Strategy;
+import com.progolf.sim.weather.PlayingConditions;
+import com.progolf.sim.weather.TournamentWeather;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -25,6 +26,7 @@ import java.util.Objects;
 public final class Tournament {
 
     private final TournamentDefinition definition;
+    private final TournamentWeather weather;
     private final List<TournamentEntry> entries = new ArrayList<>();
     private final List<CompetitorStanding> standings = new ArrayList<>();
 
@@ -34,7 +36,16 @@ public final class Tournament {
     private TournamentResult result;
 
     public Tournament(TournamentDefinition definition) {
+        this(definition, TournamentWeather.calm());
+    }
+
+    /**
+     * Creates a Tournament played under supplied Playing Conditions (REQ-231). Every round resolves under
+     * that round's shared conditions; a tournament created without weather defaults to calm.
+     */
+    public Tournament(TournamentDefinition definition, TournamentWeather weather) {
         this.definition = Objects.requireNonNull(definition, "definition");
+        this.weather = Objects.requireNonNull(weather, "weather");
     }
 
     public TournamentState state() {
@@ -162,6 +173,8 @@ public final class Tournament {
     private int playCompetitorRound(CompetitorStanding s, int roundNo) {
         ProfessionalGolfer g = s.golfer();
         Strategy strategy = g.policy().map(DecisionPolicy::defaultStrategy).orElse(Strategy.BALANCED);
+        PlayingConditions conditions = weather.conditionsForRound(roundNo);
+        double exposure = definition.course().identity().classification().exposure();
         int strokes = 0;
         for (int hole = 1; hole <= 18; hole++) {
             HoleModel model = definition.course().holeModel(hole, roundNo);
@@ -170,7 +183,7 @@ public final class Tournament {
                     roundNo, s.fieldIndex(), hole, 0);
             RoundOutcome out = RoundResolver.resolveHole(
                     model, g.player().attributes(), g.player().toGolferState(0.0),
-                    Environment.calm(), strategy, coord);
+                    conditions.environmentForHole(hole, exposure), strategy, coord);
             strokes += out.totalStrokes();
         }
         return strokes - definition.course().totalPar();
@@ -246,15 +259,21 @@ public final class Tournament {
         for (CompetitorStanding s : contenders()) {
             tied.add(new TournamentEntry(s.golfer(), s.fieldIndex()));
         }
-        return suddenDeath(definition, tied);
+        return suddenDeath(definition, weather, tied);
+    }
+
+    /** Calm-conditions sudden death (backward-compatible entry used by standalone tests). */
+    static ProfessionalGolfer suddenDeath(TournamentDefinition definition, List<TournamentEntry> tied) {
+        return suddenDeath(definition, TournamentWeather.calm(), tied);
     }
 
     /**
      * Deterministic sudden-death resolution among tied competitors (REQ-095). Package-private and static
      * so it is independently testable: given two or more tied golfers, it always returns exactly one
-     * winner, reproducibly.
+     * winner, reproducibly. Playoff holes are played under the tournament's final-round conditions.
      */
-    static ProfessionalGolfer suddenDeath(TournamentDefinition definition, List<TournamentEntry> tied) {
+    static ProfessionalGolfer suddenDeath(TournamentDefinition definition, TournamentWeather weather,
+                                          List<TournamentEntry> tied) {
         if (tied.isEmpty()) {
             throw new IllegalArgumentException("Playoff requires at least one competitor");
         }
@@ -265,7 +284,7 @@ public final class Tournament {
             int best = Integer.MAX_VALUE;
             List<TournamentEntry> survivors = new ArrayList<>();
             for (TournamentEntry e : remaining) {
-                int strokes = playPlayoffHole(definition, e, holeNumber, playoffRound);
+                int strokes = playPlayoffHole(definition, weather, e, holeNumber, playoffRound);
                 if (strokes < best) {
                     best = strokes;
                     survivors.clear();
@@ -286,16 +305,20 @@ public final class Tournament {
                 .golfer();
     }
 
-    private static int playPlayoffHole(TournamentDefinition definition, TournamentEntry e, int holeNumber, int playoffRound) {
+    private static int playPlayoffHole(TournamentDefinition definition, TournamentWeather weather,
+                                       TournamentEntry e, int holeNumber, int playoffRound) {
         ProfessionalGolfer g = e.golfer();
         Strategy strategy = g.policy().map(DecisionPolicy::defaultStrategy).orElse(Strategy.BALANCED);
         HoleModel model = definition.course().holeModel(holeNumber, playoffRound);
         SeedCoordinate coord = new SeedCoordinate(
                 definition.worldSeed(), definition.seasonId(), definition.tournamentId(),
                 playoffRound, e.fieldIndex(), holeNumber, 0);
+        // Playoff holes are played under the final round's shared conditions (conditionsForRound clamps).
+        PlayingConditions conditions = weather.conditionsForRound(playoffRound);
+        double exposure = definition.course().identity().classification().exposure();
         RoundOutcome out = RoundResolver.resolveHole(
                 model, g.player().attributes(), g.player().toGolferState(0.0),
-                Environment.calm(), strategy, coord);
+                conditions.environmentForHole(holeNumber, exposure), strategy, coord);
         return out.totalStrokes();
     }
 

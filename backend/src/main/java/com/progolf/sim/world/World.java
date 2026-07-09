@@ -22,6 +22,10 @@ import com.progolf.sim.tournament.Tournament;
 import com.progolf.sim.tournament.TournamentDefinition;
 import com.progolf.sim.tournament.TournamentFormat;
 import com.progolf.sim.tournament.TournamentResult;
+import com.progolf.sim.weather.EnvironmentalRecord;
+import com.progolf.sim.weather.TournamentWeather;
+import com.progolf.sim.weather.WeatherConstants;
+import com.progolf.sim.weather.WeatherSystem;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -49,6 +53,8 @@ public final class World {
     private final WorldCalendar calendar;
 
     private final List<Course> coursePool = new ArrayList<>();
+    private final WeatherSystem weatherSystem;
+    private final List<EnvironmentalRecord> environmentalHistory = new ArrayList<>();
     private final TourSystem tours = new TourSystem();
     private final WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
@@ -66,6 +72,7 @@ public final class World {
     private World(long masterSeed, WorldConfig config) {
         this.masterSeed = masterSeed;
         this.config = config;
+        this.weatherSystem = new WeatherSystem(masterSeed);
         this.calendar = new WorldCalendar(config.weeksPerSeason(), WorldConstants.BASE_YEAR);
     }
 
@@ -176,13 +183,28 @@ public final class World {
                 PrizeStructure.standard(), TournamentFormat.standard(), date,
                 masterSeed, calendar.currentSeason(), event.tournamentId());
 
-        Tournament tournament = new Tournament(def);
+        // Weather is generated before play from the course's climate and the point in the season; the
+        // whole field plays under the same per-round conditions (REQ-228/231/232).
+        int weeksPerSeason = calendar.weeksPerSeason();
+        double seasonPhase = weeksPerSeason > 1 ? (double) (event.week() - 1) / (weeksPerSeason - 1) : 0.0;
+        TournamentWeather weather = weatherSystem.generate(
+                calendar.currentSeason(), event.tournamentId(), seasonPhase,
+                course.identity().classification(), def.format().rounds());
+
+        Tournament tournament = new Tournament(def, weather);
         tournament.openRegistration();
         for (ProfessionalGolfer g : field) {
             tournament.register(g);
         }
         tournament.confirmField();
         TournamentResult result = tournament.playToCompletion();
+
+        // Preserve historically significant environmental context (REQ-235).
+        if (weather.severity() >= WeatherConstants.SEVERITY_THRESHOLD) {
+            environmentalHistory.add(new EnvironmentalRecord(
+                    calendar.currentSeason(), event.tournamentId(), weather.severity(),
+                    tier + " Event " + event.tournamentId() + " played in severe conditions"));
+        }
 
         // Feed the one result to every consumer (each owns its own computation).
         ranking.record(result, tier, date, event.tournamentId());
@@ -274,6 +296,11 @@ public final class World {
 
     public List<RankingSnapshot> rankingSnapshots() {
         return List.copyOf(rankingSnapshots);
+    }
+
+    /** Significant environmental history: events played under severe/record conditions (REQ-235). */
+    public List<EnvironmentalRecord> environmentalHistory() {
+        return List.copyOf(environmentalHistory);
     }
 
     /** The current World Ranking as of the calendar date. */
