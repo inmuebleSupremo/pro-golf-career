@@ -28,6 +28,11 @@ import com.progolf.sim.health.HealthConstants;
 import com.progolf.sim.health.HealthEvent;
 import com.progolf.sim.health.HealthSystem;
 import com.progolf.sim.health.PhysicalState;
+import com.progolf.sim.media.CareerNarrative;
+import com.progolf.sim.media.MediaConstants;
+import com.progolf.sim.media.MediaSystem;
+import com.progolf.sim.media.NewsEvent;
+import com.progolf.sim.media.NewsFactory;
 import com.progolf.sim.player.AttributeChange;
 import com.progolf.sim.staff.HiringPolicy;
 import com.progolf.sim.staff.StaffConstants;
@@ -93,6 +98,9 @@ public final class World {
     private final StaffMarket staffMarket = new StaffMarket();
     private final Map<String, EquipmentInventory> equipment = new LinkedHashMap<>();
     private final Map<String, TournamentLoadout> loadouts = new LinkedHashMap<>();
+    private final MediaSystem media = new MediaSystem();
+    private String previousNumberOne; // for detecting world number-one changes
+    private final Set<String> announcedProspects = new LinkedHashSet<>(); // rising prospects reported once
     private final TourSystem tours = new TourSystem();
     private final WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
@@ -220,8 +228,9 @@ public final class World {
             physicalStates.put(id, after);
             if (before.injury().isPresent() && after.injury().isEmpty()
                     && before.injury().get().severity().significant()) {
-                healthHistory.add(new HealthEvent(season, id, HealthEvent.Type.COMEBACK,
-                        "Returned from " + before.injury().get().severity() + " " + before.injury().get().type()));
+                String description = "Returned from " + before.injury().get().severity() + " " + before.injury().get().type();
+                healthHistory.add(new HealthEvent(season, id, HealthEvent.Type.COMEBACK, description));
+                media.publish(NewsFactory.comeback(season, id, nameOf(id), description));
             }
         }
     }
@@ -280,11 +289,18 @@ public final class World {
         tournament.confirmField();
         TournamentResult result = tournament.playToCompletion();
 
-        // Preserve historically significant environmental context (REQ-235).
+        int season = calendar.currentSeason();
+        ProfessionalGolfer winner = result.winner();
+        String winnerId = winner.player().id();
+        // The winner's ranking BEFORE this event feeds the upset test (a low-ranked winner is an upset).
+        int winnerRankBefore = ranking.rankingAsOf(date).positionOf(winnerId).orElse(Integer.MAX_VALUE);
+
+        // Preserve historically significant environmental context (REQ-235) and report it (REQ-241).
         if (weather.severity() >= WeatherConstants.SEVERITY_THRESHOLD) {
             environmentalHistory.add(new EnvironmentalRecord(
-                    calendar.currentSeason(), event.tournamentId(), weather.severity(),
+                    season, event.tournamentId(), weather.severity(),
                     tier + " Event " + event.tournamentId() + " played in severe conditions"));
+            media.publish(NewsFactory.severeWeather(season, def.name()));
         }
 
         // Feed the one result to every consumer (each owns its own computation).
@@ -292,6 +308,16 @@ public final class World {
         tours.recordResult(result, event.tier());
         for (ProfessionalGolfer g : field) {
             careers.get(g.player().id()).recordTournament(result, date);
+        }
+
+        // Media: the win, any maiden title, and any upset — all from the real result (REQ-241/242).
+        String winnerName = winner.player().identity().fullName();
+        media.publish(NewsFactory.tournamentVictory(season, winnerId, winnerName, def.name()));
+        if (careers.get(winnerId).statistics().wins() == 1) {
+            media.publish(NewsFactory.maidenVictory(season, winnerId, winnerName, def.name()));
+        }
+        if (winnerRankBefore > MediaConstants.UPSET_RANKING_THRESHOLD) {
+            media.publish(NewsFactory.majorUpset(season, winnerId, winnerName, def.name(), winnerRankBefore));
         }
 
         // Economy: competing costs entry + travel; a paying finish awards prize money (REQ-178/182).
@@ -309,7 +335,6 @@ public final class World {
         }
 
         // Health: competing accrues fatigue and may cause an injury (REQ-217/219).
-        int season = calendar.currentSeason();
         for (ProfessionalGolfer g : field) {
             String id = g.player().id();
             PhysicalState before = physicalStates.get(id);
@@ -320,8 +345,9 @@ public final class World {
             physicalStates.put(id, after);
             if (before.injury().isEmpty() && after.injury().isPresent()
                     && after.injury().get().severity().significant()) {
-                healthHistory.add(new HealthEvent(season, id, HealthEvent.Type.INJURY,
-                        after.injury().get().severity() + " " + after.injury().get().type() + " injury"));
+                String description = after.injury().get().severity() + " " + after.injury().get().type() + " injury";
+                healthHistory.add(new HealthEvent(season, id, HealthEvent.Type.INJURY, description));
+                media.publish(NewsFactory.injury(season, id, nameOf(id), description));
             }
         }
 
@@ -344,11 +370,21 @@ public final class World {
         int season = calendar.currentSeason();
         LocalDate date = calendar.dateFor(season, calendar.weeksPerSeason());
 
-        // 1. Season-ending ranking snapshot.
-        rankingSnapshots.add(ranking.rankingAsOf(date));
+        // 1. Season-ending ranking snapshot; report a change at the very top (REQ-241/246).
+        RankingSnapshot snapshot = ranking.rankingAsOf(date);
+        rankingSnapshots.add(snapshot);
+        snapshot.leader().ifPresent(leader -> {
+            if (!leader.golferId().equals(previousNumberOne)) {
+                media.publish(NewsFactory.worldNumberOne(season, leader.golferId(), nameOf(leader.golferId())));
+                previousNumberOne = leader.golferId();
+            }
+        });
 
-        // 2. Tour promotion/relegation (golfers who competed this season are still members).
-        tours.reviewSeasonEnd();
+        // 2. Tour promotion/relegation; report promotions (REQ-241).
+        for (var movement : tours.reviewSeasonEnd().promotions()) {
+            media.publish(NewsFactory.promotion(season, movement.golferId(), nameOf(movement.golferId()),
+                    movement.toTier().name()));
+        }
 
         // 3. Advance every active Career one season; collect retirees; evolve survivors' attributes.
         List<String> retirees = new ArrayList<>();
@@ -357,6 +393,7 @@ public final class World {
             career.advanceSeason(date);
             if (career.isRetired()) {
                 retirees.add(id);
+                media.publish(NewsFactory.retirement(season, id, nameOf(id), career.statistics().wins()));
             } else {
                 evolveGolfer(golfers.get(id), career.age(), season);
             }
@@ -368,6 +405,21 @@ public final class World {
                 runFinancialSeason(id, season, date);
                 runStaffSeason(id, season, date);
                 runEquipmentSeason(id, season, date);
+            }
+        }
+
+        // 3.6. Media: announce rising prospects the first time they crack the top ranks (REQ-248).
+        RankingSnapshot standings = ranking.rankingAsOf(date);
+        for (String id : activeGolfers) {
+            Career career = careers.get(id);
+            if (career.isRetired() || announcedProspects.contains(id)) {
+                continue;
+            }
+            int position = standings.positionOf(id).orElse(Integer.MAX_VALUE);
+            if (career.age() <= MediaConstants.PROSPECT_MAX_AGE && career.statistics().wins() == 0
+                    && position <= MediaConstants.PROSPECT_RANKING) {
+                media.publish(NewsFactory.risingProspect(season, id, nameOf(id), position));
+                announcedProspects.add(id);
             }
         }
 
@@ -595,6 +647,34 @@ public final class World {
     /** A golfer's current Tournament Loadout (REQ-205). */
     public TournamentLoadout tournamentLoadoutOf(String golferId) {
         return loadouts.get(golferId);
+    }
+
+    /** The World Narrative: the full media news feed in publication order (REQ-245). */
+    public List<NewsEvent> newsFeed() {
+        return media.feed();
+    }
+
+    /** Historically significant news, which remains discoverable (REQ-246). */
+    public List<NewsEvent> significantNews() {
+        return media.significantNews();
+    }
+
+    /** All news about a particular golfer. */
+    public List<NewsEvent> newsForGolfer(String golferId) {
+        return media.newsForGolfer(golferId);
+    }
+
+    /** A golfer's current descriptive Career Narrative (REQ-244). */
+    public CareerNarrative careerNarrativeOf(String golferId) {
+        Career career = careers.get(golferId);
+        int position = ranking.rankingAsOf(calendar.currentDate()).positionOf(golferId).orElse(Integer.MAX_VALUE);
+        return media.careerNarrative(golferId, career.age(), career.seasons().size(),
+                career.statistics().wins(), position, calendar.currentSeason());
+    }
+
+    /** A golfer's full display name, for news headlines. */
+    private String nameOf(String golferId) {
+        return golfers.get(golferId).player().identity().fullName();
     }
 
     /** The current World Ranking as of the calendar date. */
