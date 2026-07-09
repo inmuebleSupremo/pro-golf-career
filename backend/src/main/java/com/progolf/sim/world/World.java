@@ -15,6 +15,10 @@ import com.progolf.sim.economy.SponsorshipAgreement;
 import com.progolf.sim.economy.SponsorshipMarket;
 import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.economy.TransactionType;
+import com.progolf.sim.health.HealthConstants;
+import com.progolf.sim.health.HealthEvent;
+import com.progolf.sim.health.HealthSystem;
+import com.progolf.sim.health.PhysicalState;
 import com.progolf.sim.player.AttributeChange;
 import com.progolf.sim.course.Course;
 import com.progolf.sim.course.CourseGenerator;
@@ -68,6 +72,8 @@ public final class World {
     private final List<EnvironmentalRecord> environmentalHistory = new ArrayList<>();
     private final SponsorshipMarket sponsorshipMarket = new SponsorshipMarket();
     private final Map<String, FinancialAccount> accounts = new LinkedHashMap<>();
+    private final Map<String, PhysicalState> physicalStates = new LinkedHashMap<>();
+    private final List<HealthEvent> healthHistory = new ArrayList<>();
     private final TourSystem tours = new TourSystem();
     private final WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
@@ -146,6 +152,8 @@ public final class World {
         golfers.put(id, golfer);
         careers.put(id, new Career(golfer.player(), startAgeOf(golfer)));
         accounts.put(id, new FinancialAccount(id, calendar.currentDate()));
+        physicalStates.put(id, HealthSystem.initialState(
+                new SplitMix64Rng(Seeds.deriveSeed(Seeds.deriveSeed(masterSeed, HealthConstants.HEALTH_SALT), id.hashCode()))));
         tours.register(id, tier);
         activeGolfers.add(id);
     }
@@ -163,10 +171,26 @@ public final class World {
                 resolveEvent(event);
             }
         }
+        recoverHealth(); // fatigue recovers and rehabilitation advances each week (REQ-218/220)
         if (calendar.isSeasonEnd()) {
             seasonalTransition();
         }
         calendar.advance();
+    }
+
+    /** Advances every active golfer's recovery by one week, recording comebacks from significant injuries. */
+    private void recoverHealth() {
+        int season = calendar.currentSeason();
+        for (String id : activeGolfers) {
+            PhysicalState before = physicalStates.get(id);
+            PhysicalState after = HealthSystem.recoverWeek(before, careers.get(id).age());
+            physicalStates.put(id, after);
+            if (before.injury().isPresent() && after.injury().isEmpty()
+                    && before.injury().get().severity().significant()) {
+                healthHistory.add(new HealthEvent(season, id, HealthEvent.Type.COMEBACK,
+                        "Returned from " + before.injury().get().severity() + " " + before.injury().get().type()));
+            }
+        }
     }
 
     /** Advances a whole season (its remaining weeks). */
@@ -180,6 +204,7 @@ public final class World {
     private void resolveEvent(ScheduledTournament event) {
         List<ProfessionalGolfer> field = tours.standings(event.tier()).stream()
                 .filter(activeGolfers::contains)
+                .filter(id -> physicalStates.get(id).canCompete()) // availability gates entry (REQ-221)
                 .limit(config.fieldSize())
                 .map(golfers::get)
                 .toList();
@@ -204,6 +229,11 @@ public final class World {
         TournamentWeather weather = weatherSystem.generate(
                 calendar.currentSeason(), event.tournamentId(), seasonPhase,
                 course.identity().classification(), def.format().rounds());
+
+        // Sync each competitor's accumulated fatigue into the shot engine so tired golfers play worse (REQ-225).
+        for (ProfessionalGolfer g : field) {
+            g.player().state().setFatigue(physicalStates.get(g.player().id()).fatigue());
+        }
 
         Tournament tournament = new Tournament(def, weather);
         tournament.openRegistration();
@@ -238,6 +268,23 @@ public final class World {
             if (finish.prize() > 0) {
                 accounts.get(finish.golfer().player().id())
                         .award(TransactionType.PRIZE_MONEY, finish.prize(), date, "Prize: " + def.name());
+            }
+        }
+
+        // Health: competing accrues fatigue and may cause an injury (REQ-217/219).
+        int season = calendar.currentSeason();
+        for (ProfessionalGolfer g : field) {
+            String id = g.player().id();
+            PhysicalState before = physicalStates.get(id);
+            SplitMix64Rng rng = new SplitMix64Rng(Seeds.deriveSeed(Seeds.deriveSeed(
+                    Seeds.deriveSeed(Seeds.deriveSeed(masterSeed, HealthConstants.HEALTH_SALT), season),
+                    event.tournamentId()), id.hashCode()));
+            PhysicalState after = HealthSystem.afterParticipation(before, careers.get(id).age(), rng);
+            physicalStates.put(id, after);
+            if (before.injury().isEmpty() && after.injury().isPresent()
+                    && after.injury().get().severity().significant()) {
+                healthHistory.add(new HealthEvent(season, id, HealthEvent.Type.INJURY,
+                        after.injury().get().severity() + " " + after.injury().get().type() + " injury"));
             }
         }
 
@@ -434,6 +481,16 @@ public final class World {
     /** A golfer's financial identity (funds, earnings, expenses, ledger, sponsorships) (REQ-177). */
     public FinancialAccount financialAccountOf(String golferId) {
         return accounts.get(golferId);
+    }
+
+    /** A golfer's current Physical State (fitness, fatigue, injury, availability) (REQ-215). */
+    public PhysicalState physicalStateOf(String golferId) {
+        return physicalStates.get(golferId);
+    }
+
+    /** Significant health events (major injuries and comebacks) across the world (REQ-223). */
+    public List<HealthEvent> healthHistory() {
+        return List.copyOf(healthHistory);
     }
 
     /** The current World Ranking as of the calendar date. */

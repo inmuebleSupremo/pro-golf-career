@@ -1,0 +1,32 @@
+## Why
+
+Golfers today are tireless and indestructible: they play every event they qualify for at full capacity forever, so there is no workload to manage, no durability to prize, and no injury comeback to narrate. The scaffolding is already there — the shot engine reads `player.state().fatigue()`, and the field is drawn from tour standings — but nothing ever fills fatigue or sits a golfer down. Health, Fitness & Recovery is the layer that makes the body matter: fatigue accumulates from competing and travelling and drags on performance, fitness and age shape how fast a golfer wears down and bounces back, injuries force real time away, and availability decides who can even tee it up. It turns a schedule from a formality into a decision and gives long careers a physical arc — the resilient iron-man, the injury-hit talent, the veteran managing a fragile back.
+
+## What Changes
+
+- Give every Professional Golfer a persistent **Physical State** (REQ-215/216/217): `fitness` (long-term preparedness), `fatigue` (accumulated wear), and an optional `injury`, tracked continuously and available to dependent systems.
+- **Accrue and recover fatigue** (REQ-217/218): competing and travelling add fatigue (moderated by fitness and age); rest weeks recover it gradually and believably. Fatigue is **synced into shot resolution**, so a tired golfer genuinely plays worse.
+- Model **injury and rehabilitation** (REQ-219/220): injuries occur (more likely when fatigued, unfit, or older), reduce capability by removing the golfer from competition, and heal only through **gradual rehabilitation** — never instantaneously; significant injuries enter health history.
+- Derive **Availability** (REQ-221/222) — Available / Resting / Recovering / Injured — from Physical State, and **gate tournament entry** by it: injured, recovering, or over-fatigued (resting) golfers do not enter events, creating a genuine workload-management tension.
+- Contribute **health events to career narrative** (REQ-223/226): injuries, comebacks, and durable healthy stretches are recorded, and long-term resilience varies believably by golfer and age — emerging from the interaction of systems, not scripted.
+- **Wire health into the World** (modifies `world-progression`): the World gives each golfer a physical state, filters each field by availability, syncs fatigue into shot resolution, accrues fatigue and rolls injuries after events, recovers fatigue and advances rehabilitation each week, and records significant health events — deterministically, keeping the world reproducible. The same system applies to every golfer regardless of control type (REQ-224).
+
+Explicitly out of scope, per REQ-225/227: the Health domain is the authoritative **Physical State** but is **not responsible for tournament scoring, rankings, financial management, player progression, or shot resolution** — dependent systems reference physical state without owning it (the shot engine reads fatigue; it is not health's job to score). Also deferred: staff-driven recovery/prevention (Staff domain), player-facing schedule/rest UI (Presentation; availability is derived automatically for now), injuries permanently regressing attributes (progression stays the only attribute mutator), and fine-grained travel/scheduling models. Health is deterministic — recovery and accrual are pure, and injury rolls draw from an isolated seed stream — so a seeded world stays reproducible.
+
+## Capabilities
+
+### New Capabilities
+- `physical-state`: A persistent per-golfer Physical State — fitness (long-term preparedness), fatigue (accumulated wear, recovering naturally over time), and injury — tracked continuously, available to dependent systems, using the same system for all control types, with resilience that varies believably by golfer and age (REQ-215/216/217/218/224/226).
+- `injury-recovery`: Injuries that temporarily reduce capability, occur believably from physical strain, enter health history when significant, and heal only through gradual rehabilitation — never as an instantaneous event (REQ-219/220).
+- `availability`: A current Availability status (Available / Resting / Recovering / Injured) derived from Physical State that determines event eligibility, creating a workload-management tension; dependent systems reference physical state without becoming its authoritative source; and the domain-responsibility boundary (REQ-221/222/225/227).
+
+### Modified Capabilities
+- `world-progression`: The World gives each golfer a physical state, gates each field by availability, syncs fatigue into shot resolution, accrues fatigue and rolls injuries after events, recovers fatigue and advances rehabilitation weekly, and records significant health events — deterministically, keeping the world reproducible.
+
+## Impact
+
+- **Codebase**: New framework-free `com.progolf.sim.health` package (`PhysicalState`, `Fitness`/`Fatigue` as fields, `Injury`/`InjuryType`/`InjurySeverity`, `Availability`, `HealthSystem`, `HealthEvent`, `HealthConstants`). `World` gains a `Map<String, PhysicalState>` created at `admit`, an availability filter in `resolveEvent`, a fatigue sync into `player.state().setFatigue(...)` before play, post-event fatigue/injury accrual, weekly recovery in `advanceWeek`, and a health-event history.
+- **Determinism**: recovery and fatigue accrual are pure functions of state/age; injury rolls draw from an isolated per-golfer/week seed stream (via `Seeds`/`SplitMix64Rng`), so worlds stay reproducible.
+- **DAG**: `health` depends only on `core` (RNG). It owns Physical State; the World consumes it — reads availability to gate entry and syncs fatigue into the player's transient state (a public op) so the shot engine reflects it. `health` imports no other domain; only `world` imports `health`.
+- **Downstream consumers (future changes)**: Staff can improve recovery/reduce injury risk; the Economy already models expenses that a workload interacts with; Media/legacy can surface comeback narratives; Presentation surfaces availability and schedule decisions.
+- **Boundary/risk**: Health is the authoritative Physical State but touches no scoring/ranking/attribute state — the only cross-domain write is syncing fatigue into the player's own transient state via its public setter (the shot engine already reads it). Gating fields by availability and feeding fatigue into shots changes competitive outcomes; both are deterministic and guarded by the World's full-run reproducibility test, and fields degrade gracefully when golfers are unavailable.
