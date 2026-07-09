@@ -20,8 +20,17 @@ public final class ProgressionEngine {
      * developed attributes.
      */
     public static Attributes develop(Attributes current, int age) {
+        return develop(current, age, 1.0);
+    }
+
+    /**
+     * Applies one season of development with a development-support factor (REQ-197): the awarded
+     * Development Points are scaled by {@code supportFactor} (1.0 = unsupported) before allocation. A
+     * coach raises this factor; attributes still change only through the sanctioned, capped allocation.
+     */
+    public static Attributes develop(Attributes current, int age, double supportFactor) {
         CareerStage stage = CareerStage.of(age);
-        int points = DevelopmentPoints.award(stage);
+        int points = (int) Math.round(DevelopmentPoints.award(stage) * Math.max(0.0, supportFactor));
         Map<Attribute, Integer> allocation = AllocationPolicy.aiAllocate(current, points);
         return applyAllocation(current, allocation);
     }

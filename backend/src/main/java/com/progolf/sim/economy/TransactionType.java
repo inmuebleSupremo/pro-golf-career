@@ -14,6 +14,8 @@ public enum TransactionType {
     ENTRY_FEE(Category.EXPENSE),
     TRAVEL(Category.EXPENSE),
     ACCOMMODATION(Category.EXPENSE),
+    STAFF_HIRING(Category.EXPENSE),
+    STAFF_SALARY(Category.EXPENSE),
     DISCRETIONARY(Category.EXPENSE);
 
     /** The career total a transaction contributes to. */

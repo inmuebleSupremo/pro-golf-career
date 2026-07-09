@@ -20,6 +20,12 @@ import com.progolf.sim.health.HealthEvent;
 import com.progolf.sim.health.HealthSystem;
 import com.progolf.sim.health.PhysicalState;
 import com.progolf.sim.player.AttributeChange;
+import com.progolf.sim.staff.HiringPolicy;
+import com.progolf.sim.staff.StaffConstants;
+import com.progolf.sim.staff.StaffMarket;
+import com.progolf.sim.staff.StaffMember;
+import com.progolf.sim.staff.StaffRole;
+import com.progolf.sim.staff.SupportTeam;
 import com.progolf.sim.course.Course;
 import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.EnvironmentClassification;
@@ -74,6 +80,8 @@ public final class World {
     private final Map<String, FinancialAccount> accounts = new LinkedHashMap<>();
     private final Map<String, PhysicalState> physicalStates = new LinkedHashMap<>();
     private final List<HealthEvent> healthHistory = new ArrayList<>();
+    private final Map<String, SupportTeam> supportTeams = new LinkedHashMap<>();
+    private final StaffMarket staffMarket = new StaffMarket();
     private final TourSystem tours = new TourSystem();
     private final WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
@@ -154,6 +162,7 @@ public final class World {
         accounts.put(id, new FinancialAccount(id, calendar.currentDate()));
         physicalStates.put(id, HealthSystem.initialState(
                 new SplitMix64Rng(Seeds.deriveSeed(Seeds.deriveSeed(masterSeed, HealthConstants.HEALTH_SALT), id.hashCode()))));
+        supportTeams.put(id, new SupportTeam());
         tours.register(id, tier);
         activeGolfers.add(id);
     }
@@ -184,6 +193,11 @@ public final class World {
         for (String id : activeGolfers) {
             PhysicalState before = physicalStates.get(id);
             PhysicalState after = HealthSystem.recoverWeek(before, careers.get(id).age());
+            // Fitness coach / physiotherapist add extra weekly recovery (REQ-197).
+            double recoveryBonus = supportTeams.get(id).effects().recoveryBonus();
+            if (recoveryBonus > 0) {
+                after = after.withFatigue(Math.max(0.0, after.fatigue() - recoveryBonus));
+            }
             physicalStates.put(id, after);
             if (before.injury().isPresent() && after.injury().isEmpty()
                     && before.injury().get().severity().significant()) {
@@ -329,6 +343,7 @@ public final class World {
         for (String id : new ArrayList<>(activeGolfers)) {
             if (!careers.get(id).isRetired()) {
                 runFinancialSeason(id, season, date);
+                runStaffSeason(id, season, date);
             }
         }
 
@@ -380,6 +395,36 @@ public final class World {
         for (SponsorshipOffer offer : com.progolf.sim.economy.AcceptancePolicy.choose(account, offers, season + 1)) {
             account.signSponsorship(offer.agreement(), date);
         }
+    }
+
+    /**
+     * Runs one golfer's end-of-season staff cycle (REQ-195/196/198): pay employed staff salaries through
+     * the Economy, release the costliest member while in the red, then hire one new member per the
+     * deterministic policy if affordable. Deterministic from an isolated per-golfer/season seed.
+     */
+    private void runStaffSeason(String id, int season, LocalDate date) {
+        SupportTeam team = supportTeams.get(id);
+        FinancialAccount account = accounts.get(id);
+
+        // 1. Salaries are a mandatory ongoing commitment (may drive funds negative).
+        for (StaffMember member : team.members()) {
+            account.charge(TransactionType.STAFF_SALARY, member.seasonalSalary(), date, "Salary: " + member.role());
+        }
+        // 2. Under financial pressure, release the costliest member (a recorded departure), one per season.
+        if (account.availableFunds() < StaffConstants.RELEASE_THRESHOLD && team.size() > 0) {
+            team.release(team.mostExpensiveRole(), season);
+        }
+        // 3. Hire one new member per the deterministic policy if it is affordable (discretionary spend).
+        int age = careers.get(id).age();
+        HiringPolicy.chooseRole(team, age).ifPresent(role -> {
+            Rng rng = new SplitMix64Rng(Seeds.deriveSeed(Seeds.deriveSeed(Seeds.deriveSeed(
+                    Seeds.deriveSeed(masterSeed, StaffConstants.STAFF_SALT), season), id.hashCode()), role.ordinal()));
+            StaffMember candidate = staffMarket.generate(role, rng);
+            if (HiringPolicy.canAfford(account.availableFunds(), candidate)
+                    && account.spend(TransactionType.STAFF_HIRING, candidate.hiringCost(), date, "Hire: " + role)) {
+                team.hire(candidate, season);
+            }
+        });
     }
 
     /** Builds a golfer's season performance from this season's results and the current ranking. */
@@ -493,6 +538,11 @@ public final class World {
         return List.copyOf(healthHistory);
     }
 
+    /** A golfer's Support Team (current staff plus relationship history) (REQ-191). */
+    public SupportTeam supportTeamOf(String golferId) {
+        return supportTeams.get(golferId);
+    }
+
     /** The current World Ranking as of the calendar date. */
     public RankingSnapshot currentRanking() {
         return ranking.rankingAsOf(calendar.currentDate());
@@ -512,7 +562,9 @@ public final class World {
 
     /** Applies one season of development then aging to a golfer's attributes (REQ-152/159). */
     private void evolveGolfer(ProfessionalGolfer golfer, int age, int season) {
-        Attributes developed = ProgressionEngine.develop(golfer.player().attributes(), age);
+        // A coach enhances development by scaling the season's Development Points (REQ-197).
+        double developmentFactor = 1.0 + supportTeams.get(golfer.player().id()).effects().developmentBonus();
+        Attributes developed = ProgressionEngine.develop(golfer.player().attributes(), age, developmentFactor);
         golfer.player().evolveAttributes(developed, AttributeChange.Reason.DEVELOPMENT, season);
         Attributes aged = ProgressionEngine.age(golfer.player().attributes(), age);
         golfer.player().evolveAttributes(aged, AttributeChange.Reason.AGING, season);
