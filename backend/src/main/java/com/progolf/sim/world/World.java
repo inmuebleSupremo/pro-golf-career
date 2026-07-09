@@ -2,12 +2,15 @@ package com.progolf.sim.world;
 
 import com.progolf.sim.career.Career;
 import com.progolf.sim.core.Attribute;
+import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeedCoordinate;
+import com.progolf.sim.player.AttributeChange;
 import com.progolf.sim.course.Course;
 import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.population.PopulationGenerator;
+import com.progolf.sim.progression.ProgressionEngine;
 import com.progolf.sim.ranking.RankingSnapshot;
 import com.progolf.sim.ranking.WorldRanking;
 import com.progolf.sim.tour.TourSystem;
@@ -202,13 +205,15 @@ public final class World {
         // 2. Tour promotion/relegation (golfers who competed this season are still members).
         tours.reviewSeasonEnd();
 
-        // 3. Advance every active Career one season; collect retirees.
+        // 3. Advance every active Career one season; collect retirees; evolve survivors' attributes.
         List<String> retirees = new ArrayList<>();
         for (String id : new ArrayList<>(activeGolfers)) {
             Career career = careers.get(id);
             career.advanceSeason(date);
             if (career.isRetired()) {
                 retirees.add(id);
+            } else {
+                evolveGolfer(golfers.get(id), career.age(), season);
             }
         }
 
@@ -287,6 +292,14 @@ public final class World {
     }
 
     // --- Helpers ---
+
+    /** Applies one season of development then aging to a golfer's attributes (REQ-152/159). */
+    private void evolveGolfer(ProfessionalGolfer golfer, int age, int season) {
+        Attributes developed = ProgressionEngine.develop(golfer.player().attributes(), age);
+        golfer.player().evolveAttributes(developed, AttributeChange.Reason.DEVELOPMENT, season);
+        Attributes aged = ProgressionEngine.age(golfer.player().attributes(), age);
+        golfer.player().evolveAttributes(aged, AttributeChange.Reason.AGING, season);
+    }
 
     private static Tier mapTier(TourTier tier) {
         return switch (tier) {

@@ -3,6 +3,8 @@ package com.progolf.sim.player;
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.shot.GolferState;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -10,16 +12,18 @@ import java.util.Objects;
  * data: an immutable {@link Identity} and a reference to {@link Attributes} (reused from the numerical
  * model — never duplicated), plus mutable {@link PlayerState} and a {@link CareerStatus}.
  *
- * <p>Attributes are held by reference and never mutated in place here; state lives in {@link PlayerState}
- * which has no handle to attributes, so state changes cannot alter permanent skill (REQ-019/020).
+ * <p>Attributes evolve only through the guarded {@link #evolveAttributes} path (development and aging);
+ * state lives in {@link PlayerState} which has no handle to attributes, so state changes and tournament
+ * randomness can never alter permanent skill (REQ-019/020/049).
  */
 public final class Player {
 
     private final String id;
     private final Identity identity;
-    private final Attributes attributes;
+    private Attributes attributes;
     private final PlayerState state;
     private CareerStatus status;
+    private final List<AttributeChange> attributeChanges = new ArrayList<>();
 
     public Player(String id, Identity identity, Attributes attributes) {
         this.id = Objects.requireNonNull(id, "id");
@@ -41,6 +45,29 @@ public final class Player {
     /** The referenced permanent attributes (single source of truth). */
     public Attributes attributes() {
         return attributes;
+    }
+
+    /**
+     * Evolves the permanent attributes through progression (development raises, aging lowers), the only
+     * sanctioned path that changes them (REQ-049/153). The new attributes must already be within 0–100;
+     * every non-zero per-attribute change is recorded with its reason and season. Tournament resolution
+     * never calls this — it reads attributes only.
+     */
+    public void evolveAttributes(Attributes next, AttributeChange.Reason reason, int season) {
+        Objects.requireNonNull(next, "next");
+        Objects.requireNonNull(reason, "reason");
+        for (Attribute a : Attribute.values()) {
+            int delta = next.get(a) - attributes.get(a);
+            if (delta != 0) {
+                attributeChanges.add(new AttributeChange(a, delta, reason, season));
+            }
+        }
+        this.attributes = next;
+    }
+
+    /** The append-only history of permanent attribute changes (development and aging). */
+    public List<AttributeChange> attributeChanges() {
+        return List.copyOf(attributeChanges);
     }
 
     /** The mutable temporary state. */
