@@ -16,7 +16,7 @@ public final class RankingConstants {
     public static final double BASE_DEVELOPMENT = 6.0;
     public static final double BASE_STANDARD = 24.0;
     public static final double BASE_PREMIER = 50.0;
-    public static final double BASE_MAJOR = 100.0;
+    public static final double BASE_ELITE = 100.0;
 
     /** Base points for a tier. */
     public static double basePoints(Tier tier) {
@@ -24,7 +24,7 @@ public final class RankingConstants {
             case DEVELOPMENT -> BASE_DEVELOPMENT;
             case STANDARD -> BASE_STANDARD;
             case PREMIER -> BASE_PREMIER;
-            case MAJOR -> BASE_MAJOR;
+            case ELITE -> BASE_ELITE;
         };
     }
 

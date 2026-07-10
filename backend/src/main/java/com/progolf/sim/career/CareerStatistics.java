@@ -11,13 +11,22 @@ public final class CareerStatistics {
     private int countedFinishes;
     private int cutsMade;
     private int wins;
+    private int majorsWon;
     private int runnerUps;
     private int topTens;
     private long sumOfFinishes;
     private double totalEarnings;
 
-    /** Folds one result finish for the golfer into the running totals. */
+    /** Folds one result finish for the golfer into the running totals (a non-major event). */
     void recordResult(int position, boolean madeCut, boolean withdrawn, double prize) {
+        recordResult(position, madeCut, withdrawn, prize, false);
+    }
+
+    /**
+     * Folds one result finish for the golfer into the running totals (spec: event-prestige). A win in a
+     * major additionally increments majors won — a permanent part of the career's legacy.
+     */
+    void recordResult(int position, boolean madeCut, boolean withdrawn, double prize, boolean majorWin) {
         eventsPlayed++;
         totalEarnings += prize;
         if (withdrawn) {
@@ -30,6 +39,9 @@ public final class CareerStatistics {
         }
         if (position == 1) {
             wins++;
+            if (majorWin) {
+                majorsWon++;
+            }
         } else if (position == 2) {
             runnerUps++;
         }
@@ -48,6 +60,11 @@ public final class CareerStatistics {
 
     public int wins() {
         return wins;
+    }
+
+    /** Majors won over the career (spec: event-prestige) — the marquee accomplishment. */
+    public int majorsWon() {
+        return majorsWon;
     }
 
     public int runnerUps() {

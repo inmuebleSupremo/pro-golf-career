@@ -6,6 +6,7 @@ package com.progolf.sim.media;
  */
 public enum NewsType {
     TOURNAMENT_VICTORY,
+    MAJOR_VICTORY,
     MAJOR_UPSET,
     WORLD_NUMBER_ONE,
     PROMOTION,

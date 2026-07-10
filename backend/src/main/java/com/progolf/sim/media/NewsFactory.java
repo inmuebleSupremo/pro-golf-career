@@ -17,6 +17,12 @@ public final class NewsFactory {
                 golferName + " wins the " + tournamentName, MediaConstants.PROMINENCE_TOURNAMENT_VICTORY);
     }
 
+    public static NewsEvent majorVictory(int season, String golferId, String golferName, String tournamentName) {
+        return of(season, NewsType.MAJOR_VICTORY, golferId,
+                golferName + " wins the " + tournamentName + " — a major championship",
+                MediaConstants.PROMINENCE_MAJOR_VICTORY);
+    }
+
     public static NewsEvent maidenVictory(int season, String golferId, String golferName, String tournamentName) {
         return of(season, NewsType.CAREER_MILESTONE, golferId,
                 golferName + " claims a maiden professional title at the " + tournamentName,

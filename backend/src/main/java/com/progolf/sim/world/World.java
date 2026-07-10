@@ -60,6 +60,7 @@ import com.progolf.sim.ranking.WorldRanking;
 import com.progolf.sim.tour.TourSystem;
 import com.progolf.sim.tour.TourTier;
 import com.progolf.sim.tournament.EntryRequirements;
+import com.progolf.sim.tournament.EventPrestige;
 import com.progolf.sim.tournament.PrizeStructure;
 import com.progolf.sim.tournament.Tier;
 import com.progolf.sim.tournament.Tournament;
@@ -114,6 +115,9 @@ public final class World {
     private PlayerControl playerControl; // null = fully autonomous world (unchanged behaviour)
     private final List<SponsorshipOffer> playerPendingOffers = new ArrayList<>();
     private PendingPlayerEvent pendingEvent; // non-null = the week is paused awaiting the player's event
+    // Golfers already committed to an event this week — a golfer plays at most one event per week, so a
+    // major's cross-tour field excludes them from concurrent tour events (spec: event-prestige).
+    private final Set<String> committedThisWeek = new LinkedHashSet<>();
     private final TourSystem tours = new TourSystem();
     private final WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
@@ -224,6 +228,11 @@ public final class World {
                 weekEvents.add(event);
             }
         }
+        // Majors resolve first each week: they are the marquee events, and a golfer plays at most one event
+        // per week — a major's cross-tour field is committed before the concurrent tour events draw theirs
+        // (spec: event-prestige). Ordering is otherwise the stable schedule order.
+        weekEvents.sort(Comparator.comparingInt((ScheduledTournament e) -> e.prestige().isMajor() ? 0 : 1));
+        committedThisWeek.clear();
         resumeWeek(weekEvents, 0);
     }
 
@@ -335,26 +344,36 @@ public final class World {
      * interactive event (spec: playable-event); it computes no results and feeds no consumer.
      */
     private BuiltEvent buildEvent(ScheduledTournament event) {
-        List<ProfessionalGolfer> field = tours.standings(event.tier()).stream()
-                .filter(activeGolfers::contains)
-                .filter(id -> physicalStates.get(id).canCompete()) // availability gates entry (REQ-221)
-                .filter(id -> !(isPlayer(id) && playerControl.isResting())) // player chose to rest (player-control)
-                .limit(config.fieldSize())
-                .map(golfers::get)
-                .toList();
+        int season = calendar.currentSeason();
+        LocalDate date = calendar.dateFor(season, event.week());
+
+        // A major draws the strongest field across all tiers (cross-tour); regular/signature events draw
+        // from their own tour's standings (spec: event-prestige).
+        List<ProfessionalGolfer> field = event.prestige().isMajor()
+                ? majorField(date)
+                : tours.standings(event.tier()).stream()
+                        .filter(activeGolfers::contains)
+                        .filter(id -> physicalStates.get(id).canCompete()) // availability gates entry (REQ-221)
+                        .filter(id -> !committedThisWeek.contains(id)) // one event per week (spec: event-prestige)
+                        .filter(id -> !(isPlayer(id) && playerControl.isResting())) // player rested (player-control)
+                        .limit(config.fieldSize())
+                        .map(golfers::get)
+                        .toList();
         if (field.isEmpty()) {
             return null; // no eligible field this week
+        }
+        // Commit this field: no golfer here may be drawn into another event the same week.
+        for (ProfessionalGolfer g : field) {
+            committedThisWeek.add(g.player().id());
         }
 
         Course course = coursePool.get(event.courseIndex());
         Tier tier = mapTier(event.tier());
-        int season = calendar.currentSeason();
-        LocalDate date = calendar.dateFor(season, event.week());
 
         TournamentDefinition def = new TournamentDefinition(
-                tier + " Event " + event.tournamentId(), course, tier,
+                eventName(event, tier), course, tier, event.prestige(),
                 new EntryRequirements(config.fieldSize(), true),
-                PrizeStructure.standard(), TournamentFormat.standard(), date,
+                PrizeStructure.standard(event.prestige()), TournamentFormat.standard(), date,
                 masterSeed, season, event.tournamentId());
 
         // Weather is generated before play from the course's climate and the point in the season; the
@@ -402,6 +421,7 @@ public final class World {
         List<ProfessionalGolfer> field = built.field();
         int season = built.season();
 
+        EventPrestige prestige = def.prestige();
         ProfessionalGolfer winner = result.winner();
         String winnerId = winner.player().id();
         // The winner's ranking BEFORE this event feeds the upset test (a low-ranked winner is an upset).
@@ -411,20 +431,22 @@ public final class World {
         if (weather.severity() >= WeatherConstants.SEVERITY_THRESHOLD) {
             environmentalHistory.add(new EnvironmentalRecord(
                     season, event.tournamentId(), weather.severity(),
-                    tier + " Event " + event.tournamentId() + " played in severe conditions"));
+                    def.name() + " played in severe conditions"));
             media.publish(NewsFactory.severeWeather(season, def.name()));
         }
 
-        // Feed the one result to every consumer (each owns its own computation).
-        ranking.record(result, tier, date, event.tournamentId());
+        // Feed the one result to every consumer (each owns its own computation), weighted by prestige.
+        ranking.record(result, tier, prestige, date, event.tournamentId());
         tours.recordResult(result, event.tier());
         for (ProfessionalGolfer g : field) {
-            careers.get(g.player().id()).recordTournament(result, date);
+            careers.get(g.player().id()).recordTournament(result, prestige, date);
         }
 
-        // Media: the win, any maiden title, and any upset — all from the real result (REQ-241/242).
+        // Media: the win (a major victory is the biggest news), any maiden title, and any upset (REQ-241/242).
         String winnerName = winner.player().identity().fullName();
-        media.publish(NewsFactory.tournamentVictory(season, winnerId, winnerName, def.name()));
+        media.publish(prestige.isMajor()
+                ? NewsFactory.majorVictory(season, winnerId, winnerName, def.name())
+                : NewsFactory.tournamentVictory(season, winnerId, winnerName, def.name()));
         if (careers.get(winnerId).statistics().wins() == 1) {
             media.publish(NewsFactory.maidenVictory(season, winnerId, winnerName, def.name()));
         }
@@ -432,12 +454,12 @@ public final class World {
             media.publish(NewsFactory.majorUpset(season, winnerId, winnerName, def.name(), winnerRankBefore));
         }
 
-        // Statistics: record every finish and the champion into the authoritative archive (REQ-251/254/256).
+        // Statistics: record every finish and the champion (with its prestige) into the archive (REQ-251/254/256).
         for (TournamentResult.Finish finish : result.finishingOrder()) {
             String id = finish.golfer().player().id();
             EventOutcome outcome = new EventOutcome(season, id, finish.position(), finish.score(),
                     finish.madeCut(), finish.withdrawn(), finish.prize());
-            statistics.observeEvent(outcome, def.name(), tier.name(), id.equals(winnerId));
+            statistics.observeEvent(outcome, def.name(), tier.name(), prestige.name(), id.equals(winnerId));
         }
 
         // Economy: competing costs entry + travel; a paying finish awards prize money (REQ-178/182).
@@ -700,14 +722,51 @@ public final class World {
     private List<ScheduledTournament> generateSchedule(int season) {
         List<ScheduledTournament> generated = new ArrayList<>();
         int events = config.eventsPerTierPerSeason();
+        int signature = config.signatureEventsPerTier();
         for (TourTier tier : TourTier.values()) {
             for (int e = 0; e < events; e++) {
                 int week = 1 + (int) ((long) e * config.weeksPerSeason() / events);
                 int courseIndex = (int) (nextTournamentId % coursePool.size());
-                generated.add(new ScheduledTournament(week, tier, courseIndex, nextTournamentId++));
+                // The first events of each tour's season are its elevated signature events (spec: event-prestige).
+                EventPrestige prestige = e < signature ? EventPrestige.SIGNATURE : EventPrestige.REGULAR;
+                generated.add(new ScheduledTournament(week, tier, courseIndex, prestige, nextTournamentId++));
             }
         }
+        // Cross-tour majors: the season's marquee events, spread across the calendar, contested by the
+        // strongest field across all tiers (spec: event-prestige).
+        int majors = config.majorsPerSeason();
+        for (int m = 0; m < majors; m++) {
+            int week = 1 + (int) ((long) m * config.weeksPerSeason() / Math.max(1, majors));
+            int courseIndex = (int) (nextTournamentId % coursePool.size());
+            generated.add(new ScheduledTournament(week, TourTier.ELITE, courseIndex, EventPrestige.MAJOR,
+                    nextTournamentId++));
+        }
         return generated;
+    }
+
+    /** A major draws the strongest active golfers across all tiers, deterministically (spec: event-prestige). */
+    private List<ProfessionalGolfer> majorField(LocalDate date) {
+        RankingSnapshot snapshot = ranking.rankingAsOf(date);
+        return activeGolfers.stream()
+                .filter(id -> physicalStates.get(id).canCompete())
+                .filter(id -> !committedThisWeek.contains(id)) // one event per week (spec: event-prestige)
+                .filter(id -> !(isPlayer(id) && playerControl.isResting()))
+                .sorted(Comparator
+                        .comparingInt((String id) -> snapshot.positionOf(id).orElse(Integer.MAX_VALUE))
+                        .thenComparing(Comparator.comparingDouble((String id) -> meanAttribute(golfers.get(id))).reversed())
+                        .thenComparing(id -> id))
+                .limit(config.fieldSize())
+                .map(golfers::get)
+                .toList();
+    }
+
+    /** The display name for a scheduled event, distinguishing majors and signature events. */
+    private static String eventName(ScheduledTournament event, Tier tier) {
+        return switch (event.prestige()) {
+            case MAJOR -> "Major Championship #" + event.tournamentId();
+            case SIGNATURE -> tier + " Signature #" + event.tournamentId();
+            case REGULAR -> tier + " Event #" + event.tournamentId();
+        };
     }
 
     // --- Accessors (read-only) ---
@@ -894,6 +953,9 @@ public final class World {
         if (!activeGolfers.contains(id) || playerControl.isResting() || !physicalStates.get(id).canCompete()) {
             return false;
         }
+        if (event.prestige().isMajor()) {
+            return true; // majors are cross-tour; buildEvent's field/playerFieldIndex decides if they qualify
+        }
         return tours.membershipOf(id).map(t -> t == event.tier()).orElse(false);
     }
 
@@ -971,7 +1033,7 @@ public final class World {
             case DEVELOPMENT -> Tier.DEVELOPMENT;
             case SECONDARY -> Tier.STANDARD;
             case PRIMARY -> Tier.PREMIER;
-            case ELITE -> Tier.MAJOR;
+            case ELITE -> Tier.ELITE;
         };
     }
 

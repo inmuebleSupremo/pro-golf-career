@@ -19,7 +19,7 @@ class RankingPointsTest {
     void betterFinishHigherTierAndStrongerFieldAwardMore() {
         assertThat(RankingPoints.award(Tier.STANDARD, 1, 1.0))
                 .isGreaterThan(RankingPoints.award(Tier.STANDARD, 5, 1.0));
-        assertThat(RankingPoints.award(Tier.MAJOR, 1, 1.0))
+        assertThat(RankingPoints.award(Tier.ELITE, 1, 1.0))
                 .isGreaterThan(RankingPoints.award(Tier.STANDARD, 1, 1.0));
         assertThat(RankingPoints.award(Tier.STANDARD, 1, 2.0))
                 .isGreaterThan(RankingPoints.award(Tier.STANDARD, 1, 1.0));

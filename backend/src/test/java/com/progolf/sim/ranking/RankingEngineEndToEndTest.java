@@ -31,7 +31,7 @@ class RankingEngineEndToEndTest {
         // Three events across the year with the same strong-first finishing order.
         wr.record(RankingFixtures.result("Event 1", order), Tier.STANDARD, LocalDate.of(2001, 2, 1), 1);
         wr.record(RankingFixtures.result("Event 2", order), Tier.PREMIER, LocalDate.of(2001, 6, 1), 2);
-        wr.record(RankingFixtures.result("Event 3", order), Tier.MAJOR, LocalDate.of(2001, 9, 1), 3);
+        wr.record(RankingFixtures.result("Event 3", order), Tier.ELITE, LocalDate.of(2001, 9, 1), 3);
         return wr;
     }
 

@@ -2,6 +2,7 @@ package com.progolf.sim.career;
 
 import com.progolf.sim.player.CareerStatus;
 import com.progolf.sim.player.Player;
+import com.progolf.sim.tournament.EventPrestige;
 import com.progolf.sim.tournament.TournamentResult;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -125,7 +126,16 @@ public final class Career {
      * fires any first-occurrence milestones, and appends history. Rejected once the career is retired.
      */
     public void recordTournament(TournamentResult result, LocalDate date) {
+        recordTournament(result, EventPrestige.REGULAR, date);
+    }
+
+    /**
+     * Records the golfer's participation, weighting a win by the event's prestige (spec: event-prestige):
+     * a win in a major folds into the career's majors-won legacy. Otherwise identical to the regular record.
+     */
+    public void recordTournament(TournamentResult result, EventPrestige prestige, LocalDate date) {
         Objects.requireNonNull(result, "result");
+        Objects.requireNonNull(prestige, "prestige");
         Objects.requireNonNull(date, "date");
         if (isRetired()) {
             throw new IllegalStateException("A retired career is read-only");
@@ -135,7 +145,8 @@ public final class Career {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Golfer did not play in tournament " + result.tournamentName()));
 
-        statistics.recordResult(finish.position(), finish.madeCut(), finish.withdrawn(), finish.prize());
+        boolean majorWin = prestige.isMajor() && !finish.withdrawn() && finish.position() == 1;
+        statistics.recordResult(finish.position(), finish.madeCut(), finish.withdrawn(), finish.prize(), majorWin);
         history.add(new CareerHistoryEntry(date, CareerHistoryEntry.Type.TOURNAMENT,
                 result.tournamentName() + " — position " + finish.position()));
 

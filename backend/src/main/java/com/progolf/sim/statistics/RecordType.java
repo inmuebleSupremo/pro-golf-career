@@ -7,6 +7,7 @@ package com.progolf.sim.statistics;
  */
 public enum RecordType {
     MOST_CAREER_WINS(true),
+    MOST_MAJOR_WINS(true),
     LOWEST_TOURNAMENT_SCORE(false),
     MOST_CONSECUTIVE_CUTS(true),
     LONGEST_CAREER(true);

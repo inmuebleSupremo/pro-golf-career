@@ -19,8 +19,9 @@ class WorldTest {
         assertThat(world.currentSeason()).isEqualTo(1);
         assertThat(world.currentWeek()).isEqualTo(1);
         assertThat(world.activePopulationSize()).isEqualTo(40);
-        // 4 tiers x 3 events.
-        assertThat(world.currentSchedule()).hasSize(TourTier.values().length * 3);
+        // 4 tiers x 3 events, plus the cross-tour majors (spec: event-prestige).
+        assertThat(world.currentSchedule())
+                .hasSize(TourTier.values().length * 3 + WorldConstants.MAJORS_PER_SEASON);
         // Golfers exist across at least the development and one higher tier.
         long tiers = world.activeGolferIds().stream().map(world::tourOf).flatMap(java.util.Optional::stream).distinct().count();
         assertThat(tiers).isGreaterThan(1);

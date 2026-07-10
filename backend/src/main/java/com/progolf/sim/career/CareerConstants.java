@@ -25,4 +25,6 @@ public final class CareerConstants {
     /** ... or at least this many wins together with strong consistency (top-10s). */
     public static final int HOF_ALT_WINS = 8;
     public static final int HOF_ALT_TOP_10S = 40;
+    /** ... or at least this many majors won — the marquee accomplishment (spec: event-prestige). */
+    public static final int HOF_MIN_MAJORS = 3;
 }

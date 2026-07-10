@@ -25,6 +25,15 @@ public record PrizeStructure(double topPrize, double decay, int paidPositions) {
                 TournamentConstants.PAID_POSITIONS);
     }
 
+    /**
+     * The standard curve with its top prize scaled by an event's prestige (spec: event-prestige): signature
+     * events and majors carry a larger purse. Regular prestige reproduces {@link #standard()} exactly.
+     */
+    public static PrizeStructure standard(EventPrestige prestige) {
+        return new PrizeStructure(TournamentConstants.TOP_PRIZE * prestige.purseWeight(),
+                TournamentConstants.PRIZE_DECAY, TournamentConstants.PAID_POSITIONS);
+    }
+
     /** Prize amount for a 1-based finishing position (0 beyond the paid positions). */
     public double amountForPosition(int position) {
         if (position < 1 || position > paidPositions) {

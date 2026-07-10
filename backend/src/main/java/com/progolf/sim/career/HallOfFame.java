@@ -14,10 +14,12 @@ public final class HallOfFame {
     public static HallOfFameResult evaluate(CareerStatistics stats) {
         int wins = stats.wins();
         int topTens = stats.topTens();
+        int majors = stats.majorsWon();
         boolean byWins = wins >= CareerConstants.HOF_MIN_WINS;
         boolean byConsistency = wins >= CareerConstants.HOF_ALT_WINS && topTens >= CareerConstants.HOF_ALT_TOP_10S;
-        boolean eligible = byWins || byConsistency;
-        String summary = "wins=" + wins + ", top10s=" + topTens
+        boolean byMajors = majors >= CareerConstants.HOF_MIN_MAJORS; // majors are the marquee accomplishment
+        boolean eligible = byWins || byConsistency || byMajors;
+        String summary = "wins=" + wins + ", majors=" + majors + ", top10s=" + topTens
                 + (eligible ? " — eligible" : " — not eligible") + " (placeholder criteria)";
         return new HallOfFameResult(eligible, summary);
     }

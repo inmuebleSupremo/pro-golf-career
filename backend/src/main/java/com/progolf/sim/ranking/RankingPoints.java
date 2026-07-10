@@ -1,10 +1,12 @@
 package com.progolf.sim.ranking;
 
+import com.progolf.sim.tournament.EventPrestige;
 import com.progolf.sim.tournament.Tier;
 
 /**
- * The pure points model (REQ-143): how a finishing position, tier, and field strength convert to ranking
- * points, and how points decay with age. All functions are deterministic and monotone by construction.
+ * The pure points model (REQ-143): how a finishing position, tier, event prestige, and field strength
+ * convert to ranking points, and how points decay with age. All functions are deterministic and monotone
+ * by construction.
  */
 final class RankingPoints {
 
@@ -19,9 +21,15 @@ final class RankingPoints {
         return Math.pow(RankingConstants.POSITION_DECAY, position - 1);
     }
 
-    /** Points awarded for a finish: base(tier) × positionWeight × fieldStrengthFactor. */
+    /** Points awarded for a finish, at Regular prestige: base(tier) × positionWeight × fieldStrengthFactor. */
     static double award(Tier tier, int position, double fieldStrengthFactor) {
-        return RankingConstants.basePoints(tier) * positionWeight(position) * fieldStrengthFactor;
+        return award(tier, EventPrestige.REGULAR, position, fieldStrengthFactor);
+    }
+
+    /** Points awarded for a finish: base(tier) × prestige.rankingWeight() × positionWeight × fieldStrengthFactor. */
+    static double award(Tier tier, EventPrestige prestige, int position, double fieldStrengthFactor) {
+        return RankingConstants.basePoints(tier) * prestige.rankingWeight()
+                * positionWeight(position) * fieldStrengthFactor;
     }
 
     /**

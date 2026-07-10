@@ -29,4 +29,15 @@ public final class TournamentConstants {
     public static final double PRIZE_DECAY = 0.78;
     /** Number of paid positions. */
     public static final int PAID_POSITIONS = 70;
+
+    // Event-prestige multipliers (spec: event-prestige). Monotone: major > signature > regular; regular is
+    // the neutral 1.0 baseline held implicitly in EventPrestige.
+    /** Ranking-point multiplier for a Signature event. */
+    public static final double SIGNATURE_RANKING_WEIGHT = 1.75;
+    /** Ranking-point multiplier for a Major. */
+    public static final double MAJOR_RANKING_WEIGHT = 3.0;
+    /** Purse (top-prize) multiplier for a Signature event. */
+    public static final double SIGNATURE_PURSE_WEIGHT = 2.0;
+    /** Purse (top-prize) multiplier for a Major. */
+    public static final double MAJOR_PURSE_WEIGHT = 4.0;
 }

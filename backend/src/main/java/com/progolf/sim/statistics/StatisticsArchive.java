@@ -24,13 +24,24 @@ public final class StatisticsArchive {
     private final RecordBook records = new RecordBook();
     private final Map<String, Integer> consecutiveCuts = new HashMap<>();
     private final Map<String, Set<Integer>> seasonsAppeared = new HashMap<>();
+    private final Map<String, Integer> majorWins = new HashMap<>();
 
     /**
-     * Observes one golfer's outcome in a tournament, accumulating statistics, registering a champion when
-     * this golfer won, and updating records — all from real gameplay data.
+     * Observes one golfer's outcome in a tournament (Regular prestige), accumulating statistics,
+     * registering a champion when this golfer won, and updating records — all from real gameplay data.
      */
     public void observeEvent(EventOutcome outcome, String tournamentName, String tier, boolean isWinner) {
+        observeEvent(outcome, tournamentName, tier, "REGULAR", isWinner);
+    }
+
+    /**
+     * Observes one golfer's outcome, recording the event's prestige (spec: event-prestige): a major victory
+     * is preserved distinctly and drives the most-major-championships record. Otherwise identical.
+     */
+    public void observeEvent(EventOutcome outcome, String tournamentName, String tier, String prestige,
+                             boolean isWinner) {
         Objects.requireNonNull(outcome, "outcome");
+        Objects.requireNonNull(prestige, "prestige");
         String id = outcome.golferId();
 
         // Accumulate career and per-season statistics.
@@ -38,9 +49,13 @@ public final class StatisticsArchive {
         seasonal.computeIfAbsent(id, k -> new HashMap<>())
                 .merge(outcome.season(), StatLine.of(outcome), StatLine::plus);
 
-        // Register the champion (REQ-256).
+        // Register the champion (REQ-256), preserving the event's prestige so majors are distinguishable.
         if (isWinner) {
-            championships.add(new Championship(outcome.season(), tournamentName, tier, id));
+            championships.add(new Championship(outcome.season(), tournamentName, tier, prestige, id));
+            if (Championship.MAJOR_PRESTIGE.equals(prestige) && outcome.counts()) {
+                int majors = majorWins.merge(id, 1, Integer::sum);
+                records.challenge(RecordType.MOST_MAJOR_WINS, id, majors, outcome.season());
+            }
         }
 
         // Career longevity (distinct seasons appeared) — a record even for retirees who played this season.
@@ -100,6 +115,17 @@ public final class StatisticsArchive {
     /** All recorded championships, oldest first. */
     public List<Championship> allChampionships() {
         return Collections.unmodifiableList(new ArrayList<>(championships));
+    }
+
+    /** Every major a golfer has won (spec: event-prestige). */
+    public List<Championship> majorsWonBy(String golferId) {
+        List<Championship> out = new ArrayList<>();
+        for (Championship c : championships) {
+            if (c.isMajor() && c.winnerId().equals(golferId)) {
+                out.add(c);
+            }
+        }
+        return out;
     }
 
     /** A snapshot of every record's current holder. */

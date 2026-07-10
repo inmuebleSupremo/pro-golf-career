@@ -12,6 +12,7 @@ public final class MediaConstants {
     }
 
     // --- Prominence (0-100) per news type ---
+    public static final int PROMINENCE_MAJOR_VICTORY = 98; // a major win is the biggest news in the world
     public static final int PROMINENCE_WORLD_NUMBER_ONE = 95;
     public static final int PROMINENCE_MAJOR_UPSET = 85;
     public static final int PROMINENCE_RETIREMENT = 75;

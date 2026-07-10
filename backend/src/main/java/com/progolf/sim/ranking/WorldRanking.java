@@ -1,5 +1,6 @@
 package com.progolf.sim.ranking;
 
+import com.progolf.sim.tournament.EventPrestige;
 import com.progolf.sim.tournament.Tier;
 import com.progolf.sim.tournament.TournamentResult;
 import java.time.LocalDate;
@@ -34,8 +35,18 @@ public final class WorldRanking {
      * ranking values as of the event date). Awards are appended; nothing else is mutated.
      */
     public void record(TournamentResult result, Tier tier, LocalDate date, long tournamentId) {
+        record(result, tier, EventPrestige.REGULAR, date, tournamentId);
+    }
+
+    /**
+     * Records ranking points weighted by event prestige (spec: event-prestige). Points scale by
+     * {@code prestige.rankingWeight()} on top of tier, position, and field strength, so a major moves the
+     * ranking far more than a regular event. Regular prestige reproduces the un-weighted award exactly.
+     */
+    public void record(TournamentResult result, Tier tier, EventPrestige prestige, LocalDate date, long tournamentId) {
         Objects.requireNonNull(result, "result");
         Objects.requireNonNull(tier, "tier");
+        Objects.requireNonNull(prestige, "prestige");
         Objects.requireNonNull(date, "date");
 
         double fieldStrength = averageFieldStrength(result, date);
@@ -45,7 +56,7 @@ public final class WorldRanking {
             if (finish.withdrawn()) {
                 continue;
             }
-            double points = RankingPoints.award(tier, finish.position(), factor);
+            double points = RankingPoints.award(tier, prestige, finish.position(), factor);
             if (points > 0) {
                 ledger.add(new RankingAward(finish.golfer().player().id(), date, points, tournamentId));
             }

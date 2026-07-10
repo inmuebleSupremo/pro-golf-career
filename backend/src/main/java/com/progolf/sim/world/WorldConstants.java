@@ -17,6 +17,12 @@ public final class WorldConstants {
     public static final int COURSE_POOL_SIZE = 12;
     public static final int BASE_YEAR = 2000;
 
+    // Event prestige (spec: event-prestige).
+    /** Cross-tour majors per season — the marquee events (like the four real-world majors). */
+    public static final int MAJORS_PER_SEASON = 4;
+    /** Elevated signature events per tour tier each season. */
+    public static final int SIGNATURE_EVENTS_PER_TIER = 1;
+
     // --- Initial tier distribution (fractions of the population; remainder goes to Development) ---
     public static final double ELITE_FRACTION = 0.08;
     public static final double PRIMARY_FRACTION = 0.17;
