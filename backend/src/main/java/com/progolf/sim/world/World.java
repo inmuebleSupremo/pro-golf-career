@@ -114,6 +114,10 @@ public final class World {
     private final StatisticsArchive statistics = new StatisticsArchive();
     private PlayerControl playerControl; // null = fully autonomous world (unchanged behaviour)
     private final List<SponsorshipOffer> playerPendingOffers = new ArrayList<>();
+    // For the player's golfer, staff hiring and equipment purchases defer to the human: the World generates
+    // candidates/upgrades each season and holds them as pending offers (spec: player-control).
+    private final List<StaffMember> playerPendingStaff = new ArrayList<>();
+    private final List<EquipmentItem> playerPendingEquipment = new ArrayList<>();
     private PendingPlayerEvent pendingEvent; // non-null = the week is paused awaiting the player's event
     // Golfers already committed to an event this week — a golfer plays at most one event per week, so a
     // major's cross-tour field excludes them from concurrent tour events (spec: event-prestige).
@@ -639,17 +643,35 @@ public final class World {
         if (account.availableFunds() < StaffConstants.RELEASE_THRESHOLD && team.size() > 0) {
             team.release(team.mostExpensiveRole(), season);
         }
-        // 3. Hire one new member per the deterministic policy if it is affordable (discretionary spend).
+        // 3. The discretionary hire: the player decides (candidates held as pending offers); the AI auto-hires.
+        if (isPlayer(id)) {
+            offerPlayerStaff(id, season, team);
+            return;
+        }
         int age = careers.get(id).age();
         HiringPolicy.chooseRole(team, age).ifPresent(role -> {
-            Rng rng = new SplitMix64Rng(Seeds.deriveSeed(Seeds.deriveSeed(Seeds.deriveSeed(
-                    Seeds.deriveSeed(masterSeed, StaffConstants.STAFF_SALT), season), id.hashCode()), role.ordinal()));
-            StaffMember candidate = staffMarket.generate(role, rng);
+            StaffMember candidate = staffMarket.generate(role, staffRng(id, season, role));
             if (HiringPolicy.canAfford(account.availableFunds(), candidate)
                     && account.spend(TransactionType.STAFF_HIRING, candidate.hiringCost(), date, "Hire: " + role)) {
                 team.hire(candidate, season);
             }
         });
+    }
+
+    /** The isolated per-golfer/season/role RNG for staff-candidate generation (shared by AI and player paths). */
+    private Rng staffRng(String id, int season, StaffRole role) {
+        return new SplitMix64Rng(Seeds.deriveSeed(Seeds.deriveSeed(Seeds.deriveSeed(
+                Seeds.deriveSeed(masterSeed, StaffConstants.STAFF_SALT), season), id.hashCode()), role.ordinal()));
+    }
+
+    /** Generates a candidate for each of the player's unfilled roles, held as pending staff offers. */
+    private void offerPlayerStaff(String id, int season, SupportTeam team) {
+        playerPendingStaff.clear();
+        for (StaffRole role : StaffRole.values()) {
+            if (!team.has(role)) {
+                playerPendingStaff.add(staffMarket.generate(role, staffRng(id, season, role)));
+            }
+        }
     }
 
     /**
@@ -658,6 +680,11 @@ public final class World {
      * inventory, and selected into the loadout. Deterministic from an isolated per-golfer/season seed.
      */
     private void runEquipmentSeason(String id, int season, LocalDate date) {
+        // The player decides purchases (upgrades held as pending offers); the AI auto-buys.
+        if (isPlayer(id)) {
+            offerPlayerEquipment(id, season);
+            return;
+        }
         EquipmentInventory inventory = equipment.get(id);
         FinancialAccount account = accounts.get(id);
         Rng rng = new SplitMix64Rng(Seeds.deriveSeed(
@@ -670,6 +697,17 @@ public final class World {
                 loadouts.put(id, loadouts.get(id).with(item));
             }
         });
+    }
+
+    /** Generates one upgrade per category, held as pending equipment offers for the player to buy. */
+    private void offerPlayerEquipment(String id, int season) {
+        playerPendingEquipment.clear();
+        for (EquipmentCategory category : EquipmentCategory.values()) {
+            Rng rng = new SplitMix64Rng(Seeds.deriveSeed(Seeds.deriveSeed(Seeds.deriveSeed(
+                    Seeds.deriveSeed(masterSeed, EquipmentConstants.EQUIPMENT_SALT), season), id.hashCode()),
+                    category.ordinal()));
+            playerPendingEquipment.add(EquipmentCatalogue.generateUpgrade(category, rng));
+        }
     }
 
     /** Builds a golfer's season performance from this season's results and the current ranking. */
@@ -889,6 +927,8 @@ public final class World {
         }
         this.playerControl = new PlayerControl(golferId);
         this.playerPendingOffers.clear();
+        this.playerPendingStaff.clear();
+        this.playerPendingEquipment.clear();
     }
 
     /** The designated player-controlled golfer, if any. */
@@ -924,6 +964,74 @@ public final class World {
             account.signSponsorship(offer.agreement(), calendar.currentDate());
             playerPendingOffers.remove(index);
         }
+    }
+
+    // --- Staff (spec: player-control) ---
+
+    /** The player's golfer's staff candidates awaiting a hire decision. */
+    public List<StaffMember> pendingStaffOffers() {
+        return List.copyOf(playerPendingStaff);
+    }
+
+    /** Hires a pending staff candidate by index, if the player can afford it (charged to their account). */
+    public void hireStaff(int index) {
+        requirePlayer();
+        if (index < 0 || index >= playerPendingStaff.size()) {
+            throw new IndexOutOfBoundsException("No pending staff candidate at index " + index);
+        }
+        StaffMember candidate = playerPendingStaff.get(index);
+        String id = playerControl.golferId();
+        FinancialAccount account = accounts.get(id);
+        if (HiringPolicy.canAfford(account.availableFunds(), candidate)
+                && account.spend(TransactionType.STAFF_HIRING, candidate.hiringCost(),
+                        calendar.currentDate(), "Hire: " + candidate.role())) {
+            supportTeams.get(id).hire(candidate, calendar.currentSeason());
+            playerPendingStaff.remove(index);
+        }
+    }
+
+    /** Releases a current member of the player's support team by role (a recorded, voluntary departure). */
+    public void releaseStaff(StaffRole role) {
+        requirePlayer();
+        SupportTeam team = supportTeams.get(playerControl.golferId());
+        if (team.has(role)) {
+            team.release(role, calendar.currentSeason());
+        }
+    }
+
+    // --- Equipment (spec: player-control) ---
+
+    /** The player's golfer's equipment upgrade offers awaiting a purchase decision. */
+    public List<EquipmentItem> pendingEquipmentOffers() {
+        return List.copyOf(playerPendingEquipment);
+    }
+
+    /** Buys a pending equipment upgrade by index, if affordable; adds it and selects it into the loadout. */
+    public void buyEquipment(int index) {
+        requirePlayer();
+        if (index < 0 || index >= playerPendingEquipment.size()) {
+            throw new IndexOutOfBoundsException("No pending equipment upgrade at index " + index);
+        }
+        EquipmentItem item = playerPendingEquipment.get(index);
+        String id = playerControl.golferId();
+        FinancialAccount account = accounts.get(id);
+        if (AcquisitionPolicy.canAfford(account.availableFunds(), item)
+                && account.spend(TransactionType.EQUIPMENT_PURCHASE, item.cost(),
+                        calendar.currentDate(), "Equipment: " + item.category())) {
+            equipment.get(id).add(item, calendar.currentSeason(), EquipmentAcquisition.Method.PURCHASE);
+            loadouts.put(id, loadouts.get(id).with(item));
+            playerPendingEquipment.remove(index);
+        }
+    }
+
+    /** Sets the player's tournament loadout for a category to one of their owned items. */
+    public void selectLoadoutItem(EquipmentItem item) {
+        requirePlayer();
+        String id = playerControl.golferId();
+        if (!equipment.get(id).owns(item)) {
+            throw new IllegalArgumentException("The player does not own " + item.category() + " item " + item.name());
+        }
+        loadouts.put(id, loadouts.get(id).with(item));
     }
 
     private PlayerControl requirePlayer() {

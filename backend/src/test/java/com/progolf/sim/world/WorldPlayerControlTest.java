@@ -89,17 +89,21 @@ class WorldPlayerControlTest {
     }
 
     @Test
-    void anIdlePlayerDoesNotPerturbTheCompetitiveWorld() {
-        // Player-control must be a strict override: an assigned-but-idle player changes no competitive outcome.
-        World withPlayer = World.create(6L, small());
-        World autonomous = World.create(6L, small());
-        withPlayer.assignPlayer(withPlayer.activeGolferIds().get(0)); // assigned, but never configured
-        withPlayer.advanceSeason();
-        withPlayer.advanceSeason();
-        autonomous.advanceSeason();
-        autonomous.advanceSeason();
+    void anIdlePlayerAutoManagesNothing() {
+        // The player owns their staff and equipment (like sponsorship): an idle player has neither auto-run.
+        World world = World.create(6L, small());
+        String id = world.activeGolferIds().get(0);
+        world.assignPlayer(id);
+        world.advanceSeason();
 
-        assertThat(withPlayer.newsFeed()).isEqualTo(autonomous.newsFeed());
-        assertThat(withPlayer.records()).isEqualTo(autonomous.records());
+        // The world offered options but acted on none — the human must decide.
+        assertThat(world.pendingStaffOffers()).isNotEmpty();
+        assertThat(world.pendingEquipmentOffers()).isNotEmpty();
+        assertThat(world.supportTeamOf(id).size()).isZero(); // no staff auto-hired for the player
+        // Only the standard starting kit is owned (nothing auto-bought) — one item per category.
+        assertThat(world.equipmentInventoryOf(id).all())
+                .hasSize(com.progolf.sim.equipment.EquipmentCategory.values().length);
+        // ...while the world itself still advanced and competed.
+        assertThat(world.currentSeason()).isEqualTo(2);
     }
 }

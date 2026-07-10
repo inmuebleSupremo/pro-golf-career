@@ -2,10 +2,13 @@ package com.progolf.app.world;
 
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.economy.SponsorshipOffer;
+import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.play.PlayableEvent;
 import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
+import com.progolf.sim.staff.StaffMember;
+import com.progolf.sim.staff.StaffRole;
 import com.progolf.sim.tournament.LeaderboardEntry;
 import com.progolf.sim.world.World;
 import java.util.List;
@@ -81,6 +84,38 @@ public class WorldService {
     /** Accepts a pending sponsorship offer by index. */
     public void acceptSponsorship(String sessionId, int index) {
         required(sessionId).world().acceptSponsorship(index);
+    }
+
+    // --- Player staff & equipment (spec: player-control) ---
+
+    /** The player's staff candidates awaiting a hire decision. */
+    public List<StaffMember> pendingStaffOffers(String sessionId) {
+        return required(sessionId).world().pendingStaffOffers();
+    }
+
+    /** Hires a pending staff candidate by index (if affordable). */
+    public void hireStaff(String sessionId, int index) {
+        required(sessionId).world().hireStaff(index);
+    }
+
+    /** Releases a current staff member of the player's team by role. */
+    public void releaseStaff(String sessionId, StaffRole role) {
+        required(sessionId).world().releaseStaff(role);
+    }
+
+    /** The player's equipment upgrade offers awaiting a purchase decision. */
+    public List<EquipmentItem> pendingEquipmentOffers(String sessionId) {
+        return required(sessionId).world().pendingEquipmentOffers();
+    }
+
+    /** Buys a pending equipment upgrade by index (if affordable). */
+    public void buyEquipment(String sessionId, int index) {
+        required(sessionId).world().buyEquipment(index);
+    }
+
+    /** Sets the player's loadout for a category to one of their owned items. */
+    public void selectLoadoutItem(String sessionId, EquipmentItem item) {
+        required(sessionId).world().selectLoadoutItem(item);
     }
 
     // --- Playable event (spec: playable-event): the player plays their own tournament ---
