@@ -21,4 +21,15 @@ public final class PopulationConstants {
 
     /** Reference year used to derive dates of birth from starting age. */
     public static final int REFERENCE_YEAR = 2000;
+
+    // Create-your-golfer: an archetype-shaped starting build around a rookie baseline (spec: golfer-creation).
+    /** The rookie baseline every created attribute starts from. */
+    public static final int CREATION_BASELINE = 50;
+    /** How much an archetype's strength attributes start above the baseline. */
+    public static final int CREATION_EMPHASIS = 12;
+    /** How much an archetype's weakness attributes start below the baseline. */
+    public static final int CREATION_DEEMPHASIS = 10;
+    /** Inclusive start-age bounds allowed for a created golfer. */
+    public static final int CREATION_MIN_AGE = 16;
+    public static final int CREATION_MAX_AGE = 30;
 }

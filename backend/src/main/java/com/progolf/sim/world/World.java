@@ -53,6 +53,9 @@ import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.play.PlayableEvent;
+import com.progolf.sim.player.Archetype;
+import com.progolf.sim.player.Nationality;
+import com.progolf.sim.population.GolferFactory;
 import com.progolf.sim.population.PopulationGenerator;
 import com.progolf.sim.progression.ProgressionEngine;
 import com.progolf.sim.ranking.RankingSnapshot;
@@ -922,6 +925,9 @@ public final class World {
 
     /** Designates a golfer as human-controlled; the world otherwise runs autonomously. */
     public void assignPlayer(String golferId) {
+        if (playerControl != null) {
+            throw new IllegalStateException("A player has already been assigned to this world");
+        }
         if (!golfers.containsKey(golferId)) {
             throw new IllegalArgumentException("No such golfer: " + golferId);
         }
@@ -929,6 +935,24 @@ public final class World {
         this.playerPendingOffers.clear();
         this.playerPendingStaff.clear();
         this.playerPendingEquipment.clear();
+    }
+
+    /**
+     * Creates a custom golfer for the player (spec: golfer-creation): a chosen identity and playing-style
+     * archetype build. The created golfer is human-controlled, enters at the entry (Development) tier to
+     * climb from the bottom, and becomes the world's single designated player. Returns its id.
+     */
+    public String createPlayer(String firstName, String lastName, Nationality nationality, int startAge,
+                               Archetype archetype) {
+        if (playerControl != null) {
+            throw new IllegalStateException("A player has already been assigned to this world");
+        }
+        String id = "player-" + Long.toUnsignedString(masterSeed, 16);
+        ProfessionalGolfer golfer = GolferFactory.createHuman(id, firstName, lastName, nationality, startAge,
+                archetype, WorldConstants.BASE_YEAR);
+        admit(golfer, TourTier.DEVELOPMENT);
+        assignPlayer(id);
+        return id;
     }
 
     /** The designated player-controlled golfer, if any. */

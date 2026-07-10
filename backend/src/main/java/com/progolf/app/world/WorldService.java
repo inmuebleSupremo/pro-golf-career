@@ -5,6 +5,8 @@ import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.play.PlayableEvent;
 import com.progolf.sim.play.ShotSituation;
+import com.progolf.sim.player.Archetype;
+import com.progolf.sim.player.Nationality;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
@@ -65,6 +67,12 @@ public class WorldService {
     /** Designates a golfer in a session as human-controlled. */
     public void assignPlayer(String sessionId, String golferId) {
         required(sessionId).world().assignPlayer(golferId);
+    }
+
+    /** Creates a custom golfer (identity + archetype build) as the session's player; returns its id. */
+    public String createPlayer(String sessionId, String firstName, String lastName, Nationality nationality,
+                               int startAge, Archetype archetype) {
+        return required(sessionId).world().createPlayer(firstName, lastName, nationality, startAge, archetype);
     }
 
     /** Sets the player's development focus (attribute priority) in a session. */

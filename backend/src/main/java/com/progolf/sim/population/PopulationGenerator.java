@@ -32,6 +32,14 @@ public final class PopulationGenerator {
     /** A minimal default decision seam for generated golfers; richer AI decisions arrive later. */
     private static final DecisionPolicy DEFAULT_POLICY = () -> Strategy.BALANCED;
 
+    /**
+     * The background archetypes the AI population is drawn from (for its starting-age routing). Pinned here
+     * so the create-your-golfer playing-style archetypes can be added to {@link Archetype} without changing
+     * the generated world (reproducibility).
+     */
+    private static final Archetype[] POPULATION_ARCHETYPES = {
+            Archetype.GRASS_ROOTS_TALENT, Archetype.TOP_COLLEGE_GRADUATE, Archetype.FUTURE_PRODIGY};
+
     private PopulationGenerator() {
     }
 
@@ -104,7 +112,7 @@ public final class PopulationGenerator {
         String first = PlayerNames.first(rng);
         String last = PlayerNames.last(rng);
         Nationality nationality = Nationality.values()[(int) Math.floorMod(rng.nextLong(), Nationality.values().length)];
-        Archetype archetype = Archetype.values()[(int) Math.floorMod(rng.nextLong(), Archetype.values().length)];
+        Archetype archetype = POPULATION_ARCHETYPES[(int) Math.floorMod(rng.nextLong(), POPULATION_ARCHETYPES.length)];
         int age = archetype.minStartAge()
                 + (int) Math.floorMod(rng.nextLong(), archetype.maxStartAge() - archetype.minStartAge() + 1);
         int month = 1 + (int) Math.floorMod(rng.nextLong(), 12);
