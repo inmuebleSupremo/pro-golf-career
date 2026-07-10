@@ -1,6 +1,9 @@
 package com.progolf.sim.world;
 
 import com.progolf.sim.career.Career;
+import com.progolf.sim.career.CareerStatistics;
+import com.progolf.sim.career.HallOfFame;
+import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.control.PlayerControl;
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
@@ -125,6 +128,8 @@ public final class World {
     // Golfers already committed to an event this week — a golfer plays at most one event per week, so a
     // major's cross-tour field excludes them from concurrent tour events (spec: event-prestige).
     private final Set<String> committedThisWeek = new LinkedHashSet<>();
+    // Career goals the player has already been congratulated for, so each is announced once (spec: career-goals).
+    private final Set<CareerGoal> achievedGoals = new LinkedHashSet<>();
     private final TourSystem tours = new TourSystem();
     private final WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
@@ -501,6 +506,7 @@ public final class World {
         }
 
         seasonResults.add(result);
+        checkCareerGoals(); // a win/major/ranking move may complete a player goal (spec: career-goals)
     }
 
     /** Per-event entry fee by tour tier (more prestigious tours cost more to enter). */
@@ -581,7 +587,10 @@ public final class World {
             admit(replacement, TourTier.DEVELOPMENT);
         }
 
-        // 5. Archive the completed season and generate the next season's schedule.
+        // 5. Announce any player goal reached this season (tour promotion, year-end #1, longevity/HoF).
+        checkCareerGoals();
+
+        // 6. Archive the completed season and generate the next season's schedule.
         archives.add(new SeasonArchive(season, schedule, seasonResults));
         seasonResults = new ArrayList<>();
         schedule = generateSchedule(season + 1);
@@ -935,6 +944,7 @@ public final class World {
         this.playerPendingOffers.clear();
         this.playerPendingStaff.clear();
         this.playerPendingEquipment.clear();
+        this.achievedGoals.clear();
     }
 
     /**
@@ -978,6 +988,80 @@ public final class World {
     /** Re-enters a previously skipped event, restoring default entry. */
     public void enterEvent(long tournamentId) {
         requirePlayer().enterEvent(tournamentId);
+    }
+
+    // --- Career goals (spec: career-goals) ---
+
+    /** Sets the player's self-chosen career goals (their own framing; never gates play). */
+    public void setCareerGoals(List<CareerGoal> goals) {
+        requirePlayer().setCareerGoals(goals);
+    }
+
+    /** The player's career goals with live progress toward each (current value, target, achieved). */
+    public List<CareerGoalProgress> careerGoals() {
+        String id = requirePlayer().golferId();
+        List<CareerGoalProgress> out = new ArrayList<>();
+        for (CareerGoal goal : playerControl.careerGoals()) {
+            out.add(evaluateGoal(id, goal));
+        }
+        return out;
+    }
+
+    /** Evaluates one goal against the golfer's live career state (purely observational). */
+    private CareerGoalProgress evaluateGoal(String playerId, CareerGoal goal) {
+        CareerStatistics stats = careers.get(playerId).statistics();
+        long current;
+        long target = goal.target();
+        switch (goal.type()) {
+            case REACH_TOP_TOUR -> {
+                current = tours.membershipOf(playerId).map(t -> t == TourTier.ELITE ? 1L : 0L).orElse(0L);
+                target = 1;
+            }
+            case WIN_A_MAJOR -> current = stats.majorsWon();
+            case WORLD_NUMBER_ONE -> {
+                current = ranking.rankingAsOf(calendar.currentDate()).positionOf(playerId)
+                        .map(p -> p == 1 ? 1L : 0L).orElse(0L);
+                target = 1;
+            }
+            case CAREER_WINS -> current = stats.wins();
+            case CAREER_EARNINGS -> current = (long) stats.totalEarnings();
+            case HALL_OF_FAME -> {
+                current = HallOfFame.evaluate(stats).eligible() ? 1L : 0L;
+                target = 1;
+            }
+            default -> throw new IllegalStateException("unhandled goal type " + goal.type());
+        }
+        return new CareerGoalProgress(goal, current, target, current >= target);
+    }
+
+    /** Announces any of the player's goals that have newly become achieved (once each) into the narrative. */
+    private void checkCareerGoals() {
+        if (playerControl == null || playerControl.careerGoals().isEmpty()) {
+            return;
+        }
+        String id = playerControl.golferId();
+        int season = calendar.currentSeason();
+        for (CareerGoal goal : playerControl.careerGoals()) {
+            if (achievedGoals.contains(goal)) {
+                continue;
+            }
+            if (evaluateGoal(id, goal).achieved()) {
+                achievedGoals.add(goal);
+                media.publish(NewsFactory.goalAchieved(season, id, nameOf(id), describeGoal(goal)));
+            }
+        }
+    }
+
+    /** A human phrase for a goal, for the achievement headline. */
+    private static String describeGoal(CareerGoal goal) {
+        return switch (goal.type()) {
+            case REACH_TOP_TOUR -> "reached the Elite tour";
+            case WIN_A_MAJOR -> goal.target() > 1 ? "won " + goal.target() + " majors" : "won a major";
+            case WORLD_NUMBER_ONE -> "became world number one";
+            case CAREER_WINS -> "won " + goal.target() + " tournaments";
+            case CAREER_EARNINGS -> "surpassed " + goal.target() + " in career earnings";
+            case HALL_OF_FAME -> "reached Hall-of-Fame standard";
+        };
     }
 
     /**

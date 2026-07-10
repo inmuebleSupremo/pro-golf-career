@@ -20,6 +20,7 @@ public final class PlayerControl {
     private List<Attribute> developmentFocus = List.of();
     private boolean resting;
     private final Set<Long> skippedEvents = new LinkedHashSet<>();
+    private List<CareerGoal> careerGoals = List.of();
 
     public PlayerControl(String golferId) {
         this.golferId = Objects.requireNonNull(golferId, "golferId");
@@ -66,5 +67,14 @@ public final class PlayerControl {
     /** The events (by tournament id) the player has chosen to skip. */
     public Set<Long> skippedEvents() {
         return Set.copyOf(skippedEvents);
+    }
+
+    /** The player's self-chosen career goals (empty = none). */
+    public List<CareerGoal> careerGoals() {
+        return careerGoals;
+    }
+
+    public void setCareerGoals(List<CareerGoal> goals) {
+        this.careerGoals = goals == null ? List.of() : List.copyOf(goals);
     }
 }

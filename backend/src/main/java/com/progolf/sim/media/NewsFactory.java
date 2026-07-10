@@ -17,6 +17,11 @@ public final class NewsFactory {
                 golferName + " wins the " + tournamentName, MediaConstants.PROMINENCE_TOURNAMENT_VICTORY);
     }
 
+    public static NewsEvent goalAchieved(int season, String golferId, String golferName, String description) {
+        return of(season, NewsType.GOAL_ACHIEVED, golferId,
+                golferName + " achieves a career goal: " + description, MediaConstants.PROMINENCE_GOAL_ACHIEVED);
+    }
+
     public static NewsEvent majorVictory(int season, String golferId, String golferName, String tournamentName) {
         return of(season, NewsType.MAJOR_VICTORY, golferId,
                 golferName + " wins the " + tournamentName + " — a major championship",

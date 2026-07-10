@@ -14,6 +14,7 @@ public final class MediaConstants {
     // --- Prominence (0-100) per news type ---
     public static final int PROMINENCE_MAJOR_VICTORY = 98; // a major win is the biggest news in the world
     public static final int PROMINENCE_WORLD_NUMBER_ONE = 95;
+    public static final int PROMINENCE_GOAL_ACHIEVED = 80; // a self-chosen career goal reached (discoverable)
     public static final int PROMINENCE_MAJOR_UPSET = 85;
     public static final int PROMINENCE_RETIREMENT = 75;
     public static final int PROMINENCE_CAREER_MILESTONE = 70;

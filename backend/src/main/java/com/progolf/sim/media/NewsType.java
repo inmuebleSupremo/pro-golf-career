@@ -15,5 +15,6 @@ public enum NewsType {
     INJURY,
     COMEBACK,
     SEVERE_WEATHER,
-    RISING_PROSPECT
+    RISING_PROSPECT,
+    GOAL_ACHIEVED
 }

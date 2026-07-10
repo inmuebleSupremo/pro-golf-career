@@ -1,5 +1,6 @@
 package com.progolf.app.world;
 
+import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentItem;
@@ -12,6 +13,7 @@ import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
 import com.progolf.sim.tournament.LeaderboardEntry;
+import com.progolf.sim.world.CareerGoalProgress;
 import com.progolf.sim.world.PlayerScheduleEntry;
 import com.progolf.sim.world.World;
 import java.util.List;
@@ -98,6 +100,16 @@ public class WorldService {
     /** Re-enters a previously skipped event for the player. */
     public void enterEvent(String sessionId, long tournamentId) {
         required(sessionId).world().enterEvent(tournamentId);
+    }
+
+    /** Sets the player's self-chosen career goals. */
+    public void setCareerGoals(String sessionId, List<CareerGoal> goals) {
+        required(sessionId).world().setCareerGoals(goals);
+    }
+
+    /** The player's career goals with live progress toward each. */
+    public List<CareerGoalProgress> careerGoals(String sessionId) {
+        return required(sessionId).world().careerGoals();
     }
 
     /** The player's pending sponsorship offers awaiting a decision. */
