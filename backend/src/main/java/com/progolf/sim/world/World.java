@@ -354,12 +354,12 @@ public final class World {
         // A major draws the strongest field across all tiers (cross-tour); regular/signature events draw
         // from their own tour's standings (spec: event-prestige).
         List<ProfessionalGolfer> field = event.prestige().isMajor()
-                ? majorField(date)
+                ? majorField(date, event)
                 : tours.standings(event.tier()).stream()
                         .filter(activeGolfers::contains)
                         .filter(id -> physicalStates.get(id).canCompete()) // availability gates entry (REQ-221)
                         .filter(id -> !committedThisWeek.contains(id)) // one event per week (spec: event-prestige)
-                        .filter(id -> !(isPlayer(id) && playerControl.isResting())) // player rested (player-control)
+                        .filter(id -> !(isPlayer(id) && playerSitsOut(event))) // player skipped/rested (player-control)
                         .limit(config.fieldSize())
                         .map(golfers::get)
                         .toList();
@@ -783,12 +783,12 @@ public final class World {
     }
 
     /** A major draws the strongest active golfers across all tiers, deterministically (spec: event-prestige). */
-    private List<ProfessionalGolfer> majorField(LocalDate date) {
+    private List<ProfessionalGolfer> majorField(LocalDate date, ScheduledTournament event) {
         RankingSnapshot snapshot = ranking.rankingAsOf(date);
         return activeGolfers.stream()
                 .filter(id -> physicalStates.get(id).canCompete())
                 .filter(id -> !committedThisWeek.contains(id)) // one event per week (spec: event-prestige)
-                .filter(id -> !(isPlayer(id) && playerControl.isResting()))
+                .filter(id -> !(isPlayer(id) && playerSitsOut(event))) // player skipped/rested (player-control)
                 .sorted(Comparator
                         .comparingInt((String id) -> snapshot.positionOf(id).orElse(Integer.MAX_VALUE))
                         .thenComparing(Comparator.comparingDouble((String id) -> meanAttribute(golfers.get(id))).reversed())
@@ -941,9 +941,40 @@ public final class World {
         requirePlayer().setDevelopmentFocus(focus);
     }
 
-    /** Sets whether the player's golfer is resting (excluded from event entry to recover). */
+    /** Sets whether the player's golfer is resting (a blanket sit-out of all events to recover). */
     public void setResting(boolean resting) {
         requirePlayer().setResting(resting);
+    }
+
+    /** Skips a specific upcoming event by tournament id (the player is entered in eligible events by default). */
+    public void skipEvent(long tournamentId) {
+        requirePlayer().skipEvent(tournamentId);
+    }
+
+    /** Re-enters a previously skipped event, restoring default entry. */
+    public void enterEvent(long tournamentId) {
+        requirePlayer().enterEvent(tournamentId);
+    }
+
+    /**
+     * The player's reviewable schedule (spec: player-control): every upcoming event they are eligible for —
+     * their tour's events plus all majors (which are cross-tour) — with its prestige and whether the player
+     * is currently entered (not resting and not skipped). The reward side of the fatigue/travel trade-off is
+     * the prestige; the cost side is read from the player's physical state and the standard travel/entry costs.
+     */
+    public List<PlayerScheduleEntry> playerSchedule() {
+        String playerId = requirePlayer().golferId();
+        var tier = tours.membershipOf(playerId);
+        List<PlayerScheduleEntry> out = new ArrayList<>();
+        for (ScheduledTournament event : schedule) {
+            boolean eligibleByTour = event.prestige().isMajor()
+                    || tier.map(t -> t == event.tier()).orElse(false);
+            if (eligibleByTour) {
+                out.add(new PlayerScheduleEntry(event.tournamentId(), event.week(), event.tier(),
+                        event.prestige(), !playerSitsOut(event)));
+            }
+        }
+        return out;
     }
 
     /** The player's golfer's sponsorship offers awaiting an accept/decline decision. */
@@ -1054,17 +1085,28 @@ public final class World {
      * confirmed when the event is built.
      */
     private boolean isPlayerEntered(ScheduledTournament event) {
+        return isPlayerEligible(event) && !playerSitsOut(event);
+    }
+
+    /** Whether the player is eligible for an event (the hard gates they cannot override). */
+    private boolean isPlayerEligible(ScheduledTournament event) {
         if (playerControl == null) {
             return false;
         }
         String id = playerControl.golferId();
-        if (!activeGolfers.contains(id) || playerControl.isResting() || !physicalStates.get(id).canCompete()) {
+        if (!activeGolfers.contains(id) || !physicalStates.get(id).canCompete()) {
             return false;
         }
         if (event.prestige().isMajor()) {
             return true; // majors are cross-tour; buildEvent's field/playerFieldIndex decides if they qualify
         }
         return tours.membershipOf(id).map(t -> t == event.tier()).orElse(false);
+    }
+
+    /** Whether the player has chosen to sit an event out — a blanket rest or a per-event skip (spec: player-control). */
+    private boolean playerSitsOut(ScheduledTournament event) {
+        return playerControl != null
+                && (playerControl.isResting() || playerControl.isSkipped(event.tournamentId()));
     }
 
     /** Whether the world is paused awaiting the player to complete their interactive event. */

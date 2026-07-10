@@ -10,6 +10,7 @@ import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
 import com.progolf.sim.tournament.LeaderboardEntry;
+import com.progolf.sim.world.PlayerScheduleEntry;
 import com.progolf.sim.world.World;
 import java.util.List;
 import java.util.UUID;
@@ -71,9 +72,24 @@ public class WorldService {
         required(sessionId).world().setDevelopmentFocus(focus);
     }
 
-    /** Sets whether the player's golfer is resting in a session. */
+    /** Sets whether the player's golfer is resting (a blanket sit-out) in a session. */
     public void setResting(String sessionId, boolean resting) {
         required(sessionId).world().setResting(resting);
+    }
+
+    /** The player's reviewable eligible schedule (each event's prestige and entry status). */
+    public List<PlayerScheduleEntry> playerSchedule(String sessionId) {
+        return required(sessionId).world().playerSchedule();
+    }
+
+    /** Skips a specific upcoming event by tournament id for the player. */
+    public void skipEvent(String sessionId, long tournamentId) {
+        required(sessionId).world().skipEvent(tournamentId);
+    }
+
+    /** Re-enters a previously skipped event for the player. */
+    public void enterEvent(String sessionId, long tournamentId) {
+        required(sessionId).world().enterEvent(tournamentId);
     }
 
     /** The player's pending sponsorship offers awaiting a decision. */
