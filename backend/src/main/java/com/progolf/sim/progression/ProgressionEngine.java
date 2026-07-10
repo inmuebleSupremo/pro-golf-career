@@ -2,6 +2,7 @@ package com.progolf.sim.progression;
 
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,6 +34,38 @@ public final class ProgressionEngine {
         int points = (int) Math.round(DevelopmentPoints.award(stage) * Math.max(0.0, supportFactor));
         Map<Attribute, Integer> allocation = AllocationPolicy.aiAllocate(current, points);
         return applyAllocation(current, allocation);
+    }
+
+    /**
+     * Applies one season of development directed by a player-chosen {@code focus} (spec: player-development):
+     * the season's Development Points (scaled by {@code supportFactor}) are spent on the focus attributes in
+     * priority order under the same per-season cap and cost curve as the automatic allocation. An empty or
+     * null focus delegates to the automatic allocation, so unfocused development is unchanged.
+     */
+    public static Attributes develop(Attributes current, int age, double supportFactor, List<Attribute> focus) {
+        if (focus == null || focus.isEmpty()) {
+            return develop(current, age, supportFactor);
+        }
+        int points = (int) Math.round(DevelopmentPoints.award(CareerStage.of(age)) * Math.max(0.0, supportFactor));
+        Attributes result = current;
+        double totalGained = 0;
+        for (Attribute a : focus) {
+            int rating = result.get(a);
+            while (points > 0 && rating < Attributes.MAX
+                    && totalGained < ProgressionConstants.MAX_DEVELOPMENT_PER_SEASON) {
+                int cost = DevelopmentPoints.costToRaise(rating);
+                if (points < cost) {
+                    break;
+                }
+                points -= cost;
+                rating += 1;
+                totalGained += 1;
+            }
+            if (rating != result.get(a)) {
+                result = result.with(a, rating);
+            }
+        }
+        return result;
     }
 
     /** Applies a specific Development-Point allocation to attributes (used by the player-driven path). */

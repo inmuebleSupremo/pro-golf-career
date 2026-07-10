@@ -1,6 +1,7 @@
 package com.progolf.sim.world;
 
 import com.progolf.sim.career.Career;
+import com.progolf.sim.control.PlayerControl;
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.Rng;
@@ -109,6 +110,8 @@ public final class World {
     private String previousNumberOne; // for detecting world number-one changes
     private final Set<String> announcedProspects = new LinkedHashSet<>(); // rising prospects reported once
     private final StatisticsArchive statistics = new StatisticsArchive();
+    private PlayerControl playerControl; // null = fully autonomous world (unchanged behaviour)
+    private final List<SponsorshipOffer> playerPendingOffers = new ArrayList<>();
     private final TourSystem tours = new TourSystem();
     private final WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
@@ -255,6 +258,7 @@ public final class World {
         List<ProfessionalGolfer> field = tours.standings(event.tier()).stream()
                 .filter(activeGolfers::contains)
                 .filter(id -> physicalStates.get(id).canCompete()) // availability gates entry (REQ-221)
+                .filter(id -> !(isPlayer(id) && playerControl.isResting())) // player chose to rest (player-control)
                 .limit(config.fieldSize())
                 .map(golfers::get)
                 .toList();
@@ -484,8 +488,15 @@ public final class World {
         Rng rng = new SplitMix64Rng(seed);
         CommercialReputation reputation = CommercialReputation.fromCompetitive(competitiveReputation(id, date), rng);
         List<SponsorshipOffer> offers = sponsorshipMarket.generateOffers(reputation, season + 1, rng);
-        for (SponsorshipOffer offer : com.progolf.sim.economy.AcceptancePolicy.choose(account, offers, season + 1)) {
-            account.signSponsorship(offer.agreement(), date);
+        if (isPlayer(id)) {
+            // The player reviews and accepts offers between advances (spec: player-control); unaccepted
+            // offers from a prior season lapse when this season's are generated.
+            playerPendingOffers.clear();
+            playerPendingOffers.addAll(offers);
+        } else {
+            for (SponsorshipOffer offer : com.progolf.sim.economy.AcceptancePolicy.choose(account, offers, season + 1)) {
+                account.signSponsorship(offer.agreement(), date);
+            }
         }
     }
 
@@ -710,6 +721,64 @@ public final class World {
         return statistics.compareCareers(golferA, golferB);
     }
 
+    // --- Player control (spec: player-control) ---
+
+    /** Designates a golfer as human-controlled; the world otherwise runs autonomously. */
+    public void assignPlayer(String golferId) {
+        if (!golfers.containsKey(golferId)) {
+            throw new IllegalArgumentException("No such golfer: " + golferId);
+        }
+        this.playerControl = new PlayerControl(golferId);
+        this.playerPendingOffers.clear();
+    }
+
+    /** The designated player-controlled golfer, if any. */
+    public java.util.Optional<String> playerGolferId() {
+        return playerControl == null ? java.util.Optional.empty() : java.util.Optional.of(playerControl.golferId());
+    }
+
+    /** Sets the player's development focus (attribute priority) for their golfer. */
+    public void setDevelopmentFocus(List<Attribute> focus) {
+        requirePlayer().setDevelopmentFocus(focus);
+    }
+
+    /** Sets whether the player's golfer is resting (excluded from event entry to recover). */
+    public void setResting(boolean resting) {
+        requirePlayer().setResting(resting);
+    }
+
+    /** The player's golfer's sponsorship offers awaiting an accept/decline decision. */
+    public List<SponsorshipOffer> pendingSponsorships() {
+        return List.copyOf(playerPendingOffers);
+    }
+
+    /** Accepts a pending sponsorship offer by index, signing it within the concurrent-agreement limit. */
+    public void acceptSponsorship(int index) {
+        requirePlayer();
+        if (index < 0 || index >= playerPendingOffers.size()) {
+            throw new IndexOutOfBoundsException("No pending offer at index " + index);
+        }
+        SponsorshipOffer offer = playerPendingOffers.get(index);
+        FinancialAccount account = accounts.get(playerControl.golferId());
+        int startSeason = offer.agreement().startSeason();
+        if (account.activeAgreementCount(startSeason) < EconomyConstants.MAX_CONCURRENT_AGREEMENTS) {
+            account.signSponsorship(offer.agreement(), calendar.currentDate());
+            playerPendingOffers.remove(index);
+        }
+    }
+
+    private PlayerControl requirePlayer() {
+        if (playerControl == null) {
+            throw new IllegalStateException("No player has been assigned to this world");
+        }
+        return playerControl;
+    }
+
+    /** Whether the given golfer is the world's designated player. */
+    private boolean isPlayer(String golferId) {
+        return playerControl != null && playerControl.golferId().equals(golferId);
+    }
+
     /** A golfer's current descriptive Career Narrative (REQ-244). */
     public CareerNarrative careerNarrativeOf(String golferId) {
         Career career = careers.get(golferId);
@@ -744,7 +813,12 @@ public final class World {
     private void evolveGolfer(ProfessionalGolfer golfer, int age, int season) {
         // A coach enhances development by scaling the season's Development Points (REQ-197).
         double developmentFactor = 1.0 + supportTeams.get(golfer.player().id()).effects().developmentBonus();
-        Attributes developed = ProgressionEngine.develop(golfer.player().attributes(), age, developmentFactor);
+        // The player directs their golfer's development to a chosen focus (spec: player-control); everyone
+        // else (and every unassigned world) uses the automatic allocation.
+        Attributes developed = isPlayer(golfer.player().id()) && !playerControl.developmentFocus().isEmpty()
+                ? ProgressionEngine.develop(golfer.player().attributes(), age, developmentFactor,
+                        playerControl.developmentFocus())
+                : ProgressionEngine.develop(golfer.player().attributes(), age, developmentFactor);
         golfer.player().evolveAttributes(developed, AttributeChange.Reason.DEVELOPMENT, season);
         Attributes aged = ProgressionEngine.age(golfer.player().attributes(), age);
         golfer.player().evolveAttributes(aged, AttributeChange.Reason.AGING, season);

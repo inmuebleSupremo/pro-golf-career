@@ -1,6 +1,9 @@
 package com.progolf.app.world;
 
+import com.progolf.sim.core.Attribute;
+import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.world.World;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -46,6 +49,33 @@ public class WorldService {
         World world = session.world();
         return new WorldStatus(session.id(), world.currentSeason(), world.currentWeek(),
                 world.activePopulationSize());
+    }
+
+    // --- Player control (spec: player-control): the human guides one designated golfer ---
+
+    /** Designates a golfer in a session as human-controlled. */
+    public void assignPlayer(String sessionId, String golferId) {
+        required(sessionId).world().assignPlayer(golferId);
+    }
+
+    /** Sets the player's development focus (attribute priority) in a session. */
+    public void setDevelopmentFocus(String sessionId, List<Attribute> focus) {
+        required(sessionId).world().setDevelopmentFocus(focus);
+    }
+
+    /** Sets whether the player's golfer is resting in a session. */
+    public void setResting(String sessionId, boolean resting) {
+        required(sessionId).world().setResting(resting);
+    }
+
+    /** The player's pending sponsorship offers awaiting a decision. */
+    public List<SponsorshipOffer> pendingSponsorships(String sessionId) {
+        return required(sessionId).world().pendingSponsorships();
+    }
+
+    /** Accepts a pending sponsorship offer by index. */
+    public void acceptSponsorship(String sessionId, int index) {
+        required(sessionId).world().acceptSponsorship(index);
     }
 
     private WorldSession required(String id) {
