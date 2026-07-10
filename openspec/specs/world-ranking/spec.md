@@ -28,7 +28,7 @@ Only eligible golfers SHALL appear in the active World Ranking. A golfer that be
 
 ### Requirement: Ranking Points Award
 
-A completed Tournament SHALL award ranking points to each competitor as a function of finishing position, the Tournament's tier, and field strength. Better finishing positions SHALL award more points; stronger fields and higher tiers SHALL award more points.
+A completed Tournament SHALL award ranking points to each competitor as a function of finishing position, the Tournament's tier, **the Tournament's event prestige**, and field strength. Better finishing positions SHALL award more points; stronger fields, higher tiers, and higher prestige SHALL award more points. When prestige is unspecified it SHALL be treated as Regular (the neutral weight), preserving prior point awards.
 
 #### Scenario: Better finish earns more points
 
@@ -39,6 +39,11 @@ A completed Tournament SHALL award ranking points to each competitor as a functi
 
 - **WHEN** two tournaments with identical finishing positions differ in tier or field strength
 - **THEN** the higher-tier or stronger-field tournament SHALL award more points for the same position
+
+#### Scenario: Prestige scales points
+
+- **WHEN** two tournaments with identical tier, field strength, and finishing position differ in event prestige
+- **THEN** the higher-prestige tournament SHALL award more points, so a major awards the most and a regular event the least
 
 #### Scenario: Field strength bootstraps before convergence
 
