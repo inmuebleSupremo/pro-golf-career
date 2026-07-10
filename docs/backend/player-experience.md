@@ -92,16 +92,17 @@ If a slice does not move at least one of these forward, it is infrastructure, no
 Proving the *game* early takes priority over more infrastructure:
 1. ✅ App shell · ✅ Player-control loop (development / sponsorship / rest — the first management decisions).
 2. **Playable round** — strategic shot selection (club/target/risk) shot-by-shot for the player's golfer, with sim/skip. *The proof the game is real; next build.*
-3. **Management breadth** — expose the remaining levers to the player (staff, equipment, true event-by-event scheduling, finances) via the same seam pattern.
-4. **Onboarding & goals** — create-your-golfer; self-defined career goals/ambitions.
-5. **Persistence** — snapshot + save/load (now against a settled, fuller player-state).
-6. **GraphQL API → Auth → React/Vite frontend → Docker** — deliver it as an actual playable product.
+3. **Tournament structure & majors** *(engine)* — differentiate events within a tour by prestige (regular / signature / **major**), with majors as cross-tour marquee events weighted into ranking points, prize, and legacy. The substance behind meaningful scheduling.
+4. **Management breadth** — expose the remaining levers to the player (staff, equipment, **true event-by-event scheduling** across the now-differentiated calendar, finances) via the same seam pattern.
+5. **Onboarding & goals** — **create-your-golfer** (custom identity + starting build); self-defined career goals/ambitions surfaced by the narrative layer.
+6. **Persistence** — snapshot + save/load (now against a settled, fuller player-state).
+7. **GraphQL API → Auth → React/Vite frontend → Docker** — deliver it as an actual playable product.
 
-## 8. Open product calls to confirm
+## 8. Confirmed decisions (locked 2026-07-10)
 
-These shape the target and are the player's/owner's to decide (proposals in italics):
-- **Shot-play centrality** — *available every round, always skippable, never required to win; the game is winnable purely on decisions.* Confirm this balance.
-- **Create-your-golfer** — *yes, create a custom golfer (identity + starting build/archetype) as the career you own,* rather than adopting an existing one. Confirm for V1 vs later.
-- **Career goals** — *lightweight, self-chosen ambitions (e.g., reach the top tour, win a major, world #1) that frame progress but never gate it (§1.6),* surfaced by the narrative layer. Confirm scope.
-- **Scheduling depth** — *choose events to enter from the calendar (not just rest/play), with entry requirements and fatigue/travel trade-offs.* Confirm depth for V1.
-- **Majors / prestige tiers** — whether V1 distinguishes "major-equivalent" events (§1.6 references them) or treats all tour events uniformly for now.
+All five confirmed for V1:
+- **Shot-play centrality** — ✅ Strategic shot selection is **available every round, always skippable, and never required to win.** The game is winnable purely on decisions; playing shots is immersion and marginal edge, not a gate.
+- **Create-your-golfer** — ✅ The player **creates a custom golfer** (identity — name/nationality — plus a starting build/archetype) as the career they own, rather than adopting an existing generated one. (Onboarding slice; the engine's population/identity/attributes support it.)
+- **Career goals** — ✅ **Lightweight, self-chosen ambitions** (e.g., reach the top tour, win a major, world #1) that frame progress and legacy but **never gate** play (§1.6); surfaced by the narrative/stats layer.
+- **Scheduling depth** — ✅ The player **chooses which events to enter** from the calendar (not merely rest/play), weighing **entry requirements** and **fatigue/travel trade-offs** — a real season-planning decision (Pillars 1, 2, 5).
+- **Tours & majors** — ✅ The game **distinguishes tours and the events within them as real-life golf does.** The tour *ladder* is already modelled (Elite / Primary / Secondary / Development ≈ the tour tiers). This adds **event prestige *within* a tour, including MAJORS** — the pinnacle, cross-tour events that carry the most **ranking points, prize money, prestige, and career legacy**, and are the marquee accomplishments of §1.6. **This is an engine addition** (an event prestige/type — regular vs signature vs major — weighted into ranking/prize/legacy, with majors drawing the strongest fields across tours), not just player-facing exposure. It lands as its own slice within the tournament/scheduling breadth (see §7).
