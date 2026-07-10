@@ -11,7 +11,9 @@ import com.progolf.sim.weather.PlayingConditions;
 import com.progolf.sim.weather.TournamentWeather;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -34,6 +36,14 @@ public final class Tournament {
     private CutResult cutResult;
     private ProfessionalGolfer winner;
     private TournamentResult result;
+
+    // Interactive competitor (spec: playable-event): at most one competitor may be played interactively,
+    // its per-round score supplied externally instead of computed by the shared resolver. Null = fully
+    // automatic (unchanged behaviour). The interactive playoff state is populated only during sudden death.
+    private Integer interactiveFieldIndex;
+    private final Map<Integer, Integer> interactiveRoundScores = new HashMap<>();
+    private List<TournamentEntry> playoffRemaining;
+    private int playoffHoleCounter;
 
     public Tournament(TournamentDefinition definition) {
         this(definition, TournamentWeather.calm());
@@ -104,6 +114,46 @@ public final class Tournament {
         return List.copyOf(entries);
     }
 
+    // --- Interactive competitor (spec: playable-event) ---
+
+    /**
+     * Designates exactly one competitor (by field index) as interactive: its per-round score is supplied
+     * externally via {@link #submitInteractiveRoundScore} rather than computed by the shared resolver
+     * (REQ: tournament-play, playable-event). Must be called after the field is confirmed and before play
+     * begins; every other competitor still resolves through the unchanged shared path.
+     */
+    public void designateInteractiveCompetitor(int fieldIndex) {
+        requireState(TournamentState.FIELD_CONFIRMED);
+        if (fieldIndex < 0 || fieldIndex >= standings.size()) {
+            throw new IllegalArgumentException("No competitor at field index " + fieldIndex);
+        }
+        this.interactiveFieldIndex = fieldIndex;
+    }
+
+    /** Whether an interactive competitor has been designated. */
+    public boolean hasInteractiveCompetitor() {
+        return interactiveFieldIndex != null;
+    }
+
+    /** Whether the designated interactive competitor made the cut (valid once the cut has been evaluated). */
+    public boolean interactiveCompetitorMadeCut() {
+        if (interactiveFieldIndex == null) {
+            throw new IllegalStateException("No interactive competitor has been designated");
+        }
+        return standings.get(interactiveFieldIndex).hasMadeCut();
+    }
+
+    /**
+     * Supplies the interactive competitor's score (relative to par) for a round. Must be submitted before
+     * the tournament plays that round; the value is treated identically to a computed score.
+     */
+    public void submitInteractiveRoundScore(int roundNo, int scoreVsPar) {
+        if (interactiveFieldIndex == null) {
+            throw new IllegalStateException("No interactive competitor has been designated");
+        }
+        interactiveRoundScores.put(roundNo, scoreVsPar);
+    }
+
     // --- Lifecycle ---
 
     /**
@@ -171,6 +221,14 @@ public final class Tournament {
 
     /** Resolves one competitor's 18-hole round through the shared engine; returns strokes relative to par. */
     private int playCompetitorRound(CompetitorStanding s, int roundNo) {
+        // The interactive competitor's round score is supplied externally, not computed (spec: playable-event).
+        if (interactiveFieldIndex != null && s.fieldIndex() == interactiveFieldIndex) {
+            Integer submitted = interactiveRoundScores.get(roundNo);
+            if (submitted == null) {
+                throw new IllegalStateException("No interactive score submitted for round " + roundNo);
+            }
+            return submitted;
+        }
         ProfessionalGolfer g = s.golfer();
         Strategy strategy = g.policy().map(DecisionPolicy::defaultStrategy).orElse(Strategy.BALANCED);
         PlayingConditions conditions = weather.conditionsForRound(roundNo);
@@ -279,21 +337,7 @@ public final class Tournament {
         }
         List<TournamentEntry> remaining = new ArrayList<>(tied);
         for (int ph = 1; ph <= TournamentConstants.MAX_PLAYOFF_HOLES; ph++) {
-            int holeNumber = ((ph - 1) % 18) + 1;
-            int playoffRound = 90 + ph; // distinct from rounds 1-4
-            int best = Integer.MAX_VALUE;
-            List<TournamentEntry> survivors = new ArrayList<>();
-            for (TournamentEntry e : remaining) {
-                int strokes = playPlayoffHole(definition, weather, e, holeNumber, playoffRound);
-                if (strokes < best) {
-                    best = strokes;
-                    survivors.clear();
-                    survivors.add(e);
-                } else if (strokes == best) {
-                    survivors.add(e);
-                }
-            }
-            remaining = survivors;
+            remaining = playSuddenDeathHole(definition, weather, remaining, ph, null, null);
             if (remaining.size() == 1) {
                 return remaining.get(0).golfer();
             }
@@ -303,6 +347,104 @@ public final class Tournament {
                 .min(Comparator.comparingInt(TournamentEntry::fieldIndex))
                 .orElseThrow()
                 .golfer();
+    }
+
+    /**
+     * Plays one sudden-death hole for the remaining tied competitors, returning the survivors (those tied
+     * for the low score on the hole). The interactive competitor's strokes are supplied externally when it
+     * is still in the playoff; every other competitor is auto-resolved. Shared verbatim by the automatic
+     * {@link #suddenDeath} loop and the interactive {@link #advancePlayoffHole} driver, so an interactive
+     * playoff simmed in full reproduces the automatic winner by construction (spec: playable-event).
+     */
+    private static List<TournamentEntry> playSuddenDeathHole(
+            TournamentDefinition definition, TournamentWeather weather, List<TournamentEntry> remaining,
+            int ph, Integer interactiveFieldIndex, Integer interactiveStrokes) {
+        int holeNumber = ((ph - 1) % 18) + 1;
+        int playoffRound = 90 + ph; // distinct from rounds 1-4
+        int best = Integer.MAX_VALUE;
+        List<TournamentEntry> survivors = new ArrayList<>();
+        for (TournamentEntry e : remaining) {
+            int strokes = (interactiveFieldIndex != null && e.fieldIndex() == interactiveFieldIndex
+                    && interactiveStrokes != null)
+                    ? interactiveStrokes
+                    : playPlayoffHole(definition, weather, e, holeNumber, playoffRound);
+            if (strokes < best) {
+                best = strokes;
+                survivors.clear();
+                survivors.add(e);
+            } else if (strokes == best) {
+                survivors.add(e);
+            }
+        }
+        return survivors;
+    }
+
+    // --- Interactive playoff (spec: playable-event) ---
+
+    /** Whether the tournament is currently in a sudden-death playoff awaiting resolution. */
+    public boolean isPlayoff() {
+        return state == TournamentState.PLAYOFF;
+    }
+
+    /**
+     * Begins an interactive sudden-death playoff: captures the competitors tied for the lead as the
+     * playoff field so it can be driven hole by hole via {@link #advancePlayoffHole}. Only valid once the
+     * final round has left the lead tied (state PLAYOFF).
+     */
+    public void beginInteractivePlayoff() {
+        requireState(TournamentState.PLAYOFF);
+        playoffRemaining = new ArrayList<>();
+        for (CompetitorStanding s : contenders()) {
+            playoffRemaining.add(new TournamentEntry(s.golfer(), s.fieldIndex()));
+        }
+        playoffHoleCounter = 1;
+    }
+
+    /** The competitors still alive in the interactive playoff (empty until {@link #beginInteractivePlayoff}). */
+    public List<ProfessionalGolfer> playoffContenders() {
+        if (playoffRemaining == null) {
+            return List.of();
+        }
+        return playoffRemaining.stream().map(TournamentEntry::golfer).toList();
+    }
+
+    /** The hole number (1-18) of the current interactive playoff hole. */
+    public int playoffHoleNumber() {
+        return ((playoffHoleCounter - 1) % 18) + 1;
+    }
+
+    /** The round identifier of the current interactive playoff hole (distinct from rounds 1-4). */
+    public long playoffRound() {
+        return 90L + playoffHoleCounter;
+    }
+
+    /**
+     * Plays one interactive sudden-death hole and advances the playoff. The interactive competitor's
+     * strokes are supplied (null when it has been eliminated or is not in the playoff, in which case every
+     * remaining competitor is auto-resolved). When a single competitor is left — or the guard limit is
+     * reached — the winner is set and the tournament completes.
+     */
+    public void advancePlayoffHole(Integer interactivePlayerStrokes) {
+        requireState(TournamentState.PLAYOFF);
+        if (playoffRemaining == null) {
+            throw new IllegalStateException("beginInteractivePlayoff has not been called");
+        }
+        playoffRemaining = playSuddenDeathHole(definition, weather, playoffRemaining, playoffHoleCounter,
+                interactiveFieldIndex, interactivePlayerStrokes);
+        if (playoffRemaining.size() == 1) {
+            winner = playoffRemaining.get(0).golfer();
+            complete();
+            return;
+        }
+        if (playoffHoleCounter >= TournamentConstants.MAX_PLAYOFF_HOLES) {
+            winner = playoffRemaining.stream()
+                    .min(Comparator.comparingInt(TournamentEntry::fieldIndex))
+                    .orElseThrow()
+                    .golfer();
+            complete();
+            return;
+        }
+        playoffHoleCounter++;
     }
 
     private static int playPlayoffHole(TournamentDefinition definition, TournamentWeather weather,

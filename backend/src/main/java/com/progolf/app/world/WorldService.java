@@ -2,6 +2,11 @@ package com.progolf.app.world;
 
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.economy.SponsorshipOffer;
+import com.progolf.sim.play.PlayableEvent;
+import com.progolf.sim.play.ShotSituation;
+import com.progolf.sim.shot.ShotDecision;
+import com.progolf.sim.shot.ShotOutcome;
+import com.progolf.sim.tournament.LeaderboardEntry;
 import com.progolf.sim.world.World;
 import java.util.List;
 import java.util.UUID;
@@ -76,6 +81,62 @@ public class WorldService {
     /** Accepts a pending sponsorship offer by index. */
     public void acceptSponsorship(String sessionId, int index) {
         required(sessionId).world().acceptSponsorship(index);
+    }
+
+    // --- Playable event (spec: playable-event): the player plays their own tournament ---
+
+    /** Whether the session is paused awaiting the player to play (or sim) their scheduled event. */
+    public boolean hasPendingEvent(String sessionId) {
+        return required(sessionId).world().hasPendingPlayerEvent();
+    }
+
+    /** The current shot situation in the player's event (the round or playoff hole they are playing). */
+    public ShotSituation currentSituation(String sessionId) {
+        return playerEvent(sessionId).situation();
+    }
+
+    /** The live field leaderboard for the player's event. */
+    public List<LeaderboardEntry> eventLeaderboard(String sessionId) {
+        return playerEvent(sessionId).leaderboard();
+    }
+
+    /** Plays the current shot in the player's event with the human's decision (club / target / risk). */
+    public ShotOutcome playShot(String sessionId, ShotDecision decision) {
+        return playerEvent(sessionId).playShot(decision);
+    }
+
+    /** Sims the current shot in the player's event. */
+    public ShotOutcome simShot(String sessionId) {
+        return playerEvent(sessionId).simShot();
+    }
+
+    /** Sims the rest of the current hole in the player's event. */
+    public void simHole(String sessionId) {
+        playerEvent(sessionId).simHole();
+    }
+
+    /** Sims the rest of the current round in the player's event. */
+    public void simRound(String sessionId) {
+        playerEvent(sessionId).simRound();
+    }
+
+    /** Sims the remainder of the player's event (all remaining rounds and any playoff). */
+    public void simEvent(String sessionId) {
+        playerEvent(sessionId).simEvent();
+    }
+
+    /** Whether the player made the cut in their event (valid once the second round and cut are played). */
+    public boolean playerMadeCut(String sessionId) {
+        return playerEvent(sessionId).playerMadeCut();
+    }
+
+    /** Completes the player's finished event so its result counts and the paused week resumes. */
+    public void completeEvent(String sessionId) {
+        required(sessionId).world().completePlayerEvent();
+    }
+
+    private PlayableEvent playerEvent(String sessionId) {
+        return required(sessionId).world().playerEvent();
     }
 
     private WorldSession required(String id) {

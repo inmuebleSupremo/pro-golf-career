@@ -52,6 +52,7 @@ import com.progolf.sim.course.Course;
 import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.player.ProfessionalGolfer;
+import com.progolf.sim.play.PlayableEvent;
 import com.progolf.sim.population.PopulationGenerator;
 import com.progolf.sim.progression.ProgressionEngine;
 import com.progolf.sim.ranking.RankingSnapshot;
@@ -112,6 +113,7 @@ public final class World {
     private final StatisticsArchive statistics = new StatisticsArchive();
     private PlayerControl playerControl; // null = fully autonomous world (unchanged behaviour)
     private final List<SponsorshipOffer> playerPendingOffers = new ArrayList<>();
+    private PendingPlayerEvent pendingEvent; // non-null = the week is paused awaiting the player's event
     private final TourSystem tours = new TourSystem();
     private final WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
@@ -212,17 +214,75 @@ public final class World {
      * of the season runs the seasonal transition. Progresses with or without any player action.
      */
     public void advanceWeek() {
+        if (pendingEvent != null) {
+            throw new IllegalStateException("A player event is in progress; complete it before advancing");
+        }
         int week = calendar.currentWeek();
+        List<ScheduledTournament> weekEvents = new ArrayList<>();
         for (ScheduledTournament event : schedule) {
             if (event.week() == week) {
-                resolveEvent(event);
+                weekEvents.add(event);
             }
         }
+        resumeWeek(weekEvents, 0);
+    }
+
+    /**
+     * Resolves this week's events from index {@code from} onward. Non-player events resolve automatically;
+     * when the designated player is entered in an event this yields — building a pending interactive event
+     * and returning before recovery/transition/advance (spec: playable-event) — to be resumed by
+     * {@link #completePlayerEvent}. When all events are resolved it finishes the week.
+     */
+    private void resumeWeek(List<ScheduledTournament> weekEvents, int from) {
+        for (int i = from; i < weekEvents.size(); i++) {
+            ScheduledTournament event = weekEvents.get(i);
+            if (isPlayerEntered(event)) {
+                BuiltEvent built = buildEvent(event);
+                if (built != null && built.playerFieldIndex() >= 0) {
+                    built.tournament().designateInteractiveCompetitor(built.playerFieldIndex());
+                    PlayableEvent playable = new PlayableEvent(built.tournament(),
+                            golfers.get(playerControl.golferId()), built.playerFieldIndex(),
+                            built.course(), built.weather(), masterSeed, built.season(), event.tournamentId());
+                    pendingEvent = new PendingPlayerEvent(playable, built, weekEvents, i);
+                    return; // pause the week until the player's event completes
+                }
+                if (built != null) {
+                    feedConsumers(built, built.tournament().playToCompletion());
+                }
+                continue;
+            }
+            resolveEvent(event);
+        }
+        finishWeek();
+    }
+
+    /** Weekly wrap-up after all of this week's events: recovery, any seasonal transition, then the calendar. */
+    private void finishWeek() {
         recoverHealth(); // fatigue recovers and rehabilitation advances each week (REQ-218/220)
         if (calendar.isSeasonEnd()) {
             seasonalTransition();
         }
         calendar.advance();
+    }
+
+    /**
+     * Completes the player's pending interactive event (spec: playable-event): its result feeds every
+     * consumer exactly as an automatic resolution would, and the paused week resumes to completion. The
+     * event's play (all rounds and any playoff) must be finished first.
+     */
+    public void completePlayerEvent() {
+        if (pendingEvent == null) {
+            throw new IllegalStateException("No player event is pending");
+        }
+        PlayableEvent playable = pendingEvent.event();
+        if (!playable.isComplete()) {
+            throw new IllegalStateException("The player's event is not finished");
+        }
+        feedConsumers(pendingEvent.built(), playable.result());
+        List<ScheduledTournament> weekEvents = pendingEvent.weekEvents();
+        int next = pendingEvent.cursor() + 1;
+        pendingEvent = null;
+        resumeWeek(weekEvents, next);
     }
 
     /** Advances every active golfer's recovery by one week, recording comebacks from significant injuries. */
@@ -246,15 +306,35 @@ public final class World {
         }
     }
 
-    /** Advances a whole season (its remaining weeks). */
+    /** Advances a whole season (its remaining weeks). Any pending player event is simmed so a bulk advance
+     * runs the world unattended (spec: playable-event; the player can still play events week by week). */
     public void advanceSeason() {
         int startSeason = calendar.currentSeason();
         while (calendar.currentSeason() == startSeason) {
             advanceWeek();
+            while (pendingEvent != null) {
+                pendingEvent.event().simEvent();
+                completePlayerEvent();
+            }
         }
     }
 
+    /** Automatically resolves an event end to end (unchanged behaviour): build, play, feed every consumer. */
     private void resolveEvent(ScheduledTournament event) {
+        BuiltEvent built = buildEvent(event);
+        if (built == null) {
+            return; // no eligible field this week
+        }
+        feedConsumers(built, built.tournament().playToCompletion());
+    }
+
+    /**
+     * Builds an event up to a confirmed Tournament ready to play: draws and gates the field, generates the
+     * weather, syncs each competitor's fatigue and equipment into the shot engine, and registers the field.
+     * Returns {@code null} when no eligible field exists. Shared by automatic resolution and the player's
+     * interactive event (spec: playable-event); it computes no results and feeds no consumer.
+     */
+    private BuiltEvent buildEvent(ScheduledTournament event) {
         List<ProfessionalGolfer> field = tours.standings(event.tier()).stream()
                 .filter(activeGolfers::contains)
                 .filter(id -> physicalStates.get(id).canCompete()) // availability gates entry (REQ-221)
@@ -263,34 +343,40 @@ public final class World {
                 .map(golfers::get)
                 .toList();
         if (field.isEmpty()) {
-            return; // no eligible field this week
+            return null; // no eligible field this week
         }
 
         Course course = coursePool.get(event.courseIndex());
         Tier tier = mapTier(event.tier());
-        LocalDate date = calendar.dateFor(calendar.currentSeason(), event.week());
+        int season = calendar.currentSeason();
+        LocalDate date = calendar.dateFor(season, event.week());
 
         TournamentDefinition def = new TournamentDefinition(
                 tier + " Event " + event.tournamentId(), course, tier,
                 new EntryRequirements(config.fieldSize(), true),
                 PrizeStructure.standard(), TournamentFormat.standard(), date,
-                masterSeed, calendar.currentSeason(), event.tournamentId());
+                masterSeed, season, event.tournamentId());
 
         // Weather is generated before play from the course's climate and the point in the season; the
         // whole field plays under the same per-round conditions (REQ-228/231/232).
         int weeksPerSeason = calendar.weeksPerSeason();
         double seasonPhase = weeksPerSeason > 1 ? (double) (event.week() - 1) / (weeksPerSeason - 1) : 0.0;
         TournamentWeather weather = weatherSystem.generate(
-                calendar.currentSeason(), event.tournamentId(), seasonPhase,
+                season, event.tournamentId(), seasonPhase,
                 course.identity().classification(), def.format().rounds());
 
         // Before play, sync each competitor's temporary state into the shot engine: accumulated fatigue
         // (REQ-225) and the active Golf Bag's characteristics (REQ-206), both read via toGolferState.
-        for (ProfessionalGolfer g : field) {
+        int playerFieldIndex = -1;
+        for (int i = 0; i < field.size(); i++) {
+            ProfessionalGolfer g = field.get(i);
             String id = g.player().id();
             g.player().state().setFatigue(physicalStates.get(id).fatigue());
             GolfBag bag = GolfBag.fromLoadout(loadouts.get(id));
             g.player().state().setEquipment(bag.forgivenessBonus(), bag.powerBonus());
+            if (isPlayer(id)) {
+                playerFieldIndex = i;
+            }
         }
 
         Tournament tournament = new Tournament(def, weather);
@@ -299,9 +385,23 @@ public final class World {
             tournament.register(g);
         }
         tournament.confirmField();
-        TournamentResult result = tournament.playToCompletion();
+        return new BuiltEvent(event, tournament, field, def, tier, date, weather, course, season, playerFieldIndex);
+    }
 
-        int season = calendar.currentSeason();
+    /**
+     * Feeds a completed event's result to every consumer — ranking, tour standings, careers, media,
+     * statistics, economy, and health — each owning its own computation (REQ-112). Identical whether the
+     * result came from automatic resolution or the player's interactive event (spec: playable-event).
+     */
+    private void feedConsumers(BuiltEvent built, TournamentResult result) {
+        ScheduledTournament event = built.event();
+        TournamentDefinition def = built.def();
+        Tier tier = built.tier();
+        LocalDate date = built.date();
+        TournamentWeather weather = built.weather();
+        List<ProfessionalGolfer> field = built.field();
+        int season = built.season();
+
         ProfessionalGolfer winner = result.winner();
         String winnerId = winner.player().id();
         // The winner's ranking BEFORE this event feeds the upset test (a low-ranked winner is an upset).
@@ -777,6 +877,48 @@ public final class World {
     /** Whether the given golfer is the world's designated player. */
     private boolean isPlayer(String golferId) {
         return playerControl != null && playerControl.golferId().equals(golferId);
+    }
+
+    // --- Playable event (spec: playable-event): the player plays their own tournament ---
+
+    /**
+     * Whether the designated player would be entered in an event: assigned, active, not resting, able to
+     * compete, and a member of the event's tour. Whether they actually make the field (within its size) is
+     * confirmed when the event is built.
+     */
+    private boolean isPlayerEntered(ScheduledTournament event) {
+        if (playerControl == null) {
+            return false;
+        }
+        String id = playerControl.golferId();
+        if (!activeGolfers.contains(id) || playerControl.isResting() || !physicalStates.get(id).canCompete()) {
+            return false;
+        }
+        return tours.membershipOf(id).map(t -> t == event.tier()).orElse(false);
+    }
+
+    /** Whether the world is paused awaiting the player to complete their interactive event. */
+    public boolean hasPendingPlayerEvent() {
+        return pendingEvent != null;
+    }
+
+    /** The player's pending interactive event handle (play or sim it, then {@link #completePlayerEvent}). */
+    public PlayableEvent playerEvent() {
+        if (pendingEvent == null) {
+            throw new IllegalStateException("No player event is pending");
+        }
+        return pendingEvent.event();
+    }
+
+    /** The event built for the player, plus the paused week's position, held while the event is in progress. */
+    private record PendingPlayerEvent(PlayableEvent event, BuiltEvent built,
+                                      List<ScheduledTournament> weekEvents, int cursor) {
+    }
+
+    /** An event built up to a confirmed Tournament, carrying everything {@link #feedConsumers} needs. */
+    private record BuiltEvent(ScheduledTournament event, Tournament tournament, List<ProfessionalGolfer> field,
+                              TournamentDefinition def, Tier tier, LocalDate date, TournamentWeather weather,
+                              Course course, int season, int playerFieldIndex) {
     }
 
     /** A golfer's current descriptive Career Narrative (REQ-244). */
