@@ -25,7 +25,18 @@
     </properties>
 
     <dependencies>
-        <!-- Test-only. The simulation core (sim.*) is deliberately framework-free (design D1). -->
+        <!-- Application layer (com.progolf.app) only. The simulation core (sim.*) stays framework-free
+             (design D1) and is guarded by ArchitecturePurityTest; Spring must never reach into sim.*. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Test-only. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -35,6 +46,11 @@
 
     <build>
         <plugins>
+            <!-- Packages a runnable application jar and enables `mvn spring-boot:run`. -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
