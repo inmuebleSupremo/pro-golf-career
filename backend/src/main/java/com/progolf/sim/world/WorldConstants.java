@@ -12,8 +12,8 @@ public final class WorldConstants {
 
     public static final int WEEKS_PER_SEASON = 30;
     public static final int EVENTS_PER_TIER_PER_SEASON = 6;
-    public static final int FIELD_SIZE = 40;
-    public static final int INITIAL_POPULATION = 160;
+    public static final int FIELD_SIZE = 120;    // realistic tour-event field (spec: add-world-scale)
+    public static final int INITIAL_POPULATION = 640;
     public static final int COURSE_POOL_SIZE = 12;
     public static final int BASE_YEAR = 2000;
 

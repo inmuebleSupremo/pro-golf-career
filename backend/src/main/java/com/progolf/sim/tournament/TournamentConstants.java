@@ -48,6 +48,7 @@ public final class TournamentConstants {
     public static final double PURSE_PREMIER = 0.50;
     public static final double PURSE_ELITE = 1.00;
 
-    /** Fraction of the field that earns prize money (a "money cut"); the tail earns nothing. */
-    public static final double PAID_POSITIONS_FRACTION = 0.65;
+    /** Fraction of the field that makes the cut (plays the weekend) — and thus the pay line; the rest are
+     * cut and earn nothing (spec: financial-strategy). Sizes both the cut and the paid positions. */
+    public static final double CUT_FRACTION = 0.45;
 }

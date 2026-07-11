@@ -383,13 +383,15 @@ public final class World {
         Course course = coursePool.get(event.courseIndex());
         Tier tier = mapTier(event.tier());
 
-        // Purse scales with tour tier and event prestige, and only part of the field is paid (spec:
-        // financial-strategy), so money is scarce and results-dependent.
-        int paidPositions = (int) Math.round(config.fieldSize() * TournamentConstants.PAID_POSITIONS_FRACTION);
+        // The cut is sized to the actual field so it bites at any scale (~45% make the weekend); making the
+        // cut is the pay line — only the made-cut positions earn, on a tier/prestige-scaled purse (spec:
+        // add-world-scale / financial-strategy).
+        int cutSize = Math.max(1, (int) Math.round(field.size() * TournamentConstants.CUT_FRACTION));
+        TournamentFormat format = new TournamentFormat(TournamentConstants.ROUNDS, true, cutSize);
         TournamentDefinition def = new TournamentDefinition(
                 eventName(event, tier), course, tier, event.prestige(),
                 new EntryRequirements(config.fieldSize(), true),
-                PrizeStructure.forEvent(tier, event.prestige(), paidPositions), TournamentFormat.standard(), date,
+                PrizeStructure.forEvent(tier, event.prestige(), cutSize), format, date,
                 masterSeed, season, event.tournamentId());
 
         // Weather is generated before play from the course's climate and the point in the season; the
