@@ -34,6 +34,17 @@ public record PrizeStructure(double topPrize, double decay, int paidPositions) {
                 TournamentConstants.PRIZE_DECAY, TournamentConstants.PAID_POSITIONS);
     }
 
+    /**
+     * The purse for a lived-world event (spec: financial-strategy): the top prize scales by both tour tier
+     * and event prestige, and only {@code paidPositions} of the field earn money (a money cut). Higher tiers
+     * and higher prestige pay more; the tail earns nothing.
+     */
+    public static PrizeStructure forEvent(Tier tier, EventPrestige prestige, int paidPositions) {
+        return new PrizeStructure(
+                TournamentConstants.TOP_PRIZE * tier.purseMultiplier() * prestige.purseWeight(),
+                TournamentConstants.PRIZE_DECAY, paidPositions);
+    }
+
     /** Prize amount for a 1-based finishing position (0 beyond the paid positions). */
     public double amountForPosition(int position) {
         if (position < 1 || position > paidPositions) {

@@ -40,4 +40,14 @@ public final class TournamentConstants {
     public static final double SIGNATURE_PURSE_WEIGHT = 2.0;
     /** Purse (top-prize) multiplier for a Major. */
     public static final double MAJOR_PURSE_WEIGHT = 4.0;
+
+    // Tour-tier purse multipliers (spec: financial-strategy): higher tiers pay more, so climbing the ladder
+    // unlocks real money. Monotone Development < Standard < Premier < Elite.
+    public static final double PURSE_DEVELOPMENT = 0.08;
+    public static final double PURSE_STANDARD = 0.22;
+    public static final double PURSE_PREMIER = 0.50;
+    public static final double PURSE_ELITE = 1.00;
+
+    /** Fraction of the field that earns prize money (a "money cut"); the tail earns nothing. */
+    public static final double PAID_POSITIONS_FRACTION = 0.65;
 }

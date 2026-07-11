@@ -6,8 +6,19 @@ package com.progolf.sim.tournament;
  * Tournament's {@link EventPrestige} (regular / signature / major), which is an orthogonal reward weight.
  */
 public enum Tier {
-    DEVELOPMENT,
-    STANDARD,
-    PREMIER,
-    ELITE
+    DEVELOPMENT(TournamentConstants.PURSE_DEVELOPMENT),
+    STANDARD(TournamentConstants.PURSE_STANDARD),
+    PREMIER(TournamentConstants.PURSE_PREMIER),
+    ELITE(TournamentConstants.PURSE_ELITE);
+
+    private final double purseMultiplier;
+
+    Tier(double purseMultiplier) {
+        this.purseMultiplier = purseMultiplier;
+    }
+
+    /** The tour tier's purse multiplier (spec: financial-strategy): higher tiers pay larger purses. */
+    public double purseMultiplier() {
+        return purseMultiplier;
+    }
 }

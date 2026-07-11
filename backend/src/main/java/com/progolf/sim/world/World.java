@@ -69,6 +69,7 @@ import com.progolf.sim.tournament.EntryRequirements;
 import com.progolf.sim.tournament.EventPrestige;
 import com.progolf.sim.tournament.PrizeStructure;
 import com.progolf.sim.tournament.Tier;
+import com.progolf.sim.tournament.TournamentConstants;
 import com.progolf.sim.tournament.Tournament;
 import com.progolf.sim.tournament.TournamentDefinition;
 import com.progolf.sim.tournament.TournamentFormat;
@@ -382,10 +383,13 @@ public final class World {
         Course course = coursePool.get(event.courseIndex());
         Tier tier = mapTier(event.tier());
 
+        // Purse scales with tour tier and event prestige, and only part of the field is paid (spec:
+        // financial-strategy), so money is scarce and results-dependent.
+        int paidPositions = (int) Math.round(config.fieldSize() * TournamentConstants.PAID_POSITIONS_FRACTION);
         TournamentDefinition def = new TournamentDefinition(
                 eventName(event, tier), course, tier, event.prestige(),
                 new EntryRequirements(config.fieldSize(), true),
-                PrizeStructure.standard(event.prestige()), TournamentFormat.standard(), date,
+                PrizeStructure.forEvent(tier, event.prestige(), paidPositions), TournamentFormat.standard(), date,
                 masterSeed, season, event.tournamentId());
 
         // Weather is generated before play from the course's climate and the point in the season; the
