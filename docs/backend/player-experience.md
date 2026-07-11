@@ -1,6 +1,8 @@
 # Player Experience Definition — the complete-game target
 
-**Status:** draft target for review. This document defines *what the finished game offers the player*, so every build slice can be measured against it and we never discover a hollow "make two decisions then watch a sim" experience. It **synthesises** the authoritative vision in `explore.md` (§1) into the player-facing decision + play surface; where the two ever disagree, `explore.md` wins. It is not itself an implementation.
+**Status:** target largely realised in the engine + app-service layer (last updated 2026-07-12). This document defines *what the finished game offers the player*, so every build slice can be measured against it and we never discover a hollow "make two decisions then watch a sim" experience. It **synthesises** the authoritative vision in `explore.md` (§1) into the player-facing decision + play surface; where the two ever disagree, `explore.md` wins. It is not itself an implementation.
+
+> **Where we are (2026-07-12):** every decision surface below is now **built in the framework-free engine and driven through `WorldService`** (the app seam a human acts through) — create-your-golfer, shot-by-shot play (always skippable), event-by-event scheduling, development, staff, equipment, sponsorship, and self-chosen career goals. A **depth pass** then put real substance behind the pillars: putting that holes out (realistic absolute scores ~par, not +90/round), shot-level stats, a scaled 640-golfer world, per-golfer **AI strategy variety**, and a two-phase **Hall-of-Fame election** — so Statistical realism (3), Emergent storytelling (4), and Meaningful risk (5) are mechanically real, not stubs. What remains is **not gameplay** but delivery: **persistence (save/load) is next**, then GraphQL API → auth → a React/Vite **UI** (there is no player-facing UI yet — decisions are exercised through the service/API seam).
 
 ---
 
@@ -35,35 +37,35 @@ When your golfer plays a tournament round, you may play it **shot by shot**, mak
 - **Explicitly excluded (§1.7):** swing timing, shot-shaping controls, reflex mechanics. No swing meter, ever.
 - **Always skippable:** sim a shot, "sim to the end of the round," or auto-play a whole round. Because the game is *about decades* (Pillar 2), you never have to grind every shot — but you *can* play the ones that matter (a major Sunday, in contention, a career-defining putt).
 
-*Engine reality:* the shot engine already exposes `resolveShot` (the human, decision-by-decision entry point) alongside `resolveRound` (AI). This mode is engine-ready and **not yet exposed to the player** — it is the priority next build.
+*Engine reality:* **done.** The shot engine exposes `resolveShot` (the human, decision-by-decision entry point) alongside `resolveRound` (AI), and `PlayableRound`/`PlayableEvent` now let the player play a real tournament round shot-by-shot (situation → club/target/risk) or sim any part of it, driven through `WorldService`. A fully-simmed player round is provably identical to the automatic resolution (fidelity by construction). Putting now holes out via a make-% model, so those played rounds post believable scores.
 
 ### B. Career management — the decisions *between* rounds
-The strategic spine that makes an age-18 choice matter at 40. All of these are **player decisions** (today taken automatically by AI policies for every golfer):
+The strategic spine that makes an age-18 choice matter at 40. All of these are **player decisions**, now exposed through `WorldService` (for the player's golfer; the AI still auto-manages the rest of the field):
 - **Development** — invest development points to specialise/round-out your golfer (exposed: *focus*).
-- **Schedule & workload** — which tournaments to enter, when to rest, balancing prize/ranking/prestige against fatigue and injury risk (exposed: a *rest* toggle; needs true event-by-event scheduling).
-- **Health** — manage fatigue and recovery; rehab decisions after injury (partial via rest).
-- **Staff** — hire/replace coach, caddie, fitness coach, physiotherapist, sports psychologist (AI-driven today).
-- **Equipment** — choose the bag and buy/upgrade clubs and ball (AI-driven today).
+- **Schedule & workload** — which tournaments to enter, when to rest, balancing prize/ranking/prestige against fatigue and injury risk (exposed: **event-by-event entry** across the calendar, plus a rest toggle).
+- **Health** — manage fatigue and recovery; rehab decisions after injury (managed via scheduling/rest; the sim resolves fatigue + injuries).
+- **Staff** — hire/replace coach, caddie, fitness coach, physiotherapist, sports psychologist (exposed: *pending offers → hire/release*; caddie & psychologist now affect shots).
+- **Equipment** — choose the bag and buy/upgrade clubs and ball (exposed: *pending upgrades → buy*, *select loadout*; workability/feel now affect shots).
 - **Sponsorship** — accept/decline offers and manage objective-bearing agreements (exposed: *accept/decline*).
-- **Finances** — spend within your means; every purchase (staff, equipment) is a budget decision (economy exists; spending is the staff/equipment decisions).
+- **Finances** — spend within your means; every purchase (staff, equipment) is a budget decision (economy exists; staff/equipment spends are budget-gated, and competing can run at a loss).
 
 ## 4. The complete decision & interaction surface
 
-The end-to-end experience, with honest current status. **Built** = engine exists; **Exposed** = a human can do it today; **Missing** = not yet a player action.
+The end-to-end experience, with honest current status. **Built** = engine exists; **Exposed** = a human can do it today through `WorldService` (no UI yet); **Missing** = not yet a player action.
 
 | Stage | Player does | Engine | Exposed to player |
 |---|---|---|---|
-| **Onboarding** | Create/choose your golfer (identity, nationality, archetype, starting build) | Built (population/identity/attributes) | **Missing** — you currently *designate an existing* generated golfer |
-| **Season planning** | Choose events to enter; plan rest/training around the calendar | Built (calendar, schedule, tours, health) | **Missing** (only a rest toggle) |
-| **Preparation** | Set loadout; brief staff; set tactics for the event/conditions | Built (equipment loadout, staff, weather) | **Missing** |
-| **Play the round** | **Strategic shot selection** (club/target/risk) shot-by-shot, or sim | Built (`resolveShot`) | **Missing** ← priority next |
+| **Onboarding** | Create/choose your golfer (identity, nationality, archetype, starting build) | Built (population/identity/attributes) | **Exposed** (`createPlayer` — custom golfer at the Development tour) |
+| **Season planning** | Choose events to enter; plan rest/training around the calendar | Built (calendar, schedule, tours, health) | **Exposed** (event-by-event skip/enter + rest) |
+| **Preparation** | Set loadout; brief staff; set tactics for the event/conditions | Built (equipment loadout, staff, weather) | **Exposed** (loadout select, staff hire/release); per-event tactics still Missing |
+| **Play the round** | **Strategic shot selection** (club/target/risk) shot-by-shot, or sim | Built (`resolveShot`, `PlayableRound`/`PlayableEvent`) | **Exposed** (play/sim via `WorldService`) |
 | **Development** | Invest development points | Built (progression) | **Exposed** (focus) |
-| **Staff** | Hire/replace support team | Built (staff) | **Missing** |
-| **Equipment** | Buy/choose clubs & ball | Built (equipment) | **Missing** |
+| **Staff** | Hire/replace support team | Built (staff) | **Exposed** (pending offers → hire/release) |
+| **Equipment** | Buy/choose clubs & ball | Built (equipment) | **Exposed** (pending upgrades → buy, select loadout) |
 | **Sponsorship** | Accept/decline & manage agreements | Built (economy) | **Exposed** (accept/decline) |
-| **Finances** | Budget & spend | Built (economy) | Partial (via the above spends) |
-| **Career arc** | Pursue self-chosen goals; navigate promotion/relegation, aging, decline, retirement | Built (tours, career, ranking, aging) | **Missing** (goals); progression is automatic |
-| **Experience the world** | Read the news, track your stats/records/ranking, feel rivalries & narrative | Built (media, statistics, ranking) | Read models exist; **no UI** |
+| **Finances** | Budget & spend | Built (economy) | **Exposed** (staff/equipment spends are budget-gated) |
+| **Career arc** | Pursue self-chosen goals; navigate promotion/relegation, aging, decline, retirement, Hall-of-Fame | Built (tours, career, ranking, aging, HoF election) | **Exposed** (goals + live progress; HoF induction); attribute progression is automatic |
+| **Experience the world** | Read the news, track your stats/records/ranking, feel rivalries & narrative | Built (media, statistics inc. shot-level, ranking) | Read models exposed; **no UI** |
 
 **Definition of winning (§1.6):** no single win condition — you pursue your own mix of victories, majors, earnings, world ranking, longevity, records, Hall-of-Fame. The game must give *meaningful play in every career phase* (§1.5: Entry → Development → Growth → Prime → Veteran → Decline → Retirement); no phase mechanically abandoned.
 
@@ -79,6 +81,8 @@ We can say the game is real when a player can, end to end:
 
 If a slice does not move at least one of these forward, it is infrastructure, not game.
 
+**Status (2026-07-12): all six pass at the engine + `WorldService` seam.** A human can create a golfer, play or sim tournament rounds via club/target/risk, make the full set of between-event decisions (development, scheduling, staff, equipment, sponsorship, finances), feel choices compound over a multi-decade career, progress through the phases pursuing self-chosen goals up to Hall-of-Fame induction, and read the living world's news/stats/records/ranking. The one missing piece is a **player-facing UI** (item 8) — today these are exercised through the service/API seam, not a screen.
+
 ## 6. Guardrails
 
 - **Decisions, not dexterity** (§1.1/§1.7) — every interaction is a choice the sim resolves; no timing/meters.
@@ -89,14 +93,15 @@ If a slice does not move at least one of these forward, it is infrastructure, no
 
 ## 7. Roadmap toward this target (re-sequenced)
 
-Proving the *game* early takes priority over more infrastructure:
+Proving the *game* early took priority over more infrastructure. Items 1–5 are complete, plus a depth pass that made the mechanics real:
 1. ✅ App shell · ✅ Player-control loop (development / sponsorship / rest — the first management decisions).
-2. **Playable round** — strategic shot selection (club/target/risk) shot-by-shot for the player's golfer, with sim/skip. *The proof the game is real; next build.*
-3. **Tournament structure & majors** *(engine)* — differentiate events within a tour by prestige (regular / signature / **major**), with majors as cross-tour marquee events weighted into ranking points, prize, and legacy. The substance behind meaningful scheduling.
-4. **Management breadth** — expose the remaining levers to the player (staff, equipment, **true event-by-event scheduling** across the now-differentiated calendar, finances) via the same seam pattern.
-5. **Onboarding & goals** — **create-your-golfer** (custom identity + starting build); self-defined career goals/ambitions surfaced by the narrative layer.
-6. **Persistence** — snapshot + save/load (now against a settled, fuller player-state).
-7. **GraphQL API → Auth → React/Vite frontend → Docker** — deliver it as an actual playable product.
+2. ✅ **Playable round** — strategic shot selection (club/target/risk) shot-by-shot for the player's golfer, with sim/skip (`PlayableRound`/`PlayableEvent`). *The proof the game is real.*
+3. ✅ **Tournament structure & majors** *(engine)* — events differentiated by prestige (regular / signature / **major**), majors as cross-tour marquee events weighted into ranking points, prize, and legacy.
+4. ✅ **Management breadth** — staff, equipment, and **event-by-event scheduling** across the differentiated calendar, all exposed via the same seam pattern; spends are budget-gated.
+5. ✅ **Onboarding & goals** — **create-your-golfer** (custom identity + starting build); self-defined career goals with live progress, surfaced by the narrative layer.
+6. ✅ **Depth pass** *(engine realism)* — closed the gaps that made decisions hollow or scores unreal: staff/equipment shot effects, economy stakes, a scaled 640-golfer world, shot-level stats, a **putting make-% model** (believable absolute scores), per-golfer **AI strategy variety**, and a two-phase **Hall-of-Fame election**. (Remaining Tier-3 calibration items are tracked separately.)
+7. **Persistence** — snapshot + save/load (now against a settled, fuller player-state). ← **next**
+8. **GraphQL API → Auth → React/Vite frontend → Docker** — deliver it as an actual playable product.
 
 ## 8. Confirmed decisions (locked 2026-07-10)
 
