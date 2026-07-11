@@ -200,6 +200,7 @@ public final class PlayableEvent {
     private void finishRound() {
         int roundNo = currentRoundNo;
         tournament.submitInteractiveRoundScore(roundNo, currentRound.scoreVsPar());
+        tournament.addInteractiveRoundStats(currentRound.shotStats()); // capture the player's shot stats too
         tournament.advance(); // plays this round for the AI field, using the submitted player score
         switch (roundNo) {
             case 1 -> beginRound(2);

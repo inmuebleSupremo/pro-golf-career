@@ -479,8 +479,11 @@ public final class World {
         // Statistics: record every finish and the champion (with its prestige) into the archive (REQ-251/254/256).
         for (TournamentResult.Finish finish : result.finishingOrder()) {
             String id = finish.golfer().player().id();
+            var shots = finish.shotStats(); // shot-level stats (spec: competitive-statistics)
             EventOutcome outcome = new EventOutcome(season, id, finish.position(), finish.score(),
-                    finish.madeCut(), finish.withdrawn(), finish.prize());
+                    finish.madeCut(), finish.withdrawn(), finish.prize(),
+                    shots.fairwaysHit(), shots.fairwaysPossible(), shots.greensInRegulation(),
+                    shots.holesPlayed(), shots.putts());
             statistics.observeEvent(outcome, def.name(), tier.name(), prestige.name(), id.equals(winnerId));
         }
 

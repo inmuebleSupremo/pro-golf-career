@@ -66,6 +66,7 @@ class PlayableEventTest {
             assertThat(a.score()).as("finisher %d score", i).isEqualTo(e.score());
             assertThat(a.madeCut()).as("finisher %d madeCut", i).isEqualTo(e.madeCut());
             assertThat(a.prize()).as("finisher %d prize", i).isEqualTo(e.prize());
+            assertThat(a.shotStats()).as("finisher %d shot stats", i).isEqualTo(e.shotStats());
         }
     }
 

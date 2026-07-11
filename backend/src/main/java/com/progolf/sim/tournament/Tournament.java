@@ -4,8 +4,10 @@ import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.player.DecisionPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.shot.HoleModel;
+import com.progolf.sim.shot.HoleStats;
 import com.progolf.sim.shot.RoundOutcome;
 import com.progolf.sim.shot.RoundResolver;
+import com.progolf.sim.shot.ShotStatLine;
 import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.weather.PlayingConditions;
 import com.progolf.sim.weather.TournamentWeather;
@@ -243,8 +245,21 @@ public final class Tournament {
                     model, g.player().attributes(), g.player().toGolferState(0.0),
                     conditions.environmentForHole(hole, exposure), strategy, coord);
             strokes += out.totalStrokes();
+            // Accumulate shot-level stats from the resolved shots (spec: competitive-statistics).
+            s.addHole(HoleStats.of(out.shots(), definition.course().holes().get(hole - 1).par()));
         }
         return strokes - definition.course().totalPar();
+    }
+
+    /**
+     * Submits a whole round's shot statistics for the interactive competitor (spec: competitive-statistics),
+     * so the human player's own driving/GIR/putts are captured alongside their externally-supplied score.
+     */
+    public void addInteractiveRoundStats(ShotStatLine roundStats) {
+        if (interactiveFieldIndex == null) {
+            throw new IllegalStateException("No interactive competitor has been designated");
+        }
+        standings.get(interactiveFieldIndex).addRoundStats(roundStats);
     }
 
     private void evaluateCut() {
@@ -475,7 +490,7 @@ public final class Tournament {
             int position = positionOf(s, winnerStanding);
             double prize = definition.prizeStructure().amountForPosition(position);
             finishes.add(new TournamentResult.Finish(
-                    s.golfer(), position, s.cumulative(), s.hasMadeCut(), s.isWithdrawn(), prize));
+                    s.golfer(), position, s.cumulative(), s.hasMadeCut(), s.isWithdrawn(), prize, s.shotStats()));
         }
         finishes.sort(Comparator.comparingInt(TournamentResult.Finish::position)
                 .thenComparingInt(f -> indexOf(f.golfer())));

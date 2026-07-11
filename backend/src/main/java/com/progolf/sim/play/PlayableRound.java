@@ -3,10 +3,12 @@ package com.progolf.sim.play;
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.shot.GolferState;
+import com.progolf.sim.shot.HoleStats;
 import com.progolf.sim.shot.ShotContext;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.ShotResolver;
+import com.progolf.sim.shot.ShotStatLine;
 import com.progolf.sim.shot.SimConstants;
 import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.shot.StrategyPolicy;
@@ -43,6 +45,8 @@ public final class PlayableRound {
     private int totalStrokes;
     private Surface lie = Surface.TEE_BOX;
     private final List<Integer> holeScores = new ArrayList<>();
+    private final List<ShotOutcome> currentHoleShots = new ArrayList<>();
+    private ShotStatLine shotStats = ShotStatLine.empty();
 
     public PlayableRound(Attributes attributes, GolferState state, List<HoleToPlay> holes,
                          SeedCoordinate base, Strategy simStrategy) {
@@ -114,6 +118,7 @@ public final class PlayableRound {
 
         totalStrokes += outcome.strokes();
         strokesThisHole += outcome.strokes();
+        currentHoleShots.add(outcome);
         lie = outcome.finalSurface();
 
         boolean holed;
@@ -133,6 +138,8 @@ public final class PlayableRound {
 
     private void completeHole() {
         holeScores.add(strokesThisHole);
+        shotStats = shotStats.plus(HoleStats.of(currentHoleShots, holes.get(holeIndex).par()));
+        currentHoleShots.clear();
         holeIndex++;
         if (!isComplete()) {
             remaining = holes.get(holeIndex).model().startDistance();
@@ -140,6 +147,11 @@ public final class PlayableRound {
             strokesThisHole = 0;
             lie = Surface.TEE_BOX;
         }
+    }
+
+    /** The round's accumulated shot-level statistics (spec: competitive-statistics). */
+    public ShotStatLine shotStats() {
+        return shotStats;
     }
 
     /** Total strokes taken so far (the round total once complete). */

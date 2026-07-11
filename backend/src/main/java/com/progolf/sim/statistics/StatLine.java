@@ -7,11 +7,13 @@ package com.progolf.sim.statistics;
  * {@code totalScoreVsPar} is cumulative strokes relative to par across counted events (lower is better).
  */
 public record StatLine(int events, int cuts, int wins, int runnerUps, int topTens,
-                       int bestFinish, int totalScoreVsPar, double earnings) {
+                       int bestFinish, int totalScoreVsPar, double earnings,
+                       int fairwaysHit, int fairwaysPossible, int greensInRegulation, int holesPlayed,
+                       int putts) {
 
     /** An empty stat line (the accumulation identity). */
     public static StatLine empty() {
-        return new StatLine(0, 0, 0, 0, 0, Integer.MAX_VALUE, 0, 0.0);
+        return new StatLine(0, 0, 0, 0, 0, Integer.MAX_VALUE, 0, 0.0, 0, 0, 0, 0, 0);
     }
 
     /** The stat line contributed by a single outcome. */
@@ -24,7 +26,13 @@ public record StatLine(int events, int cuts, int wins, int runnerUps, int topTen
         int topTens = counts && o.position() <= StatisticsConstants.TOP_N ? 1 : 0;
         int bestFinish = counts ? o.position() : Integer.MAX_VALUE;
         int score = counts ? o.scoreVsPar() : 0;
-        return new StatLine(events, cuts, wins, runnerUps, topTens, bestFinish, score, o.prize());
+        int fairwaysHit = counts ? o.fairwaysHit() : 0;
+        int fairwaysPossible = counts ? o.fairwaysPossible() : 0;
+        int gir = counts ? o.greensInRegulation() : 0;
+        int holes = counts ? o.holesPlayed() : 0;
+        int putts = counts ? o.putts() : 0;
+        return new StatLine(events, cuts, wins, runnerUps, topTens, bestFinish, score, o.prize(),
+                fairwaysHit, fairwaysPossible, gir, holes, putts);
     }
 
     /** Folds one outcome into this line. */
@@ -42,7 +50,12 @@ public record StatLine(int events, int cuts, int wins, int runnerUps, int topTen
                 topTens + o.topTens,
                 Math.min(bestFinish, o.bestFinish),
                 totalScoreVsPar + o.totalScoreVsPar,
-                earnings + o.earnings);
+                earnings + o.earnings,
+                fairwaysHit + o.fairwaysHit,
+                fairwaysPossible + o.fairwaysPossible,
+                greensInRegulation + o.greensInRegulation,
+                holesPlayed + o.holesPlayed,
+                putts + o.putts);
     }
 
     /** Mean score relative to par across counted events (0 when none). Lower is better. */
@@ -53,5 +66,20 @@ public record StatLine(int events, int cuts, int wins, int runnerUps, int topTen
     /** Fraction of counted events in which the cut was made (0 when none). */
     public double cutMakeRate() {
         return events == 0 ? 0.0 : (double) cuts / events;
+    }
+
+    /** Fraction of eligible drives that found the fairway (0 when none). */
+    public double drivingAccuracy() {
+        return fairwaysPossible == 0 ? 0.0 : (double) fairwaysHit / fairwaysPossible;
+    }
+
+    /** Fraction of holes hit in regulation (0 when none played). */
+    public double greensInRegulationRate() {
+        return holesPlayed == 0 ? 0.0 : (double) greensInRegulation / holesPlayed;
+    }
+
+    /** Putts per 18-hole round (0 when none played). */
+    public double puttsPerRound() {
+        return holesPlayed == 0 ? 0.0 : putts * 18.0 / holesPlayed;
     }
 }

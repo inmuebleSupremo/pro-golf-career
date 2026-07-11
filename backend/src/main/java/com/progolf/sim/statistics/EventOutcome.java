@@ -8,7 +8,9 @@ import java.util.Objects;
  * score relative to par, whether they made the cut, whether they withdrew, and prize money. Immutable.
  */
 public record EventOutcome(int season, String golferId, int position, int scoreVsPar,
-                           boolean madeCut, boolean withdrawn, double prize) {
+                           boolean madeCut, boolean withdrawn, double prize,
+                           int fairwaysHit, int fairwaysPossible, int greensInRegulation, int holesPlayed,
+                           int putts) {
 
     public EventOutcome {
         Objects.requireNonNull(golferId, "golferId");
@@ -18,6 +20,12 @@ public record EventOutcome(int season, String golferId, int position, int scoreV
         if (prize < 0 || !Double.isFinite(prize)) {
             throw new IllegalArgumentException("prize must be finite and >= 0: " + prize);
         }
+    }
+
+    /** Convenience for an outcome with no recorded shot statistics (all zero). */
+    public EventOutcome(int season, String golferId, int position, int scoreVsPar, boolean madeCut,
+                        boolean withdrawn, double prize) {
+        this(season, golferId, position, scoreVsPar, madeCut, withdrawn, prize, 0, 0, 0, 0, 0);
     }
 
     /** Whether this outcome counts toward competitive statistics (a completed, non-withdrawn appearance). */
