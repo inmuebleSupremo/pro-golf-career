@@ -89,10 +89,10 @@ public final class ShotResolver {
         double maxReach = club.baseDistance() * (SimConstants.REACH_FLOOR + SimConstants.REACH_SPAN * distanceNorm)
                 * equipmentReach;
         double shotDistance = Math.min(decision.targetDistance(), maxReach);
-        double clubDispersion = club.dispersionMultiplier();
-        double baseLateral = SimConstants.LATERAL_DISPERSION_FRACTION * shotDistance * clubDispersion
+        // Per-club dispersion: the driver sprays wider off the tee, a wedge is a precision club.
+        double baseLateral = SimConstants.LATERAL_DISPERSION_FRACTION * shotDistance * club.lateralDispersion()
                 + SimConstants.LATERAL_DISPERSION_FLOOR;
-        double baseDistanceDispersion = SimConstants.DISTANCE_DISPERSION_FRACTION * shotDistance * clubDispersion
+        double baseDistanceDispersion = SimConstants.DISTANCE_DISPERSION_FRACTION * shotDistance * club.distanceDispersion()
                 + SimConstants.DISTANCE_DISPERSION_FLOOR;
 
         double sigmaLateral = baseLateral / lateralFactor
