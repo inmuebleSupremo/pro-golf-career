@@ -45,22 +45,26 @@ class CareerMajorsTest {
     }
 
     @Test
-    void enoughMajorsMakeACareerHallOfFameEligible() {
+    void majorsAreRequiredForTheHallOfFameBaselineButNotSufficientAlone() {
         ProfessionalGolfer subject = CareerFixtures.golfer(5);
         ProfessionalGolfer filler = CareerFixtures.golfer(6);
         Career career = careerOf(subject);
 
-        // Below the majors threshold and below the win/consistency paths — not yet eligible.
-        for (int i = 0; i < CareerConstants.HOF_MIN_MAJORS - 1; i++) {
-            career.recordTournament(CareerFixtures.result("Major", subject, filler, 1, true, false, 1000),
+        // A win-rich career (>= the pro-win floor) but with too few majors is NOT baseline eligible.
+        for (int i = 0; i < CareerConstants.HOF_MIN_PRO_WINS; i++) {
+            career.recordTournament(CareerFixtures.result("Reg" + i, subject, filler, 1, true, false, 500),
+                    EventPrestige.REGULAR, DATE);
+        }
+        assertThat(HallOfFame.meetsBaseline(
+                HallOfFameCredentials.of(career.statistics(), 50, 0, false))).isFalse();
+
+        // Adding the majors floor tips it over — with both the pro wins and majors, it is now eligible.
+        for (int i = 0; i < CareerConstants.HOF_MIN_MAJORS; i++) {
+            career.recordTournament(CareerFixtures.result("Major" + i, subject, filler, 1, true, false, 1000),
                     EventPrestige.MAJOR, DATE);
         }
-        assertThat(HallOfFame.evaluate(career.statistics()).eligible()).isFalse();
-
-        // One more major reaches the threshold — eligible on the majors path alone.
-        career.recordTournament(CareerFixtures.result("Major", subject, filler, 1, true, false, 1000),
-                EventPrestige.MAJOR, DATE);
         assertThat(career.statistics().majorsWon()).isEqualTo(CareerConstants.HOF_MIN_MAJORS);
-        assertThat(HallOfFame.evaluate(career.statistics()).eligible()).isTrue();
+        assertThat(HallOfFame.meetsBaseline(
+                HallOfFameCredentials.of(career.statistics(), 50, 0, false))).isTrue();
     }
 }

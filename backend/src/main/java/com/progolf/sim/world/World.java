@@ -1,8 +1,11 @@
 package com.progolf.sim.world;
 
 import com.progolf.sim.career.Career;
+import com.progolf.sim.career.CareerConstants;
 import com.progolf.sim.career.CareerStatistics;
 import com.progolf.sim.career.HallOfFame;
+import com.progolf.sim.career.HallOfFameCredentials;
+import com.progolf.sim.career.HallOfFameInduction;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.control.PlayerControl;
 import com.progolf.sim.core.Attribute;
@@ -139,6 +142,12 @@ public final class World {
 
     private final List<SeasonArchive> archives = new ArrayList<>();
     private final List<RankingSnapshot> rankingSnapshots = new ArrayList<>();
+
+    // Hall of Fame (spec: career-legacy): the permanent registry of inductions, the set of inducted ids
+    // for O(1) membership, and the season each golfer retired (to derive seasons-since-retirement).
+    private final List<HallOfFameInduction> hallOfFameInductions = new ArrayList<>();
+    private final Set<String> hallOfFameMembers = new LinkedHashSet<>();
+    private final Map<String, Integer> retirementSeason = new LinkedHashMap<>();
 
     private List<ScheduledTournament> schedule = new ArrayList<>();
     private List<TournamentResult> seasonResults = new ArrayList<>();
@@ -461,7 +470,7 @@ public final class World {
         ranking.record(result, tier, prestige, date, event.tournamentId());
         tours.recordResult(result, event.tier());
         for (ProfessionalGolfer g : field) {
-            careers.get(g.player().id()).recordTournament(result, prestige, date);
+            careers.get(g.player().id()).recordTournament(result, prestige, tier, date);
         }
 
         // Media: the win (a major victory is the biggest news), any maiden title, and any upset (REQ-241/242).
@@ -561,6 +570,7 @@ public final class World {
             career.advanceSeason(date);
             if (career.isRetired()) {
                 retirees.add(id);
+                retirementSeason.putIfAbsent(id, season); // for seasons-since-retirement (spec: career-legacy)
                 media.publish(NewsFactory.retirement(season, id, nameOf(id), career.statistics().wins()));
             } else {
                 evolveGolfer(golfers.get(id), career.age(), season);
@@ -600,6 +610,9 @@ public final class World {
             admit(replacement, TourTier.DEVELOPMENT);
         }
 
+        // 4.5. Hall of Fame: every election cycle, induct the single highest-scored eligible golfer.
+        runHallOfFameElection(season);
+
         // 5. Announce any player goal reached this season (tour promotion, year-end #1, longevity/HoF).
         checkCareerGoals();
 
@@ -607,6 +620,47 @@ public final class World {
         archives.add(new SeasonArchive(season, schedule, seasonResults));
         seasonResults = new ArrayList<>();
         schedule = generateSchedule(season + 1);
+    }
+
+    /**
+     * The Hall-of-Fame biennial election (spec: career-legacy). Runs only on an election-cycle season. It
+     * gathers every not-yet-inducted golfer — active or retired — that meets the baseline eligibility,
+     * ranks them by prestige-weighted score (ties broken by id for determinism), and inducts only the top
+     * candidate(s) for the cycle. Non-selected eligibles simply remain candidates next cycle. Pure and
+     * deterministic — no randomness — so same-seed worlds induct identically.
+     */
+    private void runHallOfFameElection(int season) {
+        if (season % CareerConstants.HOF_ELECTION_CYCLE_SEASONS != 0) {
+            return;
+        }
+        record Candidate(String id, double score) {
+        }
+        List<Candidate> ballot = new ArrayList<>();
+        for (String id : careers.keySet()) {
+            if (hallOfFameMembers.contains(id)) {
+                continue;
+            }
+            HallOfFameCredentials credentials = hallOfFameCredentials(id, season);
+            if (HallOfFame.meetsBaseline(credentials)) {
+                ballot.add(new Candidate(id, HallOfFame.score(credentials)));
+            }
+        }
+        ballot.sort(Comparator.comparingDouble(Candidate::score).reversed().thenComparing(Candidate::id));
+        int inductees = Math.min(CareerConstants.HOF_INDUCTEES_PER_CYCLE, ballot.size());
+        for (int i = 0; i < inductees; i++) {
+            Candidate c = ballot.get(i);
+            hallOfFameMembers.add(c.id());
+            hallOfFameInductions.add(new HallOfFameInduction(c.id(), season, c.score()));
+            media.publish(NewsFactory.hallOfFameInduction(season, c.id(), nameOf(c.id())));
+        }
+    }
+
+    /** Builds a golfer's Hall-of-Fame credentials: career stats + age + seasons since retirement (if retired). */
+    private HallOfFameCredentials hallOfFameCredentials(String id, int season) {
+        Career career = careers.get(id);
+        boolean retired = career.isRetired();
+        int seasonsSinceRetirement = retired ? season - retirementSeason.getOrDefault(id, season) : 0;
+        return HallOfFameCredentials.of(career.statistics(), career.age(), seasonsSinceRetirement, retired);
     }
 
     /**
@@ -863,6 +917,21 @@ public final class World {
         return List.copyOf(rankingSnapshots);
     }
 
+    /** The Hall-of-Fame inductions in order (spec: career-legacy). */
+    public List<HallOfFameInduction> hallOfFameInductions() {
+        return List.copyOf(hallOfFameInductions);
+    }
+
+    /** The ids of all golfers inducted into the Hall of Fame. */
+    public Set<String> hallOfFameMembers() {
+        return Set.copyOf(hallOfFameMembers);
+    }
+
+    /** Whether the golfer has been inducted into the Hall of Fame. */
+    public boolean isInHallOfFame(String golferId) {
+        return hallOfFameMembers.contains(golferId);
+    }
+
     /** Significant environmental history: events played under severe/record conditions (REQ-235). */
     public List<EnvironmentalRecord> environmentalHistory() {
         return List.copyOf(environmentalHistory);
@@ -1039,7 +1108,8 @@ public final class World {
             case CAREER_WINS -> current = stats.wins();
             case CAREER_EARNINGS -> current = (long) stats.totalEarnings();
             case HALL_OF_FAME -> {
-                current = HallOfFame.evaluate(stats).eligible() ? 1L : 0L;
+                // Achieved only on actual induction (the marquee lifetime achievement), not mere eligibility.
+                current = hallOfFameMembers.contains(playerId) ? 1L : 0L;
                 target = 1;
             }
             default -> throw new IllegalStateException("unhandled goal type " + goal.type());

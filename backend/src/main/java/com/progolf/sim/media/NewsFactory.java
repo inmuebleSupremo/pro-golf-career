@@ -41,6 +41,11 @@ public final class NewsFactory {
                 MediaConstants.PROMINENCE_MAJOR_UPSET);
     }
 
+    public static NewsEvent hallOfFameInduction(int season, String golferId, String golferName) {
+        return of(season, NewsType.HALL_OF_FAME_INDUCTION, golferId,
+                golferName + " is inducted into the Hall of Fame", MediaConstants.PROMINENCE_HALL_OF_FAME);
+    }
+
     public static NewsEvent worldNumberOne(int season, String golferId, String golferName) {
         return of(season, NewsType.WORLD_NUMBER_ONE, golferId,
                 golferName + " rises to world number one", MediaConstants.PROMINENCE_WORLD_NUMBER_ONE);

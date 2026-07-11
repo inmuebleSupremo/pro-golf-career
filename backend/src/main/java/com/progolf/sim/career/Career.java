@@ -3,6 +3,7 @@ package com.progolf.sim.career;
 import com.progolf.sim.player.CareerStatus;
 import com.progolf.sim.player.Player;
 import com.progolf.sim.tournament.EventPrestige;
+import com.progolf.sim.tournament.Tier;
 import com.progolf.sim.tournament.TournamentResult;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -126,16 +127,24 @@ public final class Career {
      * fires any first-occurrence milestones, and appends history. Rejected once the career is retired.
      */
     public void recordTournament(TournamentResult result, LocalDate date) {
-        recordTournament(result, EventPrestige.REGULAR, date);
+        recordTournament(result, EventPrestige.REGULAR, Tier.STANDARD, date);
+    }
+
+    /** Records the golfer's participation, weighting a win by prestige at the default (standard) tour tier. */
+    public void recordTournament(TournamentResult result, EventPrestige prestige, LocalDate date) {
+        recordTournament(result, prestige, Tier.STANDARD, date);
     }
 
     /**
-     * Records the golfer's participation, weighting a win by the event's prestige (spec: event-prestige):
-     * a win in a major folds into the career's majors-won legacy. Otherwise identical to the regular record.
+     * Records the golfer's participation, classifying a win by the event's prestige AND tour tier
+     * (spec: event-prestige, career-legacy): a win is folded into the career's major / signature /
+     * development-tier legacy buckets (regular pro wins are the remainder), which drive Hall-of-Fame
+     * credentials. Otherwise identical to the regular record.
      */
-    public void recordTournament(TournamentResult result, EventPrestige prestige, LocalDate date) {
+    public void recordTournament(TournamentResult result, EventPrestige prestige, Tier tier, LocalDate date) {
         Objects.requireNonNull(result, "result");
         Objects.requireNonNull(prestige, "prestige");
+        Objects.requireNonNull(tier, "tier");
         Objects.requireNonNull(date, "date");
         if (isRetired()) {
             throw new IllegalStateException("A retired career is read-only");
@@ -145,8 +154,8 @@ public final class Career {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Golfer did not play in tournament " + result.tournamentName()));
 
-        boolean majorWin = prestige.isMajor() && !finish.withdrawn() && finish.position() == 1;
-        statistics.recordResult(finish.position(), finish.madeCut(), finish.withdrawn(), finish.prize(), majorWin);
+        statistics.recordResult(finish.position(), finish.madeCut(), finish.withdrawn(), finish.prize(),
+                classifyWin(finish, prestige, tier));
         history.add(new CareerHistoryEntry(date, CareerHistoryEntry.Type.TOURNAMENT,
                 result.tournamentName() + " — position " + finish.position()));
 
@@ -164,6 +173,26 @@ public final class Career {
         }
     }
 
+    /**
+     * Classifies a finish into a legacy win bucket by priority — major, else signature, else
+     * development-tier (amateur), else regular professional — or NONE for a non-win (spec: career-legacy).
+     */
+    private static WinCategory classifyWin(TournamentResult.Finish finish, EventPrestige prestige, Tier tier) {
+        if (finish.withdrawn() || finish.position() != 1) {
+            return WinCategory.NONE;
+        }
+        if (prestige.isMajor()) {
+            return WinCategory.MAJOR;
+        }
+        if (prestige == EventPrestige.SIGNATURE) {
+            return WinCategory.SIGNATURE;
+        }
+        if (tier == Tier.DEVELOPMENT) {
+            return WinCategory.DEVELOPMENT;
+        }
+        return WinCategory.REGULAR;
+    }
+
     /** Records a milestone the first time it occurs (REQ-031 duplicate prevention). */
     private void fireMilestone(CareerMilestone milestone, LocalDate date) {
         if (milestones.add(milestone)) {
@@ -177,6 +206,8 @@ public final class Career {
         // already retired before this is called).
         player.transitionTo(CareerStatus.RETIRED);
         history.add(new CareerHistoryEntry(date, CareerHistoryEntry.Type.RETIREMENT, "Retired at age " + age));
-        hallOfFameResult = HallOfFame.evaluate(statistics);
+        // Record baseline (ballot) eligibility; actual induction happens via the World's biennial election.
+        hallOfFameResult = HallOfFame.baselineResult(
+                HallOfFameCredentials.of(statistics, age, 0, true));
     }
 }

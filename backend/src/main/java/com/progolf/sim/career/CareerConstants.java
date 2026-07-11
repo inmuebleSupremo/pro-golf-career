@@ -19,12 +19,29 @@ public final class CareerConstants {
     /** A finish at or better than this counts as a top-10. */
     public static final int TOP_10 = 10;
 
-    // --- Placeholder Hall-of-Fame thresholds (refined later by the Legacy spec) ---
-    /** A career is Hall-of-Fame eligible if it has at least this many wins ... */
-    public static final int HOF_MIN_WINS = 15;
-    /** ... or at least this many wins together with strong consistency (top-10s). */
-    public static final int HOF_ALT_WINS = 8;
-    public static final int HOF_ALT_TOP_10S = 40;
-    /** ... or at least this many majors won — the marquee accomplishment (spec: event-prestige). */
-    public static final int HOF_MIN_MAJORS = 3;
+    // --- Hall of Fame: two-phase system (spec: career-legacy) ---
+    // Phase 1 — baseline eligibility (ballot qualification): a golfer is nominable only if they meet BOTH
+    // a status condition AND a statistical baseline.
+    /** Status: competitive age at or above which a golfer is old enough to be nominable. */
+    public static final int HOF_MIN_AGE = 45;
+    /** Status: seasons retired at or above which a golfer is nominable regardless of age. */
+    public static final int HOF_RETIRED_SEASONS = 3;
+    /** Statistical baseline: minimum professional-tour wins (development-tier wins excluded). */
+    public static final int HOF_MIN_PRO_WINS = 15;
+    /** Statistical baseline: minimum majors won — one felt too shallow for the Hall. */
+    public static final int HOF_MIN_MAJORS = 2;
+
+    // Phase 2 — biennial election: score a career by achievement prestige, favouring the biggest events.
+    /** Election is held once every this many seasons; only the top candidate is inducted per cycle. */
+    public static final int HOF_ELECTION_CYCLE_SEASONS = 2;
+    /** Maximum inductees per election cycle (kept small to preserve prestige). */
+    public static final int HOF_INDUCTEES_PER_CYCLE = 1;
+    /** Score weight for a major — the marquee accomplishment, weighted far above everything else. */
+    public static final double HOF_SCORE_MAJOR = 12.0;
+    /** Score weight for a high-importance (signature) event win. */
+    public static final double HOF_SCORE_SIGNATURE = 4.0;
+    /** Score weight for a regular professional win (non-major, non-signature, above development tier). */
+    public static final double HOF_SCORE_REGULAR = 2.0;
+    /** Score weight for a development-tier (amateur) win — the lightest credential. */
+    public static final double HOF_SCORE_DEVELOPMENT = 0.5;
 }

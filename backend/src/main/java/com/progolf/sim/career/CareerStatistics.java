@@ -12,21 +12,24 @@ public final class CareerStatistics {
     private int cutsMade;
     private int wins;
     private int majorsWon;
+    private int signatureWins;
+    private int developmentWins;
     private int runnerUps;
     private int topTens;
     private long sumOfFinishes;
     private double totalEarnings;
 
-    /** Folds one result finish for the golfer into the running totals (a non-major event). */
+    /** Folds one result finish for the golfer into the running totals (a non-classified win). */
     void recordResult(int position, boolean madeCut, boolean withdrawn, double prize) {
-        recordResult(position, madeCut, withdrawn, prize, false);
+        recordResult(position, madeCut, withdrawn, prize, WinCategory.REGULAR);
     }
 
     /**
-     * Folds one result finish for the golfer into the running totals (spec: event-prestige). A win in a
-     * major additionally increments majors won — a permanent part of the career's legacy.
+     * Folds one result finish for the golfer into the running totals (spec: event-prestige, career-legacy).
+     * A win is additionally classified — major / signature / development-tier — into disjoint legacy
+     * buckets (regular pro wins are the remainder), a permanent part of the career's Hall-of-Fame credentials.
      */
-    void recordResult(int position, boolean madeCut, boolean withdrawn, double prize, boolean majorWin) {
+    void recordResult(int position, boolean madeCut, boolean withdrawn, double prize, WinCategory winCategory) {
         eventsPlayed++;
         totalEarnings += prize;
         if (withdrawn) {
@@ -39,8 +42,11 @@ public final class CareerStatistics {
         }
         if (position == 1) {
             wins++;
-            if (majorWin) {
-                majorsWon++;
+            switch (winCategory) {
+                case MAJOR -> majorsWon++;
+                case SIGNATURE -> signatureWins++;
+                case DEVELOPMENT -> developmentWins++;
+                case REGULAR, NONE -> { /* a regular professional win, counted in the total only */ }
             }
         } else if (position == 2) {
             runnerUps++;
@@ -65,6 +71,21 @@ public final class CareerStatistics {
     /** Majors won over the career (spec: event-prestige) — the marquee accomplishment. */
     public int majorsWon() {
         return majorsWon;
+    }
+
+    /** High-importance (signature) event wins over the career (spec: career-legacy). */
+    public int signatureWins() {
+        return signatureWins;
+    }
+
+    /** Development-tier (amateur) wins over the career (spec: career-legacy) — the lightest credential. */
+    public int developmentWins() {
+        return developmentWins;
+    }
+
+    /** Professional-tour wins: total wins excluding development-tier (amateur) wins (spec: career-legacy). */
+    public int proWins() {
+        return wins - developmentWins;
     }
 
     public int runnerUps() {

@@ -1,5 +1,6 @@
 package com.progolf.app.world;
 
+import com.progolf.sim.career.HallOfFameInduction;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.economy.SponsorshipOffer;
@@ -110,6 +111,11 @@ public class WorldService {
     /** The player's career goals with live progress toward each. */
     public List<CareerGoalProgress> careerGoals(String sessionId) {
         return required(sessionId).world().careerGoals();
+    }
+
+    /** The Hall-of-Fame inductions so far (spec: career-legacy). */
+    public List<HallOfFameInduction> hallOfFame(String sessionId) {
+        return required(sessionId).world().hallOfFameInductions();
     }
 
     /** The player's pending sponsorship offers awaiting a decision. */
