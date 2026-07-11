@@ -67,12 +67,15 @@ public final class ShotResolver {
                 SimConstants.WIND_RESIST_FLOOR + SimConstants.WIND_RESIST_SPAN * distanceNorm
                         + state.equipmentWorkability());
 
-        // Mental support (psychologist) softens the effect of fatigue on the shot (spec: staff-influence);
-        // neutral at 0. Fatigue is the live condition in world play, so this is a meaningful in-world effect.
+        // Mental support (psychologist) softens the effect of fatigue AND pressure on the shot
+        // (spec: staff-influence); neutral at 0. Both are live conditions in world play.
         double effectiveFatigue = state.fatigue() * (1.0 - state.mentalSupport());
+        double effectivePressure = state.pressure() * (1.0 - state.mentalSupport());
 
         double strategyMult = decision.strategy().dispersionMultiplier();
-        double pressureMult = 1.0 + state.pressure() * (1.0 - composureNorm) * SimConstants.PRESSURE_SIGMA_WEIGHT;
+        // Situational pressure widens dispersion, resisted by Composure (spec: shot-resolution pressure);
+        // neutral at 0, so calm/opening-round play is unchanged.
+        double pressureMult = 1.0 + effectivePressure * (1.0 - composureNorm) * SimConstants.PRESSURE_SIGMA_WEIGHT;
         double fatigueSigmaMult = 1.0 + effectiveFatigue * SimConstants.FATIGUE_SIGMA_WEIGHT;
         double crossMult = 1.0 + Math.abs(env.crossWind()) * SimConstants.CROSSWIND_SIGMA_WEIGHT * (1.0 - windResist);
         double lieMult = 1.0 + (1.0 - env.lieQuality()) * SimConstants.LIE_SIGMA_WEIGHT;
@@ -178,14 +181,15 @@ public final class ShotResolver {
         double proxNorm = attr.norm(Attribute.PUTTING_PROXIMITY);
         double composureNorm = attr.norm(Attribute.COMPOSURE);
         double effectiveFatigue = state.fatigue() * (1.0 - state.mentalSupport());
+        double effectivePressure = state.pressure() * (1.0 - state.mentalSupport());
 
         // Make probability: logistic in feet, centred on a skill-raised 50%-make distance. Nerves (fatigue,
-        // uncomposed pressure) shave it; mental support (psychologist) already softened fatigue above.
+        // uncomposed pressure) shave it; mental support (psychologist) softens both.
         double feet = d * SimConstants.YARDS_TO_FEET;
         double f50 = SimConstants.PUTT_MAKE_F50_BASE + SimConstants.PUTT_MAKE_F50_SPAN * accNorm;
         double makeProbability = 1.0 / (1.0 + StrictMath.pow(feet / f50, SimConstants.PUTT_MAKE_SHARPNESS));
         makeProbability *= (1.0 - effectiveFatigue * SimConstants.PUTT_FATIGUE_PENALTY);
-        makeProbability *= (1.0 - state.pressure() * (1.0 - composureNorm) * SimConstants.PUTT_PRESSURE_PENALTY);
+        makeProbability *= (1.0 - effectivePressure * (1.0 - composureNorm) * SimConstants.PUTT_PRESSURE_PENALTY);
         makeProbability = Math.min(makeProbability, SimConstants.PUTT_MAKE_CAP);
 
         double makeRoll = rng.nextDouble();

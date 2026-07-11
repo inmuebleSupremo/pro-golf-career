@@ -49,26 +49,48 @@ class TournamentInteractivePlayoffTest {
         return t;
     }
 
-    /** Drives the interactive player through four rounds with scores that tie the field leader for the lead. */
-    private static Tournament tiedForLead(Course course, List<ProfessionalGolfer> field, TournamentWeather weather) {
-        int leaderTotal = confirmed(def(course), weather, field).playToCompletion()
-                .finishingOrder().get(0).score(); // the winning (lowest) cumulative
+    // The player's fixed opening submissions: a runaway lead (rounds 1-3) so the field is identical between
+    // the probe and the real run. Situational pressure now couples the field to the leaderboard, so the tie
+    // must be computed against the field as it actually plays WITH the player present (a two-pass fixed point).
+    private static final int R1 = -40, R2 = 0, R3 = 0, AFTER3 = R1 + R2 + R3;
 
+    /**
+     * Drives the interactive player to tie the field leader for the lead. Because contention-based pressure
+     * makes the field's scores depend on the player's leaderboard position, this uses two passes with an
+     * IDENTICAL opening (rounds 1-3), so the field plays identically in both: pass one reads the field's best
+     * score, pass two submits a final-round score that lands the player exactly on it.
+     */
+    private static Tournament tiedForLead(Course course, List<ProfessionalGolfer> field, TournamentWeather weather) {
+        String playerId = field.get(PLAYER).player().id();
+
+        Tournament probe = playOpening(course, field, weather);
+        probe.submitInteractiveRoundScore(4, 0);
+        probe.advance(); // round 4
+        probe.advance(); // complete
+        int fieldBest = probe.result().finishingOrder().stream()
+                .filter(f -> !f.golfer().player().id().equals(playerId))
+                .mapToInt(TournamentResult.Finish::score)
+                .min().orElseThrow();
+
+        Tournament t = playOpening(course, field, weather); // identical rounds 1-3 => identical field
+        t.submitInteractiveRoundScore(4, fieldBest - AFTER3); // land the player exactly on the field's best
+        t.advance(); // round 4
+        t.advance(); // ROUND_4 -> PLAYOFF (player tied for the lead) or COMPLETED
+        return t;
+    }
+
+    /** Registers the field, designates the player, and plays the identical opening (rounds 1-3 + cut). */
+    private static Tournament playOpening(Course course, List<ProfessionalGolfer> field, TournamentWeather weather) {
         Tournament t = confirmed(def(course), weather, field);
         t.designateInteractiveCompetitor(PLAYER);
-        // Front-load the whole total into round 1 so the player is comfortably inside the cut, then tie the
-        // leader after 72 holes.
-        t.submitInteractiveRoundScore(1, leaderTotal);
+        t.submitInteractiveRoundScore(1, R1);
         t.advance(); // round 1
-        t.submitInteractiveRoundScore(2, 0);
+        t.submitInteractiveRoundScore(2, R2);
         t.advance(); // round 2
         t.advance(); // cut
         assertThat(t.interactiveCompetitorMadeCut()).isTrue();
-        t.submitInteractiveRoundScore(3, 0);
+        t.submitInteractiveRoundScore(3, R3);
         t.advance(); // round 3
-        t.submitInteractiveRoundScore(4, 0);
-        t.advance(); // round 4
-        t.advance(); // ROUND_4 -> PLAYOFF (player tied with the leader) or COMPLETED
         return t;
     }
 

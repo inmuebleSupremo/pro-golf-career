@@ -51,4 +51,23 @@ public final class TournamentConstants {
     /** Fraction of the field that makes the cut (plays the weekend) — and thus the pay line; the rest are
      * cut and earn nothing (spec: financial-strategy). Sizes both the cut and the paid positions. */
     public static final double CUT_FRACTION = 0.45;
+
+    // --- Situational pressure (spec: shot-resolution pressure) ---
+    // Pressure in [0,1] = base × round weight × prestige weight × contention, fed into the shot/putt models
+    // where COMPOSURE resists it. It builds on the closing rounds, scales with event prestige (a major's
+    // Sunday is the most), and weighs only on those in contention — so nerves are situational, not constant.
+    /** Peak situational pressure (a leader on a major's final round with no composure). */
+    public static final double PRESSURE_BASE = 1.0;
+    /** Round weight for the third round ("moving day"): some pressure, less than the final round. */
+    public static final double PRESSURE_ROUND_3_WEIGHT = 0.4;
+    /** Round weight for the final round ("Sunday"): full pressure. Rounds 1-2 carry none. */
+    public static final double PRESSURE_ROUND_4_WEIGHT = 1.0;
+    /** Prestige weight for a regular event's closing pressure. */
+    public static final double PRESSURE_PRESTIGE_REGULAR = 0.6;
+    /** Prestige weight for a signature event's closing pressure. */
+    public static final double PRESSURE_PRESTIGE_SIGNATURE = 0.8;
+    /** Prestige weight for a major's closing pressure — the pinnacle. */
+    public static final double PRESSURE_PRESTIGE_MAJOR = 1.0;
+    /** Strokes behind the leader at or beyond which a competitor is out of contention (no pressure). */
+    public static final int PRESSURE_CONTENTION_STROKES = 8;
 }

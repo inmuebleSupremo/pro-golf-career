@@ -57,7 +57,9 @@ class EventPrestigeTest {
     }
 
     @Test
-    void prestigeDoesNotChangePlayOnlyRewards() {
+    void prestigeScalesRewards() {
+        // Prestige still weights the rewards. (It now ALSO raises closing-round pressure, so played scores
+        // are no longer identical across prestige levels — that behaviour is covered in PressureModelTest.)
         Course course = course();
         List<ProfessionalGolfer> field = PopulationGenerator.generate(
                 new SeedCoordinate(WORLD, 1, 0, 0, 0, 0, 0), 16);
@@ -65,17 +67,9 @@ class EventPrestigeTest {
         TournamentResult regular = confirmed(def(course, EventPrestige.REGULAR), field).playToCompletion();
         TournamentResult major = confirmed(def(course, EventPrestige.MAJOR), field).playToCompletion();
 
-        assertThat(major.winner().player().id()).isEqualTo(regular.winner().player().id());
         assertThat(major.finishingOrder()).hasSameSizeAs(regular.finishingOrder());
-        for (int i = 0; i < regular.finishingOrder().size(); i++) {
-            TournamentResult.Finish r = regular.finishingOrder().get(i);
-            TournamentResult.Finish m = major.finishingOrder().get(i);
-            assertThat(m.golfer().player().id()).isEqualTo(r.golfer().player().id());
-            assertThat(m.position()).isEqualTo(r.position());
-            assertThat(m.score()).isEqualTo(r.score()); // identical play
-            if (r.prize() > 0) {
-                assertThat(m.prize()).isGreaterThan(r.prize()); // the major pays more
-            }
-        }
+        // The major's champion earns more than the regular's champion (marquee reward).
+        assertThat(major.finishingOrder().get(0).prize())
+                .isGreaterThan(regular.finishingOrder().get(0).prize());
     }
 }

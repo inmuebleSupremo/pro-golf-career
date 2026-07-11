@@ -44,7 +44,6 @@ public final class PlayableEvent {
     private final long tournamentId;
     private final Strategy simStrategy;
     private final double exposure;
-    private final com.progolf.sim.shot.GolferState playerState;
 
     private Phase phase;
     private int currentRoundNo;
@@ -70,8 +69,6 @@ public final class PlayableEvent {
         // The exact strategy the automatic path would use for this golfer, so a simmed round matches it.
         this.simStrategy = player.policy().map(DecisionPolicy::defaultStrategy).orElse(Strategy.BALANCED);
         this.exposure = course.identity().classification().exposure();
-        // Captured after the World's pre-play fatigue/equipment sync, identical to what the AI path reads.
-        this.playerState = player.player().toGolferState(0.0);
         beginRound(1);
     }
 
@@ -192,6 +189,9 @@ public final class PlayableEvent {
             holes.add(new HoleToPlay(model, par, env));
         }
         SeedCoordinate base = new SeedCoordinate(worldSeed, season, tournamentId, roundNo, playerFieldIndex, 0, 0);
+        // The player feels the same situational pressure the auto path would compute for them this round
+        // (spec: shot-resolution pressure), read from the pre-round standings — preserving simmed==auto fidelity.
+        var playerState = player.player().toGolferState(tournament.pressureFor(playerFieldIndex, roundNo));
         this.currentRound = new PlayableRound(player.player().attributes(), playerState, holes, base, simStrategy);
         this.phase = Phase.ROUND;
     }
@@ -247,7 +247,9 @@ public final class PlayableEvent {
             Environment env = weather.conditionsForRound((int) playoffRound).environmentForHole(holeNumber, exposure);
             SeedCoordinate coord =
                     new SeedCoordinate(worldSeed, season, tournamentId, playoffRound, playerFieldIndex, holeNumber, 0);
-            currentPlayoffHole = new PlayableHole(holeNumber, par, player.player().attributes(), playerState,
+            // A sudden-death playoff is peak pressure, identical to the auto path's playoff resolution.
+            var playoffState = player.player().toGolferState(tournament.playoffPressure());
+            currentPlayoffHole = new PlayableHole(holeNumber, par, player.player().attributes(), playoffState,
                     model, env, coord, simStrategy);
             phase = Phase.PLAYOFF;
         } else {

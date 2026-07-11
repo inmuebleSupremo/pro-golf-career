@@ -210,6 +210,9 @@ public final class Tournament {
     // --- Play ---
 
     private void playRound(int roundNo) {
+        // The leader's pre-round score fixes each competitor's "strokes behind" for situational pressure
+        // (spec: shot-resolution pressure); computed once so it is not polluted as competitors post scores.
+        int leaderBeforeRound = leaderCumulative(roundNo);
         for (CompetitorStanding s : standings) {
             if (s.isWithdrawn()) {
                 continue;
@@ -217,12 +220,41 @@ public final class Tournament {
             if (roundNo > TournamentConstants.CUT_AFTER_ROUND && !s.hasMadeCut()) {
                 continue;
             }
-            s.addRoundScore(playCompetitorRound(s, roundNo));
+            double pressure = PressureModel.forRound(roundNo, definition.prestige(), s.cumulative() - leaderBeforeRound);
+            s.addRoundScore(playCompetitorRound(s, roundNo, pressure));
         }
     }
 
+    /** The best (lowest) cumulative score among the competitors eligible to play {@code roundNo}, pre-round. */
+    private int leaderCumulative(int roundNo) {
+        boolean pastCut = roundNo > TournamentConstants.CUT_AFTER_ROUND;
+        int best = Integer.MAX_VALUE;
+        for (CompetitorStanding s : standings) {
+            if (s.isWithdrawn() || (pastCut && !s.hasMadeCut())) {
+                continue;
+            }
+            best = Math.min(best, s.cumulative());
+        }
+        return best == Integer.MAX_VALUE ? 0 : best;
+    }
+
+    /**
+     * Situational pressure for the competitor at {@code fieldIndex} about to play {@code roundNo}, from the
+     * pre-round standings (spec: shot-resolution pressure). Exposed so the interactive player's round feels
+     * the identical pressure the automatic path would compute for the same golfer (playable-event fidelity).
+     */
+    public double pressureFor(int fieldIndex, int roundNo) {
+        return PressureModel.forRound(roundNo, definition.prestige(),
+                standings.get(fieldIndex).cumulative() - leaderCumulative(roundNo));
+    }
+
+    /** Peak (sudden-death) pressure — all playoff contenders tied on the final round (spec: pressure). */
+    public double playoffPressure() {
+        return PressureModel.forRound(TournamentConstants.ROUNDS, definition.prestige(), 0);
+    }
+
     /** Resolves one competitor's 18-hole round through the shared engine; returns strokes relative to par. */
-    private int playCompetitorRound(CompetitorStanding s, int roundNo) {
+    private int playCompetitorRound(CompetitorStanding s, int roundNo, double pressure) {
         // The interactive competitor's round score is supplied externally, not computed (spec: playable-event).
         if (interactiveFieldIndex != null && s.fieldIndex() == interactiveFieldIndex) {
             Integer submitted = interactiveRoundScores.get(roundNo);
@@ -242,7 +274,7 @@ public final class Tournament {
                     definition.worldSeed(), definition.seasonId(), definition.tournamentId(),
                     roundNo, s.fieldIndex(), hole, 0);
             RoundOutcome out = RoundResolver.resolveHole(
-                    model, g.player().attributes(), g.player().toGolferState(0.0),
+                    model, g.player().attributes(), g.player().toGolferState(pressure),
                     conditions.environmentForHole(hole, exposure), strategy, coord);
             strokes += out.totalStrokes();
             // Accumulate shot-level stats from the resolved shots (spec: competitive-statistics).
@@ -473,8 +505,10 @@ public final class Tournament {
         // Playoff holes are played under the final round's shared conditions (conditionsForRound clamps).
         PlayingConditions conditions = weather.conditionsForRound(playoffRound);
         double exposure = definition.course().identity().classification().exposure();
+        // A sudden-death playoff is peak pressure: all contenders tied on the final round (spec: pressure).
+        double pressure = PressureModel.forRound(TournamentConstants.ROUNDS, definition.prestige(), 0);
         RoundOutcome out = RoundResolver.resolveHole(
-                model, g.player().attributes(), g.player().toGolferState(0.0),
+                model, g.player().attributes(), g.player().toGolferState(pressure),
                 conditions.environmentForHole(holeNumber, exposure), strategy, coord);
         return out.totalStrokes();
     }
