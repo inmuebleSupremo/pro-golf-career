@@ -55,9 +55,13 @@ public final class ShotResolver {
         // --- Steps 3-4: modifiers (fatigue, pressure) and environment (wind, lie) shape the distribution ---
         double windResist = SimConstants.WIND_RESIST_FLOOR + SimConstants.WIND_RESIST_SPAN * distanceNorm;
 
+        // Mental support (psychologist) softens the effect of fatigue on the shot (spec: staff-influence);
+        // neutral at 0. Fatigue is the live condition in world play, so this is a meaningful in-world effect.
+        double effectiveFatigue = state.fatigue() * (1.0 - state.mentalSupport());
+
         double strategyMult = decision.strategy().dispersionMultiplier();
         double pressureMult = 1.0 + state.pressure() * (1.0 - composureNorm) * SimConstants.PRESSURE_SIGMA_WEIGHT;
-        double fatigueSigmaMult = 1.0 + state.fatigue() * SimConstants.FATIGUE_SIGMA_WEIGHT;
+        double fatigueSigmaMult = 1.0 + effectiveFatigue * SimConstants.FATIGUE_SIGMA_WEIGHT;
         double crossMult = 1.0 + Math.abs(env.crossWind()) * SimConstants.CROSSWIND_SIGMA_WEIGHT * (1.0 - windResist);
         double lieMult = 1.0 + (1.0 - env.lieQuality()) * SimConstants.LIE_SIGMA_WEIGHT;
 
@@ -89,7 +93,7 @@ public final class ShotResolver {
         } else {
             meanCarry += -headWind * SimConstants.TAILWIND_MEAN_WEIGHT;
         }
-        meanCarry *= (1.0 - state.fatigue() * SimConstants.FATIGUE_MEAN_WEIGHT);
+        meanCarry *= (1.0 - effectiveFatigue * SimConstants.FATIGUE_MEAN_WEIGHT);
         if (meanCarry < 0) {
             meanCarry = 0;
         }
@@ -97,8 +101,11 @@ public final class ShotResolver {
         // --- Step 5: controlled randomness ---
         // Rare-extreme mixture is decided first so the gaussian stream stays stable regardless of branch.
         double extremeRoll = rng.nextDouble();
+        // Strategic support (caddie) further reduces mishits, alongside Course Management (spec: staff-influence);
+        // neutral at 0.
         double mishitProbability = SimConstants.BASE_MISHIT_PROBABILITY
                 * (1.0 - SimConstants.MISHIT_MANAGEMENT_RELIEF * managementNorm)
+                * (1.0 - state.strategicSupport())
                 * (1.0 + (1.0 - env.lieQuality()) * 0.5);
         double errorMultiplier = 1.0;
         double meanAdjustment = 0.0;

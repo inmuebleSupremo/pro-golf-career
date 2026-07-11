@@ -49,6 +49,20 @@ class PlayerEntityTest {
     }
 
     @Test
+    void staffSupportIsCarriedAsTemporaryStateIntoTheShotView() {
+        Player p = player();
+        p.activate();
+        p.state().setSupport(0.2, 0.15); // mental (psych), strategic (caddie)
+        var golferState = p.toGolferState(0.0);
+        assertThat(golferState.mentalSupport()).isEqualTo(0.2);
+        assertThat(golferState.strategicSupport()).isEqualTo(0.15);
+        // Temporary state only — permanent attributes are untouched.
+        for (Attribute a : Attribute.values()) {
+            assertThat(p.attributes().get(a)).isEqualTo(50);
+        }
+    }
+
+    @Test
     void derivedFormRatingIsRecalculatedFromCurrentState() {
         Player p = player();
         double fresh = p.deriveFormRating();

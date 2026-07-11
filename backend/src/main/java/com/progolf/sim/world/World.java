@@ -397,7 +397,8 @@ public final class World {
                 course.identity().classification(), def.format().rounds());
 
         // Before play, sync each competitor's temporary state into the shot engine: accumulated fatigue
-        // (REQ-225) and the active Golf Bag's characteristics (REQ-206), both read via toGolferState.
+        // (REQ-225), the active Golf Bag's characteristics (REQ-206), and the Support Team's shot influence
+        // (caddie/psychologist, spec: staff-influence) — all read via toGolferState.
         int playerFieldIndex = -1;
         for (int i = 0; i < field.size(); i++) {
             ProfessionalGolfer g = field.get(i);
@@ -405,6 +406,8 @@ public final class World {
             g.player().state().setFatigue(physicalStates.get(id).fatigue());
             GolfBag bag = GolfBag.fromLoadout(loadouts.get(id));
             g.player().state().setEquipment(bag.forgivenessBonus(), bag.powerBonus());
+            var effects = supportTeams.get(id).effects();
+            g.player().state().setSupport(effects.mentalSupport(), effects.strategicSupport());
             if (isPlayer(id)) {
                 playerFieldIndex = i;
             }

@@ -14,6 +14,8 @@ public final class PlayerState {
     private Injury injury; // null when no active injury
     private double equipmentForgiveness; // transient bag bonus, set before play; 0 = standard/neutral
     private double equipmentPower;
+    private double mentalSupport; // transient staff-support bonus, set before play; 0 = no support
+    private double strategicSupport;
 
     PlayerState(double fatigue, LiveSkillRating rating) {
         setFatigue(fatigue);
@@ -58,6 +60,30 @@ public final class PlayerState {
         }
         this.equipmentForgiveness = forgiveness;
         this.equipmentPower = power;
+    }
+
+    public double mentalSupport() {
+        return mentalSupport;
+    }
+
+    public double strategicSupport() {
+        return strategicSupport;
+    }
+
+    /**
+     * Sets the transient staff-support bonuses from the active Support Team before play (spec:
+     * staff-influence): mental support (psychologist) and strategic support (caddie). Temporary state only —
+     * never touches permanent attributes. Bonuses are non-negative in [0,1].
+     */
+    public void setSupport(double mentalSupport, double strategicSupport) {
+        if (!Double.isFinite(mentalSupport) || mentalSupport < 0 || mentalSupport > 1) {
+            throw new IllegalArgumentException("mentalSupport must be in [0,1]: " + mentalSupport);
+        }
+        if (!Double.isFinite(strategicSupport) || strategicSupport < 0 || strategicSupport > 1) {
+            throw new IllegalArgumentException("strategicSupport must be in [0,1]: " + strategicSupport);
+        }
+        this.mentalSupport = mentalSupport;
+        this.strategicSupport = strategicSupport;
     }
 
     public LiveSkillRating rating() {

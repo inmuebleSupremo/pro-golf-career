@@ -31,8 +31,8 @@ public final class StaffConstants {
     public static final double COACH_DEVELOPMENT_PER_QUALITY = 0.25;   // scales awarded Development Points
     public static final double FITNESS_RECOVERY_PER_QUALITY = 0.04;    // extra weekly fatigue recovery
     public static final double PHYSIO_RECOVERY_PER_QUALITY = 0.05;
-    public static final double PSYCH_MENTAL_PER_QUALITY = 0.20;        // exposed; not yet applied (no shot context)
-    public static final double CADDIE_STRATEGIC_PER_QUALITY = 0.20;    // exposed; not yet applied
+    public static final double PSYCH_MENTAL_PER_QUALITY = 0.20;        // mental support: softens fatigue in shots
+    public static final double CADDIE_STRATEGIC_PER_QUALITY = 0.20;    // strategic support: reduces mishits
 
     // --- Hiring policy ---
     public static final int TARGET_TEAM_DEVELOPMENT = 1;  // young golfers prioritise a coach

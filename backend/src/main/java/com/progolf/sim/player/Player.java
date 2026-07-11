@@ -116,7 +116,8 @@ public final class Player {
      * pressure value (pressure is contextual, not owned by the player). No attribute/state duplication.
      */
     public GolferState toGolferState(double pressure) {
-        return new GolferState(state.fatigue(), pressure, state.equipmentForgiveness(), state.equipmentPower());
+        return new GolferState(state.fatigue(), pressure, state.equipmentForgiveness(), state.equipmentPower(),
+                state.mentalSupport(), state.strategicSupport());
     }
 
     /**
