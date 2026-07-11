@@ -91,7 +91,7 @@ public final class PlayableHole {
     private ShotOutcome resolveOne(ShotDecision decision) {
         double preShotRemaining = remaining;
         ShotContext context = new ShotContext(attributes, state, environment, remaining,
-                model.zoneProfileFor(remaining), decision, coordinate.withShot(shotNumber));
+                model.zoneProfileFor(remaining), decision, coordinate.withShot(shotNumber), lie);
         ShotOutcome outcome = ShotResolver.resolveShot(context);
 
         strokes += outcome.strokes();

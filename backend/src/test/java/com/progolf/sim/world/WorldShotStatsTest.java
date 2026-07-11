@@ -30,10 +30,9 @@ class WorldShotStatsTest {
                 assertThat(s.greensInRegulationRate()).isBetween(0.0, 1.0);
                 assertThat(s.fairwaysPossible()).isGreaterThan(0);
                 assertThat(s.putts()).isGreaterThan(0);
-                // NB: absolute putts-per-round is currently inflated by the deferred putting make-% model
-                // (golfers reach the green but cannot hole out efficiently); the stat is derived honestly
-                // from the shots, so it will read realistically once that model lands. Assert consistency only.
-                assertThat(s.puttsPerRound()).isGreaterThan(0.0);
+                // With the putting make-% model in place, putts-per-round reads realistically (~28-34);
+                // assert a sane band rather than an exact value (it varies by golfer and conditions).
+                assertThat(s.puttsPerRound()).isBetween(20.0, 40.0);
             }
         }
         assertThat(anyWithStats).as("some golfer accumulated shot statistics").isTrue();

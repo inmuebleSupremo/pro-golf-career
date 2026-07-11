@@ -13,16 +13,16 @@ public final class SimConstants {
     }
 
     // --- Base dispersion (scales with intended shot length) ---
-    // Dispersion = FRACTION * shotDistance + FLOOR, before attribute/condition modifiers. Scaling with
-    // shot length is what makes a short putt far tighter than a full drive; a fixed absolute sigma made
-    // putts scatter like drives, so holes never actually holed out.
+    // Dispersion = FRACTION * shotDistance + FLOOR, before attribute/condition modifiers. This governs the
+    // full ball-flight shots (tee to green); putts bypass it entirely (see the putting model below). The
+    // fractions are calibrated so greens-in-regulation, fairways, and scoring land on realistic targets.
     /** Lateral dispersion as a fraction of intended shot distance. */
-    public static final double LATERAL_DISPERSION_FRACTION = 0.048;
-    /** Minimum lateral dispersion (yards) regardless of shot length. Small so short putts are accurate. */
+    public static final double LATERAL_DISPERSION_FRACTION = 0.094;
+    /** Minimum lateral dispersion (yards) regardless of shot length — keeps short pitches/chips accurate. */
     public static final double LATERAL_DISPERSION_FLOOR = 0.10;
     /** Longitudinal dispersion as a fraction of intended shot distance. */
-    public static final double DISTANCE_DISPERSION_FRACTION = 0.038;
-    /** Minimum longitudinal dispersion (yards) regardless of shot length. Small so tap-ins hole reliably. */
+    public static final double DISTANCE_DISPERSION_FRACTION = 0.058;
+    /** Minimum longitudinal dispersion (yards) regardless of shot length — keeps short pitches/chips accurate. */
     public static final double DISTANCE_DISPERSION_FLOOR = 0.20;
 
     // --- Attribute influence ---
@@ -74,4 +74,38 @@ public final class SimConstants {
     public static final double HOLED_THRESHOLD = 0.35;
     /** Maximum shots resolved for a single hole (guards against pathological loops). */
     public static final int MAX_SHOTS_PER_HOLE = 12;
+
+    // --- Putting model (spec: shot-resolution putting) ---
+    // A putt (a shot played from the green) is resolved by an explicit make-probability model rather than
+    // the full ball-flight geometry: the ball rolls along the green, sheltered from wind, and either drops
+    // or finishes a short, proximity-controlled distance away. This is what lets short putts hole out
+    // near-certainly and keeps putts-per-round realistic (~29-32). A full-flight model with a fixed
+    // dispersion floor could never reliably hole out from tap-in range.
+    /** Yards-to-feet conversion (make probability is expressed in feet, the natural putting unit). */
+    public static final double YARDS_TO_FEET = 3.0;
+    /** Distance (feet) at which a neutral (0-skill) putter makes 50% — raised by putting accuracy. */
+    public static final double PUTT_MAKE_F50_BASE = 5.0;
+    /** Additional 50%-make distance (feet) contributed at maximum putting accuracy. */
+    public static final double PUTT_MAKE_F50_SPAN = 6.0;
+    /** Steepness of the make-probability fall-off with distance (higher = sharper cliff past f50). */
+    public static final double PUTT_MAKE_SHARPNESS = 2.6;
+    /** Ceiling on make probability so even a tap-in can (very rarely) miss. */
+    public static final double PUTT_MAKE_CAP = 0.999;
+    /** Fraction of make probability removed at maximum fatigue. */
+    public static final double PUTT_FATIGUE_PENALTY = 0.15;
+    /** Fraction of make probability removed at maximum uncomposed pressure. */
+    public static final double PUTT_PRESSURE_PENALTY = 0.20;
+    /** Minimum leave (yards) after a missed putt — above {@link #HOLED_THRESHOLD} so a miss is never
+     * mistaken for a hole-out and always leaves a distinct (near-certain) tap-in. */
+    public static final double PUTT_LEAVE_FLOOR = 0.15;
+    /** Leave as a fraction of the putt distance, before proximity relief. */
+    public static final double PUTT_LEAVE_FRACTION = 0.06;
+    /** Fraction of the distance-scaled leave removed at maximum putting proximity. */
+    public static final double PUTT_LEAVE_PROX_RELIEF = 0.5;
+    /** Relative spread of the (gaussian) leave around its mean. */
+    public static final double PUTT_LEAVE_SIGMA = 0.5;
+    /** Hard minimum leave (yards) so a missed putt always leaves a real tap-in (> HOLED_THRESHOLD). */
+    public static final double PUTT_LEAVE_MIN = 0.40;
+    /** Leave is capped at this fraction of the putt distance so a missed putt always converges nearer. */
+    public static final double PUTT_LEAVE_CONVERGE = 0.55;
 }

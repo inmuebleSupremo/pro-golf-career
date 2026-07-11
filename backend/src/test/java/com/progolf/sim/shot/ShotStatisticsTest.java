@@ -28,7 +28,9 @@ class ShotStatisticsTest {
         double best = Double.MAX_VALUE;
         for (int i = 1; i <= N; i++) {
             double remaining = ShotResolver.resolveShot(Fixtures.driverShot(attrs, Strategy.BALANCED, i)).distanceRemaining();
-            if (remaining <= 15) {
+            // A full driver to a 250y target scatters ~20-30y wide at realistic tour dispersion; "near" is a
+            // fairway-width band, not tap-in range (that band was tied to the old, too-tight calibration).
+            if (remaining <= 30) {
                 nearTarget++;
             }
             if (remaining > 60) {
@@ -37,7 +39,7 @@ class ShotStatisticsTest {
             best = Math.min(best, remaining);
         }
         // Central tendency: most shots cluster near the target.
-        assertThat((double) nearTarget / N).isGreaterThan(0.60);
+        assertThat((double) nearTarget / N).isGreaterThan(0.65);
         // Extremes: rare.
         assertThat((double) catastrophic / N).isLessThan(0.05);
         // Exceptional shots still happen.

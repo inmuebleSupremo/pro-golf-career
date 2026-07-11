@@ -113,7 +113,7 @@ public final class PlayableRound {
         double preShotRemaining = remaining;
         SeedCoordinate coord = base.withHole(holeIndex + 1).withShot(shotNumber);
         ShotContext context = new ShotContext(attributes, state, hole.environment(), remaining,
-                hole.model().zoneProfileFor(remaining), decision, coord);
+                hole.model().zoneProfileFor(remaining), decision, coord, lie);
         ShotOutcome outcome = ShotResolver.resolveShot(context);
 
         totalStrokes += outcome.strokes();

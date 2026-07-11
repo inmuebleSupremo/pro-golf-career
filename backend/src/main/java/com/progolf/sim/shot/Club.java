@@ -12,8 +12,8 @@ public enum Club {
     HYBRID(220, Attribute.IRONS_ACCURACY, Attribute.DRIVING_DISTANCE, 1.0),
     IRON(180, Attribute.IRONS_ACCURACY, Attribute.IRONS_CONTROL, 1.0),
     WEDGE(110, Attribute.WEDGES, Attribute.WEDGES, 1.0),
-    // Putting spreads far more per yard than full shots: this is what makes mid-range putts miss at
-    // realistic rates (near-certain tap-ins, ~1-in-6 from 20 feet) while the small floor keeps tap-ins in.
+    // A putt from the green is resolved by the dedicated putting make-% model, which ignores this club's
+    // dispersion; the multiplier only applies when a putter is used off the green (e.g. from the fringe).
     PUTTER(20, Attribute.PUTTING_ACCURACY, Attribute.PUTTING_PROXIMITY, 2.6);
 
     private final double baseDistance;

@@ -2,6 +2,7 @@ package com.progolf.sim.shot;
 
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeedCoordinate;
+import com.progolf.sim.spatial.Surface;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -38,13 +39,15 @@ public final class RoundResolver {
         List<ShotOutcome> shots = new ArrayList<>();
         int totalStrokes = 0;
         double remaining = hole.startDistance();
+        Surface lie = Surface.TEE_BOX; // the surface the next shot is played from (a green lie => a putt)
 
         for (int shotNo = 1; shotNo <= SimConstants.MAX_SHOTS_PER_HOLE; shotNo++) {
             double preShotRemaining = remaining;
-            ShotContext context = buildContext(hole, attributes, state, environment, policy, remaining, holeCoordinate, shotNo);
+            ShotContext context = buildContext(hole, attributes, state, environment, policy, remaining, lie, holeCoordinate, shotNo);
             ShotOutcome outcome = ShotResolver.resolveShot(context);
             shots.add(outcome);
             totalStrokes += outcome.strokes();
+            lie = outcome.finalSurface(); // updated unconditionally, matching the interactive PlayableRound
             if (outcome.hazardEntered()) {
                 // Water / Out of Bounds: stroke-and-distance. The penalty stroke is already counted in
                 // outcome.strokes(); play resumes from the previous position, not the lost-ball spot.
@@ -62,9 +65,9 @@ public final class RoundResolver {
     }
 
     /**
-     * Builds the exact {@link ShotContext} the resolver uses for a given shot number. Exposed so callers
-     * and tests can reconstruct a shot identically via {@link ShotResolver#resolveShot(ShotContext)},
-     * demonstrating entry-point equivalence.
+     * Builds the exact {@link ShotContext} the resolver uses for a given shot number, from a given lie.
+     * Exposed so callers and tests can reconstruct a shot identically via
+     * {@link ShotResolver#resolveShot(ShotContext)}, demonstrating entry-point equivalence.
      */
     public static ShotContext buildContext(
             HoleModel hole,
@@ -73,6 +76,7 @@ public final class RoundResolver {
             Environment environment,
             StrategyPolicy policy,
             double remainingDistance,
+            Surface lie,
             SeedCoordinate holeCoordinate,
             int shotNo) {
 
@@ -84,6 +88,21 @@ public final class RoundResolver {
                 remainingDistance,
                 hole.zoneProfileFor(remainingDistance),
                 decision,
-                holeCoordinate.withShot(shotNo));
+                holeCoordinate.withShot(shotNo),
+                lie);
+    }
+
+    /** Reconstructs a shot played from the tee box (the round's first shot). See the lie-aware overload. */
+    public static ShotContext buildContext(
+            HoleModel hole,
+            Attributes attributes,
+            GolferState state,
+            Environment environment,
+            StrategyPolicy policy,
+            double remainingDistance,
+            SeedCoordinate holeCoordinate,
+            int shotNo) {
+        return buildContext(hole, attributes, state, environment, policy, remainingDistance,
+                Surface.TEE_BOX, holeCoordinate, shotNo);
     }
 }

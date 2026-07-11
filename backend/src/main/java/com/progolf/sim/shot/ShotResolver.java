@@ -45,6 +45,14 @@ public final class ShotResolver {
         GolferState state = context.state();
         Club club = decision.club();
 
+        // A shot played from the green is a putt: it is resolved by a dedicated make-probability model —
+        // the ball rolls on the green, sheltered from wind and lie penalties, holing out near-certainly
+        // from tap-in range (spec: shot-resolution putting). This is keyed on the lie (not the club) so it
+        // covers long first putts too, which a distance-based club choice would clip to a full shot.
+        if (context.lie() == Surface.GREEN) {
+            return resolvePutt(context, rng);
+        }
+
         // --- Steps 1-2: base attribute factors ---
         double lateralFactor = attributeFactor(attr, club.lateralAttribute());   // higher skill -> larger -> less sigma
         double distanceFactor = attributeFactor(attr, club.distanceAttribute());
@@ -154,6 +162,53 @@ public final class ShotResolver {
                 -(Math.abs(gLateral) + Math.abs(gDistance)) / 2.0 + 0.8);   // luck: >0 when better than expected
 
         return new ShotOutcome(surface, carry, lateral, distanceRemaining, hazard, penalty, strokes, factors);
+    }
+
+    /**
+     * Resolves a putt via an explicit make-probability model (spec: shot-resolution putting). The ball
+     * rolls on the green — immune to wind and lie — and either drops or finishes a short, proximity-scaled
+     * distance away. Make probability falls off with distance (in feet) and rises with putting accuracy;
+     * a missed putt always leaves a distinct tap-in that converges toward the hole, so the round holes out.
+     */
+    private static ShotOutcome resolvePutt(ShotContext context, Rng rng) {
+        Attributes attr = context.attributes();
+        GolferState state = context.state();
+        double d = context.pinDistance(); // yards to the hole
+        double accNorm = attr.norm(Attribute.PUTTING_ACCURACY);
+        double proxNorm = attr.norm(Attribute.PUTTING_PROXIMITY);
+        double composureNorm = attr.norm(Attribute.COMPOSURE);
+        double effectiveFatigue = state.fatigue() * (1.0 - state.mentalSupport());
+
+        // Make probability: logistic in feet, centred on a skill-raised 50%-make distance. Nerves (fatigue,
+        // uncomposed pressure) shave it; mental support (psychologist) already softened fatigue above.
+        double feet = d * SimConstants.YARDS_TO_FEET;
+        double f50 = SimConstants.PUTT_MAKE_F50_BASE + SimConstants.PUTT_MAKE_F50_SPAN * accNorm;
+        double makeProbability = 1.0 / (1.0 + StrictMath.pow(feet / f50, SimConstants.PUTT_MAKE_SHARPNESS));
+        makeProbability *= (1.0 - effectiveFatigue * SimConstants.PUTT_FATIGUE_PENALTY);
+        makeProbability *= (1.0 - state.pressure() * (1.0 - composureNorm) * SimConstants.PUTT_PRESSURE_PENALTY);
+        makeProbability = Math.min(makeProbability, SimConstants.PUTT_MAKE_CAP);
+
+        double makeRoll = rng.nextDouble();
+        double gLeave = rng.nextGaussian(); // drawn unconditionally so the stream is branch-stable
+        boolean made = makeRoll < makeProbability;
+
+        double remainingAfter;
+        if (made) {
+            remainingAfter = 0.0;
+        } else {
+            // Lag: expected leave grows with distance and shrinks with proximity; a real tap-in remains.
+            double meanLeave = SimConstants.PUTT_LEAVE_FLOOR
+                    + SimConstants.PUTT_LEAVE_FRACTION * d * (1.0 - SimConstants.PUTT_LEAVE_PROX_RELIEF * proxNorm);
+            double leave = meanLeave * (1.0 + gLeave * SimConstants.PUTT_LEAVE_SIGMA);
+            leave = Math.max(leave, SimConstants.PUTT_LEAVE_MIN);
+            leave = Math.min(leave, d * SimConstants.PUTT_LEAVE_CONVERGE); // always converge toward the hole
+            remainingAfter = leave;
+        }
+
+        double skill = (accNorm + proxNorm) / 2.0 - 0.5;
+        FactorBreakdown factors = new FactorBreakdown(skill, 0.0, 0.0, made ? 0.5 : -0.5);
+        // A putt stays on the green; carry/lateral are nominal (the round loop reads distanceRemaining).
+        return new ShotOutcome(Surface.GREEN, d - remainingAfter, 0.0, remainingAfter, false, 0, 1, factors);
     }
 
     /** Maps a raw attribute to a factor in [MIN_ATTRIBUTE_FACTOR, MIN_ATTRIBUTE_FACTOR + span]; higher = better. */
