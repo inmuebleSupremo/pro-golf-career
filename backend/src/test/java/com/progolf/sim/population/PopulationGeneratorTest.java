@@ -10,6 +10,7 @@ import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.player.CareerStatus;
 import com.progolf.sim.player.ControlType;
+import com.progolf.sim.player.DecisionPolicy;
 import com.progolf.sim.player.Player;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.shot.Environment;
@@ -76,6 +77,21 @@ class PopulationGeneratorTest {
         // Meaningful spread of overall skill, and golfers specialise in different attributes.
         assertThat(max - min).isGreaterThan(5.0);
         assertThat(strengths.size()).isGreaterThanOrEqualTo(4);
+    }
+
+    @Test
+    void generatedFieldPlaysASpreadOfStrategicDispositions() {
+        List<ProfessionalGolfer> a = PopulationGenerator.generate(BASE, 120);
+        List<ProfessionalGolfer> b = PopulationGenerator.generate(BASE, 120);
+        Set<Strategy> seen = new HashSet<>();
+        for (int i = 0; i < a.size(); i++) {
+            Strategy sa = a.get(i).policy().map(DecisionPolicy::defaultStrategy).orElseThrow();
+            // Disposition is a deterministic function of attributes, so it reproduces from the seed.
+            assertThat(b.get(i).policy().map(DecisionPolicy::defaultStrategy).orElseThrow()).isEqualTo(sa);
+            seen.add(sa);
+        }
+        // Not a uniform Balanced field: attackers and grinders both emerge from attribute differences.
+        assertThat(seen).contains(Strategy.CONSERVATIVE, Strategy.BALANCED, Strategy.AGGRESSIVE);
     }
 
     @Test

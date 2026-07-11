@@ -29,9 +29,6 @@ import java.util.Objects;
  */
 public final class PopulationGenerator {
 
-    /** A minimal default decision seam for generated golfers; richer AI decisions arrive later. */
-    private static final DecisionPolicy DEFAULT_POLICY = () -> Strategy.BALANCED;
-
     /**
      * The background archetypes the AI population is drawn from (for its starting-age routing). Pinned here
      * so the create-your-golfer playing-style archetypes can be added to {@link Archetype} without changing
@@ -89,7 +86,11 @@ public final class PopulationGenerator {
         player.activate(); // CREATED -> ACTIVE
 
         String careerRef = "career-" + Long.toUnsignedString(golferSeed, 16);
-        return ProfessionalGolfer.simulation(playerId, player, careerRef, DEFAULT_POLICY);
+        // Innate strategic disposition from attributes, fixed at generation, so the field plays a spread of
+        // styles instead of a uniform Balanced (spec: golfer-population).
+        Strategy disposition = StrategyDisposition.fromAttributes(attributes);
+        DecisionPolicy policy = () -> disposition;
+        return ProfessionalGolfer.simulation(playerId, player, careerRef, policy);
     }
 
     /**

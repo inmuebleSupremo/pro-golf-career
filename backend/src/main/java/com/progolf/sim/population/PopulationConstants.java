@@ -19,6 +19,13 @@ public final class PopulationConstants {
     /** Maximum +/- deviation of an individual attribute from the golfer's overall skill (drives strengths/weaknesses). */
     public static final double ATTRIBUTE_SPREAD = 18.0;
 
+    /**
+     * Risk-appetite magnitude (in normalised attribute units) beyond which a generated golfer's innate
+     * strategic disposition tips from Balanced to Aggressive (above) or Conservative (below). Larger =
+     * fewer golfers stray from Balanced. See {@link StrategyDisposition}.
+     */
+    public static final double STRATEGY_APPETITE_THRESHOLD = 0.10;
+
     /** Reference year used to derive dates of birth from starting age. */
     public static final int REFERENCE_YEAR = 2000;
 
