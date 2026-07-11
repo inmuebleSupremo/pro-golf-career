@@ -409,7 +409,8 @@ public final class World {
             String id = g.player().id();
             g.player().state().setFatigue(physicalStates.get(id).fatigue());
             GolfBag bag = GolfBag.fromLoadout(loadouts.get(id));
-            g.player().state().setEquipment(bag.forgivenessBonus(), bag.powerBonus());
+            g.player().state().setEquipment(bag.forgivenessBonus(), bag.powerBonus(),
+                    bag.workabilityBonus(), bag.feelBonus());
             var effects = supportTeams.get(id).effects();
             g.player().state().setSupport(effects.mentalSupport(), effects.strategicSupport());
             if (isPlayer(id)) {

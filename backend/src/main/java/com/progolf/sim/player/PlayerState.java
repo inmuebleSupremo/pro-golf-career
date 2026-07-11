@@ -14,6 +14,8 @@ public final class PlayerState {
     private Injury injury; // null when no active injury
     private double equipmentForgiveness; // transient bag bonus, set before play; 0 = standard/neutral
     private double equipmentPower;
+    private double equipmentWorkability;
+    private double equipmentFeel;
     private double mentalSupport; // transient staff-support bonus, set before play; 0 = no support
     private double strategicSupport;
 
@@ -47,19 +49,31 @@ public final class PlayerState {
         return equipmentPower;
     }
 
+    public double equipmentWorkability() {
+        return equipmentWorkability;
+    }
+
+    public double equipmentFeel() {
+        return equipmentFeel;
+    }
+
     /**
-     * Sets the transient equipment bonuses from the active Golf Bag before play (spec: equipment-influence).
-     * Temporary state only — this never touches permanent attributes. Bonuses are non-negative in [0,1].
+     * Sets the transient equipment bonuses from the active Golf Bag before play (spec: equipment-influence):
+     * forgiveness, power, workability, and feel. Temporary state only — this never touches permanent
+     * attributes. Bonuses are non-negative in [0,1].
      */
-    public void setEquipment(double forgiveness, double power) {
-        if (!Double.isFinite(forgiveness) || forgiveness < 0 || forgiveness > 1) {
-            throw new IllegalArgumentException("forgiveness must be in [0,1]: " + forgiveness);
+    public void setEquipment(double forgiveness, double power, double workability, double feel) {
+        this.equipmentForgiveness = requireUnit(forgiveness, "forgiveness");
+        this.equipmentPower = requireUnit(power, "power");
+        this.equipmentWorkability = requireUnit(workability, "workability");
+        this.equipmentFeel = requireUnit(feel, "feel");
+    }
+
+    private static double requireUnit(double value, String name) {
+        if (!Double.isFinite(value) || value < 0 || value > 1) {
+            throw new IllegalArgumentException(name + " must be in [0,1]: " + value);
         }
-        if (!Double.isFinite(power) || power < 0 || power > 1) {
-            throw new IllegalArgumentException("power must be in [0,1]: " + power);
-        }
-        this.equipmentForgiveness = forgiveness;
-        this.equipmentPower = power;
+        return value;
     }
 
     public double mentalSupport() {

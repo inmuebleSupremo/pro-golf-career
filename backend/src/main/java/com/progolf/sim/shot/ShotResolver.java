@@ -53,7 +53,11 @@ public final class ShotResolver {
         double managementNorm = attr.norm(Attribute.COURSE_MANAGEMENT);
 
         // --- Steps 3-4: modifiers (fatigue, pressure) and environment (wind, lie) shape the distribution ---
-        double windResist = SimConstants.WIND_RESIST_FLOOR + SimConstants.WIND_RESIST_SPAN * distanceNorm;
+        // Workability (equipment) improves ball-flight control in wind by raising effective wind resistance
+        // (spec: equipment-influence); neutral at 0, clamped so wind is at most negated, never reversed.
+        double windResist = Math.min(1.0,
+                SimConstants.WIND_RESIST_FLOOR + SimConstants.WIND_RESIST_SPAN * distanceNorm
+                        + state.equipmentWorkability());
 
         // Mental support (psychologist) softens the effect of fatigue on the shot (spec: staff-influence);
         // neutral at 0. Fatigue is the live condition in world play, so this is a meaningful in-world effect.
@@ -82,8 +86,11 @@ public final class ShotResolver {
 
         double sigmaLateral = baseLateral / lateralFactor
                 * strategyMult * pressureMult * fatigueSigmaMult * crossMult * lieMult * equipmentDispersion;
+        // Feel (equipment) tightens distance dispersion — better proximity/touch (spec: equipment-influence);
+        // neutral at 0.
         double sigmaDistance = baseDistanceDispersion / distanceFactor
-                * strategyMult * pressureMult * fatigueSigmaMult * lieMult * equipmentDispersion;
+                * strategyMult * pressureMult * fatigueSigmaMult * lieMult * equipmentDispersion
+                * (1.0 - state.equipmentFeel());
 
         // Mean carry: bounded by reachable distance; reduced by headwind and fatigue; aided by distance skill.
         double meanCarry = shotDistance;

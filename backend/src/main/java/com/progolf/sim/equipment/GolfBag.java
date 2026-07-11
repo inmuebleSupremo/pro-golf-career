@@ -37,6 +37,24 @@ public record GolfBag(Map<EquipmentCategory, EquipmentItem> items) {
         return aboveBaseline(meanPower()) * EquipmentConstants.POWER_SCALE;
     }
 
+    /** Above-baseline mean workability scaled into a wind-control bonus (0 at baseline). */
+    public double workabilityBonus() {
+        return aboveBaseline(meanOf(EquipmentCharacteristics::workability)) * EquipmentConstants.WORKABILITY_SCALE;
+    }
+
+    /** Above-baseline mean feel scaled into a distance-control bonus (0 at baseline). */
+    public double feelBonus() {
+        return aboveBaseline(meanOf(EquipmentCharacteristics::feel)) * EquipmentConstants.FEEL_SCALE;
+    }
+
+    private double meanOf(java.util.function.ToDoubleFunction<EquipmentCharacteristics> characteristic) {
+        double sum = 0;
+        for (EquipmentItem i : items.values()) {
+            sum += characteristic.applyAsDouble(i.characteristics());
+        }
+        return items.isEmpty() ? EquipmentConstants.BASELINE_CHARACTERISTIC : sum / items.size();
+    }
+
     private double meanForgiveness() {
         double sum = 0;
         for (EquipmentItem i : items.values()) {

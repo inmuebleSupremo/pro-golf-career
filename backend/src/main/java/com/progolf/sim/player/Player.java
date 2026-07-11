@@ -117,7 +117,8 @@ public final class Player {
      */
     public GolferState toGolferState(double pressure) {
         return new GolferState(state.fatigue(), pressure, state.equipmentForgiveness(), state.equipmentPower(),
-                state.mentalSupport(), state.strategicSupport());
+                state.mentalSupport(), state.strategicSupport(),
+                state.equipmentWorkability(), state.equipmentFeel());
     }
 
     /**

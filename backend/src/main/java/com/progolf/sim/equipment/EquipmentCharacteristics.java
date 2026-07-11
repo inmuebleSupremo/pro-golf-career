@@ -2,8 +2,9 @@ package com.progolf.sim.equipment;
 
 /**
  * The gameplay characteristics of an equipment item (spec: equipment-influence, REQ-207): forgiveness,
- * power, workability, and feel, each in [0,1]. The specification defines their existence; V1 applies
- * forgiveness and power to shot resolution and keeps workability and feel as data for future use.
+ * power, workability, and feel, each in [0,1]. All four influence shot resolution through the active bag's
+ * aggregate — forgiveness reduces dispersion, power extends reach, workability improves control in wind,
+ * and feel improves distance control — while remaining data on the item itself.
  */
 public record EquipmentCharacteristics(double forgiveness, double power, double workability, double feel) {
 

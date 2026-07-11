@@ -29,4 +29,6 @@ public final class EquipmentConstants {
     // --- Shot effect scaling (applied to a bag's above-baseline aggregate) ---
     public static final double FORGIVENESS_SCALE = 0.20; // max ~0.096 dispersion reduction at full upgrade
     public static final double POWER_SCALE = 0.15;       // max ~0.072 reach extension at full upgrade
+    public static final double WORKABILITY_SCALE = 0.30; // added to wind resistance (wind control)
+    public static final double FEEL_SCALE = 0.15;        // max ~0.072 distance-dispersion reduction (proximity)
 }
