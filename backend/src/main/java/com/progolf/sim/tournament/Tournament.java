@@ -213,6 +213,7 @@ public final class Tournament {
         // The leader's pre-round score fixes each competitor's "strokes behind" for situational pressure
         // (spec: shot-resolution pressure); computed once so it is not polluted as competitors post scores.
         int leaderBeforeRound = leaderCumulative(roundNo);
+        int secondBeforeRound = secondCumulative(roundNo);
         for (CompetitorStanding s : standings) {
             if (s.isWithdrawn()) {
                 continue;
@@ -220,9 +221,37 @@ public final class Tournament {
             if (roundNo > TournamentConstants.CUT_AFTER_ROUND && !s.hasMadeCut()) {
                 continue;
             }
-            double pressure = PressureModel.forRound(roundNo, definition.prestige(), s.cumulative() - leaderBeforeRound);
-            s.addRoundScore(playCompetitorRound(s, roundNo, pressure));
+            int strokesBehind = s.cumulative() - leaderBeforeRound;
+            double pressure = PressureModel.forRound(roundNo, definition.prestige(), strokesBehind);
+            Strategy strategy = ScoreboardStrategy.adjust(dispositionOf(s), roundNo, strokesBehind,
+                    strokesBehind == 0 ? secondBeforeRound - leaderBeforeRound : 0);
+            s.addRoundScore(playCompetitorRound(s, roundNo, pressure, strategy));
         }
+    }
+
+    /** The second-best (2nd lowest) cumulative among the competitors eligible for {@code roundNo}, pre-round. */
+    private int secondCumulative(int roundNo) {
+        boolean pastCut = roundNo > TournamentConstants.CUT_AFTER_ROUND;
+        int best = Integer.MAX_VALUE;
+        int second = Integer.MAX_VALUE;
+        for (CompetitorStanding s : standings) {
+            if (s.isWithdrawn() || (pastCut && !s.hasMadeCut())) {
+                continue;
+            }
+            int c = s.cumulative();
+            if (c < best) {
+                second = best;
+                best = c;
+            } else if (c < second) {
+                second = c;
+            }
+        }
+        return second == Integer.MAX_VALUE ? best : second;
+    }
+
+    /** A competitor's innate strategic disposition (its policy's default), or Balanced for a human. */
+    private static Strategy dispositionOf(CompetitorStanding s) {
+        return s.golfer().policy().map(DecisionPolicy::defaultStrategy).orElse(Strategy.BALANCED);
     }
 
     /** The best (lowest) cumulative score among the competitors eligible to play {@code roundNo}, pre-round. */
@@ -253,8 +282,21 @@ public final class Tournament {
         return PressureModel.forRound(TournamentConstants.ROUNDS, definition.prestige(), 0);
     }
 
+    /**
+     * The scoreboard-adjusted strategy for the competitor at {@code fieldIndex} about to play {@code roundNo},
+     * from the pre-round standings (spec: tournament-play). Exposed so the interactive player's round bends
+     * to the scoreboard identically to the automatic path (playable-event fidelity).
+     */
+    public Strategy roundStrategyFor(int fieldIndex, int roundNo) {
+        CompetitorStanding s = standings.get(fieldIndex);
+        int leader = leaderCumulative(roundNo);
+        int strokesBehind = s.cumulative() - leader;
+        int margin = strokesBehind == 0 ? secondCumulative(roundNo) - leader : 0;
+        return ScoreboardStrategy.adjust(dispositionOf(s), roundNo, strokesBehind, margin);
+    }
+
     /** Resolves one competitor's 18-hole round through the shared engine; returns strokes relative to par. */
-    private int playCompetitorRound(CompetitorStanding s, int roundNo, double pressure) {
+    private int playCompetitorRound(CompetitorStanding s, int roundNo, double pressure, Strategy strategy) {
         // The interactive competitor's round score is supplied externally, not computed (spec: playable-event).
         if (interactiveFieldIndex != null && s.fieldIndex() == interactiveFieldIndex) {
             Integer submitted = interactiveRoundScores.get(roundNo);
@@ -264,7 +306,6 @@ public final class Tournament {
             return submitted;
         }
         ProfessionalGolfer g = s.golfer();
-        Strategy strategy = g.policy().map(DecisionPolicy::defaultStrategy).orElse(Strategy.BALANCED);
         PlayingConditions conditions = weather.conditionsForRound(roundNo);
         double exposure = definition.course().identity().classification().exposure();
         int strokes = 0;

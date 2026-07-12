@@ -70,4 +70,14 @@ public final class TournamentConstants {
     public static final double PRESSURE_PRESTIGE_MAJOR = 1.0;
     /** Strokes behind the leader at or beyond which a competitor is out of contention (no pressure). */
     public static final int PRESSURE_CONTENTION_STROKES = 8;
+
+    // --- Scoreboard-aware aggression (spec: tournament-play) ---
+    // On the closing rounds a golfer's aggression bends to their position: chasers press, big leaders
+    // protect. Overrides the disposition only in these extremes; in the pack the disposition stands.
+    /** From this round onward (the closing rounds) the scoreboard bends a golfer's strategy. */
+    public static final int SCOREBOARD_CLOSING_ROUND = 3;
+    /** Strokes behind the leader at or beyond which a chaser presses (plays aggressively). */
+    public static final int SCOREBOARD_PRESS_BEHIND = 4;
+    /** Lead over the field at or beyond which a front-runner protects (plays conservatively). */
+    public static final int SCOREBOARD_PROTECT_MARGIN = 4;
 }

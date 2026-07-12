@@ -189,10 +189,12 @@ public final class PlayableEvent {
             holes.add(new HoleToPlay(model, par, env));
         }
         SeedCoordinate base = new SeedCoordinate(worldSeed, season, tournamentId, roundNo, playerFieldIndex, 0, 0);
-        // The player feels the same situational pressure the auto path would compute for them this round
-        // (spec: shot-resolution pressure), read from the pre-round standings — preserving simmed==auto fidelity.
+        // The player feels the same situational pressure and scoreboard-bent strategy the auto path would
+        // compute for them this round (specs: shot-resolution pressure, tournament-play), read from the
+        // pre-round standings — preserving simmed==auto fidelity.
         var playerState = player.player().toGolferState(tournament.pressureFor(playerFieldIndex, roundNo));
-        this.currentRound = new PlayableRound(player.player().attributes(), playerState, holes, base, simStrategy);
+        Strategy roundStrategy = tournament.roundStrategyFor(playerFieldIndex, roundNo);
+        this.currentRound = new PlayableRound(player.player().attributes(), playerState, holes, base, roundStrategy);
         this.phase = Phase.ROUND;
     }
 
