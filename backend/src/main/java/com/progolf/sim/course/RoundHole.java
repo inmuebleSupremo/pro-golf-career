@@ -36,7 +36,7 @@ public final class RoundHole implements HoleModel {
 
     @Override
     public ShotZoneProfile zoneProfileFor(double remainingDistance) {
-        return HoleZones.profileFor(hole, remainingDistance);
+        return HoleZones.profileFor(hole, remainingDistance, pin.depthOffset());
     }
 
     /** The active pin's lateral offset from the green centre (spec: shot-resolution) — live in resolution. */

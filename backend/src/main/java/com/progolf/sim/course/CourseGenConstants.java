@@ -35,6 +35,12 @@ public final class CourseGenConstants {
     // --- Per-round pin variation ---
     public static final double PIN_DEPTH_RANGE = 6.0;   // +/- yards front-to-back
     public static final double PIN_LATERAL_FACTOR = 0.5; // fraction of green half-width
+    /** How strongly the pin's depth shifts the green off-centre from the pin: a back pin puts the
+     *  over-green trouble closer behind (attacking it risks going long), a front pin shortens the safe
+     *  zone in front (coming up short risks the fringe). Fraction of the pin depth offset applied. */
+    public static final double PIN_DEPTH_ASYMMETRY = 0.6;
+    /** Minimum green depth kept on either side of the pin so it is never off its own green. */
+    public static final double PIN_DEPTH_MIN_SIDE = 3.0;
 
     // --- Zone-band lateral widths (added cumulatively outward from centre) ---
     public static final double FRINGE_WIDTH = 3.0;

@@ -19,9 +19,25 @@ final class HoleZones {
     }
 
     static ShotZoneProfile profileFor(GeneratedHole hole, double remainingDistance) {
+        return profileFor(hole, remainingDistance, 0.0);
+    }
+
+    /**
+     * Builds the shot profile with the pin sitting {@code pinDepthOffset} yards front (negative) or back
+     * (positive) of the green centre. The green keeps its size but shifts off-centre from the pin, so a
+     * back pin leaves the over-green trouble closer behind and a front pin shortens the safe run-up.
+     */
+    static ShotZoneProfile profileFor(GeneratedHole hole, double remainingDistance, double pinDepthOffset) {
         double greenHalfDepth = hole.greenDepth() / 2.0;
-        double greenStart = remainingDistance - greenHalfDepth - CourseGenConstants.APPROACH_FRINGE;
-        double greenEnd = remainingDistance + greenHalfDepth + CourseGenConstants.APPROACH_FRINGE;
+        // The pin sits within the green; a back pin (positive offset) leaves more green in front and less
+        // behind. Each side is kept to a minimum so the pin is never off its own green.
+        double shift = pinDepthOffset * CourseGenConstants.PIN_DEPTH_ASYMMETRY;
+        double limit = greenHalfDepth - CourseGenConstants.PIN_DEPTH_MIN_SIDE;
+        shift = Math.max(-limit, Math.min(limit, shift));
+        double frontExtent = greenHalfDepth + shift; // green ahead of the pin (toward the golfer)
+        double backExtent = greenHalfDepth - shift;   // green behind the pin (over-green trouble beyond)
+        double greenStart = remainingDistance - frontExtent - CourseGenConstants.APPROACH_FRINGE;
+        double greenEnd = remainingDistance + backExtent + CourseGenConstants.APPROACH_FRINGE;
         double reachCap = Math.max(remainingDistance * 1.5, greenEnd + CourseGenConstants.OVER_GREEN_MARGIN);
 
         List<ZoneBand> bands = new ArrayList<>();
