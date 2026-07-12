@@ -5,7 +5,7 @@ TBD - created by archiving change add-health. Update Purpose after archive.
 ## Requirements
 ### Requirement: Availability
 
-Every Professional Golfer SHALL possess a current Availability status, derived from their Physical State, that determines whether they may enter competitive events. Availability SHALL distinguish at least Available, Resting, Recovering, and Injured.
+Every Professional Golfer SHALL possess a current Availability status, derived from their Physical State, that determines whether they may enter competitive events. Availability SHALL distinguish at least Available, Resting, Recovering, and Injured. The Recovering status (an injury in its final rehabilitation stage) MAY permit a controlled golfer to enter an event by playing through the injury at an impairment; the Injured status (the early stage of a significant injury) and Resting SHALL never permit competition.
 
 #### Scenario: Availability is derived from physical state
 
@@ -15,7 +15,7 @@ Every Professional Golfer SHALL possess a current Availability status, derived f
 #### Scenario: Availability gates event entry
 
 - **WHEN** a field is formed for an event
-- **THEN** only golfers whose Availability permits competition SHALL be entered
+- **THEN** golfers who are Injured (early stage) or Resting SHALL be excluded, and only golfers who are Available — or a controlled golfer who is Recovering and chooses to play through — SHALL be entered
 
 ### Requirement: Workload Management
 
