@@ -5,19 +5,19 @@ import java.util.Set;
 
 /**
  * The career status of a Player (REQ-022). Exactly one status is active at a time and only the defined
- * transitions are permitted; RETIRED and DECEASED are terminal for gameplay.
+ * transitions are permitted; RETIRED and DECEASED are terminal for gameplay. An injury does not change
+ * career status — a hurt golfer stays ACTIVE, and the transient inability to compete is expressed by the
+ * health domain's {@code Availability}, not here.
  */
 public enum CareerStatus {
     CREATED,
     ACTIVE,
-    INJURED,
     RETIRED,
     DECEASED;
 
     private static final Map<CareerStatus, Set<CareerStatus>> ALLOWED = Map.of(
             CREATED, Set.of(ACTIVE, DECEASED),
-            ACTIVE, Set.of(INJURED, RETIRED, DECEASED),
-            INJURED, Set.of(ACTIVE, RETIRED, DECEASED),
+            ACTIVE, Set.of(RETIRED, DECEASED),
             RETIRED, Set.of(DECEASED),
             DECEASED, Set.of());
 

@@ -93,24 +93,6 @@ public final class Player {
         transitionTo(CareerStatus.ACTIVE);
     }
 
-    /** Applies an injury (player must be ACTIVE) and moves status to INJURED. */
-    public void applyInjury(Injury injury) {
-        if (status != CareerStatus.ACTIVE) {
-            throw new IllegalStateException("Only an ACTIVE player can be injured; status=" + status);
-        }
-        state.applyInjury(injury);
-        transitionTo(CareerStatus.INJURED);
-    }
-
-    /** Advances injury recovery; on full recovery, returns to ACTIVE. Returns true if healed this step. */
-    public boolean advanceInjuryRecovery(int steps) {
-        boolean healed = state.advanceInjuryRecovery(steps);
-        if (healed && status == CareerStatus.INJURED) {
-            transitionTo(CareerStatus.ACTIVE);
-        }
-        return healed;
-    }
-
     /**
      * Produces the shot engine's per-shot {@link GolferState} from current state plus a situational
      * pressure value (pressure is contextual, not owned by the player). No attribute/state duplication.
@@ -132,10 +114,9 @@ public final class Player {
         }
         meanAttribute /= Attribute.values().length;
 
-        final double mean = meanAttribute;
+        double mean = meanAttribute;
         double ratingAdjustment = (state.rating().value() - PlayerConstants.RATING_BASELINE) * 0.2;
         double fatiguePenalty = state.fatigue() * 10.0;
-        double injuryPenalty = state.injury().map(i -> i.performancePenalty() * mean).orElse(0.0);
-        return mean + ratingAdjustment - fatiguePenalty - injuryPenalty;
+        return mean + ratingAdjustment - fatiguePenalty;
     }
 }

@@ -1,17 +1,14 @@
 package com.progolf.sim.player;
 
-import java.util.Optional;
-
 /**
- * A Player's temporary State (REQ-020/019/021): Fatigue, Live Skill Rating, and zero-or-one active
- * Injury. This type deliberately holds no reference to {@code Attributes} — by construction, changing
- * state cannot mutate permanent attributes (REQ-019/020).
+ * A Player's temporary State (REQ-020/019): Fatigue and Live Skill Rating. This type deliberately holds
+ * no reference to {@code Attributes} — by construction, changing state cannot mutate permanent attributes
+ * (REQ-019/020). Injuries live in the health domain ({@code sim.health.PhysicalState}), not here.
  */
 public final class PlayerState {
 
     private double fatigue;
     private LiveSkillRating rating;
-    private Injury injury; // null when no active injury
     private double equipmentForgiveness; // transient bag bonus, set before play; 0 = standard/neutral
     private double equipmentPower;
     private double equipmentWorkability;
@@ -22,10 +19,9 @@ public final class PlayerState {
     PlayerState(double fatigue, LiveSkillRating rating) {
         setFatigue(fatigue);
         this.rating = rating;
-        this.injury = null;
     }
 
-    /** A fresh state: no fatigue, rating at baseline, no injury. */
+    /** A fresh state: no fatigue, rating at baseline. */
     public static PlayerState fresh() {
         return new PlayerState(0.0, LiveSkillRating.atBaseline(PlayerConstants.RATING_BASELINE));
     }
@@ -112,34 +108,5 @@ public final class PlayerState {
     /** Applies inactivity decay of the Live Skill Rating toward baseline. */
     public void decayRating(int steps) {
         this.rating = rating.decayedTowardBaseline(steps);
-    }
-
-    public Optional<Injury> injury() {
-        return Optional.ofNullable(injury);
-    }
-
-    public boolean hasActiveInjury() {
-        return injury != null;
-    }
-
-    /** Applies a new injury; rejects if one is already active (REQ-021 zero-or-one). */
-    void applyInjury(Injury newInjury) {
-        if (injury != null) {
-            throw new IllegalStateException("Player already has an active injury");
-        }
-        this.injury = java.util.Objects.requireNonNull(newInjury, "injury");
-    }
-
-    /** Advances injury recovery; returns true if the injury healed and cleared on this step. */
-    boolean advanceInjuryRecovery(int steps) {
-        if (injury == null) {
-            return false;
-        }
-        injury = injury.advanceRecovery(steps);
-        if (injury.isHealed()) {
-            injury = null;
-            return true;
-        }
-        return false;
     }
 }

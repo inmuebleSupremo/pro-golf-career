@@ -42,7 +42,6 @@ class PlayerEntityTest {
         p.activate();
         p.state().setFatigue(0.9);
         p.state().recordPerformance(-20);
-        p.applyInjury(Injury.of(Injury.InjuryType.WRIST, Injury.Severity.MODERATE));
         for (Attribute a : Attribute.values()) {
             assertThat(p.attributes().get(a)).isEqualTo(50);
         }

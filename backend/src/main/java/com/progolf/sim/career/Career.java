@@ -202,8 +202,8 @@ public final class Career {
 
     /** Retires the golfer: coordinates the Player status, records history, and evaluates the Hall of Fame. */
     private void retire(LocalDate date) {
-        // Both ACTIVE and INJURED may transition to RETIRED (the career is guarded against being
-        // already retired before this is called).
+        // An ACTIVE golfer may transition to RETIRED (the career is guarded against being already
+        // retired before this is called).
         player.transitionTo(CareerStatus.RETIRED);
         history.add(new CareerHistoryEntry(date, CareerHistoryEntry.Type.RETIREMENT, "Retired at age " + age));
         // Record baseline (ballot) eligibility; actual induction happens via the World's biennial election.
