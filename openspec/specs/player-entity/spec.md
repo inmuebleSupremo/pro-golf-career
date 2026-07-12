@@ -73,23 +73,9 @@ Every Player SHALL have one Live Skill Rating representing current competitive f
 - **WHEN** the Live Skill Rating changes
 - **THEN** the Player's permanent Attributes SHALL remain unchanged
 
-### Requirement: Injury State
-
-A Player SHALL have zero or one active Injury at a time. An active Injury SHALL define a type, severity, recovery duration, and gameplay effects. Recovery SHALL progress over time and SHALL NOT permanently alter stored Attributes.
-
-#### Scenario: At most one active injury
-
-- **WHEN** a Player already has an active Injury and another is applied
-- **THEN** the system SHALL reject the second (a Player cannot hold two simultaneous active injuries)
-
-#### Scenario: Injury recovers over time
-
-- **WHEN** recovery time is advanced for an injured Player
-- **THEN** the remaining recovery duration SHALL decrease, and the Injury SHALL clear when it reaches zero
-
 ### Requirement: Career Status State Machine
 
-Every Player SHALL have exactly one Career Status from: CREATED, ACTIVE, INJURED, RETIRED, DECEASED. Only defined transitions SHALL be permitted; invalid transitions SHALL be rejected. RETIRED and DECEASED are terminal for gameplay.
+Every Player SHALL have exactly one Career Status from: CREATED, ACTIVE, RETIRED, DECEASED. Only defined transitions SHALL be permitted; invalid transitions SHALL be rejected. RETIRED and DECEASED are terminal for gameplay. An injury does NOT change a Player's Career Status — a hurt golfer remains ACTIVE, and the transient inability to compete is expressed by the health domain's `Availability`, not by a career-lifecycle status.
 
 #### Scenario: Valid transition is accepted
 
@@ -100,6 +86,11 @@ Every Player SHALL have exactly one Career Status from: CREATED, ACTIVE, INJURED
 
 - **WHEN** a transition not permitted by the state machine is attempted (e.g. RETIRED back to ACTIVE)
 - **THEN** it SHALL be rejected and the status SHALL remain unchanged
+
+#### Scenario: Injury does not change career status
+
+- **WHEN** a Player becomes injured
+- **THEN** the Player's Career Status SHALL remain ACTIVE, and the injury SHALL be reflected only in the health domain's availability, not as a career-status transition
 
 ### Requirement: Evolvable Attributes
 
