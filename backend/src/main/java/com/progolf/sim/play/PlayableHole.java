@@ -78,13 +78,13 @@ public final class PlayableHole {
     /** Sims the current shot with the automatic policy. */
     public ShotOutcome simShot() {
         requireNotComplete();
-        return resolveOne(simPolicy.decide(remaining, lie, model.pinLateral()));
+        return resolveOne(simPolicy.decide(remaining, lie, model.pinLateral(), attributes, par));
     }
 
     /** Sims the rest of the hole with the automatic policy. */
     public void simHole() {
         while (!complete) {
-            resolveOne(simPolicy.decide(remaining, lie, model.pinLateral()));
+            resolveOne(simPolicy.decide(remaining, lie, model.pinLateral(), attributes, par));
         }
     }
 

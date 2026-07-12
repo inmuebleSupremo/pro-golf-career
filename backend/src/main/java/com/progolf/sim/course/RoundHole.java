@@ -44,4 +44,9 @@ public final class RoundHole implements HoleModel {
     public double pinLateral() {
         return pin.lateralOffset();
     }
+
+    @Override
+    public int par() {
+        return hole.par();
+    }
 }

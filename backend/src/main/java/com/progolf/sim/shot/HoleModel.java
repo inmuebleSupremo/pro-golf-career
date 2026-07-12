@@ -17,6 +17,11 @@ public interface HoleModel {
     /** The reachable zone profile for a shot played from {@code remainingDistance} to the pin. */
     ShotZoneProfile zoneProfileFor(double remainingDistance);
 
+    /** The hole's par. Used by the decision policy (e.g. only a par 5 offers a lay-up); defaults to 4. */
+    default int par() {
+        return 4;
+    }
+
     /**
      * The pin's lateral offset from the green's centre line (yards; signed). A tucked pin sits toward a
      * green edge, so attacking it risks the flanking hazard while aiming at centre plays safe. Defaults to

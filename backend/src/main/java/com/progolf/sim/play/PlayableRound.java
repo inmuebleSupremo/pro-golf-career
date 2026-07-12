@@ -108,9 +108,10 @@ public final class PlayableRound {
         }
     }
 
-    /** The automatic policy's decision for the current situation (lie + pin), matching the AI path. */
+    /** The automatic policy's decision for the current situation (lie + pin + attributes), matching the AI path. */
     private ShotDecision simDecision() {
-        return simPolicy.decide(remaining, lie, holes.get(holeIndex).model().pinLateral());
+        HoleToPlay hole = holes.get(holeIndex);
+        return simPolicy.decide(remaining, lie, hole.model().pinLateral(), attributes, hole.par());
     }
 
     private ShotOutcome resolveOne(ShotDecision decision) {

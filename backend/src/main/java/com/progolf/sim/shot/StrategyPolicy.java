@@ -1,5 +1,6 @@
 package com.progolf.sim.shot;
 
+import com.progolf.sim.core.Attributes;
 import com.progolf.sim.spatial.Surface;
 
 /**
@@ -8,11 +9,15 @@ import com.progolf.sim.spatial.Surface;
  * player input (REQ-117) while flowing through the same shared resolution engine.
  *
  * <p>The golfer's disposition ({@link Strategy}) sets a baseline that the situation modulates: from a
- * difficult lie they play conservatively to recover, and on a confident scoring approach an aggressive
- * disposition hunts a tucked pin (aiming toward it) while a conservative one plays the safe green centre.
- * Deterministic, so round resolution stays reproducible.
+ * difficult lie they play conservatively to recover; on a long reachable approach an aggressive or
+ * long-hitting golfer goes for the green while a conservative one lays up to a full wedge; and on a
+ * confident scoring approach an aggressive disposition hunts a tucked pin while a conservative one plays
+ * the safe green centre. Deterministic, so round resolution stays reproducible.
  */
 public final class StrategyPolicy {
+
+    /** Neutral attributes used when a caller does not supply them (aim-only decisions in tests). */
+    private static final Attributes NEUTRAL = Attributes.uniform(50);
 
     private final Strategy strategy;
 
@@ -22,16 +27,42 @@ public final class StrategyPolicy {
 
     /** Chooses a club and centre-aimed target from a clean tee-box lie at a centre pin (convenience). */
     public ShotDecision decide(double remainingDistance) {
-        return decide(remainingDistance, Surface.TEE_BOX, 0.0);
+        return decide(remainingDistance, Surface.TEE_BOX, 0.0, NEUTRAL, 4);
+    }
+
+    /** Situational decision without the golfer's attributes/par (neutral reach, par 4 so no lay-up; aim callers). */
+    public ShotDecision decide(double remainingDistance, Surface lie, double pinLateral) {
+        return decide(remainingDistance, lie, pinLateral, NEUTRAL, 4);
     }
 
     /**
      * Chooses a club, target, and aim to advance the ball from {@code remainingDistance} toward the pin,
-     * given the ball's {@code lie} and the pin's lateral offset. A difficult lie forces conservative play;
-     * on a confident approach the golfer aims a disposition- and distance-scaled fraction toward the pin.
+     * given the ball's {@code lie}, the pin's lateral offset, the golfer's {@code attributes}, and the
+     * hole's {@code par}. A difficult lie forces conservative recovery; a long par-5 approach is a
+     * lay-up-or-go decision; a confident scoring approach aims a disposition- and distance-scaled fraction
+     * toward the pin.
      */
-    public ShotDecision decide(double remainingDistance, Surface lie, double pinLateral) {
+    public ShotDecision decide(double remainingDistance, Surface lie, double pinLateral, Attributes attributes, int par) {
         Strategy effective = effectiveStrategy(lie);
+
+        // Lay up vs go for it: only on a long PAR-5 approach (a par 4/3 has no stroke to spare, and a tee
+        // shot always goes). Go for it when aggressive or the green is comfortably reachable (playing to a
+        // long hitter's strength); otherwise lay up to a full wedge, aimed safely at the centre.
+        if (par >= 5 && lie != Surface.TEE_BOX && remainingDistance >= SimConstants.LAYUP_MIN_DISTANCE) {
+            Club reachClub = selectClub(remainingDistance);
+            double maxReach = reachClub.baseDistance() * (SimConstants.REACH_FLOOR
+                    + SimConstants.REACH_SPAN * attributes.norm(reachClub.distanceAttribute()));
+            boolean comfortablyReachable = maxReach >= remainingDistance + SimConstants.LAYUP_COMFORTABLE_MARGIN;
+            // An aggressive golfer always fires at the green; anyone who can reach comfortably (a long
+            // hitter's strength) also goes; otherwise the golfer lays up to a safe full wedge.
+            boolean goForIt = effective == Strategy.AGGRESSIVE || comfortablyReachable;
+            if (!goForIt) {
+                double layupTarget = remainingDistance - SimConstants.LAYUP_LEAVE_DISTANCE;
+                Club layupClub = selectClub(layupTarget);
+                return new ShotDecision(layupClub, Math.min(layupTarget, layupClub.baseDistance()), 0.0, effective);
+            }
+        }
+
         Club club = selectClub(remainingDistance);
         double target = Math.min(remainingDistance, club.baseDistance());
         double aim = pinAttackFraction(effective, remainingDistance) * pinLateral;

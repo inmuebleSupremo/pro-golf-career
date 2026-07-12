@@ -81,7 +81,7 @@ public final class RoundResolver {
             int shotNo) {
 
         double pinLateral = hole.pinLateral();
-        ShotDecision decision = policy.decide(remainingDistance, lie, pinLateral);
+        ShotDecision decision = policy.decide(remainingDistance, lie, pinLateral, attributes, hole.par());
         return new ShotContext(
                 attributes,
                 state,

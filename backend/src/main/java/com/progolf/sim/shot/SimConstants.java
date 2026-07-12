@@ -80,6 +80,16 @@ public final class SimConstants {
     /** Recovery-difficulty of the lie at or above which a golfer plays conservatively regardless of disposition. */
     public static final double RECOVERY_CAUTION_THRESHOLD = 0.4;
 
+    // Lay-up vs go-for-it: on a long approach (not a tee shot) the golfer decides whether to attack a
+    // reachable green or lay up to a full-wedge distance. An aggressive disposition or a comfortably
+    // reachable green goes for it (birdie/eagle chance, hazard risk); otherwise it lays up (safe).
+    /** Remaining distance (yards) at or beyond which a long approach becomes a lay-up-or-go decision. */
+    public static final double LAYUP_MIN_DISTANCE = 215.0;
+    /** The distance (yards) a lay-up leaves for the following shot — a comfortable full wedge. */
+    public static final double LAYUP_LEAVE_DISTANCE = 95.0;
+    /** Margin (yards) by which reach must exceed the distance for the green to count as comfortably reachable. */
+    public static final double LAYUP_COMFORTABLE_MARGIN = 10.0;
+
     // --- Round resolution ---
     /** Distance (yards) at or under which the ball is considered holed — roughly a one-foot tap-in. */
     public static final double HOLED_THRESHOLD = 0.35;
