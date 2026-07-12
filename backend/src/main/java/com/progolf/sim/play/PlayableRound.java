@@ -77,7 +77,7 @@ public final class PlayableRound {
         requireNotComplete();
         HoleToPlay hole = holes.get(holeIndex);
         return new ShotSituation(holeIndex + 1, hole.par(), shotNumber, strokesThisHole,
-                remaining, lie, hole.model().zoneProfileFor(remaining));
+                remaining, lie, hole.model().pinLateral(), hole.model().zoneProfileFor(remaining));
     }
 
     /** Plays the current shot with the human's decision (club / target / risk). */
@@ -89,7 +89,7 @@ public final class PlayableRound {
     /** Sims the current shot with the automatic policy. */
     public ShotOutcome simShot() {
         requireNotComplete();
-        return resolveOne(simPolicy.decide(remaining));
+        return resolveOne(simDecision());
     }
 
     /** Sims the rest of the current hole with the automatic policy. */
@@ -97,15 +97,20 @@ public final class PlayableRound {
         requireNotComplete();
         int hole = holeIndex;
         while (!isComplete() && holeIndex == hole) {
-            resolveOne(simPolicy.decide(remaining));
+            resolveOne(simDecision());
         }
     }
 
     /** Sims the rest of the round with the automatic policy. */
     public void simRound() {
         while (!isComplete()) {
-            resolveOne(simPolicy.decide(remaining));
+            resolveOne(simDecision());
         }
+    }
+
+    /** The automatic policy's decision for the current situation (lie + pin), matching the AI path. */
+    private ShotDecision simDecision() {
+        return simPolicy.decide(remaining, lie, holes.get(holeIndex).model().pinLateral());
     }
 
     private ShotOutcome resolveOne(ShotDecision decision) {
@@ -113,7 +118,7 @@ public final class PlayableRound {
         double preShotRemaining = remaining;
         SeedCoordinate coord = base.withHole(holeIndex + 1).withShot(shotNumber);
         ShotContext context = new ShotContext(attributes, state, hole.environment(), remaining,
-                hole.model().zoneProfileFor(remaining), decision, coord, lie);
+                hole.model().zoneProfileFor(remaining), decision, coord, lie, hole.model().pinLateral());
         ShotOutcome outcome = ShotResolver.resolveShot(context);
 
         totalStrokes += outcome.strokes();

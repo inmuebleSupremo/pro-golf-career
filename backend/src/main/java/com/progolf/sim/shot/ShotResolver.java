@@ -151,9 +151,11 @@ public final class ShotResolver {
         // --- Step 7: final outcome ---
         Surface surface = context.zoneProfile().surfaceAt(carry, lateral);
         double longitudinalRemaining = context.pinDistance() - carry;
-        // StrictMath for cross-platform determinism (REQ-265/299): Math.hypot may vary by 1 ulp
-        // between platforms, which could flip a zone-band boundary and diverge the simulation.
-        double distanceRemaining = StrictMath.hypot(longitudinalRemaining, lateral);
+        // Distance to the pin is measured to the ACTUAL hole (pin lateral offset), not the green centre, so
+        // attacking a tucked pin leaves a shorter putt while a safe centre miss leaves a longer one
+        // (spec: shot-resolution pin-attacking). StrictMath for cross-platform determinism (REQ-265/299):
+        // Math.hypot may vary by 1 ulp between platforms, which could flip a zone-band boundary.
+        double distanceRemaining = StrictMath.hypot(longitudinalRemaining, lateral - context.pinLateral());
         boolean hazard = surface.isHazard();
         int penalty = surface.penaltyStrokes();
         int strokes = 1 + penalty;

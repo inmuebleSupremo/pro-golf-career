@@ -80,7 +80,8 @@ public final class RoundResolver {
             SeedCoordinate holeCoordinate,
             int shotNo) {
 
-        ShotDecision decision = policy.decide(remainingDistance);
+        double pinLateral = hole.pinLateral();
+        ShotDecision decision = policy.decide(remainingDistance, lie, pinLateral);
         return new ShotContext(
                 attributes,
                 state,
@@ -89,7 +90,8 @@ public final class RoundResolver {
                 hole.zoneProfileFor(remainingDistance),
                 decision,
                 holeCoordinate.withShot(shotNo),
-                lie);
+                lie,
+                pinLateral);
     }
 
     /** Reconstructs a shot played from the tee box (the round's first shot). See the lie-aware overload. */

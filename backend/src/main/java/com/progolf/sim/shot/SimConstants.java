@@ -69,6 +69,17 @@ public final class SimConstants {
     /** Hard ceiling as a multiple of the cap. */
     public static final double SAFETY_HARD_MULTIPLE = 2.0;
 
+    // --- Situational strategy (spec: shot-resolution pin-attacking) ---
+    // On a scoring approach a golfer aims a fraction of the way to a tucked pin, scaled by the shot's
+    // confidence: a short wedge can hunt the flag, a long iron plays the safe green centre. The fraction
+    // fades linearly from full at NEAR to zero at FAR (yards of remaining distance).
+    /** At or under this remaining distance, an approach is confident enough to fully commit to a pin attack. */
+    public static final double PIN_ATTACK_FADE_NEAR = 120.0;
+    /** At or beyond this remaining distance, no pin is attacked — the golfer plays the green centre. */
+    public static final double PIN_ATTACK_FADE_FAR = 190.0;
+    /** Recovery-difficulty of the lie at or above which a golfer plays conservatively regardless of disposition. */
+    public static final double RECOVERY_CAUTION_THRESHOLD = 0.4;
+
     // --- Round resolution ---
     /** Distance (yards) at or under which the ball is considered holed — roughly a one-foot tap-in. */
     public static final double HOLED_THRESHOLD = 0.35;

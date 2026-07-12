@@ -66,7 +66,7 @@ public final class PlayableHole {
     public ShotSituation situation() {
         requireNotComplete();
         return new ShotSituation(holeNumber, par, shotNumber, strokes, remaining, lie,
-                model.zoneProfileFor(remaining));
+                model.pinLateral(), model.zoneProfileFor(remaining));
     }
 
     /** Plays the current shot with the human's decision (club / target / risk). */
@@ -78,20 +78,20 @@ public final class PlayableHole {
     /** Sims the current shot with the automatic policy. */
     public ShotOutcome simShot() {
         requireNotComplete();
-        return resolveOne(simPolicy.decide(remaining));
+        return resolveOne(simPolicy.decide(remaining, lie, model.pinLateral()));
     }
 
     /** Sims the rest of the hole with the automatic policy. */
     public void simHole() {
         while (!complete) {
-            resolveOne(simPolicy.decide(remaining));
+            resolveOne(simPolicy.decide(remaining, lie, model.pinLateral()));
         }
     }
 
     private ShotOutcome resolveOne(ShotDecision decision) {
         double preShotRemaining = remaining;
         ShotContext context = new ShotContext(attributes, state, environment, remaining,
-                model.zoneProfileFor(remaining), decision, coordinate.withShot(shotNumber), lie);
+                model.zoneProfileFor(remaining), decision, coordinate.withShot(shotNumber), lie, model.pinLateral());
         ShotOutcome outcome = ShotResolver.resolveShot(context);
 
         strokes += outcome.strokes();
