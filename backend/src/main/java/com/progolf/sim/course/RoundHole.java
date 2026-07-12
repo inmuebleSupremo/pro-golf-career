@@ -13,10 +13,16 @@ public final class RoundHole implements HoleModel {
 
     private final GeneratedHole hole;
     private final PinPosition pin;
+    private final CourseSetup setup;
 
     RoundHole(GeneratedHole hole, PinPosition pin) {
+        this(hole, pin, CourseSetup.standard());
+    }
+
+    RoundHole(GeneratedHole hole, PinPosition pin, CourseSetup setup) {
         this.hole = Objects.requireNonNull(hole, "hole");
         this.pin = Objects.requireNonNull(pin, "pin");
+        this.setup = Objects.requireNonNull(setup, "setup");
     }
 
     /** The hole this round-model is derived from. */
@@ -36,7 +42,7 @@ public final class RoundHole implements HoleModel {
 
     @Override
     public ShotZoneProfile zoneProfileFor(double remainingDistance) {
-        return HoleZones.profileFor(hole, remainingDistance, pin.depthOffset());
+        return HoleZones.profileFor(hole, remainingDistance, pin.depthOffset(), setup.widthScale());
     }
 
     /** The active pin's lateral offset from the green centre (spec: shot-resolution) — live in resolution. */

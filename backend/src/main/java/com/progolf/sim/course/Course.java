@@ -35,11 +35,16 @@ public record Course(CourseIdentity identity, List<GeneratedHole> holes, int gen
         return sum;
     }
 
-    /** The playable {@link HoleModel} for a hole number (1..18) in a given round, with that round's pin. */
+    /** The playable {@link HoleModel} for a hole number (1..18) in a given round, under the neutral setup. */
     public HoleModel holeModel(int holeNumber, int round) {
+        return holeModel(holeNumber, round, CourseSetup.standard());
+    }
+
+    /** The playable {@link HoleModel} for a hole (1..18) in a round, under the event's course setup. */
+    public HoleModel holeModel(int holeNumber, int round, CourseSetup setup) {
         if (holeNumber < 1 || holeNumber > 18) {
             throw new IllegalArgumentException("Hole number must be 1..18: " + holeNumber);
         }
-        return holes.get(holeNumber - 1).forRound(round);
+        return holes.get(holeNumber - 1).forRound(round, setup);
     }
 }

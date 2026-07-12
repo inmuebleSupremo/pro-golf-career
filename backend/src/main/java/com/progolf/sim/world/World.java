@@ -55,6 +55,7 @@ import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
 import com.progolf.sim.staff.SupportTeam;
 import com.progolf.sim.course.Course;
+import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.player.ProfessionalGolfer;
@@ -74,6 +75,7 @@ import com.progolf.sim.tournament.EventPrestige;
 import com.progolf.sim.tournament.PrizeStructure;
 import com.progolf.sim.tournament.Tier;
 import com.progolf.sim.tournament.TournamentConstants;
+import com.progolf.sim.tournament.SetupDifficulty;
 import com.progolf.sim.tournament.Tournament;
 import com.progolf.sim.tournament.TournamentDefinition;
 import com.progolf.sim.tournament.TournamentFormat;
@@ -435,7 +437,10 @@ public final class World {
             }
         }
 
-        Tournament tournament = new Tournament(def, weather);
+        // The event's course setup scales difficulty by tour tier (normalizing field strength) and prestige
+        // (marquee events harder) — spec: course-setup. Applied by the tournament and the playable event alike.
+        CourseSetup setup = SetupDifficulty.forEvent(tier, def.prestige());
+        Tournament tournament = new Tournament(def, weather, setup);
         tournament.openRegistration();
         for (ProfessionalGolfer g : field) {
             tournament.register(g);

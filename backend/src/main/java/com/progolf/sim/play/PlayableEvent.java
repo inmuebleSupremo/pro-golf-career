@@ -2,6 +2,7 @@ package com.progolf.sim.play;
 
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.course.Course;
+import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.player.DecisionPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.shot.Environment;
@@ -44,6 +45,7 @@ public final class PlayableEvent {
     private final long tournamentId;
     private final Strategy simStrategy;
     private final double exposure;
+    private final CourseSetup setup;
 
     private Phase phase;
     private int currentRoundNo;
@@ -68,7 +70,10 @@ public final class PlayableEvent {
         this.tournamentId = tournamentId;
         // The exact strategy the automatic path would use for this golfer, so a simmed round matches it.
         this.simStrategy = player.policy().map(DecisionPolicy::defaultStrategy).orElse(Strategy.BALANCED);
-        this.exposure = course.identity().classification().exposure();
+        // The event's course setup (from the tournament) scales pins/width via holeModel and wind via exposure,
+        // identically to the automatic path, so a simmed event matches the auto result (spec: course-setup).
+        this.setup = tournament.setup();
+        this.exposure = course.identity().classification().exposure() * setup.windScale();
         beginRound(1);
     }
 
@@ -183,7 +188,7 @@ public final class PlayableEvent {
         PlayingConditions conditions = weather.conditionsForRound(roundNo);
         List<HoleToPlay> holes = new ArrayList<>(18);
         for (int hole = 1; hole <= 18; hole++) {
-            HoleModel model = course.holeModel(hole, roundNo);
+            HoleModel model = course.holeModel(hole, roundNo, setup);
             int par = course.holes().get(hole - 1).par();
             Environment env = conditions.environmentForHole(hole, exposure);
             holes.add(new HoleToPlay(model, par, env));
@@ -244,7 +249,7 @@ public final class PlayableEvent {
         if (playerInPlayoff()) {
             int holeNumber = tournament.playoffHoleNumber();
             long playoffRound = tournament.playoffRound();
-            HoleModel model = course.holeModel(holeNumber, (int) playoffRound);
+            HoleModel model = course.holeModel(holeNumber, (int) playoffRound, setup);
             int par = course.holes().get(holeNumber - 1).par();
             Environment env = weather.conditionsForRound((int) playoffRound).environmentForHole(holeNumber, exposure);
             SeedCoordinate coord =

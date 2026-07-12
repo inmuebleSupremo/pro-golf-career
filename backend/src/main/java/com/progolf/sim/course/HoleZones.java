@@ -19,15 +19,23 @@ final class HoleZones {
     }
 
     static ShotZoneProfile profileFor(GeneratedHole hole, double remainingDistance) {
-        return profileFor(hole, remainingDistance, 0.0);
+        return profileFor(hole, remainingDistance, 0.0, 1.0);
+    }
+
+    static ShotZoneProfile profileFor(GeneratedHole hole, double remainingDistance, double pinDepthOffset) {
+        return profileFor(hole, remainingDistance, pinDepthOffset, 1.0);
     }
 
     /**
      * Builds the shot profile with the pin sitting {@code pinDepthOffset} yards front (negative) or back
-     * (positive) of the green centre. The green keeps its size but shifts off-centre from the pin, so a
-     * back pin leaves the over-green trouble closer behind and a front pin shortens the safe run-up.
+     * (positive) of the green centre, and the effective green and fairway core widths scaled by
+     * {@code widthScale} (spec: course-setup): a wider setup ({@code >1}) is easier, a tighter setup
+     * ({@code <1}) harder; the flanking rough/hazard bands shift out with the core width. The green keeps
+     * its depth but shifts off-centre from the pin, so a back pin leaves the over-green trouble closer behind
+     * and a front pin shortens the safe run-up. {@code widthScale == 1.0} reproduces the baseline profile.
      */
-    static ShotZoneProfile profileFor(GeneratedHole hole, double remainingDistance, double pinDepthOffset) {
+    static ShotZoneProfile profileFor(GeneratedHole hole, double remainingDistance, double pinDepthOffset,
+                                      double widthScale) {
         double greenHalfDepth = hole.greenDepth() / 2.0;
         // The pin sits within the green; a back pin (positive offset) leaves more green in front and less
         // behind. Each side is kept to a minimum so the pin is never off its own green.
@@ -45,13 +53,13 @@ final class HoleZones {
 
         // Approach corridor (only when there is meaningful room before the green complex).
         if (greenStart > cursor + 1.0) {
-            bands.add(fairwayBand(cursor, greenStart, hole));
+            bands.add(fairwayBand(cursor, greenStart, hole, widthScale));
             cursor = greenStart;
         }
 
         // Green complex, centred on the pin distance.
         double gEnd = Math.max(greenEnd, cursor + 1.0);
-        bands.add(greenBand(cursor, gEnd, hole));
+        bands.add(greenBand(cursor, gEnd, hole, widthScale));
         cursor = gEnd;
 
         // Over-green trouble.
@@ -62,9 +70,9 @@ final class HoleZones {
         return new ShotZoneProfile(bands);
     }
 
-    private static ZoneBand fairwayBand(double start, double end, GeneratedHole hole) {
+    private static ZoneBand fairwayBand(double start, double end, GeneratedHole hole, double widthScale) {
         List<LateralRegion> regions = new ArrayList<>();
-        double w = hole.fairwayHalfWidth();
+        double w = hole.fairwayHalfWidth() * widthScale;
         regions.add(new LateralRegion(w, Surface.FAIRWAY));
         w += CourseGenConstants.FAIRWAY_FIRST_CUT_EXTRA;
         regions.add(new LateralRegion(w, Surface.FIRST_CUT));
@@ -76,9 +84,9 @@ final class HoleZones {
         return new ZoneBand(start, end, regions);
     }
 
-    private static ZoneBand greenBand(double start, double end, GeneratedHole hole) {
+    private static ZoneBand greenBand(double start, double end, GeneratedHole hole, double widthScale) {
         List<LateralRegion> regions = new ArrayList<>();
-        double w = hole.greenHalfWidth();
+        double w = hole.greenHalfWidth() * widthScale;
         regions.add(new LateralRegion(w, Surface.GREEN));
         w += CourseGenConstants.GREEN_FRINGE_EXTRA;
         regions.add(new LateralRegion(w, Surface.FRINGE));

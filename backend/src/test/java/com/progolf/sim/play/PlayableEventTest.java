@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.course.Course;
 import com.progolf.sim.course.CourseGenerator;
+import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.population.PopulationGenerator;
@@ -48,7 +49,12 @@ class PlayableEventTest {
 
     private static Tournament confirmed(TournamentDefinition def, TournamentWeather weather,
                                         List<ProfessionalGolfer> field) {
-        Tournament t = new Tournament(def, weather);
+        return confirmed(def, weather, CourseSetup.standard(), field);
+    }
+
+    private static Tournament confirmed(TournamentDefinition def, TournamentWeather weather, CourseSetup setup,
+                                        List<ProfessionalGolfer> field) {
+        Tournament t = new Tournament(def, weather, setup);
         t.openRegistration();
         field.forEach(t::register);
         t.confirmField();
@@ -90,6 +96,26 @@ class PlayableEventTest {
             assertThat(event.isComplete()).as("event complete for k=%d", k).isTrue();
             assertSameResult(expected, event.result());
         }
+    }
+
+    @Test
+    void aFullySimmedPlayerEventMatchesAutomaticResolutionUnderANonNeutralSetup() {
+        Course course = course();
+        List<ProfessionalGolfer> field = field();
+        TournamentWeather weather = TournamentWeather.calm();
+        TournamentDefinition def = def(course);
+        CourseSetup setup = new CourseSetup(1.4, 1.25, 0.72); // tucked pins, windier, tighter — clearly non-neutral
+
+        int k = 5;
+        TournamentResult expected = confirmed(def, weather, setup, field).playToCompletion();
+
+        Tournament interactive = confirmed(def, weather, setup, field);
+        interactive.designateInteractiveCompetitor(k);
+        PlayableEvent event = new PlayableEvent(interactive, field.get(k), k, course, weather, WORLD, SEASON, TOURN);
+        event.simEvent();
+
+        assertThat(event.isComplete()).isTrue();
+        assertSameResult(expected, event.result()); // the setup applies identically on both paths
     }
 
     @Test

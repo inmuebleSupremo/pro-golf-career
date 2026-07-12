@@ -34,16 +34,34 @@ public record GeneratedHole(
         }
     }
 
-    /** Deterministically derives the active pin for {@code round} (REQ-076). Same round -> same pin. */
+    /** Deterministically derives the active pin for {@code round} under the neutral setup (REQ-076). */
     public PinPosition pinFor(int round) {
+        return pinFor(round, CourseSetup.standard());
+    }
+
+    /**
+     * Deterministically derives the active pin for {@code round} under {@code setup} (REQ-076). Same round
+     * and setup -> same pin. A more aggressive setup tucks the pin deeper and closer to the (width-scaled)
+     * green edge; the RNG draw is identical regardless of setup, so a setup only scales the offsets.
+     */
+    public PinPosition pinFor(int round, CourseSetup setup) {
         SplitMix64Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, round));
-        double depth = (rng.nextDouble() * 2.0 - 1.0) * CourseGenConstants.PIN_DEPTH_RANGE;
-        double lateral = (rng.nextDouble() * 2.0 - 1.0) * greenHalfWidth * CourseGenConstants.PIN_LATERAL_FACTOR;
+        double depth = (rng.nextDouble() * 2.0 - 1.0) * CourseGenConstants.PIN_DEPTH_RANGE * setup.pinAggression();
+        // The flag stays on the (width-scaled) green: aggression tucks it toward the edge but never past it.
+        double greenEdge = greenHalfWidth * setup.widthScale();
+        double lateral = (rng.nextDouble() * 2.0 - 1.0)
+                * greenEdge * CourseGenConstants.PIN_LATERAL_FACTOR * setup.pinAggression();
+        lateral = Math.max(-greenEdge, Math.min(greenEdge, lateral));
         return new PinPosition(depth, lateral);
     }
 
-    /** Returns the playable {@link HoleModel} for {@code round}, with that round's pin applied. */
+    /** Returns the playable {@link HoleModel} for {@code round} under the neutral setup. */
     public HoleModel forRound(int round) {
-        return new RoundHole(this, pinFor(round));
+        return forRound(round, CourseSetup.standard());
+    }
+
+    /** Returns the playable {@link HoleModel} for {@code round}, with that round's pin and setup applied. */
+    public HoleModel forRound(int round, CourseSetup setup) {
+        return new RoundHole(this, pinFor(round, setup), setup);
     }
 }

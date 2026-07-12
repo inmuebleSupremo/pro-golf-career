@@ -1,6 +1,7 @@
 package com.progolf.sim.tournament;
 
 import com.progolf.sim.core.SeedCoordinate;
+import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.player.DecisionPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.shot.HoleModel;
@@ -31,6 +32,7 @@ public final class Tournament {
 
     private final TournamentDefinition definition;
     private final TournamentWeather weather;
+    private final CourseSetup setup;
     private final List<TournamentEntry> entries = new ArrayList<>();
     private final List<CompetitorStanding> standings = new ArrayList<>();
 
@@ -51,13 +53,24 @@ public final class Tournament {
         this(definition, TournamentWeather.calm());
     }
 
-    /**
-     * Creates a Tournament played under supplied Playing Conditions (REQ-231). Every round resolves under
-     * that round's shared conditions; a tournament created without weather defaults to calm.
-     */
     public Tournament(TournamentDefinition definition, TournamentWeather weather) {
+        this(definition, weather, CourseSetup.standard());
+    }
+
+    /**
+     * Creates a Tournament played under supplied Playing Conditions (REQ-231) and course setup (spec:
+     * course-setup). Every round resolves under that round's shared conditions and the event's setup; a
+     * tournament created without weather defaults to calm, and without a setup to the neutral setup.
+     */
+    public Tournament(TournamentDefinition definition, TournamentWeather weather, CourseSetup setup) {
         this.definition = Objects.requireNonNull(definition, "definition");
         this.weather = Objects.requireNonNull(weather, "weather");
+        this.setup = Objects.requireNonNull(setup, "setup");
+    }
+
+    /** The course setup this event plays under (spec: course-setup); neutral unless supplied. */
+    public CourseSetup setup() {
+        return setup;
     }
 
     public TournamentState state() {
@@ -307,10 +320,11 @@ public final class Tournament {
         }
         ProfessionalGolfer g = s.golfer();
         PlayingConditions conditions = weather.conditionsForRound(roundNo);
-        double exposure = definition.course().identity().classification().exposure();
+        // The event's course setup scales pins/width (via holeModel) and wind (via exposure) — spec: course-setup.
+        double exposure = definition.course().identity().classification().exposure() * setup.windScale();
         int strokes = 0;
         for (int hole = 1; hole <= 18; hole++) {
-            HoleModel model = definition.course().holeModel(hole, roundNo);
+            HoleModel model = definition.course().holeModel(hole, roundNo, setup);
             SeedCoordinate coord = new SeedCoordinate(
                     definition.worldSeed(), definition.seasonId(), definition.tournamentId(),
                     roundNo, s.fieldIndex(), hole, 0);
@@ -405,27 +419,27 @@ public final class Tournament {
         for (CompetitorStanding s : contenders()) {
             tied.add(new TournamentEntry(s.golfer(), s.fieldIndex()));
         }
-        return suddenDeath(definition, weather, tied);
+        return suddenDeath(definition, weather, setup, tied);
     }
 
-    /** Calm-conditions sudden death (backward-compatible entry used by standalone tests). */
+    /** Calm-conditions, neutral-setup sudden death (backward-compatible entry used by standalone tests). */
     static ProfessionalGolfer suddenDeath(TournamentDefinition definition, List<TournamentEntry> tied) {
-        return suddenDeath(definition, TournamentWeather.calm(), tied);
+        return suddenDeath(definition, TournamentWeather.calm(), CourseSetup.standard(), tied);
     }
 
     /**
      * Deterministic sudden-death resolution among tied competitors (REQ-095). Package-private and static
      * so it is independently testable: given two or more tied golfers, it always returns exactly one
-     * winner, reproducibly. Playoff holes are played under the tournament's final-round conditions.
+     * winner, reproducibly. Playoff holes are played under the tournament's final-round conditions and setup.
      */
     static ProfessionalGolfer suddenDeath(TournamentDefinition definition, TournamentWeather weather,
-                                          List<TournamentEntry> tied) {
+                                          CourseSetup setup, List<TournamentEntry> tied) {
         if (tied.isEmpty()) {
             throw new IllegalArgumentException("Playoff requires at least one competitor");
         }
         List<TournamentEntry> remaining = new ArrayList<>(tied);
         for (int ph = 1; ph <= TournamentConstants.MAX_PLAYOFF_HOLES; ph++) {
-            remaining = playSuddenDeathHole(definition, weather, remaining, ph, null, null);
+            remaining = playSuddenDeathHole(definition, weather, setup, remaining, ph, null, null);
             if (remaining.size() == 1) {
                 return remaining.get(0).golfer();
             }
@@ -445,8 +459,8 @@ public final class Tournament {
      * playoff simmed in full reproduces the automatic winner by construction (spec: playable-event).
      */
     private static List<TournamentEntry> playSuddenDeathHole(
-            TournamentDefinition definition, TournamentWeather weather, List<TournamentEntry> remaining,
-            int ph, Integer interactiveFieldIndex, Integer interactiveStrokes) {
+            TournamentDefinition definition, TournamentWeather weather, CourseSetup setup,
+            List<TournamentEntry> remaining, int ph, Integer interactiveFieldIndex, Integer interactiveStrokes) {
         int holeNumber = ((ph - 1) % 18) + 1;
         int playoffRound = 90 + ph; // distinct from rounds 1-4
         int best = Integer.MAX_VALUE;
@@ -455,7 +469,7 @@ public final class Tournament {
             int strokes = (interactiveFieldIndex != null && e.fieldIndex() == interactiveFieldIndex
                     && interactiveStrokes != null)
                     ? interactiveStrokes
-                    : playPlayoffHole(definition, weather, e, holeNumber, playoffRound);
+                    : playPlayoffHole(definition, weather, setup, e, holeNumber, playoffRound);
             if (strokes < best) {
                 best = strokes;
                 survivors.clear();
@@ -517,7 +531,7 @@ public final class Tournament {
         if (playoffRemaining == null) {
             throw new IllegalStateException("beginInteractivePlayoff has not been called");
         }
-        playoffRemaining = playSuddenDeathHole(definition, weather, playoffRemaining, playoffHoleCounter,
+        playoffRemaining = playSuddenDeathHole(definition, weather, setup, playoffRemaining, playoffHoleCounter,
                 interactiveFieldIndex, interactivePlayerStrokes);
         if (playoffRemaining.size() == 1) {
             winner = playoffRemaining.get(0).golfer();
@@ -536,16 +550,17 @@ public final class Tournament {
     }
 
     private static int playPlayoffHole(TournamentDefinition definition, TournamentWeather weather,
-                                       TournamentEntry e, int holeNumber, int playoffRound) {
+                                       CourseSetup setup, TournamentEntry e, int holeNumber, int playoffRound) {
         ProfessionalGolfer g = e.golfer();
         Strategy strategy = g.policy().map(DecisionPolicy::defaultStrategy).orElse(Strategy.BALANCED);
-        HoleModel model = definition.course().holeModel(holeNumber, playoffRound);
+        HoleModel model = definition.course().holeModel(holeNumber, playoffRound, setup);
         SeedCoordinate coord = new SeedCoordinate(
                 definition.worldSeed(), definition.seasonId(), definition.tournamentId(),
                 playoffRound, e.fieldIndex(), holeNumber, 0);
         // Playoff holes are played under the final round's shared conditions (conditionsForRound clamps).
         PlayingConditions conditions = weather.conditionsForRound(playoffRound);
-        double exposure = definition.course().identity().classification().exposure();
+        // The event's course setup scales pins/width (holeModel) and wind (exposure) — spec: course-setup.
+        double exposure = definition.course().identity().classification().exposure() * setup.windScale();
         // A sudden-death playoff is peak pressure: all contenders tied on the final round (spec: pressure).
         double pressure = PressureModel.forRound(TournamentConstants.ROUNDS, definition.prestige(), 0);
         RoundOutcome out = RoundResolver.resolveHole(
