@@ -482,7 +482,11 @@ public final class World {
         if (careers.get(winnerId).statistics().wins() == 1) {
             media.publish(NewsFactory.maidenVictory(season, winnerId, winnerName, def.name()));
         }
-        if (winnerRankBefore > MediaConstants.UPSET_RANKING_THRESHOLD) {
+        // An upset needs an established ranking: in the opening season the ranking is still empty/forming,
+        // so every winner reads as "unranked" and would flood the feed with false upsets. Only report one
+        // once at least one full season of ranking exists (a season-ending snapshot has been taken).
+        boolean rankingEstablished = !rankingSnapshots.isEmpty();
+        if (rankingEstablished && winnerRankBefore > MediaConstants.UPSET_RANKING_THRESHOLD) {
             media.publish(NewsFactory.majorUpset(season, winnerId, winnerName, def.name(), winnerRankBefore));
         }
 
