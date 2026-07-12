@@ -24,7 +24,8 @@ import java.util.Objects;
  * {@link #simHole} / {@link #simRound}, which use the same {@link StrategyPolicy} the AI does.
  *
  * <p>The per-shot loop mirrors {@code RoundResolver.resolveHole} exactly — the same seed coordinates,
- * stroke-and-distance rule, holed threshold, and shot cap — so a fully-simmed round is identical to the
+ * penalty-hazard recovery (water-drop vs out-of-bounds stroke-and-distance), holed threshold, and shot
+ * cap — so a fully-simmed round is identical to the
  * automatic round resolution for the same inputs and seed, and playing by hand differs only by the human's
  * decisions. Framework-free and deterministic given the decisions and seed.
  */
@@ -129,7 +130,13 @@ public final class PlayableRound {
 
         boolean holed;
         if (outcome.hazardEntered()) {
-            remaining = preShotRemaining; // stroke-and-distance
+            // Penalty-hazard recovery, identical to RoundResolver so simmed == auto (spec: shot-resolution).
+            if (outcome.finalSurface() == Surface.WATER) {
+                remaining = Math.min(preShotRemaining, outcome.distanceRemaining() + SimConstants.WATER_DROP_SETBACK);
+                lie = Surface.PRIMARY_ROUGH; // dropped in rough near the hazard
+            } else {
+                remaining = preShotRemaining; // out of bounds: stroke-and-distance
+            }
             holed = false;
         } else {
             remaining = outcome.distanceRemaining();

@@ -18,8 +18,9 @@ import java.util.Objects;
 /**
  * An interactive single hole a human plays shot-by-shot through the shot engine (spec: playable-event) —
  * used to play a sudden-death playoff hole. Its per-shot loop mirrors {@code RoundResolver.resolveHole}
- * exactly: the same stroke-and-distance rule, holed threshold, and shot cap, seeded at the supplied hole
- * coordinate via {@code coordinate.withShot(n)}. So a fully-simmed hole is identical to the automatic
+ * exactly: the same penalty-hazard recovery (water-drop vs out-of-bounds stroke-and-distance), holed
+ * threshold, and shot cap, seeded at the supplied hole coordinate via {@code coordinate.withShot(n)}. So a
+ * fully-simmed hole is identical to the automatic
  * playoff-hole resolution for the same inputs and seed, and playing by hand differs only by the human's
  * decisions.
  *
@@ -98,7 +99,13 @@ public final class PlayableHole {
         lie = outcome.finalSurface();
         boolean holed;
         if (outcome.hazardEntered()) {
-            remaining = preShotRemaining; // stroke-and-distance
+            // Penalty-hazard recovery, identical to RoundResolver so simmed == auto (spec: shot-resolution).
+            if (outcome.finalSurface() == Surface.WATER) {
+                remaining = Math.min(preShotRemaining, outcome.distanceRemaining() + SimConstants.WATER_DROP_SETBACK);
+                lie = Surface.PRIMARY_ROUGH; // dropped in rough near the hazard
+            } else {
+                remaining = preShotRemaining; // out of bounds: stroke-and-distance
+            }
             holed = false;
         } else {
             remaining = outcome.distanceRemaining();

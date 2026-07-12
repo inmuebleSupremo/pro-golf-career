@@ -49,10 +49,17 @@ public final class RoundResolver {
             totalStrokes += outcome.strokes();
             lie = outcome.finalSurface(); // updated unconditionally, matching the interactive PlayableRound
             if (outcome.hazardEntered()) {
-                // Water / Out of Bounds: stroke-and-distance. The penalty stroke is already counted in
-                // outcome.strokes(); play resumes from the previous position, not the lost-ball spot.
-                // (A full water-drop model is a later refinement; stroke-and-distance is the V1 rule.)
-                remaining = preShotRemaining;
+                // Penalty-hazard recovery (spec: shot-resolution). The penalty stroke is already counted in
+                // outcome.strokes(); the loop only decides where the next shot is played from.
+                if (outcome.finalSurface() == Surface.WATER) {
+                    // Water-drop: drop near where the ball entered the hazard and play forward, from a rough
+                    // lie — clamped so it never leaves the player worse off than stroke-and-distance.
+                    remaining = Math.min(preShotRemaining, outcome.distanceRemaining() + SimConstants.WATER_DROP_SETBACK);
+                    lie = Surface.PRIMARY_ROUGH;
+                } else {
+                    // Out of Bounds: stroke-and-distance — play resumes from the previous position.
+                    remaining = preShotRemaining;
+                }
             } else {
                 remaining = outcome.distanceRemaining();
                 if (remaining <= SimConstants.HOLED_THRESHOLD) {

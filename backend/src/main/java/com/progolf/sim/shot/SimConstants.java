@@ -95,6 +95,14 @@ public final class SimConstants {
     public static final double HOLED_THRESHOLD = 0.35;
     /** Maximum shots resolved for a single hole (guards against pathological loops). */
     public static final int MAX_SHOTS_PER_HOLE = 12;
+    /**
+     * Setback (yards) added to a water-drop beyond the ball's water-entry point (spec: shot-resolution
+     * penalty-hazard recovery). A water hazard is recovered by dropping near where the ball crossed in and
+     * playing forward; this margin pulls the drop modestly back toward the tee for near-edge and lateral
+     * relief, so a water carry costs a stroke and some distance rather than the whole shot (stroke-and-distance,
+     * which out-of-bounds still uses). The dropped distance is clamped so it never exceeds the previous spot.
+     */
+    public static final double WATER_DROP_SETBACK = 15.0;
 
     // --- Putting model (spec: shot-resolution putting) ---
     // A putt (a shot played from the green) is resolved by an explicit make-probability model rather than
