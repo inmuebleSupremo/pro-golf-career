@@ -32,6 +32,26 @@ public final class MediaSystem {
         return Collections.unmodifiableList(new ArrayList<>(feed));
     }
 
+    /**
+     * An immutable capture of the media feed (spec: world-snapshot). Only the published feed is stored; the
+     * last-win-season index is rebuilt by replaying it (it is a pure function of the victory news).
+     */
+    public record Snapshot(List<NewsEvent> feed) {
+        public Snapshot {
+            feed = List.copyOf(feed);
+        }
+    }
+
+    public Snapshot snapshot() {
+        return new Snapshot(new ArrayList<>(feed));
+    }
+
+    public static MediaSystem restore(Snapshot s) {
+        MediaSystem m = new MediaSystem();
+        s.feed().forEach(m::publish); // rebuilds lastWinSeason from the victory news, in order
+        return m;
+    }
+
     /** Historically significant news, which remains discoverable (REQ-246). */
     public List<NewsEvent> significantNews() {
         List<NewsEvent> significant = new ArrayList<>();

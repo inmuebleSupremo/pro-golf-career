@@ -1,5 +1,6 @@
 package com.progolf.sim.player;
 
+import com.progolf.sim.shot.Strategy;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -37,5 +38,29 @@ public record ProfessionalGolfer(String id, Player player, String careerRef, Con
     /** The decision-policy seam, present only for simulation-controlled golfers. */
     public Optional<DecisionPolicy> policy() {
         return Optional.ofNullable(decisionPolicy);
+    }
+
+    /**
+     * An immutable capture of a golfer (spec: world-snapshot). The decision policy is captured as its fixed
+     * default {@link Strategy} (null for a human), since the policy is a pure function returning that strategy.
+     */
+    public record Snapshot(String id, Player.Snapshot player, String careerRef, ControlType controlType,
+                           Strategy strategy) {
+    }
+
+    /** Captures this golfer. */
+    public Snapshot snapshot() {
+        Strategy strategy = policy().map(DecisionPolicy::defaultStrategy).orElse(null);
+        return new Snapshot(id, player.snapshot(), careerRef, controlType, strategy);
+    }
+
+    /** Rebuilds a golfer from a snapshot, restoring the fixed-strategy decision seam for simulation golfers. */
+    public static ProfessionalGolfer restore(Snapshot s) {
+        Player player = Player.restore(s.player());
+        if (s.controlType() == ControlType.HUMAN) {
+            return human(s.id(), player, s.careerRef());
+        }
+        Strategy strategy = s.strategy();
+        return simulation(s.id(), player, s.careerRef(), () -> strategy);
     }
 }

@@ -35,6 +35,17 @@ public final class SeasonStandings {
         points.clear();
     }
 
+    /** An immutable capture of the season points ledger (spec: world-snapshot). */
+    Map<String, Integer> snapshot() {
+        return Map.copyOf(points);
+    }
+
+    /** Restores the season points ledger in place from a captured map. */
+    void restoreFrom(Map<String, Integer> captured) {
+        points.clear();
+        points.putAll(captured);
+    }
+
     /**
      * The given members ordered by season points descending, with a deterministic golfer-id tie-break so
      * the ordering is a stable total order.

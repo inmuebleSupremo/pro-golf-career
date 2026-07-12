@@ -27,6 +27,20 @@ public final class PlayerState {
         return new PlayerState(0.0, LiveSkillRating.atBaseline(PlayerConstants.RATING_BASELINE));
     }
 
+    /** The persistent temporary state (spec: world-snapshot); transient shot inputs default to 0 on restore. */
+    public record Snapshot(double fatigue, LiveSkillRating rating) {
+    }
+
+    /** Captures the persistent state (fatigue + live rating); transient equipment/support/injury inputs are 0. */
+    public Snapshot snapshot() {
+        return new Snapshot(fatigue, rating);
+    }
+
+    /** Restores the live rating in place (used by {@link Player#restore}); transient inputs stay neutral. */
+    void restoreRating(LiveSkillRating restored) {
+        this.rating = restored;
+    }
+
     public double fatigue() {
         return fatigue;
     }

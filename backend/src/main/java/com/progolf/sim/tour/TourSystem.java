@@ -31,6 +31,34 @@ public final class TourSystem {
         }
     }
 
+    /**
+     * An immutable capture of the tour system (spec: world-snapshot). The Tour objects themselves are
+     * deterministic (rebuilt by the constructor), so only membership, season standings, movement history,
+     * and the season are captured.
+     */
+    public record Snapshot(Map<String, TourTier> membership, Map<String, Integer> standings,
+                           List<TourMovement> movementHistory, int season) {
+        public Snapshot {
+            membership = Map.copyOf(membership);
+            standings = Map.copyOf(standings);
+            movementHistory = List.copyOf(movementHistory);
+        }
+    }
+
+    public Snapshot snapshot() {
+        return new Snapshot(new LinkedHashMap<>(membership), standings.snapshot(),
+                new ArrayList<>(movementHistory), season);
+    }
+
+    public static TourSystem restore(Snapshot s) {
+        TourSystem t = new TourSystem();
+        t.membership.putAll(s.membership());
+        t.standings.restoreFrom(s.standings());
+        t.movementHistory.addAll(s.movementHistory());
+        t.season = s.season();
+        return t;
+    }
+
     /** The Tour at a tier. */
     public Tour tour(TourTier tier) {
         return tours.get(tier);

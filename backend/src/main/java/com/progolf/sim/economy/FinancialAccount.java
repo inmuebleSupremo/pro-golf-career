@@ -48,6 +48,46 @@ public final class FinancialAccount {
         post(TransactionType.OPENING_BALANCE, startingFunds, openedOn, "Opening balance");
     }
 
+    /** Private no-op constructor used only by {@link #restore} (no opening transaction is posted). */
+    private FinancialAccount(String golferId) {
+        this.golferId = golferId;
+    }
+
+    /** An immutable capture of an account (spec: world-snapshot). Sub-types are already immutable records. */
+    public record Snapshot(String golferId, double availableFunds, double tournamentEarnings,
+                           double sponsorshipIncome, double careerExpenses, int sequence,
+                           List<Transaction> ledger, Map<FinancialMilestone, LocalDate> milestones,
+                           List<SponsorshipAgreement> activeAgreements,
+                           List<SponsorshipAgreement> concludedAgreements, double commercialMomentum) {
+        public Snapshot {
+            ledger = List.copyOf(ledger);
+            milestones = Map.copyOf(milestones);
+            activeAgreements = List.copyOf(activeAgreements);
+            concludedAgreements = List.copyOf(concludedAgreements);
+        }
+    }
+
+    public Snapshot snapshot() {
+        return new Snapshot(golferId, availableFunds, tournamentEarnings, sponsorshipIncome, careerExpenses,
+                sequence, new ArrayList<>(ledger), new LinkedHashMap<>(milestones),
+                new ArrayList<>(activeAgreements), new ArrayList<>(concludedAgreements), commercialMomentum);
+    }
+
+    public static FinancialAccount restore(Snapshot s) {
+        FinancialAccount a = new FinancialAccount(s.golferId());
+        a.availableFunds = s.availableFunds();
+        a.tournamentEarnings = s.tournamentEarnings();
+        a.sponsorshipIncome = s.sponsorshipIncome();
+        a.careerExpenses = s.careerExpenses();
+        a.sequence = s.sequence();
+        a.ledger.addAll(s.ledger());
+        a.milestones.putAll(s.milestones());
+        a.activeAgreements.addAll(s.activeAgreements());
+        a.concludedAgreements.addAll(s.concludedAgreements());
+        a.commercialMomentum = s.commercialMomentum();
+        return a;
+    }
+
     // --- Money in / out (the only mutators of funds) ---
 
     /** Credits earnings (prize money or sponsorship income) and records the transaction. */

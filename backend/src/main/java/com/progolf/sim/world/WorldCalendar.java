@@ -46,6 +46,12 @@ public final class WorldCalendar {
         return dateFor(season, week);
     }
 
+    /** Restores the calendar to a captured (season, week) position (spec: world-snapshot). */
+    void restoreTo(int season, int week) {
+        this.season = season;
+        this.week = week;
+    }
+
     /** Advances one week, rolling into the next season after the final week. */
     public void advance() {
         if (week >= weeksPerSeason) {

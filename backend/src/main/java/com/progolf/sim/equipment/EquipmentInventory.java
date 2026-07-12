@@ -23,6 +23,25 @@ public final class EquipmentInventory {
         history.add(new EquipmentAcquisition(season, item.category(), item.name(), method));
     }
 
+    /** An immutable capture of the inventory (spec: world-snapshot): owned items + acquisition history. */
+    public record Snapshot(List<EquipmentItem> owned, List<EquipmentAcquisition> history) {
+        public Snapshot {
+            owned = List.copyOf(owned);
+            history = List.copyOf(history);
+        }
+    }
+
+    public Snapshot snapshot() {
+        return new Snapshot(new ArrayList<>(owned), new ArrayList<>(history));
+    }
+
+    public static EquipmentInventory restore(Snapshot s) {
+        EquipmentInventory inv = new EquipmentInventory();
+        inv.owned.addAll(s.owned());
+        inv.history.addAll(s.history());
+        return inv;
+    }
+
     /** Whether the golfer owns the given item. */
     public boolean owns(EquipmentItem item) {
         return owned.contains(item);

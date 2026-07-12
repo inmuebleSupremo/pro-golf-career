@@ -29,6 +29,25 @@ public final class WorldRanking {
         return ledger;
     }
 
+    /** An immutable capture of the ranking (spec: world-snapshot): the award ledger and the ineligible set. */
+    public record Snapshot(List<RankingAward> awards, Set<String> ineligible) {
+        public Snapshot {
+            awards = List.copyOf(awards);
+            ineligible = Set.copyOf(ineligible);
+        }
+    }
+
+    public Snapshot snapshot() {
+        return new Snapshot(ledger.awards(), Set.copyOf(ineligible));
+    }
+
+    public static WorldRanking restore(Snapshot s) {
+        WorldRanking r = new WorldRanking();
+        r.ledger.restore(s.awards());
+        r.ineligible.addAll(s.ineligible());
+        return r;
+    }
+
     /**
      * Records ranking points from a completed tournament. Each non-withdrawn finisher is awarded points
      * by finishing position, the tournament tier, and the field strength (bootstrapped from competitors'

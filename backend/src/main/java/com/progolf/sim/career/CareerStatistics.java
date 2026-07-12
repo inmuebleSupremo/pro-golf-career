@@ -104,4 +104,30 @@ public final class CareerStatistics {
     public double averageFinish() {
         return countedFinishes == 0 ? 0.0 : (double) sumOfFinishes / countedFinishes;
     }
+
+    /** An immutable capture of the cumulative statistics (spec: world-snapshot). */
+    public record Snapshot(int eventsPlayed, int countedFinishes, int cutsMade, int wins, int majorsWon,
+                           int signatureWins, int developmentWins, int runnerUps, int topTens,
+                           long sumOfFinishes, double totalEarnings) {
+    }
+
+    public Snapshot snapshot() {
+        return new Snapshot(eventsPlayed, countedFinishes, cutsMade, wins, majorsWon, signatureWins,
+                developmentWins, runnerUps, topTens, sumOfFinishes, totalEarnings);
+    }
+
+    /** Restores the cumulative totals in place from a snapshot (spec: world-snapshot). */
+    void restoreFrom(Snapshot s) {
+        eventsPlayed = s.eventsPlayed();
+        countedFinishes = s.countedFinishes();
+        cutsMade = s.cutsMade();
+        wins = s.wins();
+        majorsWon = s.majorsWon();
+        signatureWins = s.signatureWins();
+        developmentWins = s.developmentWins();
+        runnerUps = s.runnerUps();
+        topTens = s.topTens();
+        sumOfFinishes = s.sumOfFinishes();
+        totalEarnings = s.totalEarnings();
+    }
 }

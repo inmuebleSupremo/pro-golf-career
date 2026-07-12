@@ -30,6 +30,13 @@ public final class RankingLedger {
         return List.copyOf(awards);
     }
 
+    /** Restores the ledger by replaying captured awards in order (rebuilds the by-golfer index). */
+    void restore(List<RankingAward> captured) {
+        for (RankingAward award : captured) {
+            add(award);
+        }
+    }
+
     /** This golfer's awards (empty if none), in insertion order. */
     public List<RankingAward> awardsFor(String golferId) {
         return byGolfer.getOrDefault(golferId, List.of());

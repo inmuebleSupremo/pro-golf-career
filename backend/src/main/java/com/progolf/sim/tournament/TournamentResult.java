@@ -37,4 +37,42 @@ public record TournamentResult(
             this(golfer, position, score, madeCut, withdrawn, prize, com.progolf.sim.shot.ShotStatLine.empty());
         }
     }
+
+    /**
+     * A by-id capture of a result (spec: world-snapshot). This is the only captured type that holds live
+     * golfer references (the winner and each finisher), so it is snapshotted by golfer id and re-linked to a
+     * rebuilt registry on restore. It lives here (not in the world package) so the world never imports the
+     * shot engine even though a finish carries a shot-stat line.
+     */
+    public record Snapshot(String tournamentName, List<FinishSnapshot> finishes, String winnerId,
+                           CutResult cutResult) {
+
+        public record FinishSnapshot(String golferId, int position, int score, boolean madeCut, boolean withdrawn,
+                                     double prize, com.progolf.sim.shot.ShotStatLine shotStats) {
+        }
+
+        public static Snapshot capture(TournamentResult result) {
+            List<FinishSnapshot> finishes = result.finishingOrder().stream()
+                    .map(f -> new FinishSnapshot(f.golfer().player().id(), f.position(), f.score(), f.madeCut(),
+                            f.withdrawn(), f.prize(), f.shotStats()))
+                    .toList();
+            return new Snapshot(result.tournamentName(), finishes, result.winner().player().id(), result.cutResult());
+        }
+
+        public TournamentResult restore(java.util.Map<String, ProfessionalGolfer> registry) {
+            List<Finish> rebuilt = finishes.stream()
+                    .map(f -> new Finish(require(registry, f.golferId()), f.position(), f.score(), f.madeCut(),
+                            f.withdrawn(), f.prize(), f.shotStats()))
+                    .toList();
+            return new TournamentResult(tournamentName, rebuilt, require(registry, winnerId), cutResult);
+        }
+
+        private static ProfessionalGolfer require(java.util.Map<String, ProfessionalGolfer> registry, String id) {
+            ProfessionalGolfer g = registry.get(id);
+            if (g == null) {
+                throw new IllegalStateException("Snapshot references unknown golfer id: " + id);
+            }
+            return g;
+        }
+    }
 }

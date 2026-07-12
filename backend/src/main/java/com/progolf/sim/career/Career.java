@@ -53,6 +53,43 @@ public final class Career {
         this.age = startAge;
     }
 
+    /** Private no-validation constructor used by {@link #restore} (a retired/aged career is reconstructed as-is). */
+    private Career(Player player, int startAge, int age) {
+        this.player = player;
+        this.startAge = startAge;
+        this.age = age;
+    }
+
+    /** An immutable capture of a Career (spec: world-snapshot). The owning player is captured separately. */
+    public record Snapshot(int startAge, int age, CareerStatistics.Snapshot statistics,
+                           java.util.Set<CareerMilestone> milestones, List<CareerHistoryEntry> history,
+                           List<SeasonRecord> seasons, CareerRuntimeState runtimeState,
+                           HallOfFameResult hallOfFameResult) {
+        public Snapshot {
+            milestones = java.util.Set.copyOf(milestones);
+            history = List.copyOf(history);
+            seasons = List.copyOf(seasons);
+        }
+    }
+
+    /** Captures this Career (its owning Player is captured by the golfer registry, not here). */
+    public Snapshot snapshot() {
+        return new Snapshot(startAge, age, statistics.snapshot(), new java.util.HashSet<>(milestones),
+                new ArrayList<>(history), new ArrayList<>(seasons), runtimeState, hallOfFameResult);
+    }
+
+    /** Rebuilds a Career bound to an already-restored {@link Player}. */
+    public static Career restore(Player player, Snapshot s) {
+        Career c = new Career(player, s.startAge(), s.age());
+        c.statistics.restoreFrom(s.statistics());
+        c.milestones.addAll(s.milestones());
+        c.history.addAll(s.history());
+        c.seasons.addAll(s.seasons());
+        c.runtimeState = s.runtimeState();
+        c.hallOfFameResult = s.hallOfFameResult();
+        return c;
+    }
+
     /** The golfer this Career belongs to (never reassigned). */
     public Player player() {
         return player;

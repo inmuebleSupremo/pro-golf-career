@@ -76,4 +76,15 @@ public final class Attributes {
         }
         return value;
     }
+
+    /** Value equality over the stored attribute values (Attributes is an immutable value type). */
+    @Override
+    public boolean equals(Object o) {
+        return this == o || (o instanceof Attributes other && java.util.Arrays.equals(values, other.values));
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Arrays.hashCode(values);
+    }
 }

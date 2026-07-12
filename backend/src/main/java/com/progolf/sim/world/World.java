@@ -121,10 +121,10 @@ public final class World {
     private final StaffMarket staffMarket = new StaffMarket();
     private final Map<String, EquipmentInventory> equipment = new LinkedHashMap<>();
     private final Map<String, TournamentLoadout> loadouts = new LinkedHashMap<>();
-    private final MediaSystem media = new MediaSystem();
+    private MediaSystem media = new MediaSystem();
     private String previousNumberOne; // for detecting world number-one changes
     private final Set<String> announcedProspects = new LinkedHashSet<>(); // rising prospects reported once
-    private final StatisticsArchive statistics = new StatisticsArchive();
+    private StatisticsArchive statistics = new StatisticsArchive();
     private PlayerControl playerControl; // null = fully autonomous world (unchanged behaviour)
     private final List<SponsorshipOffer> playerPendingOffers = new ArrayList<>();
     // For the player's golfer, staff hiring and equipment purchases defer to the human: the World generates
@@ -137,8 +137,8 @@ public final class World {
     private final Set<String> committedThisWeek = new LinkedHashSet<>();
     // Career goals the player has already been congratulated for, so each is announced once (spec: career-goals).
     private final Set<CareerGoal> achievedGoals = new LinkedHashSet<>();
-    private final TourSystem tours = new TourSystem();
-    private final WorldRanking ranking = new WorldRanking();
+    private TourSystem tours = new TourSystem();
+    private WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
     private final Map<String, Career> careers = new LinkedHashMap<>();
     private final Set<String> activeGolfers = new LinkedHashSet<>();
@@ -171,20 +171,109 @@ public final class World {
         return world;
     }
 
-    /** Creates a default-sized World. */
-    public static World create(long masterSeed) {
-        return create(masterSeed, WorldConfig.defaults());
-    }
-
-    // --- Bootstrap ---
-
-    private void bootstrap() {
-        // Course pool.
+    /** Regenerates the seed-derived course pool (identical for the same seed/config); used by bootstrap and restore. */
+    private void generateCoursePool() {
         EnvironmentClassification[] classes = EnvironmentClassification.values();
         for (int i = 0; i < config.coursePoolSize(); i++) {
             SeedCoordinate coord = new SeedCoordinate(masterSeed, 0, i, 0, 0, 0, 0);
             coursePool.add(CourseGenerator.generate(coord, classes[i % classes.length]));
         }
+    }
+
+    /** Creates a default-sized World. */
+    public static World create(long masterSeed) {
+        return create(masterSeed, WorldConfig.defaults());
+    }
+
+    // --- Snapshot / restore (spec: world-snapshot) ---
+
+    /**
+     * Captures the full state of this autonomous world as an immutable snapshot (spec: world-snapshot).
+     * Permitted only at a clean boundary: rejects while a player event is pending, and (this slice) rejects a
+     * player world — player-control capture is the next slice. The seed-derived parts (courses, weather,
+     * markets) are not stored; they are regenerated on restore.
+     */
+    public WorldSnapshot snapshot() {
+        if (pendingEvent != null) {
+            throw new IllegalStateException("Cannot snapshot while a player event is pending");
+        }
+        if (playerControl != null) {
+            throw new IllegalStateException("Player-control capture is not supported in this slice (autonomous only)");
+        }
+        Map<String, Career.Snapshot> careerSnaps = new LinkedHashMap<>();
+        careers.forEach((id, c) -> careerSnaps.put(id, c.snapshot()));
+        Map<String, FinancialAccount.Snapshot> accountSnaps = new LinkedHashMap<>();
+        accounts.forEach((id, a) -> accountSnaps.put(id, a.snapshot()));
+        Map<String, SupportTeam.Snapshot> supportSnaps = new LinkedHashMap<>();
+        supportTeams.forEach((id, t) -> supportSnaps.put(id, t.snapshot()));
+        Map<String, EquipmentInventory.Snapshot> equipSnaps = new LinkedHashMap<>();
+        equipment.forEach((id, e) -> equipSnaps.put(id, e.snapshot()));
+        return new WorldSnapshot(
+                calendar.currentSeason(), calendar.currentWeek(), nextTournamentId, replenishCounter, previousNumberOne,
+                golfers.values().stream().map(ProfessionalGolfer::snapshot).toList(),
+                careerSnaps, new LinkedHashSet<>(activeGolfers), accountSnaps, new LinkedHashMap<>(physicalStates),
+                supportSnaps, equipSnaps, new LinkedHashMap<>(loadouts),
+                tours.snapshot(), ranking.snapshot(), statistics.snapshot(), media.snapshot(),
+                new ArrayList<>(hallOfFameInductions), new LinkedHashSet<>(hallOfFameMembers),
+                new LinkedHashMap<>(retirementSeason),
+                archives.stream().map(a -> new WorldSnapshot.ArchiveSnapshot(a.season(), List.copyOf(a.schedule()),
+                        a.results().stream().map(TournamentResult.Snapshot::capture).toList())).toList(),
+                new ArrayList<>(rankingSnapshots),
+                new ArrayList<>(environmentalHistory), new ArrayList<>(healthHistory),
+                seasonResults.stream().map(TournamentResult.Snapshot::capture).toList(), new ArrayList<>(schedule),
+                new LinkedHashSet<>(announcedProspects));
+    }
+
+    /** Rebuilds an identical world from a snapshot, regenerating the seed-derived parts (spec: world-snapshot). */
+    public static World restore(long masterSeed, WorldConfig config, WorldSnapshot s) {
+        World w = new World(masterSeed, config);
+        w.generateCoursePool();
+        w.calendar.restoreTo(s.season(), s.week());
+        w.nextTournamentId = s.nextTournamentId();
+        w.replenishCounter = s.replenishCounter();
+        w.previousNumberOne = s.previousNumberOne();
+        // 1) Golfers — the registry every golfer-referencing record re-links against.
+        for (ProfessionalGolfer.Snapshot gs : s.golfers()) {
+            ProfessionalGolfer g = ProfessionalGolfer.restore(gs);
+            w.golfers.put(g.player().id(), g);
+        }
+        // 2) Careers, bound to the rebuilt players.
+        s.careers().forEach((id, cs) -> w.careers.put(id, Career.restore(w.golfers.get(id).player(), cs)));
+        // 3) Per-golfer maps.
+        w.activeGolfers.addAll(s.activeGolfers());
+        s.accounts().forEach((id, a) -> w.accounts.put(id, FinancialAccount.restore(a)));
+        w.physicalStates.putAll(s.physicalStates());
+        s.supportTeams().forEach((id, t) -> w.supportTeams.put(id, SupportTeam.restore(t)));
+        s.equipment().forEach((id, e) -> w.equipment.put(id, EquipmentInventory.restore(e)));
+        w.loadouts.putAll(s.loadouts());
+        // 4) Registries.
+        w.tours = TourSystem.restore(s.tours());
+        w.ranking = WorldRanking.restore(s.ranking());
+        w.statistics = StatisticsArchive.restore(s.statistics());
+        w.media = MediaSystem.restore(s.media());
+        w.hallOfFameInductions.addAll(s.hallOfFameInductions());
+        w.hallOfFameMembers.addAll(s.hallOfFameMembers());
+        w.retirementSeason.putAll(s.retirementSeason());
+        w.rankingSnapshots.addAll(s.rankingSnapshots());
+        w.environmentalHistory.addAll(s.environmentalHistory());
+        w.healthHistory.addAll(s.healthHistory());
+        // 5) Golfer-referencing history, re-linked by id against the rebuilt registry.
+        for (WorldSnapshot.ArchiveSnapshot a : s.archives()) {
+            w.archives.add(new SeasonArchive(a.season(), a.schedule(),
+                    a.results().stream().map(r -> r.restore(w.golfers)).toList()));
+        }
+        for (TournamentResult.Snapshot r : s.seasonResults()) {
+            w.seasonResults.add(r.restore(w.golfers));
+        }
+        w.schedule = new ArrayList<>(s.schedule());
+        w.announcedProspects.addAll(s.announcedProspects());
+        return w;
+    }
+
+    // --- Bootstrap ---
+
+    private void bootstrap() {
+        generateCoursePool();
 
         // Population, distributed across tiers by initial skill (strongest to the top tiers).
         List<ProfessionalGolfer> population =

@@ -75,6 +75,33 @@ public final class Player {
         return state;
     }
 
+    /** An immutable capture of a Player's full state (spec: world-snapshot). */
+    public record Snapshot(String id, Identity identity, Attributes attributes, CareerStatus status,
+                           List<AttributeChange> attributeChanges, PlayerState.Snapshot state) {
+        public Snapshot {
+            attributeChanges = List.copyOf(attributeChanges);
+        }
+    }
+
+    /** Captures this Player. */
+    public Snapshot snapshot() {
+        return new Snapshot(id, identity, attributes, status, attributeChanges, state.snapshot());
+    }
+
+    /** Rebuilds a Player from a snapshot, bypassing the guarded transition machine (net-new reconstruction). */
+    public static Player restore(Snapshot s) {
+        Player p = new Player(s.id(), s.identity(), s.attributes());
+        p.status = s.status();
+        p.attributeChanges.addAll(s.attributeChanges());
+        p.restoreState(s.state());
+        return p;
+    }
+
+    private void restoreState(PlayerState.Snapshot s) {
+        this.state.setFatigue(s.fatigue());
+        this.state.restoreRating(s.rating());
+    }
+
     public CareerStatus status() {
         return status;
     }

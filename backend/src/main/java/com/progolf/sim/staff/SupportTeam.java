@@ -18,6 +18,25 @@ public final class SupportTeam {
     private final Map<StaffRole, StaffMember> current = new EnumMap<>(StaffRole.class);
     private final List<StaffRelationship> history = new ArrayList<>();
 
+    /** An immutable capture of the support team (spec: world-snapshot): current roles + relationship history. */
+    public record Snapshot(Map<StaffRole, StaffMember> current, List<StaffRelationship> history) {
+        public Snapshot {
+            current = Map.copyOf(current);
+            history = List.copyOf(history);
+        }
+    }
+
+    public Snapshot snapshot() {
+        return new Snapshot(new EnumMap<>(current), new ArrayList<>(history));
+    }
+
+    public static SupportTeam restore(Snapshot s) {
+        SupportTeam t = new SupportTeam();
+        t.current.putAll(s.current());
+        t.history.addAll(s.history());
+        return t;
+    }
+
     /** Hires a member into their role (replacing and closing any incumbent), recording the appointment. */
     public void hire(StaffMember member, int season) {
         Objects.requireNonNull(member, "member");

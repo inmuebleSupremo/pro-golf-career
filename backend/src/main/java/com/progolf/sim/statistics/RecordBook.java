@@ -48,4 +48,22 @@ public final class RecordBook {
     public Map<RecordType, RecordHolder> currentRecords() {
         return Collections.unmodifiableMap(new EnumMap<>(current));
     }
+
+    /** An immutable capture of the record book (spec: world-snapshot): current holders + full progression. */
+    public record Snapshot(Map<RecordType, RecordHolder> current, Map<RecordType, List<RecordHolder>> progression) {
+    }
+
+    Snapshot snapshot() {
+        Map<RecordType, List<RecordHolder>> prog = new EnumMap<>(RecordType.class);
+        progression.forEach((k, v) -> prog.put(k, List.copyOf(v)));
+        return new Snapshot(Map.copyOf(current), prog);
+    }
+
+    /** Restores the record book in place (spec: world-snapshot); RecordBook is a final field of its owner. */
+    void restoreFrom(Snapshot s) {
+        current.clear();
+        progression.clear();
+        current.putAll(s.current());
+        s.progression().forEach((k, v) -> progression.put(k, new ArrayList<>(v)));
+    }
 }

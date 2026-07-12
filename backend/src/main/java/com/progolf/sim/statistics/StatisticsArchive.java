@@ -26,6 +26,34 @@ public final class StatisticsArchive {
     private final Map<String, Set<Integer>> seasonsAppeared = new HashMap<>();
     private final Map<String, Integer> majorWins = new HashMap<>();
 
+    /** An immutable capture of the statistics archive (spec: world-snapshot). Sub-types are records. */
+    public record Snapshot(Map<String, StatLine> career, Map<String, Map<Integer, StatLine>> seasonal,
+                           List<Championship> championships, RecordBook.Snapshot records,
+                           Map<String, Integer> consecutiveCuts, Map<String, Set<Integer>> seasonsAppeared,
+                           Map<String, Integer> majorWins) {
+    }
+
+    public Snapshot snapshot() {
+        Map<String, Map<Integer, StatLine>> seasonalCopy = new HashMap<>();
+        seasonal.forEach((k, v) -> seasonalCopy.put(k, new HashMap<>(v)));
+        Map<String, Set<Integer>> seasonsCopy = new HashMap<>();
+        seasonsAppeared.forEach((k, v) -> seasonsCopy.put(k, new HashSet<>(v)));
+        return new Snapshot(new HashMap<>(career), seasonalCopy, new ArrayList<>(championships),
+                records.snapshot(), new HashMap<>(consecutiveCuts), seasonsCopy, new HashMap<>(majorWins));
+    }
+
+    public static StatisticsArchive restore(Snapshot s) {
+        StatisticsArchive a = new StatisticsArchive();
+        a.career.putAll(s.career());
+        s.seasonal().forEach((k, v) -> a.seasonal.put(k, new HashMap<>(v)));
+        a.championships.addAll(s.championships());
+        a.records.restoreFrom(s.records()); // RecordBook is a final field: replace its contents in place
+        a.consecutiveCuts.putAll(s.consecutiveCuts());
+        s.seasonsAppeared().forEach((k, v) -> a.seasonsAppeared.put(k, new HashSet<>(v)));
+        a.majorWins.putAll(s.majorWins());
+        return a;
+    }
+
     /**
      * Observes one golfer's outcome in a tournament (Regular prestige), accumulating statistics,
      * registering a champion when this golfer won, and updating records — all from real gameplay data.
