@@ -15,6 +15,7 @@ public final class PlayerState {
     private double equipmentFeel;
     private double mentalSupport; // transient staff-support bonus, set before play; 0 = no support
     private double strategicSupport;
+    private double injuryImpairment; // transient health-synced shot handicap, set before play; 0 = uninjured
 
     PlayerState(double fatigue, LiveSkillRating rating) {
         setFatigue(fatigue);
@@ -78,6 +79,19 @@ public final class PlayerState {
 
     public double strategicSupport() {
         return strategicSupport;
+    }
+
+    public double injuryImpairment() {
+        return injuryImpairment;
+    }
+
+    /**
+     * Sets the transient injury impairment for the next shots, synced from the health domain
+     * ({@code PhysicalState.injuryImpairment()}) before play — exactly as fatigue is (spec: injury-recovery
+     * play-through). Temporary state only; never touches permanent attributes. In [0,1]; 0 = uninjured.
+     */
+    public void setInjuryImpairment(double impairment) {
+        this.injuryImpairment = requireUnit(impairment, "injuryImpairment");
     }
 
     /**

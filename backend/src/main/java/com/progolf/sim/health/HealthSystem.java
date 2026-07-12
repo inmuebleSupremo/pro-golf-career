@@ -44,17 +44,24 @@ public final class HealthSystem {
         return next;
     }
 
-    /**
-     * The state after one rested week (REQ-218/220): fatigue falls gradually (more for fit/younger
-     * golfers), and any injury advances one week of rehabilitation, clearing when healed.
-     */
+    /** The state after one rested week (REQ-218/220): fatigue falls and rehabilitation advances. */
     public static PhysicalState recoverWeek(PhysicalState state, int age) {
+        return recoverWeek(state, age, false);
+    }
+
+    /**
+     * The state after one week (REQ-218/220): fatigue falls gradually (more for fit/younger golfers). Any
+     * injury advances one week of rehabilitation ONLY if the golfer did not compete this week — competing
+     * while injured (playing through) freezes rehab, so grinding prolongs the injury while rest heals it
+     * (spec: injury-recovery play-through). Fatigue recovery is unaffected by whether the golfer competed.
+     */
+    public static PhysicalState recoverWeek(PhysicalState state, int age, boolean competed) {
         double recovered = HealthConstants.RECOVERY_PER_WEEK
                 * (0.5 + state.fitness() * 0.5)
                 * (1.0 - ageRecoveryPenalty(age));
         PhysicalState next = state.withFatigue(clamp01(state.fatigue() - recovered));
 
-        if (state.injury().isPresent()) {
+        if (state.injury().isPresent() && !competed) {
             Injury advanced = state.injury().get().advance(1);
             next = advanced.isHealed() ? next.clearedInjury() : next.withInjury(advanced);
         }

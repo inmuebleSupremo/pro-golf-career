@@ -77,6 +77,9 @@ public final class ShotResolver {
         // neutral at 0, so calm/opening-round play is unchanged.
         double pressureMult = 1.0 + effectivePressure * (1.0 - composureNorm) * SimConstants.PRESSURE_SIGMA_WEIGHT;
         double fatigueSigmaMult = 1.0 + effectiveFatigue * SimConstants.FATIGUE_SIGMA_WEIGHT;
+        // Playing through a recovering injury widens dispersion (spec: shot-resolution injury-impairment).
+        // Physical — applied raw, NOT softened by mental support — and neutral at 0.
+        double injurySigmaMult = 1.0 + state.injuryImpairment() * SimConstants.INJURY_SIGMA_WEIGHT;
         double crossMult = 1.0 + Math.abs(env.crossWind()) * SimConstants.CROSSWIND_SIGMA_WEIGHT * (1.0 - windResist);
         double lieMult = 1.0 + (1.0 - env.lieQuality()) * SimConstants.LIE_SIGMA_WEIGHT;
 
@@ -96,11 +99,11 @@ public final class ShotResolver {
                 + SimConstants.DISTANCE_DISPERSION_FLOOR;
 
         double sigmaLateral = baseLateral / lateralFactor
-                * strategyMult * pressureMult * fatigueSigmaMult * crossMult * lieMult * equipmentDispersion;
+                * strategyMult * pressureMult * fatigueSigmaMult * injurySigmaMult * crossMult * lieMult * equipmentDispersion;
         // Feel (equipment) tightens distance dispersion — better proximity/touch (spec: equipment-influence);
         // neutral at 0.
         double sigmaDistance = baseDistanceDispersion / distanceFactor
-                * strategyMult * pressureMult * fatigueSigmaMult * lieMult * equipmentDispersion
+                * strategyMult * pressureMult * fatigueSigmaMult * injurySigmaMult * lieMult * equipmentDispersion
                 * (1.0 - state.equipmentFeel());
 
         // Mean carry: bounded by reachable distance; reduced by headwind and fatigue; aided by distance skill.
@@ -112,6 +115,8 @@ public final class ShotResolver {
             meanCarry += -headWind * SimConstants.TAILWIND_MEAN_WEIGHT;
         }
         meanCarry *= (1.0 - effectiveFatigue * SimConstants.FATIGUE_MEAN_WEIGHT);
+        // A recovering injury also shortens carry (physical, not softened by mental support); neutral at 0.
+        meanCarry *= (1.0 - state.injuryImpairment() * SimConstants.INJURY_MEAN_WEIGHT);
         if (meanCarry < 0) {
             meanCarry = 0;
         }
@@ -192,6 +197,8 @@ public final class ShotResolver {
         double makeProbability = 1.0 / (1.0 + StrictMath.pow(feet / f50, SimConstants.PUTT_MAKE_SHARPNESS));
         makeProbability *= (1.0 - effectiveFatigue * SimConstants.PUTT_FATIGUE_PENALTY);
         makeProbability *= (1.0 - effectivePressure * (1.0 - composureNorm) * SimConstants.PUTT_PRESSURE_PENALTY);
+        // A recovering injury lowers make-rate too (physical, not softened by mental support); neutral at 0.
+        makeProbability *= (1.0 - state.injuryImpairment() * SimConstants.PUTT_INJURY_PENALTY);
         makeProbability = Math.min(makeProbability, SimConstants.PUTT_MAKE_CAP);
 
         double makeRoll = rng.nextDouble();

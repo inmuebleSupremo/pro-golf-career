@@ -322,7 +322,9 @@ public final class World {
         int season = calendar.currentSeason();
         for (String id : activeGolfers) {
             PhysicalState before = physicalStates.get(id);
-            PhysicalState after = HealthSystem.recoverWeek(before, careers.get(id).age());
+            // Competing this week freezes rehab — grinding through an injury prolongs it (spec: injury-recovery
+            // play-through). committedThisWeek holds exactly this week's field members.
+            PhysicalState after = HealthSystem.recoverWeek(before, careers.get(id).age(), committedThisWeek.contains(id));
             // Fitness coach / physiotherapist add extra weekly recovery (REQ-197).
             double recoveryBonus = supportTeams.get(id).effects().recoveryBonus();
             if (recoveryBonus > 0) {
@@ -376,7 +378,7 @@ public final class World {
                 ? majorField(date, event)
                 : tours.standings(event.tier()).stream()
                         .filter(activeGolfers::contains)
-                        .filter(id -> physicalStates.get(id).canCompete()) // availability gates entry (REQ-221)
+                        .filter(this::canEnterField) // availability gates entry; the player may play through (REQ-221)
                         .filter(id -> !committedThisWeek.contains(id)) // one event per week (spec: event-prestige)
                         .filter(id -> !(isPlayer(id) && playerSitsOut(event))) // player skipped/rested (player-control)
                         .limit(config.fieldSize())
@@ -420,6 +422,9 @@ public final class World {
             ProfessionalGolfer g = field.get(i);
             String id = g.player().id();
             g.player().state().setFatigue(physicalStates.get(id).fatigue());
+            // Injury impairment if playing through a recovering injury (spec: injury-recovery play-through);
+            // 0 for everyone but a controlled player who chose to grind, so the field is otherwise unaffected.
+            g.player().state().setInjuryImpairment(physicalStates.get(id).injuryImpairment());
             GolfBag bag = GolfBag.fromLoadout(loadouts.get(id));
             g.player().state().setEquipment(bag.forgivenessBonus(), bag.powerBonus(),
                     bag.workabilityBonus(), bag.feelBonus());
@@ -875,7 +880,7 @@ public final class World {
     private List<ProfessionalGolfer> majorField(LocalDate date, ScheduledTournament event) {
         RankingSnapshot snapshot = ranking.rankingAsOf(date);
         return activeGolfers.stream()
-                .filter(id -> physicalStates.get(id).canCompete())
+                .filter(this::canEnterField)
                 .filter(id -> !committedThisWeek.contains(id)) // one event per week (spec: event-prestige)
                 .filter(id -> !(isPlayer(id) && playerSitsOut(event))) // player skipped/rested (player-control)
                 .sorted(Comparator
@@ -955,6 +960,11 @@ public final class World {
     /** A golfer's current Physical State (fitness, fatigue, injury, availability) (REQ-215). */
     public PhysicalState physicalStateOf(String golferId) {
         return physicalStates.get(golferId);
+    }
+
+    /** Test seam (package-private): force a golfer's Physical State, e.g. to stage a recovering injury. */
+    void injectPhysicalStateForTest(String golferId, PhysicalState state) {
+        physicalStates.put(golferId, state);
     }
 
     /** Significant health events (major injuries and comebacks) across the world (REQ-223). */
@@ -1289,13 +1299,23 @@ public final class World {
         return isPlayerEligible(event) && !playerSitsOut(event);
     }
 
+    /**
+     * Whether a golfer may be entered into a field: available, or — only for the controlled player — able to
+     * play through a recovering injury (spec: injury-recovery play-through). Other golfers rest recovering
+     * injuries and heal, so AI field behaviour is unchanged.
+     */
+    private boolean canEnterField(String id) {
+        PhysicalState ps = physicalStates.get(id);
+        return ps.canCompete() || (isPlayer(id) && ps.canPlayThroughInjury());
+    }
+
     /** Whether the player is eligible for an event (the hard gates they cannot override). */
     private boolean isPlayerEligible(ScheduledTournament event) {
         if (playerControl == null) {
             return false;
         }
         String id = playerControl.golferId();
-        if (!activeGolfers.contains(id) || !physicalStates.get(id).canCompete()) {
+        if (!activeGolfers.contains(id) || !canEnterField(id)) {
             return false;
         }
         if (event.prestige().isMajor()) {

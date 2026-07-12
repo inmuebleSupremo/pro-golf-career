@@ -44,6 +44,11 @@ public final class SimConstants {
     public static final double FATIGUE_SIGMA_WEIGHT = 0.60;
     public static final double FATIGUE_MEAN_WEIGHT = 0.10;
     public static final double LIE_SIGMA_WEIGHT = 0.80;
+    // Injury impairment from playing through a recovering injury (spec: shot-resolution injury-impairment).
+    // Physical, so it is NOT relieved by staff mental support (unlike fatigue/pressure). Impairment is in
+    // [0,~0.30] (severity-scaled), so at a recovering-SEVERE 0.30 a shot is ~1.3x wider and ~3.6% shorter.
+    public static final double INJURY_SIGMA_WEIGHT = 1.00;
+    public static final double INJURY_MEAN_WEIGHT = 0.12;
 
     // --- Rare extremes (mixture tail) ---
     /** Base probability of a mishit before Course Management reduces it. */
@@ -124,6 +129,8 @@ public final class SimConstants {
     public static final double PUTT_FATIGUE_PENALTY = 0.15;
     /** Fraction of make probability removed at maximum uncomposed pressure. */
     public static final double PUTT_PRESSURE_PENALTY = 0.20;
+    /** Fraction of make probability removed per unit of injury impairment (spec: injury-impairment). */
+    public static final double PUTT_INJURY_PENALTY = 0.60;
     /** Minimum leave (yards) after a missed putt — above {@link #HOLED_THRESHOLD} so a miss is never
      * mistaken for a hole-out and always leaves a distinct (near-certain) tap-in. */
     public static final double PUTT_LEAVE_FLOOR = 0.15;

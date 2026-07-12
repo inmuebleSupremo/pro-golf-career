@@ -40,9 +40,24 @@ public record PhysicalState(double fitness, double fatigue, Optional<Injury> inj
         return Availability.AVAILABLE;
     }
 
-    /** Whether the golfer may enter a competitive event. */
+    /** Whether the golfer may enter a competitive event unimpaired. */
     public boolean canCompete() {
         return availability() == Availability.AVAILABLE;
+    }
+
+    /**
+     * Whether the golfer could play THROUGH the injury — i.e. it has reached its final rehabilitation stage
+     * (RECOVERING) rather than the early INJURED stage (spec: injury-recovery play-through). A MINOR injury
+     * qualifies from the outset; a MODERATE/SEVERE injury qualifies only in its rehab tail. Whether to take
+     * that option is a decision the caller makes; competing while recovering incurs {@link #injuryImpairment()}.
+     */
+    public boolean canPlayThroughInjury() {
+        return availability() == Availability.RECOVERING;
+    }
+
+    /** The shot impairment ([0,1]) suffered by playing through a recovering injury; 0 when not recovering. */
+    public double injuryImpairment() {
+        return canPlayThroughInjury() ? injury.get().severity().impairment() : 0.0;
     }
 
     public PhysicalState withFatigue(double newFatigue) {
