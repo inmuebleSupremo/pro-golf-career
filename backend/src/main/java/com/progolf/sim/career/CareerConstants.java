@@ -44,4 +44,17 @@ public final class CareerConstants {
     public static final double HOF_SCORE_REGULAR = 2.0;
     /** Score weight for a development-tier (amateur) win — the lightest credential. */
     public static final double HOF_SCORE_DEVELOPMENT = 0.5;
+
+    // Ranking dominance + earnings add to the score (never to the baseline): a golfer who reigned at the
+    // top of the world outscores a compiler of the same win total.
+    /** Career-high ranking value used when a golfer never held a ranked position (no peak bonus). */
+    public static final int HOF_UNRANKED = 1000;
+    /** Career-high position at or better than which a peak bonus applies (linearly, most at #1). */
+    public static final int HOF_RANK_PEAK_CAP = 10;
+    /** Peak bonus for reaching World #1 (fading linearly to zero at the cap). */
+    public static final double HOF_SCORE_RANK_PEAK = 15.0;
+    /** Score weight per season finishing at World #1 — sustained dominance. */
+    public static final double HOF_SCORE_SEASON_AT_ONE = 8.0;
+    /** Score weight per $1M of career earnings — a small consistency/longevity credential. */
+    public static final double HOF_SCORE_EARNINGS_PER_MILLION = 0.3;
 }

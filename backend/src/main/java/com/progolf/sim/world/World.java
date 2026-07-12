@@ -64,6 +64,7 @@ import com.progolf.sim.player.Nationality;
 import com.progolf.sim.population.GolferFactory;
 import com.progolf.sim.population.PopulationGenerator;
 import com.progolf.sim.progression.ProgressionEngine;
+import com.progolf.sim.ranking.RankingHistory;
 import com.progolf.sim.ranking.RankingSnapshot;
 import com.progolf.sim.ranking.WorldRanking;
 import com.progolf.sim.tour.TourSystem;
@@ -660,7 +661,12 @@ public final class World {
         Career career = careers.get(id);
         boolean retired = career.isRetired();
         int seasonsSinceRetirement = retired ? season - retirementSeason.getOrDefault(id, season) : 0;
-        return HallOfFameCredentials.of(career.statistics(), career.age(), seasonsSinceRetirement, retired);
+        // Ranking dominance over the season-ending snapshot history feeds the score (spec: career-legacy).
+        int careerHighRanking = RankingHistory.careerHighPosition(id, rankingSnapshots)
+                .orElse(CareerConstants.HOF_UNRANKED);
+        int seasonsAtNumberOne = (int) RankingHistory.weeksAtNumberOne(id, rankingSnapshots);
+        return HallOfFameCredentials.of(career.statistics(), career.age(), seasonsSinceRetirement, retired,
+                careerHighRanking, seasonsAtNumberOne);
     }
 
     /**

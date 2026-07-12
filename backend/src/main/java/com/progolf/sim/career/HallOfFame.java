@@ -27,15 +27,24 @@ public final class HallOfFame {
     }
 
     /**
-     * Phase two — the prestige-weighted career score the election ranks candidates by: majors are weighted
-     * far above high-importance (signature) events, which are above regular professional wins, which are
-     * above development-tier (amateur) wins.
+     * Phase two — the career score the election ranks candidates by. Prestige-weighted wins dominate
+     * (majors ≫ signature > regular > development), plus ranking dominance (a peak-position bonus, most at
+     * World #1, and a weight per season finishing #1) and a small earnings credential — so a golfer who
+     * reigned at the top of the world outscores a compiler of the same win total.
      */
     public static double score(HallOfFameCredentials c) {
-        return CareerConstants.HOF_SCORE_MAJOR * c.majorsWon()
+        double wins = CareerConstants.HOF_SCORE_MAJOR * c.majorsWon()
                 + CareerConstants.HOF_SCORE_SIGNATURE * c.signatureWins()
                 + CareerConstants.HOF_SCORE_REGULAR * c.regularProWins()
                 + CareerConstants.HOF_SCORE_DEVELOPMENT * c.developmentWins();
+        double peak = c.careerHighRanking() <= CareerConstants.HOF_RANK_PEAK_CAP
+                ? CareerConstants.HOF_SCORE_RANK_PEAK
+                        * (CareerConstants.HOF_RANK_PEAK_CAP - c.careerHighRanking() + 1)
+                        / (double) CareerConstants.HOF_RANK_PEAK_CAP
+                : 0.0;
+        double dominance = peak + CareerConstants.HOF_SCORE_SEASON_AT_ONE * c.seasonsAtNumberOne();
+        double earnings = CareerConstants.HOF_SCORE_EARNINGS_PER_MILLION * (c.careerEarnings() / 1_000_000.0);
+        return wins + dominance + earnings;
     }
 
     /**
