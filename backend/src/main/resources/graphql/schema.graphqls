@@ -42,6 +42,8 @@ type Query {
 }
 
 type Mutation {
+    # --- World lifecycle (add-graphql-read-api) ---
+
     "Creates a new world session from a seed, optionally with an explicit configuration; returns its status."
     createWorld(seed: Long!, config: WorldConfigInput): WorldStatus!
 
@@ -50,6 +52,72 @@ type Mutation {
 
     "Advances a session by one week; returns the new status."
     advanceWeek(id: ID!): WorldStatus!
+
+    # --- Player control (add-graphql-mutations). Enum args use engine enum names. ---
+
+    "Designates an existing golfer as the human-controlled player."
+    assignPlayer(id: ID!, golferId: ID!): Boolean!
+
+    "Creates a custom human golfer (nationality/archetype as enum names) as the session's player; returns its id."
+    createPlayer(id: ID!, firstName: String!, lastName: String!, nationality: String!, startAge: Int!, archetype: String!): ID!
+
+    "Sets the player's development focus (an ordered list of Attribute enum names)."
+    setDevelopmentFocus(id: ID!, focus: [String!]!): Boolean!
+
+    "Sets whether the player's golfer is resting (a blanket sit-out)."
+    setResting(id: ID!, resting: Boolean!): Boolean!
+
+    "Skips a specific upcoming event by tournament id for the player."
+    skipEvent(id: ID!, tournamentId: Long!): Boolean!
+
+    "Re-enters a previously skipped event for the player."
+    enterEvent(id: ID!, tournamentId: Long!): Boolean!
+
+    "Sets the player's self-chosen career goals."
+    setCareerGoals(id: ID!, goals: [CareerGoalInput!]!): Boolean!
+
+    "Accepts a pending sponsorship offer by index."
+    acceptSponsorship(id: ID!, index: Int!): Boolean!
+
+    "Hires a pending staff candidate by index (if affordable)."
+    hireStaff(id: ID!, index: Int!): Boolean!
+
+    "Releases a current staff member by role (a StaffRole enum name)."
+    releaseStaff(id: ID!, role: String!): Boolean!
+
+    "Buys a pending equipment upgrade by index (if affordable); auto-equips it."
+    buyEquipment(id: ID!, index: Int!): Boolean!
+
+    # --- Playable event (add-graphql-mutations) ---
+
+    "Plays the current shot in the player's event with a decision; returns the resolved outcome."
+    playShot(id: ID!, decision: ShotDecisionInput!): ShotOutcome!
+
+    "Sims the current shot in the player's event; returns the resolved outcome."
+    simShot(id: ID!): ShotOutcome!
+
+    "Sims the rest of the current hole in the player's event."
+    simHole(id: ID!): Boolean!
+
+    "Sims the rest of the current round in the player's event."
+    simRound(id: ID!): Boolean!
+
+    "Sims the remainder of the player's event (all remaining rounds and any playoff)."
+    simEvent(id: ID!): Boolean!
+
+    "Completes the player's finished event so its result counts and the paused week resumes; returns the new status."
+    completeEvent(id: ID!): WorldStatus!
+
+    # --- Persistence writes (add-graphql-mutations) ---
+
+    "Saves a session to durable storage under a save id."
+    save(id: ID!, saveId: ID!): Boolean!
+
+    "Loads a save into a new session; returns the restored session's status (including its new id)."
+    load(saveId: ID!): WorldStatus!
+
+    "Deletes a stored save."
+    deleteSave(saveId: ID!): Boolean!
 }
 
 type WorldStatus {
@@ -138,6 +206,30 @@ type Save {
     season: Int!
     week: Int!
     playerGolferId: ID
+}
+
+type ShotOutcome {
+    finalSurface: String!
+    carry: Float!
+    lateral: Float!
+    distanceRemaining: Float!
+    hazardEntered: Boolean!
+    penaltyStrokes: Int!
+    strokes: Int!
+}
+
+"A player's shot decision. club and strategy are engine enum names (Club / Strategy)."
+input ShotDecisionInput {
+    club: String!
+    targetDistance: Float!
+    targetLateral: Float
+    strategy: String!
+}
+
+"A self-chosen career goal. type is a GoalType enum name; target defaults to 1 (boolean-style goal) when omitted."
+input CareerGoalInput {
+    type: String!
+    target: Long
 }
 
 "Explicit world configuration; every field is optional and falls back to the engine default when omitted."

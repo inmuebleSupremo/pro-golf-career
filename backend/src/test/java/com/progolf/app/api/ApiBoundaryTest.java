@@ -18,8 +18,9 @@ import org.springframework.graphql.data.method.annotation.QueryMapping;
  */
 class ApiBoundaryTest {
 
-    private static final List<Class<?>> RESOLVERS =
-            List.of(WorldQueryController.class, WorldMutationController.class);
+    private static final List<Class<?>> RESOLVERS = List.of(
+            WorldQueryController.class, WorldMutationController.class,
+            PlayerMutationController.class, PlayEventMutationController.class, PersistenceMutationController.class);
 
     @Test
     void noResolverReturnTypeIsASimulationEngineType() {

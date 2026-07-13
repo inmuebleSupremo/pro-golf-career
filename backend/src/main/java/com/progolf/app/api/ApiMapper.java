@@ -1,25 +1,38 @@
 package com.progolf.app.api;
 
 import com.progolf.app.api.dto.CareerGoalDto;
+import com.progolf.app.api.dto.CareerGoalInput;
 import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.GolferDto;
 import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.LeaderboardRowDto;
 import com.progolf.app.api.dto.SaveDto;
 import com.progolf.app.api.dto.ScheduleEntryDto;
+import com.progolf.app.api.dto.ShotDecisionInput;
+import com.progolf.app.api.dto.ShotOutcomeDto;
 import com.progolf.app.api.dto.ShotSituationDto;
 import com.progolf.app.api.dto.SponsorshipOfferDto;
 import com.progolf.app.api.dto.StaffMemberDto;
 import com.progolf.app.api.dto.WorldConfigInput;
 import com.progolf.app.persistence.SaveMetadata;
 import com.progolf.sim.career.HallOfFameInduction;
+import com.progolf.sim.control.CareerGoal;
+import com.progolf.sim.control.GoalType;
+import com.progolf.sim.core.Attribute;
 import com.progolf.sim.economy.SponsorshipAgreement;
 import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentCharacteristics;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.play.ShotSituation;
+import com.progolf.sim.player.Archetype;
+import com.progolf.sim.player.Nationality;
 import com.progolf.sim.player.ProfessionalGolfer;
+import com.progolf.sim.shot.Club;
+import com.progolf.sim.shot.ShotDecision;
+import com.progolf.sim.shot.ShotOutcome;
+import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.staff.StaffMember;
+import com.progolf.sim.staff.StaffRole;
 import com.progolf.sim.tournament.LeaderboardEntry;
 import com.progolf.sim.world.CareerGoalProgress;
 import com.progolf.sim.world.PlayerScheduleEntry;
@@ -81,6 +94,60 @@ public final class ApiMapper {
 
     public static SaveDto save(SaveMetadata m) {
         return new SaveDto(m.saveId(), m.savedAt().toString(), m.season(), m.week(), m.playerGolferId());
+    }
+
+    public static ShotOutcomeDto shotOutcome(ShotOutcome o) {
+        return new ShotOutcomeDto(o.finalSurface().name(), o.carry(), o.lateral(), o.distanceRemaining(),
+                o.hazardEntered(), o.penaltyStrokes(), o.strokes());
+    }
+
+    // --- Input parsing (enum-valued arguments arrive as their names; a bad name throws
+    //     IllegalArgumentException, classified BAD_REQUEST by GraphQlErrorResolver) ---
+
+    public static ShotDecision shotDecision(ShotDecisionInput in) {
+        double lateral = in.targetLateral() != null ? in.targetLateral() : 0.0;
+        return new ShotDecision(club(in.club()), in.targetDistance(), lateral, strategy(in.strategy()));
+    }
+
+    public static CareerGoal careerGoal(CareerGoalInput in) {
+        GoalType type = goalType(in.type());
+        return in.target() != null ? CareerGoal.of(type, in.target()) : CareerGoal.of(type);
+    }
+
+    public static List<CareerGoal> careerGoals(List<CareerGoalInput> in) {
+        return in.stream().map(ApiMapper::careerGoal).toList();
+    }
+
+    public static List<Attribute> attributes(List<String> names) {
+        return names.stream().map(ApiMapper::attribute).toList();
+    }
+
+    public static Club club(String name) {
+        return Club.valueOf(name);
+    }
+
+    public static Strategy strategy(String name) {
+        return Strategy.valueOf(name);
+    }
+
+    public static Attribute attribute(String name) {
+        return Attribute.valueOf(name);
+    }
+
+    public static Nationality nationality(String name) {
+        return Nationality.valueOf(name);
+    }
+
+    public static Archetype archetype(String name) {
+        return Archetype.valueOf(name);
+    }
+
+    public static StaffRole staffRole(String name) {
+        return StaffRole.valueOf(name);
+    }
+
+    public static GoalType goalType(String name) {
+        return GoalType.valueOf(name);
     }
 
     /**
