@@ -1,0 +1,152 @@
+# GraphQL API over the world engine (capability graphql-api).
+# This slice (add-graphql-read-api) covers the whole read model plus world-lifecycle mutations;
+# player / play / persistence-write mutations arrive in add-graphql-mutations.
+# All types are application-layer DTOs — no simulation-engine record is exposed.
+
+# 64-bit integer scalar (graphql-java-extended-scalars) for engine ids/seeds/targets that exceed Int.
+scalar Long
+
+type Query {
+    "Read-only status of a world session by id."
+    world(id: ID!): WorldStatus
+
+    "The player's reviewable schedule of eligible upcoming events (empty when no player is assigned)."
+    playerSchedule(id: ID!): [ScheduleEntry!]!
+
+    "The player's career goals with live progress (empty when none chosen)."
+    careerGoals(id: ID!): [CareerGoal!]!
+
+    "The world's Hall-of-Fame inductions so far."
+    hallOfFame(id: ID!): [HallOfFameInduction!]!
+
+    "The player's pending sponsorship offers awaiting a decision."
+    pendingSponsorships(id: ID!): [SponsorshipOffer!]!
+
+    "The player's pending staff candidates awaiting a hire decision."
+    pendingStaff(id: ID!): [StaffMember!]!
+
+    "The player's pending equipment upgrade offers awaiting a purchase decision."
+    pendingEquipment(id: ID!): [EquipmentItem!]!
+
+    "The current shot situation in a paused player event; null when no event is pending."
+    currentSituation(id: ID!): ShotSituation
+
+    "The live leaderboard for a paused player event; empty when no event is pending."
+    eventLeaderboard(id: ID!): [LeaderboardRow!]!
+
+    "Whether the player made the cut in the pending event; null when no event is pending or the cut is not yet decided."
+    playerMadeCut(id: ID!): Boolean
+
+    "Every stored saved game's metadata, newest first."
+    listSaves: [Save!]!
+}
+
+type Mutation {
+    "Creates a new world session from a seed, optionally with an explicit configuration; returns its status."
+    createWorld(seed: Long!, config: WorldConfigInput): WorldStatus!
+
+    "Advances a session by one full season; returns the new status."
+    advanceSeason(id: ID!): WorldStatus!
+
+    "Advances a session by one week; returns the new status."
+    advanceWeek(id: ID!): WorldStatus!
+}
+
+type WorldStatus {
+    id: ID!
+    season: Int!
+    week: Int!
+    activePopulation: Int!
+    hasPendingEvent: Boolean!
+}
+
+type Golfer {
+    id: ID!
+    name: String!
+}
+
+type ScheduleEntry {
+    tournamentId: Long!
+    week: Int!
+    tier: String!
+    prestige: String!
+    entered: Boolean!
+}
+
+type CareerGoal {
+    type: String!
+    target: Long!
+    current: Long!
+    achieved: Boolean!
+}
+
+type HallOfFameInduction {
+    golferId: ID!
+    season: Int!
+    score: Float!
+}
+
+type SponsorshipOffer {
+    sponsor: String!
+    perSeasonPayment: Float!
+    signingBonus: Float!
+    durationSeasons: Int!
+    grossValue: Float!
+}
+
+type StaffMember {
+    role: String!
+    name: String!
+    quality: Float!
+    hiringCost: Float!
+    seasonalSalary: Float!
+}
+
+type EquipmentItem {
+    name: String!
+    category: String!
+    quality: Float!
+    cost: Float!
+    forgiveness: Float!
+    power: Float!
+    workability: Float!
+    feel: Float!
+}
+
+type LeaderboardRow {
+    position: Int!
+    golfer: Golfer!
+    score: Int!
+    roundsPlayed: Int!
+}
+
+type ShotSituation {
+    holeNumber: Int!
+    par: Int!
+    shotNumber: Int!
+    strokesThisHole: Int!
+    distanceToPin: Float!
+    lie: String!
+    pinLateral: Float!
+    minReach: Float!
+    maxReach: Float!
+}
+
+type Save {
+    saveId: ID!
+    savedAt: String!
+    season: Int!
+    week: Int!
+    playerGolferId: ID
+}
+
+"Explicit world configuration; every field is optional and falls back to the engine default when omitted."
+input WorldConfigInput {
+    populationSize: Int
+    weeksPerSeason: Int
+    eventsPerTierPerSeason: Int
+    fieldSize: Int
+    coursePoolSize: Int
+    majorsPerSeason: Int
+    signatureEventsPerTier: Int
+}

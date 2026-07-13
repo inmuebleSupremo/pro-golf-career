@@ -1,5 +1,6 @@
 package com.progolf.app.world;
 
+import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
 import com.progolf.app.persistence.SaveMetadata;
@@ -119,14 +120,19 @@ public class WorldService {
     }
 
     /** A read-only status view of a session's current engine state. */
-    public WorldStatus status(String id) {
+    public WorldStatusDto status(String id) {
         WorldSession session = required(id);
         World world = session.world();
-        return new WorldStatus(session.id(), world.currentSeason(), world.currentWeek(),
-                world.activePopulationSize());
+        return new WorldStatusDto(session.id(), world.currentSeason(), world.currentWeek(),
+                world.activePopulationSize(), world.hasPendingPlayerEvent());
     }
 
     // --- Player control (spec: player-control): the human guides one designated golfer ---
+
+    /** Whether a session has a designated (human-controlled) player golfer. */
+    public boolean hasPlayer(String sessionId) {
+        return required(sessionId).world().playerGolferId().isPresent();
+    }
 
     /** Designates a golfer in a session as human-controlled. */
     public void assignPlayer(String sessionId, String golferId) {

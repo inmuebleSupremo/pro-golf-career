@@ -1,29 +1,20 @@
 package com.progolf.app.world;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * world-session spec: the application boots, the WorldService wraps the engine, sessions are independent,
- * and a session's status is served over HTTP.
+ * world-session spec: the application boots, the WorldService wraps the engine, and sessions are independent.
+ * The status HTTP surface is now GraphQL (see WorldGraphQlApiTest); the provisional REST endpoint is removed.
  */
 @SpringBootTest
-@AutoConfigureMockMvc
 class WorldApplicationTest {
 
     @Autowired
     private WorldService worldService;
-
-    @Autowired
-    private MockMvc mockMvc;
 
     @Test
     void contextLoadsAndServiceIsWired() {
@@ -48,21 +39,5 @@ class WorldApplicationTest {
 
         assertThat(worldService.status(a.id()).season()).isEqualTo(2);
         assertThat(worldService.status(b.id()).season()).isEqualTo(1); // untouched
-    }
-
-    @Test
-    void statusIsServedOverHttp() throws Exception {
-        WorldSession session = worldService.create(999L);
-        mockMvc.perform(get("/api/world/{id}", session.id()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(session.id()))
-                .andExpect(jsonPath("$.season").value(1))
-                .andExpect(jsonPath("$.activePopulation").value(worldService.status(session.id()).activePopulation()));
-    }
-
-    @Test
-    void unknownSessionReturns404() throws Exception {
-        mockMvc.perform(get("/api/world/{id}", "does-not-exist"))
-                .andExpect(status().isNotFound());
     }
 }
