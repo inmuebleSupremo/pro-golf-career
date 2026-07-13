@@ -14,15 +14,21 @@ import org.springframework.boot.test.autoconfigure.graphql.tester.AutoConfigureG
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.graphql.execution.ErrorType;
 import org.springframework.graphql.test.tester.GraphQlTester;
+import org.springframework.security.test.context.support.WithMockUser;
 
 /**
  * graphql-api: the read model and world-lifecycle mutations are served over GraphQL. Read state that depends
  * on the not-yet-exposed mutations (an assigned player, chosen goals) is arranged by injecting
- * {@link WorldService} directly (design D7).
+ * {@link WorldService} directly (design D7). Runs as an authenticated user ({@link #OWNER}); the resolvers
+ * scope to that owner (spec: resource-ownership), which is also the owner the arranged sessions are created
+ * under, so the two match.
  */
 @SpringBootTest
 @AutoConfigureGraphQlTester
+@WithMockUser(username = WorldGraphQlApiTest.OWNER)
 class WorldGraphQlApiTest {
+
+    static final String OWNER = "owner-api-test";
 
     /** A small world so tests that advance stay fast (default prestige counts via the 5-arg ctor). */
     private static final WorldConfig SMALL = new WorldConfig(40, 6, 3, 20, 4);
@@ -66,7 +72,7 @@ class WorldGraphQlApiTest {
 
     @Test
     void advanceWeekAndSeasonAdvanceStatus() {
-        String id = worldService.create(101L, SMALL).id();
+        String id = worldService.create(OWNER, 101L, SMALL).id();
 
         graphQlTester.document("mutation($id: ID!){ advanceWeek(id: $id){ week season } }")
                 .variable("id", id).execute()
@@ -81,7 +87,7 @@ class WorldGraphQlApiTest {
 
     @Test
     void worldQueryReturnsStatus() {
-        String id = worldService.create(202L, SMALL).id();
+        String id = worldService.create(OWNER, 202L, SMALL).id();
         graphQlTester.document("query($id: ID!){ world(id: $id){ id season week activePopulation hasPendingEvent } }")
                 .variable("id", id).execute()
                 .path("world.id").entity(String.class).isEqualTo(id)
@@ -91,7 +97,7 @@ class WorldGraphQlApiTest {
 
     @Test
     void readModelIsEmptyForAWorldWithoutAPlayer() {
-        String id = worldService.create(303L, SMALL).id();
+        String id = worldService.create(OWNER, 303L, SMALL).id();
         graphQlTester.document("""
                         query($id: ID!){
                           playerSchedule(id: $id){ tournamentId }
@@ -109,9 +115,9 @@ class WorldGraphQlApiTest {
 
     @Test
     void careerGoalsReportLiveProgressForAnAssignedPlayer() {
-        WorldSession session = worldService.create(404L, SMALL);
-        worldService.createPlayer(session.id(), "Test", "Golfer", Nationality.USA, 20, Archetype.ALL_ROUNDER);
-        worldService.setCareerGoals(session.id(), List.of(CareerGoal.of(GoalType.WIN_A_MAJOR)));
+        WorldSession session = worldService.create(OWNER, 404L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Test", "Golfer", Nationality.USA, 20, Archetype.ALL_ROUNDER);
+        worldService.setCareerGoals(OWNER, session.id(), List.of(CareerGoal.of(GoalType.WIN_A_MAJOR)));
 
         graphQlTester.document("query($id: ID!){ careerGoals(id: $id){ type target current achieved } }")
                 .variable("id", session.id()).execute()
@@ -123,8 +129,8 @@ class WorldGraphQlApiTest {
     @Test
     void listSavesReturnsMetadata() {
         // advanceSeason autosaves; after it the reserved autosave should be listable.
-        String id = worldService.create(505L, SMALL).id();
-        worldService.advanceSeason(id);
+        String id = worldService.create(OWNER, 505L, SMALL).id();
+        worldService.advanceSeason(OWNER, id);
 
         graphQlTester.document("query { listSaves { saveId season week } }")
                 .execute()
@@ -136,7 +142,7 @@ class WorldGraphQlApiTest {
 
     @Test
     void playableEventReadsAreSafeOffEvent() {
-        String id = worldService.create(606L, SMALL).id();
+        String id = worldService.create(OWNER, 606L, SMALL).id();
         graphQlTester.document("""
                         query($id: ID!){
                           currentSituation(id: $id){ holeNumber }

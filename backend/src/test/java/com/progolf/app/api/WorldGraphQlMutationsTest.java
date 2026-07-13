@@ -11,15 +11,20 @@ import org.springframework.boot.test.autoconfigure.graphql.tester.AutoConfigureG
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.graphql.execution.ErrorType;
 import org.springframework.graphql.test.tester.GraphQlTester;
+import org.springframework.security.test.context.support.WithMockUser;
 
 /**
  * graphql-api (add-graphql-mutations): the write side — player-control decisions, playing/simming a player
  * event, and persistence writes — over GraphQL, plus BAD_REQUEST/NOT_FOUND error classification. Preconditions
- * (an assigned player, a pending event, pending offers) are arranged through {@link WorldService} directly.
+ * (an assigned player, a pending event, pending offers) are arranged through {@link WorldService} directly,
+ * under the same authenticated owner ({@link #OWNER}) the resolvers scope to (spec: resource-ownership).
  */
 @SpringBootTest
 @AutoConfigureGraphQlTester
+@WithMockUser(username = WorldGraphQlMutationsTest.OWNER)
 class WorldGraphQlMutationsTest {
+
+    static final String OWNER = "owner-mutations-test";
 
     private static final WorldConfig SMALL = new WorldConfig(40, 6, 3, 20, 4);
 
@@ -33,7 +38,7 @@ class WorldGraphQlMutationsTest {
 
     @Test
     void createPlayerThenSetAndReadGoals() {
-        String id = worldService.create(1001L, SMALL).id();
+        String id = worldService.create(OWNER, 1001L, SMALL).id();
 
         String golferId = graphQlTester.document("""
                         mutation($id: ID!){
@@ -59,8 +64,8 @@ class WorldGraphQlMutationsTest {
 
     @Test
     void standingDecisionsAreApplied() {
-        WorldSession session = worldService.create(1002L, SMALL);
-        worldService.createPlayer(session.id(), "Dev", "Focus", com.progolf.sim.player.Nationality.USA, 20,
+        WorldSession session = worldService.create(OWNER, 1002L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Dev", "Focus", com.progolf.sim.player.Nationality.USA, 20,
                 com.progolf.sim.player.Archetype.ALL_ROUNDER);
 
         graphQlTester.document("""
@@ -76,10 +81,10 @@ class WorldGraphQlMutationsTest {
 
     @Test
     void aPendingStaffCandidateCanBeHired() {
-        WorldSession session = worldService.create(1003L, SMALL);
-        worldService.createPlayer(session.id(), "Boss", "Player", com.progolf.sim.player.Nationality.USA, 20,
+        WorldSession session = worldService.create(OWNER, 1003L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Boss", "Player", com.progolf.sim.player.Nationality.USA, 20,
                 com.progolf.sim.player.Archetype.ALL_ROUNDER);
-        worldService.advanceSeason(session.id()); // generates a pending candidate for every open role
+        worldService.advanceSeason(OWNER, session.id()); // generates a pending candidate for every open role
 
         graphQlTester.document("query($id: ID!){ pendingStaff(id: $id){ role } }")
                 .variable("id", session.id()).execute()
@@ -95,17 +100,17 @@ class WorldGraphQlMutationsTest {
 
     @Test
     void aPlayerEventIsPlayedAndCompleted() {
-        WorldSession session = worldService.create(20L, SMALL);
+        WorldSession session = worldService.create(OWNER, 20L, SMALL);
         String golferId = session.world().activeGolferIds().get(0); // strongest golfer — a regular in fields
-        worldService.assignPlayer(session.id(), golferId);
+        worldService.assignPlayer(OWNER, session.id(), golferId);
 
         int guard = 0;
-        while (!worldService.hasPendingEvent(session.id()) && guard++ < 60) {
-            worldService.advanceWeek(session.id());
+        while (!worldService.hasPendingEvent(OWNER, session.id()) && guard++ < 60) {
+            worldService.advanceWeek(OWNER, session.id());
         }
-        assertThat(worldService.hasPendingEvent(session.id())).as("player event should come up").isTrue();
+        assertThat(worldService.hasPendingEvent(OWNER, session.id())).as("player event should come up").isTrue();
 
-        double distance = worldService.currentSituation(session.id()).distanceToPin();
+        double distance = worldService.currentSituation(OWNER, session.id()).distanceToPin();
         graphQlTester.document("""
                         mutation($id: ID!, $d: Float!){
                           playShot(id: $id, decision: {club: "DRIVER", targetDistance: $d, strategy: "BALANCED"}){
@@ -130,9 +135,9 @@ class WorldGraphQlMutationsTest {
 
     @Test
     void saveThenLoadThenDelete() {
-        WorldSession session = worldService.create(30L, SMALL);
-        worldService.advanceWeek(session.id());
-        int week = worldService.status(session.id()).week();
+        WorldSession session = worldService.create(OWNER, 30L, SMALL);
+        worldService.advanceWeek(OWNER, session.id());
+        int week = worldService.status(OWNER, session.id()).week();
 
         graphQlTester.document("mutation($id: ID!){ save(id: $id, saveId: \"gql-save\") }")
                 .variable("id", session.id()).execute()
@@ -156,7 +161,7 @@ class WorldGraphQlMutationsTest {
 
     @Test
     void offEventPlayShotIsBadRequest() {
-        String id = worldService.create(40L, SMALL).id();
+        String id = worldService.create(OWNER, 40L, SMALL).id();
         graphQlTester.document("""
                         mutation($id: ID!){
                           playShot(id: $id, decision: {club: "DRIVER", targetDistance: 250, strategy: "BALANCED"}){ strokes }
@@ -168,7 +173,7 @@ class WorldGraphQlMutationsTest {
 
     @Test
     void badEnumNameIsBadRequest() {
-        String id = worldService.create(41L, SMALL).id();
+        String id = worldService.create(OWNER, 41L, SMALL).id();
         graphQlTester.document("""
                         mutation($id: ID!){
                           createPlayer(id: $id, firstName: "Bad", lastName: "Archetype",
@@ -181,8 +186,8 @@ class WorldGraphQlMutationsTest {
 
     @Test
     void outOfRangeOfferIndexIsBadRequest() {
-        WorldSession session = worldService.create(42L, SMALL);
-        worldService.createPlayer(session.id(), "Idx", "Range", com.progolf.sim.player.Nationality.USA, 20,
+        WorldSession session = worldService.create(OWNER, 42L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Idx", "Range", com.progolf.sim.player.Nationality.USA, 20,
                 com.progolf.sim.player.Archetype.ALL_ROUNDER);
 
         graphQlTester.document("mutation($id: ID!){ acceptSponsorship(id: $id, index: 99) }")

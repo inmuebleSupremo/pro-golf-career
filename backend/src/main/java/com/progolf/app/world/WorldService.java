@@ -32,14 +32,18 @@ import org.springframework.stereotype.Service;
 
 /**
  * The single boundary between the application and the simulation engine (spec: world-session, design D2).
- * It creates, holds, advances, and reads {@link WorldSession}s; controllers, and later GraphQL resolvers,
- * persistence, and player actions, all go through here and never touch {@link World} directly. Sessions
- * are held in memory for now — durable saves attach at this seam in the next change.
+ * It creates, holds, advances, and reads {@link WorldSession}s; GraphQL resolvers, persistence, and player
+ * actions all go through here and never touch {@link World} directly.
+ *
+ * <p>Every operation is scoped to an {@code ownerId} (spec: resource-ownership) — the authenticated user id,
+ * passed in as a plain string by the resolvers. A session or save is reachable only by its owner; another
+ * user's resource is reported as not-found, never revealing its existence. This class receives the owner as
+ * a value and carries no security dependency, keeping the engine seam framework-free and reusable.
  */
 @Service
 public class WorldService {
 
-    /** The reserved save id refreshed by autosave at each checkpoint. */
+    /** The reserved save id refreshed by autosave at each checkpoint (per owner). */
     public static final String AUTOSAVE_ID = "autosave";
 
     private final ConcurrentMap<String, WorldSession> sessions = new ConcurrentHashMap<>();
@@ -49,80 +53,80 @@ public class WorldService {
         this.saveStore = saveStore;
     }
 
-    /** Creates a new, independent world session from a master seed and returns it. */
-    public WorldSession create(long seed) {
-        return register(seed, World.create(seed));
+    /** Creates a new, independent world session owned by {@code ownerId} from a master seed and returns it. */
+    public WorldSession create(String ownerId, long seed) {
+        return register(ownerId, seed, World.create(seed));
     }
 
-    /** Creates a new session from a seed and an explicit world configuration. */
-    public WorldSession create(long seed, WorldConfig config) {
-        return register(seed, World.create(seed, config));
+    /** Creates a new owned session from a seed and an explicit world configuration. */
+    public WorldSession create(String ownerId, long seed, WorldConfig config) {
+        return register(ownerId, seed, World.create(seed, config));
     }
 
-    private WorldSession register(long seed, World world) {
+    private WorldSession register(String ownerId, long seed, World world) {
         String id = UUID.randomUUID().toString();
-        WorldSession session = new WorldSession(id, seed, world);
+        WorldSession session = new WorldSession(id, ownerId, seed, world);
         sessions.put(id, session);
         return session;
     }
 
-    // --- Persistence (spec: save-persistence): durable saves attach at this seam ---
+    // --- Persistence (spec: save-persistence): durable saves attach at this seam, scoped to the owner ---
 
-    /** Saves a session's world to durable storage under {@code saveId}, overwriting any existing save. */
-    public void save(String sessionId, String saveId) {
-        WorldSession session = required(sessionId);
+    /** Saves a session's world to the owner's durable storage under {@code saveId}, overwriting any existing save. */
+    public void save(String ownerId, String sessionId, String saveId) {
+        WorldSession session = required(ownerId, sessionId);
         World world = session.world();
         SaveMetadata metadata = new SaveMetadata(saveId, Instant.now(), world.currentSeason(), world.currentWeek(),
                 world.playerGolferId().orElse(null));
-        saveStore.save(saveId, new SaveGame(session.seed(), world.config(), world.snapshot(), metadata));
+        saveStore.save(ownerId, saveId, new SaveGame(session.seed(), world.config(), world.snapshot(), metadata));
     }
 
-    /** Loads a save into a new session and returns it (the restored world continues identically). */
-    public WorldSession load(String saveId) {
-        SaveGame game = saveStore.load(saveId);
+    /** Loads one of the owner's saves into a new session they own and returns it (the world continues identically). */
+    public WorldSession load(String ownerId, String saveId) {
+        SaveGame game = saveStore.load(ownerId, saveId);
         World world = World.restore(game.seed(), game.config(), game.snapshot());
         String sessionId = UUID.randomUUID().toString();
-        WorldSession session = new WorldSession(sessionId, game.seed(), world);
+        WorldSession session = new WorldSession(sessionId, ownerId, game.seed(), world);
         sessions.put(sessionId, session);
         return session;
     }
 
-    /** The metadata of every stored save, newest first. */
-    public List<SaveMetadata> listSaves() {
-        return saveStore.list();
+    /** The metadata of every save owned by {@code ownerId}, newest first. */
+    public List<SaveMetadata> listSaves(String ownerId) {
+        return saveStore.list(ownerId);
     }
 
-    /** Deletes a stored save. */
-    public void deleteSave(String saveId) {
-        saveStore.delete(saveId);
+    /** Deletes one of the owner's saves. */
+    public void deleteSave(String ownerId, String saveId) {
+        saveStore.delete(ownerId, saveId);
     }
 
-    /** Autosaves a session at a clean boundary (skipped while a player event is pending). */
-    private void autosave(String sessionId) {
-        if (!required(sessionId).world().hasPendingPlayerEvent()) {
-            save(sessionId, AUTOSAVE_ID);
+    /** Autosaves a session to the owner's reserved slot at a clean boundary (skipped while an event is pending). */
+    private void autosave(String ownerId, String sessionId) {
+        if (!required(ownerId, sessionId).world().hasPendingPlayerEvent()) {
+            save(ownerId, sessionId, AUTOSAVE_ID);
         }
     }
 
-    /** The session with the given id, or a 404-mapped exception if unknown. */
-    public WorldSession get(String id) {
-        return required(id);
+    /** The owner's session with the given id, or a 404-mapped exception if unknown or not theirs. */
+    public WorldSession get(String ownerId, String id) {
+        return required(ownerId, id);
     }
 
-    /** Advances a session by one full season, then autosaves the checkpoint. */
-    public void advanceSeason(String id) {
-        required(id).world().advanceSeason();
-        autosave(id);
+    /** Advances one of the owner's sessions by one full season, then autosaves the checkpoint. */
+    public void advanceSeason(String ownerId, String id) {
+        required(ownerId, id).world().advanceSeason();
+        autosave(ownerId, id);
     }
 
-    /** Advances a session by one week. */
-    public void advanceWeek(String id) {
-        required(id).world().advanceWeek();
+    /** Advances one of the owner's sessions by one week. */
+    public void advanceWeek(String ownerId, String id) {
+        required(ownerId, id).world().advanceWeek();
     }
 
-    /** A read-only status view of a session's current engine state. */
-    public WorldStatusDto status(String id) {
-        WorldSession session = required(id);
+    /** A read-only status view of one of the owner's sessions. */
+    public WorldStatusDto status(String ownerId, String id) {
+        WorldSession session = required(ownerId, id);
         World world = session.world();
         return new WorldStatusDto(session.id(), world.currentSeason(), world.currentWeek(),
                 world.activePopulationSize(), world.hasPendingPlayerEvent());
@@ -131,112 +135,112 @@ public class WorldService {
     // --- Player control (spec: player-control): the human guides one designated golfer ---
 
     /** Whether a session has a designated (human-controlled) player golfer. */
-    public boolean hasPlayer(String sessionId) {
-        return required(sessionId).world().playerGolferId().isPresent();
+    public boolean hasPlayer(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().playerGolferId().isPresent();
     }
 
     /** Designates a golfer in a session as human-controlled. */
-    public void assignPlayer(String sessionId, String golferId) {
-        required(sessionId).world().assignPlayer(golferId);
+    public void assignPlayer(String ownerId, String sessionId, String golferId) {
+        required(ownerId, sessionId).world().assignPlayer(golferId);
     }
 
     /** Creates a custom golfer (identity + archetype build) as the session's player; returns its id. */
-    public String createPlayer(String sessionId, String firstName, String lastName, Nationality nationality,
-                               int startAge, Archetype archetype) {
-        return required(sessionId).world().createPlayer(firstName, lastName, nationality, startAge, archetype);
+    public String createPlayer(String ownerId, String sessionId, String firstName, String lastName,
+                               Nationality nationality, int startAge, Archetype archetype) {
+        return required(ownerId, sessionId).world().createPlayer(firstName, lastName, nationality, startAge, archetype);
     }
 
     /** Sets the player's development focus (attribute priority) in a session. */
-    public void setDevelopmentFocus(String sessionId, List<Attribute> focus) {
-        required(sessionId).world().setDevelopmentFocus(focus);
+    public void setDevelopmentFocus(String ownerId, String sessionId, List<Attribute> focus) {
+        required(ownerId, sessionId).world().setDevelopmentFocus(focus);
     }
 
     /** Sets whether the player's golfer is resting (a blanket sit-out) in a session. */
-    public void setResting(String sessionId, boolean resting) {
-        required(sessionId).world().setResting(resting);
+    public void setResting(String ownerId, String sessionId, boolean resting) {
+        required(ownerId, sessionId).world().setResting(resting);
     }
 
     /** The player's reviewable eligible schedule (each event's prestige and entry status). */
-    public List<PlayerScheduleEntry> playerSchedule(String sessionId) {
-        return required(sessionId).world().playerSchedule();
+    public List<PlayerScheduleEntry> playerSchedule(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().playerSchedule();
     }
 
     /** Skips a specific upcoming event by tournament id for the player. */
-    public void skipEvent(String sessionId, long tournamentId) {
-        required(sessionId).world().skipEvent(tournamentId);
+    public void skipEvent(String ownerId, String sessionId, long tournamentId) {
+        required(ownerId, sessionId).world().skipEvent(tournamentId);
     }
 
     /** Re-enters a previously skipped event for the player. */
-    public void enterEvent(String sessionId, long tournamentId) {
-        required(sessionId).world().enterEvent(tournamentId);
+    public void enterEvent(String ownerId, String sessionId, long tournamentId) {
+        required(ownerId, sessionId).world().enterEvent(tournamentId);
     }
 
     /** Sets the player's self-chosen career goals. */
-    public void setCareerGoals(String sessionId, List<CareerGoal> goals) {
-        required(sessionId).world().setCareerGoals(goals);
+    public void setCareerGoals(String ownerId, String sessionId, List<CareerGoal> goals) {
+        required(ownerId, sessionId).world().setCareerGoals(goals);
     }
 
     /** The player's career goals with live progress toward each. */
-    public List<CareerGoalProgress> careerGoals(String sessionId) {
-        return required(sessionId).world().careerGoals();
+    public List<CareerGoalProgress> careerGoals(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().careerGoals();
     }
 
     /** The Hall-of-Fame inductions so far (spec: career-legacy). */
-    public List<HallOfFameInduction> hallOfFame(String sessionId) {
-        return required(sessionId).world().hallOfFameInductions();
+    public List<HallOfFameInduction> hallOfFame(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().hallOfFameInductions();
     }
 
     /** The player's pending sponsorship offers awaiting a decision. */
-    public List<SponsorshipOffer> pendingSponsorships(String sessionId) {
-        return required(sessionId).world().pendingSponsorships();
+    public List<SponsorshipOffer> pendingSponsorships(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().pendingSponsorships();
     }
 
     /** Accepts a pending sponsorship offer by index. */
-    public void acceptSponsorship(String sessionId, int index) {
-        required(sessionId).world().acceptSponsorship(index);
+    public void acceptSponsorship(String ownerId, String sessionId, int index) {
+        required(ownerId, sessionId).world().acceptSponsorship(index);
     }
 
     // --- Player staff & equipment (spec: player-control) ---
 
     /** The player's staff candidates awaiting a hire decision. */
-    public List<StaffMember> pendingStaffOffers(String sessionId) {
-        return required(sessionId).world().pendingStaffOffers();
+    public List<StaffMember> pendingStaffOffers(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().pendingStaffOffers();
     }
 
     /** Hires a pending staff candidate by index (if affordable). */
-    public void hireStaff(String sessionId, int index) {
-        required(sessionId).world().hireStaff(index);
+    public void hireStaff(String ownerId, String sessionId, int index) {
+        required(ownerId, sessionId).world().hireStaff(index);
     }
 
     /** Releases a current staff member of the player's team by role. */
-    public void releaseStaff(String sessionId, StaffRole role) {
-        required(sessionId).world().releaseStaff(role);
+    public void releaseStaff(String ownerId, String sessionId, StaffRole role) {
+        required(ownerId, sessionId).world().releaseStaff(role);
     }
 
     /** The player's equipment upgrade offers awaiting a purchase decision. */
-    public List<EquipmentItem> pendingEquipmentOffers(String sessionId) {
-        return required(sessionId).world().pendingEquipmentOffers();
+    public List<EquipmentItem> pendingEquipmentOffers(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().pendingEquipmentOffers();
     }
 
     /** Buys a pending equipment upgrade by index (if affordable). */
-    public void buyEquipment(String sessionId, int index) {
-        required(sessionId).world().buyEquipment(index);
+    public void buyEquipment(String ownerId, String sessionId, int index) {
+        required(ownerId, sessionId).world().buyEquipment(index);
     }
 
     /** Sets the player's loadout for a category to one of their owned items. */
-    public void selectLoadoutItem(String sessionId, EquipmentItem item) {
-        required(sessionId).world().selectLoadoutItem(item);
+    public void selectLoadoutItem(String ownerId, String sessionId, EquipmentItem item) {
+        required(ownerId, sessionId).world().selectLoadoutItem(item);
     }
 
     /** Every item the player currently owns, across all equipment categories. */
-    public List<EquipmentItem> playerEquipment(String sessionId) {
-        World world = required(sessionId).world();
+    public List<EquipmentItem> playerEquipment(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
         return world.equipmentInventoryOf(requirePlayerId(world)).all();
     }
 
     /** The item the player currently has selected in each equipment category (the tournament loadout). */
-    public List<EquipmentItem> playerLoadout(String sessionId) {
-        World world = required(sessionId).world();
+    public List<EquipmentItem> playerLoadout(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
         return List.copyOf(world.tournamentLoadoutOf(requirePlayerId(world)).selection().values());
     }
 
@@ -244,8 +248,8 @@ public class WorldService {
      * Sets the player's loadout for a category to one of their owned items, addressed by category and name
      * (the handle the read model exposes). Throws if the player owns no such item in that category.
      */
-    public void selectLoadoutItem(String sessionId, EquipmentCategory category, String name) {
-        World world = required(sessionId).world();
+    public void selectLoadoutItem(String ownerId, String sessionId, EquipmentCategory category, String name) {
+        World world = required(ownerId, sessionId).world();
         EquipmentItem item = world.equipmentInventoryOf(requirePlayerId(world)).itemsIn(category).stream()
                 .filter(i -> i.name().equals(name))
                 .findFirst()
@@ -262,63 +266,68 @@ public class WorldService {
     // --- Playable event (spec: playable-event): the player plays their own tournament ---
 
     /** Whether the session is paused awaiting the player to play (or sim) their scheduled event. */
-    public boolean hasPendingEvent(String sessionId) {
-        return required(sessionId).world().hasPendingPlayerEvent();
+    public boolean hasPendingEvent(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().hasPendingPlayerEvent();
     }
 
     /** The current shot situation in the player's event (the round or playoff hole they are playing). */
-    public ShotSituation currentSituation(String sessionId) {
-        return playerEvent(sessionId).situation();
+    public ShotSituation currentSituation(String ownerId, String sessionId) {
+        return playerEvent(ownerId, sessionId).situation();
     }
 
     /** The live field leaderboard for the player's event. */
-    public List<LeaderboardEntry> eventLeaderboard(String sessionId) {
-        return playerEvent(sessionId).leaderboard();
+    public List<LeaderboardEntry> eventLeaderboard(String ownerId, String sessionId) {
+        return playerEvent(ownerId, sessionId).leaderboard();
     }
 
     /** Plays the current shot in the player's event with the human's decision (club / target / risk). */
-    public ShotOutcome playShot(String sessionId, ShotDecision decision) {
-        return playerEvent(sessionId).playShot(decision);
+    public ShotOutcome playShot(String ownerId, String sessionId, ShotDecision decision) {
+        return playerEvent(ownerId, sessionId).playShot(decision);
     }
 
     /** Sims the current shot in the player's event. */
-    public ShotOutcome simShot(String sessionId) {
-        return playerEvent(sessionId).simShot();
+    public ShotOutcome simShot(String ownerId, String sessionId) {
+        return playerEvent(ownerId, sessionId).simShot();
     }
 
     /** Sims the rest of the current hole in the player's event. */
-    public void simHole(String sessionId) {
-        playerEvent(sessionId).simHole();
+    public void simHole(String ownerId, String sessionId) {
+        playerEvent(ownerId, sessionId).simHole();
     }
 
     /** Sims the rest of the current round in the player's event. */
-    public void simRound(String sessionId) {
-        playerEvent(sessionId).simRound();
+    public void simRound(String ownerId, String sessionId) {
+        playerEvent(ownerId, sessionId).simRound();
     }
 
     /** Sims the remainder of the player's event (all remaining rounds and any playoff). */
-    public void simEvent(String sessionId) {
-        playerEvent(sessionId).simEvent();
+    public void simEvent(String ownerId, String sessionId) {
+        playerEvent(ownerId, sessionId).simEvent();
     }
 
     /** Whether the player made the cut in their event (valid once the second round and cut are played). */
-    public boolean playerMadeCut(String sessionId) {
-        return playerEvent(sessionId).playerMadeCut();
+    public boolean playerMadeCut(String ownerId, String sessionId) {
+        return playerEvent(ownerId, sessionId).playerMadeCut();
     }
 
     /** Completes the player's finished event so its result counts and the paused week resumes, then autosaves. */
-    public void completeEvent(String sessionId) {
-        required(sessionId).world().completePlayerEvent();
-        autosave(sessionId);
+    public void completeEvent(String ownerId, String sessionId) {
+        required(ownerId, sessionId).world().completePlayerEvent();
+        autosave(ownerId, sessionId);
     }
 
-    private PlayableEvent playerEvent(String sessionId) {
-        return required(sessionId).world().playerEvent();
+    private PlayableEvent playerEvent(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().playerEvent();
     }
 
-    private WorldSession required(String id) {
+    /**
+     * The session with the given id, but only if it belongs to {@code ownerId}. An unknown session and one
+     * owned by a different user are indistinguishable — both are not-found — so a session's existence is
+     * never revealed to a non-owner (spec: resource-ownership).
+     */
+    private WorldSession required(String ownerId, String id) {
         WorldSession session = sessions.get(id);
-        if (session == null) {
+        if (session == null || !session.ownerId().equals(ownerId)) {
             throw new WorldSessionNotFoundException(id);
         }
         return session;

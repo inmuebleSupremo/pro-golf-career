@@ -57,14 +57,15 @@ public class FilesystemSaveGameStore implements SaveGameStore {
     }
 
     @Override
-    public void save(String saveId, SaveGame game) {
+    public void save(String ownerId, String saveId, SaveGame game) {
         try {
-            Files.createDirectories(directory);
+            Path ownerDir = ownerDir(ownerId);
+            Files.createDirectories(ownerDir);
             String payload = mapper.writeValueAsString(game);
             SaveEnvelope envelope = new SaveEnvelope(FORMAT_VERSION, sha256(payload), payload);
             byte[] bytes = mapper.writeValueAsBytes(envelope);
-            Path target = fileFor(saveId);
-            Path temp = Files.createTempFile(directory, saveId + "-", ".tmp");
+            Path target = fileFor(ownerId, saveId);
+            Path temp = Files.createTempFile(ownerDir, saveId + "-", ".tmp");
             Files.write(temp, bytes);
             try {
                 Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -77,8 +78,8 @@ public class FilesystemSaveGameStore implements SaveGameStore {
     }
 
     @Override
-    public SaveGame load(String saveId) {
-        Path file = fileFor(saveId);
+    public SaveGame load(String ownerId, String saveId) {
+        Path file = fileFor(ownerId, saveId);
         if (!Files.isRegularFile(file)) {
             throw new SaveNotFoundException(saveId);
         }
@@ -97,11 +98,12 @@ public class FilesystemSaveGameStore implements SaveGameStore {
     }
 
     @Override
-    public List<SaveMetadata> list() {
-        if (!Files.isDirectory(directory)) {
+    public List<SaveMetadata> list(String ownerId) {
+        Path ownerDir = ownerDir(ownerId);
+        if (!Files.isDirectory(ownerDir)) {
             return List.of();
         }
-        try (Stream<Path> files = Files.list(directory)) {
+        try (Stream<Path> files = Files.list(ownerDir)) {
             List<SaveMetadata> summaries = new ArrayList<>();
             files.filter(p -> p.getFileName().toString().endsWith(EXTENSION)).forEach(p -> {
                 metadataOf(p).ifPresent(summaries::add);
@@ -114,14 +116,14 @@ public class FilesystemSaveGameStore implements SaveGameStore {
     }
 
     @Override
-    public boolean exists(String saveId) {
-        return Files.isRegularFile(fileFor(saveId));
+    public boolean exists(String ownerId, String saveId) {
+        return Files.isRegularFile(fileFor(ownerId, saveId));
     }
 
     @Override
-    public void delete(String saveId) {
+    public void delete(String ownerId, String saveId) {
         try {
-            Files.deleteIfExists(fileFor(saveId));
+            Files.deleteIfExists(fileFor(ownerId, saveId));
         } catch (IOException e) {
             throw new SaveException("Failed to delete save: " + saveId, e);
         }
@@ -147,8 +149,13 @@ public class FilesystemSaveGameStore implements SaveGameStore {
         }
     }
 
-    private Path fileFor(String saveId) {
-        return directory.resolve(saveId + EXTENSION);
+    /** Each owner's saves live under their own subdirectory, so listing and loading never cross owners. */
+    private Path ownerDir(String ownerId) {
+        return directory.resolve(ownerId);
+    }
+
+    private Path fileFor(String ownerId, String saveId) {
+        return ownerDir(ownerId).resolve(saveId + EXTENSION);
     }
 
     private static String sha256(String value) {

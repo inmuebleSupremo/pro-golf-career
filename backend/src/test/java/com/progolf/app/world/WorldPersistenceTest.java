@@ -17,6 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 class WorldPersistenceTest {
 
     private static final WorldConfig SMALL = new WorldConfig(40, 6, 3, 20, 4);
+    private static final String OWNER = "owner-persist-test";
 
     @TempDir
     Path dir;
@@ -29,54 +30,54 @@ class WorldPersistenceTest {
 
     @Test
     void savingAndLoadingASessionYieldsAnIdenticalWorld() {
-        WorldSession original = service.create(123L, SMALL);
-        service.advanceSeason(original.id());
-        service.save(original.id(), "slot1");
+        WorldSession original = service.create(OWNER, 123L, SMALL);
+        service.advanceSeason(OWNER, original.id());
+        service.save(OWNER, original.id(), "slot1");
 
-        WorldSession loaded = service.load("slot1");
+        WorldSession loaded = service.load(OWNER, "slot1");
         assertThat(loaded.id()).isNotEqualTo(original.id()); // a load is a fresh session
         assertThat(loaded.world().snapshot()).isEqualTo(original.world().snapshot());
 
         // And it continues identically.
-        service.advanceSeason(original.id());
-        service.advanceSeason(loaded.id());
+        service.advanceSeason(OWNER, original.id());
+        service.advanceSeason(OWNER, loaded.id());
         assertThat(loaded.world().snapshot()).isEqualTo(original.world().snapshot());
     }
 
     @Test
     void advancingASeasonRefreshesTheAutosaveSlot() {
-        WorldSession session = service.create(7L, SMALL);
-        service.advanceSeason(session.id());
+        WorldSession session = service.create(OWNER, 7L, SMALL);
+        service.advanceSeason(OWNER, session.id());
 
-        assertThat(service.listSaves()).extracting(m -> m.saveId()).contains(WorldService.AUTOSAVE_ID);
-        WorldSession restored = service.load(WorldService.AUTOSAVE_ID);
+        assertThat(service.listSaves(OWNER)).extracting(m -> m.saveId()).contains(WorldService.AUTOSAVE_ID);
+        WorldSession restored = service.load(OWNER, WorldService.AUTOSAVE_ID);
         assertThat(restored.world().snapshot()).isEqualTo(session.world().snapshot());
     }
 
     @Test
     void aPlayerCareerSurvivesTheDisk() {
-        WorldSession session = service.create(4L, SMALL);
+        WorldSession session = service.create(OWNER, 4L, SMALL);
         String golferId = session.world().activeGolferIds().get(0);
-        service.assignPlayer(session.id(), golferId);
-        service.setDevelopmentFocus(session.id(), List.of(Attribute.DRIVING_DISTANCE));
-        service.setCareerGoals(session.id(), List.of(new CareerGoal(GoalType.WIN_A_MAJOR, 1)));
-        service.advanceSeason(session.id());
+        service.assignPlayer(OWNER, session.id(), golferId);
+        service.setDevelopmentFocus(OWNER, session.id(), List.of(Attribute.DRIVING_DISTANCE));
+        service.setCareerGoals(OWNER, session.id(), List.of(new CareerGoal(GoalType.WIN_A_MAJOR, 1)));
+        service.advanceSeason(OWNER, session.id());
 
-        WorldSession loaded = service.load(WorldService.AUTOSAVE_ID);
+        WorldSession loaded = service.load(OWNER, WorldService.AUTOSAVE_ID);
         assertThat(loaded.world().playerGolferId()).contains(golferId);
         assertThat(loaded.world().snapshot()).isEqualTo(session.world().snapshot());
     }
 
     @Test
     void savesAreIndependentAndDeletable() {
-        WorldSession a = service.create(1L, SMALL);
-        WorldSession b = service.create(2L, SMALL);
-        service.save(a.id(), "a");
-        service.save(b.id(), "b");
+        WorldSession a = service.create(OWNER, 1L, SMALL);
+        WorldSession b = service.create(OWNER, 2L, SMALL);
+        service.save(OWNER, a.id(), "a");
+        service.save(OWNER, b.id(), "b");
 
-        assertThat(service.listSaves()).extracting(m -> m.saveId()).contains("a", "b");
-        assertThat(service.load("a").world().currentSeason()).isEqualTo(1);
-        service.deleteSave("a");
-        assertThat(service.listSaves()).extracting(m -> m.saveId()).doesNotContain("a").contains("b");
+        assertThat(service.listSaves(OWNER)).extracting(m -> m.saveId()).contains("a", "b");
+        assertThat(service.load(OWNER, "a").world().currentSeason()).isEqualTo(1);
+        service.deleteSave(OWNER, "a");
+        assertThat(service.listSaves(OWNER)).extracting(m -> m.saveId()).doesNotContain("a").contains("b");
     }
 }

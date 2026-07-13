@@ -1,6 +1,7 @@
 package com.progolf.app.api;
 
 import com.progolf.app.api.dto.WorldStatusDto;
+import com.progolf.app.auth.AuthenticatedUser;
 import com.progolf.app.world.WorldService;
 import com.progolf.app.world.WorldSession;
 import org.springframework.graphql.data.method.annotation.Argument;
@@ -23,19 +24,20 @@ public class PersistenceMutationController {
 
     @MutationMapping
     public boolean save(@Argument String id, @Argument String saveId) {
-        worldService.save(id, saveId);
+        worldService.save(AuthenticatedUser.requireId(), id, saveId);
         return true;
     }
 
     @MutationMapping
     public WorldStatusDto load(@Argument String saveId) {
-        WorldSession session = worldService.load(saveId);
-        return worldService.status(session.id());
+        String owner = AuthenticatedUser.requireId();
+        WorldSession session = worldService.load(owner, saveId);
+        return worldService.status(owner, session.id());
     }
 
     @MutationMapping
     public boolean deleteSave(@Argument String saveId) {
-        worldService.deleteSave(saveId);
+        worldService.deleteSave(AuthenticatedUser.requireId(), saveId);
         return true;
     }
 }

@@ -18,14 +18,19 @@ import org.springframework.boot.test.autoconfigure.graphql.tester.AutoConfigureG
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.graphql.execution.ErrorType;
 import org.springframework.graphql.test.tester.GraphQlTester;
+import org.springframework.security.test.context.support.WithMockUser;
 
 /**
  * graphql-api (add-graphql-equipment-loadout): owned-equipment reads and the usable loadout-selection
- * mutation (addressing an owned item by category + name). Preconditions are arranged via {@link WorldService}.
+ * mutation (addressing an owned item by category + name). Preconditions are arranged via {@link WorldService}
+ * under the same authenticated owner ({@link #OWNER}) the resolvers scope to (spec: resource-ownership).
  */
 @SpringBootTest
 @AutoConfigureGraphQlTester
+@WithMockUser(username = WorldGraphQlEquipmentTest.OWNER)
 class WorldGraphQlEquipmentTest {
+
+    static final String OWNER = "owner-equipment-test";
 
     private static final WorldConfig SMALL = new WorldConfig(40, 6, 3, 20, 4);
     private static final String LOADOUT_FIELDS =
@@ -38,8 +43,8 @@ class WorldGraphQlEquipmentTest {
     private WorldService worldService;
 
     private String createWorldWithPlayer(long seed) {
-        WorldSession session = worldService.create(seed, SMALL);
-        worldService.createPlayer(session.id(), "Gear", "Head", Nationality.USA, 20, Archetype.ALL_ROUNDER);
+        WorldSession session = worldService.create(OWNER, seed, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Gear", "Head", Nationality.USA, 20, Archetype.ALL_ROUNDER);
         return session.id();
     }
 
@@ -61,7 +66,7 @@ class WorldGraphQlEquipmentTest {
 
     @Test
     void readsAreEmptyWithoutAPlayer() {
-        String id = worldService.create(2002L, SMALL).id();
+        String id = worldService.create(OWNER, 2002L, SMALL).id();
         graphQlTester.document("""
                         query($id: ID!){
                           playerEquipment(id: $id){ name }
@@ -75,8 +80,8 @@ class WorldGraphQlEquipmentTest {
 
     @Test
     void loadoutCanBeSwappedToAnOwnedItem() {
-        WorldSession session = worldService.create(2003L, SMALL);
-        String golferId = worldService.createPlayer(session.id(), "Gear", "Head", Nationality.USA, 20,
+        WorldSession session = worldService.create(OWNER, 2003L, SMALL);
+        String golferId = worldService.createPlayer(OWNER, session.id(), "Gear", "Head", Nationality.USA, 20,
                 Archetype.ALL_ROUNDER);
 
         // Arrange a second owned DRIVER (an upgrade) directly on the player's inventory.
