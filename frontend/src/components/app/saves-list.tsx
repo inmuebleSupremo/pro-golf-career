@@ -1,0 +1,90 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { format } from "date-fns";
+
+import { useSaves } from "@/lib/api/queries";
+import { isUnauthorized } from "@/lib/api/graphql-client";
+
+function formatSavedAt(savedAt: string): string {
+  const date = new Date(savedAt);
+  return Number.isNaN(date.getTime()) ? savedAt : format(date, "d MMM yyyy, HH:mm");
+}
+
+export function SavesList() {
+  const router = useRouter();
+  const { data, isPending, isError, error } = useSaves();
+
+  // A 401 from the proxy means the session is gone — return to login.
+  useEffect(() => {
+    if (isError && isUnauthorized(error)) {
+      router.push("/login");
+      router.refresh();
+    }
+  }, [isError, error, router]);
+
+  if (isPending) return <SavesSkeleton />;
+
+  if (isError) {
+    if (isUnauthorized(error)) return null;
+    return (
+      <p role="alert" className="text-destructive text-sm">
+        Couldn&apos;t load your saves. Try again.
+      </p>
+    );
+  }
+
+  const saves = data.listSaves;
+  if (saves.length === 0) return <SavesEmpty />;
+
+  return (
+    <ul className="divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border">
+      {saves.map((save) => (
+        <li key={save.saveId} className="flex items-center justify-between gap-4 px-5 py-4">
+          <div className="flex flex-col gap-1">
+            <span className="font-medium">
+              Season {save.season} · Week {save.week}
+            </span>
+            <span className="text-muted-foreground text-sm">
+              {save.playerGolferId ? "Career in progress" : "No player assigned"}
+            </span>
+          </div>
+          <span className="text-subtle-foreground font-mono text-sm tabular-nums">
+            {formatSavedAt(save.savedAt)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SavesEmpty() {
+  return (
+    <div className="border-border bg-surface flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-16 text-center">
+      <p className="text-foreground font-serif text-xl">No saved careers yet</p>
+      <p className="text-muted-foreground max-w-sm text-sm">
+        When you start a career and save it, it&apos;ll appear here — ready to resume.
+      </p>
+    </div>
+  );
+}
+
+function SavesSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border"
+    >
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="flex items-center justify-between px-5 py-4">
+          <div className="flex flex-col gap-2">
+            <div className="bg-divider h-4 w-40 animate-pulse rounded" />
+            <div className="bg-divider h-3 w-28 animate-pulse rounded" />
+          </div>
+          <div className="bg-divider h-3 w-24 animate-pulse rounded" />
+        </div>
+      ))}
+    </div>
+  );
+}

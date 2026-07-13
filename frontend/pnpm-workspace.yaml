@@ -1,0 +1,6 @@
+# Standalone frontend package (not part of the Java/Maven build).
+# Approve native build scripts: sharp powers Next.js Image optimization;
+# unrs-resolver is the native module resolver used by the lint toolchain.
+allowBuilds:
+  sharp: true
+  unrs-resolver: true
