@@ -26,3 +26,6 @@ dist-ssr/
 
 # ---- Logs ----
 *.log
+
+# ---- Save games (default local saves dir) ----
+saves/

@@ -1005,6 +1005,11 @@ public final class World {
 
     // --- Accessors (read-only) ---
 
+    /** The sizing configuration this world was created with (a restore input for persistence). */
+    public WorldConfig config() {
+        return config;
+    }
+
     public int currentSeason() {
         return calendar.currentSeason();
     }

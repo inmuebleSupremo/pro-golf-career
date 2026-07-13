@@ -1,5 +1,8 @@
 package com.progolf.app.world;
 
+import com.progolf.app.persistence.SaveGame;
+import com.progolf.app.persistence.SaveGameStore;
+import com.progolf.app.persistence.SaveMetadata;
 import com.progolf.sim.career.HallOfFameInduction;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.core.Attribute;
@@ -17,6 +20,8 @@ import com.progolf.sim.tournament.LeaderboardEntry;
 import com.progolf.sim.world.CareerGoalProgress;
 import com.progolf.sim.world.PlayerScheduleEntry;
 import com.progolf.sim.world.World;
+import com.progolf.sim.world.WorldConfig;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,14 +37,69 @@ import org.springframework.stereotype.Service;
 @Service
 public class WorldService {
 
+    /** The reserved save id refreshed by autosave at each checkpoint. */
+    public static final String AUTOSAVE_ID = "autosave";
+
     private final ConcurrentMap<String, WorldSession> sessions = new ConcurrentHashMap<>();
+    private final SaveGameStore saveStore;
+
+    public WorldService(SaveGameStore saveStore) {
+        this.saveStore = saveStore;
+    }
 
     /** Creates a new, independent world session from a master seed and returns it. */
     public WorldSession create(long seed) {
+        return register(seed, World.create(seed));
+    }
+
+    /** Creates a new session from a seed and an explicit world configuration. */
+    public WorldSession create(long seed, WorldConfig config) {
+        return register(seed, World.create(seed, config));
+    }
+
+    private WorldSession register(long seed, World world) {
         String id = UUID.randomUUID().toString();
-        WorldSession session = new WorldSession(id, seed, World.create(seed));
+        WorldSession session = new WorldSession(id, seed, world);
         sessions.put(id, session);
         return session;
+    }
+
+    // --- Persistence (spec: save-persistence): durable saves attach at this seam ---
+
+    /** Saves a session's world to durable storage under {@code saveId}, overwriting any existing save. */
+    public void save(String sessionId, String saveId) {
+        WorldSession session = required(sessionId);
+        World world = session.world();
+        SaveMetadata metadata = new SaveMetadata(saveId, Instant.now(), world.currentSeason(), world.currentWeek(),
+                world.playerGolferId().orElse(null));
+        saveStore.save(saveId, new SaveGame(session.seed(), world.config(), world.snapshot(), metadata));
+    }
+
+    /** Loads a save into a new session and returns it (the restored world continues identically). */
+    public WorldSession load(String saveId) {
+        SaveGame game = saveStore.load(saveId);
+        World world = World.restore(game.seed(), game.config(), game.snapshot());
+        String sessionId = UUID.randomUUID().toString();
+        WorldSession session = new WorldSession(sessionId, game.seed(), world);
+        sessions.put(sessionId, session);
+        return session;
+    }
+
+    /** The metadata of every stored save, newest first. */
+    public List<SaveMetadata> listSaves() {
+        return saveStore.list();
+    }
+
+    /** Deletes a stored save. */
+    public void deleteSave(String saveId) {
+        saveStore.delete(saveId);
+    }
+
+    /** Autosaves a session at a clean boundary (skipped while a player event is pending). */
+    private void autosave(String sessionId) {
+        if (!required(sessionId).world().hasPendingPlayerEvent()) {
+            save(sessionId, AUTOSAVE_ID);
+        }
     }
 
     /** The session with the given id, or a 404-mapped exception if unknown. */
@@ -47,9 +107,10 @@ public class WorldService {
         return required(id);
     }
 
-    /** Advances a session by one full season. */
+    /** Advances a session by one full season, then autosaves the checkpoint. */
     public void advanceSeason(String id) {
         required(id).world().advanceSeason();
+        autosave(id);
     }
 
     /** Advances a session by one week. */
@@ -207,9 +268,10 @@ public class WorldService {
         return playerEvent(sessionId).playerMadeCut();
     }
 
-    /** Completes the player's finished event so its result counts and the paused week resumes. */
+    /** Completes the player's finished event so its result counts and the paused week resumes, then autosaves. */
     public void completeEvent(String sessionId) {
         required(sessionId).world().completePlayerEvent();
+        autosave(sessionId);
     }
 
     private PlayableEvent playerEvent(String sessionId) {
