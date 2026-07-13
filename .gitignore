@@ -29,3 +29,6 @@ dist-ssr/
 
 # ---- Save games (default local saves dir) ----
 saves/
+
+# ---- User accounts (default local users dir) ----
+users/
