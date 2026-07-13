@@ -1,10 +1,15 @@
 package com.progolf.sim.world;
 
 import com.progolf.sim.career.Career;
-import com.progolf.sim.economy.FinancialAccount;
-import com.progolf.sim.equipment.EquipmentInventory;
-import com.progolf.sim.equipment.TournamentLoadout;
 import com.progolf.sim.career.HallOfFameInduction;
+import com.progolf.sim.control.CareerGoal;
+import com.progolf.sim.control.PlayerControl;
+import com.progolf.sim.economy.FinancialAccount;
+import com.progolf.sim.economy.SponsorshipOffer;
+import com.progolf.sim.equipment.EquipmentInventory;
+import com.progolf.sim.equipment.EquipmentItem;
+import com.progolf.sim.equipment.TournamentLoadout;
+import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.health.HealthEvent;
 import com.progolf.sim.health.PhysicalState;
 import com.progolf.sim.media.MediaSystem;
@@ -57,7 +62,12 @@ public record WorldSnapshot(
         List<HealthEvent> healthHistory,
         List<TournamentResult.Snapshot> seasonResults,
         List<ScheduledTournament> schedule,
-        Set<String> announcedProspects) {
+        Set<String> announcedProspects,
+        PlayerControl.Snapshot playerControl,
+        List<SponsorshipOffer> playerPendingOffers,
+        List<StaffMember> playerPendingStaff,
+        List<EquipmentItem> playerPendingEquipment,
+        Set<CareerGoal> achievedGoals) {
 
     /** An archived season captured by id (its schedule is immutable; its results re-link on restore). */
     public record ArchiveSnapshot(int season, List<ScheduledTournament> schedule,

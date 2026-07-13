@@ -3,6 +3,10 @@ package com.progolf.sim.world;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.progolf.sim.control.CareerGoal;
+import com.progolf.sim.control.GoalType;
+import com.progolf.sim.core.Attribute;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -72,9 +76,33 @@ class WorldSnapshotRoundTripTest {
     }
 
     @Test
-    void snapshotIsRejectedForAPlayerWorldInThisSlice() {
+    void aPlayerWorldRoundTripsWithItsControlState() {
+        World original = World.create(4L, small());
+        String id = original.activeGolferIds().get(0);
+        original.assignPlayer(id);
+        // Non-default control state that demonstrably influences advancement.
+        original.setDevelopmentFocus(List.of(Attribute.DRIVING_DISTANCE, Attribute.PUTTING_ACCURACY));
+        original.setCareerGoals(List.of(new CareerGoal(GoalType.CAREER_WINS, 5), new CareerGoal(GoalType.WIN_A_MAJOR, 1)));
+        original.advanceSeason(); // generates pending offers/goals; sims the player's events unattended
+
+        WorldSnapshot snap = original.snapshot();
+        assertThat(snap.playerControl()).isNotNull();
+        assertThat(snap.playerControl().golferId()).isEqualTo(id);
+
+        World restored = World.restore(4L, small(), snap);
+        assertThat(restored.snapshot()).isEqualTo(snap); // pure round trip
+
+        original.advanceSeason();
+        restored.advanceSeason();
+        assertThat(restored.snapshot()).as("player-world restore-then-advance equals advance").isEqualTo(original.snapshot());
+    }
+
+    @Test
+    void anAutonomousSnapshotRestoresWithoutPlayerControl() {
         World world = World.create(4L, small());
-        world.assignPlayer(world.activeGolferIds().get(0));
-        assertThatThrownBy(world::snapshot).isInstanceOf(IllegalStateException.class);
+        world.advanceSeason();
+        WorldSnapshot snap = world.snapshot();
+        assertThat(snap.playerControl()).isNull();
+        assertThat(World.restore(4L, small(), snap).snapshot().playerControl()).isNull();
     }
 }

@@ -77,4 +77,28 @@ public final class PlayerControl {
     public void setCareerGoals(List<CareerGoal> goals) {
         this.careerGoals = goals == null ? List.of() : List.copyOf(goals);
     }
+
+    /** An immutable capture of the player's control state (spec: world-snapshot). */
+    public record Snapshot(String golferId, List<Attribute> developmentFocus, boolean resting,
+                           Set<Long> skippedEvents, List<CareerGoal> careerGoals) {
+        public Snapshot {
+            developmentFocus = List.copyOf(developmentFocus);
+            skippedEvents = new LinkedHashSet<>(skippedEvents); // preserve order
+            careerGoals = List.copyOf(careerGoals);
+        }
+    }
+
+    public Snapshot snapshot() {
+        return new Snapshot(golferId, developmentFocus, resting, skippedEvents, careerGoals);
+    }
+
+    /** Rebuilds a player control from a snapshot via the existing setters (no new mutation surface). */
+    public static PlayerControl restore(Snapshot s) {
+        PlayerControl c = new PlayerControl(s.golferId());
+        c.setDevelopmentFocus(s.developmentFocus());
+        c.setResting(s.resting());
+        s.skippedEvents().forEach(c::skipEvent);
+        c.setCareerGoals(s.careerGoals());
+        return c;
+    }
 }

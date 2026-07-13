@@ -197,9 +197,6 @@ public final class World {
         if (pendingEvent != null) {
             throw new IllegalStateException("Cannot snapshot while a player event is pending");
         }
-        if (playerControl != null) {
-            throw new IllegalStateException("Player-control capture is not supported in this slice (autonomous only)");
-        }
         Map<String, Career.Snapshot> careerSnaps = new LinkedHashMap<>();
         careers.forEach((id, c) -> careerSnaps.put(id, c.snapshot()));
         Map<String, FinancialAccount.Snapshot> accountSnaps = new LinkedHashMap<>();
@@ -221,7 +218,10 @@ public final class World {
                 new ArrayList<>(rankingSnapshots),
                 new ArrayList<>(environmentalHistory), new ArrayList<>(healthHistory),
                 seasonResults.stream().map(TournamentResult.Snapshot::capture).toList(), new ArrayList<>(schedule),
-                new LinkedHashSet<>(announcedProspects));
+                new LinkedHashSet<>(announcedProspects),
+                playerControl == null ? null : playerControl.snapshot(),
+                new ArrayList<>(playerPendingOffers), new ArrayList<>(playerPendingStaff),
+                new ArrayList<>(playerPendingEquipment), new LinkedHashSet<>(achievedGoals));
     }
 
     /** Rebuilds an identical world from a snapshot, regenerating the seed-derived parts (spec: world-snapshot). */
@@ -267,6 +267,14 @@ public final class World {
         }
         w.schedule = new ArrayList<>(s.schedule());
         w.announcedProspects.addAll(s.announcedProspects());
+        // 6) Player-control state (null/empty for an autonomous world).
+        if (s.playerControl() != null) {
+            w.playerControl = PlayerControl.restore(s.playerControl());
+        }
+        w.playerPendingOffers.addAll(s.playerPendingOffers());
+        w.playerPendingStaff.addAll(s.playerPendingStaff());
+        w.playerPendingEquipment.addAll(s.playerPendingEquipment());
+        w.achievedGoals.addAll(s.achievedGoals());
         return w;
     }
 
