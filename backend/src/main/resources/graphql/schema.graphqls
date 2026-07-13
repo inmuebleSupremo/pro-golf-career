@@ -28,6 +28,12 @@ type Query {
     "The player's pending equipment upgrade offers awaiting a purchase decision."
     pendingEquipment(id: ID!): [EquipmentItem!]!
 
+    "Every item the player currently owns, across all equipment categories (empty when no player is assigned)."
+    playerEquipment(id: ID!): [EquipmentItem!]!
+
+    "The item the player currently has selected in each equipment category (empty when no player is assigned)."
+    playerLoadout(id: ID!): [EquipmentItem!]!
+
     "The current shot situation in a paused player event; null when no event is pending."
     currentSituation(id: ID!): ShotSituation
 
@@ -87,6 +93,9 @@ type Mutation {
 
     "Buys a pending equipment upgrade by index (if affordable); auto-equips it."
     buyEquipment(id: ID!, index: Int!): Boolean!
+
+    "Switches the tournament loadout to an already-owned item, addressed by its category (an EquipmentCategory enum name) and name."
+    selectLoadoutItem(id: ID!, category: String!, name: String!): Boolean!
 
     # --- Playable event (add-graphql-mutations) ---
 

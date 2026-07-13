@@ -146,6 +146,10 @@ public final class ApiMapper {
         return StaffRole.valueOf(name);
     }
 
+    public static com.progolf.sim.equipment.EquipmentCategory equipmentCategory(String name) {
+        return com.progolf.sim.equipment.EquipmentCategory.valueOf(name);
+    }
+
     public static GoalType goalType(String name) {
         return GoalType.valueOf(name);
     }

@@ -88,4 +88,10 @@ public class PlayerMutationController {
         worldService.buyEquipment(id, index);
         return true;
     }
+
+    @MutationMapping
+    public boolean selectLoadoutItem(@Argument String id, @Argument String category, @Argument String name) {
+        worldService.selectLoadoutItem(id, ApiMapper.equipmentCategory(category), name);
+        return true;
+    }
 }

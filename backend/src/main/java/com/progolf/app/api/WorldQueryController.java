@@ -74,6 +74,22 @@ public class WorldQueryController {
     }
 
     @QueryMapping
+    public List<EquipmentItemDto> playerEquipment(@Argument String id) {
+        if (!worldService.hasPlayer(id)) {
+            return List.of();
+        }
+        return ApiMapper.mapList(worldService.playerEquipment(id), ApiMapper::equipment);
+    }
+
+    @QueryMapping
+    public List<EquipmentItemDto> playerLoadout(@Argument String id) {
+        if (!worldService.hasPlayer(id)) {
+            return List.of();
+        }
+        return ApiMapper.mapList(worldService.playerLoadout(id), ApiMapper::equipment);
+    }
+
+    @QueryMapping
     public ShotSituationDto currentSituation(@Argument String id) {
         if (!worldService.hasPendingEvent(id)) {
             return null;

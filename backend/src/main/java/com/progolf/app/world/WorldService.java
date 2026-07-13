@@ -8,6 +8,7 @@ import com.progolf.sim.career.HallOfFameInduction;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.economy.SponsorshipOffer;
+import com.progolf.sim.equipment.EquipmentCategory;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.play.PlayableEvent;
 import com.progolf.sim.play.ShotSituation;
@@ -225,6 +226,37 @@ public class WorldService {
     /** Sets the player's loadout for a category to one of their owned items. */
     public void selectLoadoutItem(String sessionId, EquipmentItem item) {
         required(sessionId).world().selectLoadoutItem(item);
+    }
+
+    /** Every item the player currently owns, across all equipment categories. */
+    public List<EquipmentItem> playerEquipment(String sessionId) {
+        World world = required(sessionId).world();
+        return world.equipmentInventoryOf(requirePlayerId(world)).all();
+    }
+
+    /** The item the player currently has selected in each equipment category (the tournament loadout). */
+    public List<EquipmentItem> playerLoadout(String sessionId) {
+        World world = required(sessionId).world();
+        return List.copyOf(world.tournamentLoadoutOf(requirePlayerId(world)).selection().values());
+    }
+
+    /**
+     * Sets the player's loadout for a category to one of their owned items, addressed by category and name
+     * (the handle the read model exposes). Throws if the player owns no such item in that category.
+     */
+    public void selectLoadoutItem(String sessionId, EquipmentCategory category, String name) {
+        World world = required(sessionId).world();
+        EquipmentItem item = world.equipmentInventoryOf(requirePlayerId(world)).itemsIn(category).stream()
+                .filter(i -> i.name().equals(name))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "The player owns no " + category + " item named '" + name + "'"));
+        world.selectLoadoutItem(item);
+    }
+
+    private String requirePlayerId(World world) {
+        return world.playerGolferId()
+                .orElseThrow(() -> new IllegalStateException("No player has been assigned to this world"));
     }
 
     // --- Playable event (spec: playable-event): the player plays their own tournament ---
