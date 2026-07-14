@@ -18,3 +18,44 @@ export const ListSavesDocument = graphql(`
     }
   }
 `);
+
+/* --- Onboarding: create-your-golfer orchestration (createWorld → createPlayer → save). --- */
+
+/** Creates a new world session from a seed; returns its id. */
+export const CreateWorldDocument = graphql(`
+  mutation CreateWorld($seed: Long!) {
+    createWorld(seed: $seed) {
+      id
+      season
+      week
+    }
+  }
+`);
+
+/** Creates the player's custom golfer in a world; returns the new golfer id. */
+export const CreatePlayerDocument = graphql(`
+  mutation CreatePlayer(
+    $id: ID!
+    $firstName: String!
+    $lastName: String!
+    $nationality: String!
+    $startAge: Int!
+    $archetype: String!
+  ) {
+    createPlayer(
+      id: $id
+      firstName: $firstName
+      lastName: $lastName
+      nationality: $nationality
+      startAge: $startAge
+      archetype: $archetype
+    )
+  }
+`);
+
+/** Persists a world session under a save id. */
+export const SaveGameDocument = graphql(`
+  mutation SaveGame($id: ID!, $saveId: ID!) {
+    save(id: $id, saveId: $saveId)
+  }
+`);

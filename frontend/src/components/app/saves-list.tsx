@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 
+import { Button } from "@/components/ui/button";
 import { useSaves } from "@/lib/api/queries";
 import { isUnauthorized } from "@/lib/api/graphql-client";
 
@@ -61,11 +63,16 @@ export function SavesList() {
 
 function SavesEmpty() {
   return (
-    <div className="border-border bg-surface flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-16 text-center">
-      <p className="text-foreground font-serif text-xl">No saved careers yet</p>
-      <p className="text-muted-foreground max-w-sm text-sm">
-        When you start a career and save it, it&apos;ll appear here — ready to resume.
-      </p>
+    <div className="border-border bg-surface flex flex-col items-center gap-5 rounded-lg border border-dashed px-6 py-16 text-center">
+      <div className="flex flex-col gap-2">
+        <p className="text-foreground font-serif text-xl">Start your first career</p>
+        <p className="text-muted-foreground max-w-sm text-sm">
+          Create a golfer and guide them from the Development tour toward a legacy.
+        </p>
+      </div>
+      <Button asChild size="lg">
+        <Link href="/new">Start a new career</Link>
+      </Button>
     </div>
   );
 }
