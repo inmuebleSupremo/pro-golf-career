@@ -16,6 +16,9 @@ type Query {
     "The player's career goals with live progress (empty when none chosen)."
     careerGoals(id: ID!): [CareerGoal!]!
 
+    "The player's golfer profile — identity, attributes, ranking, earnings; null when no player is assigned."
+    playerProfile(id: ID!): PlayerProfile
+
     "The world's Hall-of-Fame inductions so far."
     hallOfFame(id: ID!): [HallOfFameInduction!]!
 
@@ -155,6 +158,30 @@ type CareerGoal {
     target: Long!
     current: Long!
     achieved: Boolean!
+}
+
+type PlayerProfile {
+    golferId: ID!
+    firstName: String!
+    lastName: String!
+    nationality: String!
+    age: Int!
+    archetype: String!
+    "World ranking position; null when the golfer is unranked."
+    worldRanking: Int
+    careerEarnings: Float!
+    availableFunds: Float!
+    "Current tour tier (enum name); null if the golfer holds no membership."
+    tour: String
+    events: Int!
+    wins: Int!
+    topTens: Int!
+    attributes: [AttributeValue!]!
+}
+
+type AttributeValue {
+    attribute: String!
+    value: Int!
 }
 
 type HallOfFameInduction {

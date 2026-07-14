@@ -99,6 +99,31 @@ export const CareerOverviewDocument = graphql(`
   }
 `);
 
+/** The player's golfer profile — identity, attributes, ranking, earnings; null when no player. */
+export const PlayerProfileDocument = graphql(`
+  query PlayerProfile($id: ID!) {
+    playerProfile(id: $id) {
+      golferId
+      firstName
+      lastName
+      nationality
+      age
+      archetype
+      worldRanking
+      careerEarnings
+      availableFunds
+      tour
+      events
+      wins
+      topTens
+      attributes {
+        attribute
+        value
+      }
+    }
+  }
+`);
+
 /* --- Play: advance the calendar, then play/sim a pending tournament event. --- */
 
 /** Advances the session one week; pauses at the player's event (hasPendingEvent). */

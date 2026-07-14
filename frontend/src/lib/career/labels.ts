@@ -68,7 +68,8 @@ export function goalProgressRatio(current: string, target: string): number {
   return Math.min(1, Math.max(0, c / t));
 }
 
-function formatMoney(value: string): string {
+/** Format a currency amount (accepts a number or a numeric string). */
+export function formatMoney(value: number | string): string {
   const n = Number(value);
-  return Number.isFinite(n) ? moneyFormatter.format(n) : value;
+  return Number.isFinite(n) ? moneyFormatter.format(n) : String(value);
 }

@@ -1,23 +1,30 @@
 package com.progolf.app.world;
 
+import com.progolf.app.api.dto.AttributeValueDto;
+import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
 import com.progolf.app.persistence.SaveMetadata;
+import com.progolf.sim.career.Career;
 import com.progolf.sim.career.HallOfFameInduction;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.core.Attribute;
+import com.progolf.sim.core.Attributes;
+import com.progolf.sim.economy.FinancialAccount;
 import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentCategory;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.play.PlayableEvent;
 import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.player.Archetype;
+import com.progolf.sim.player.Identity;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
+import com.progolf.sim.statistics.StatLine;
 import com.progolf.sim.tournament.LeaderboardEntry;
 import com.progolf.sim.world.CareerGoalProgress;
 import com.progolf.sim.world.PlayerScheduleEntry;
@@ -183,6 +190,33 @@ public class WorldService {
     /** The player's career goals with live progress toward each. */
     public List<CareerGoalProgress> careerGoals(String ownerId, String sessionId) {
         return required(ownerId, sessionId).world().careerGoals();
+    }
+
+    /**
+     * The player's golfer profile (spec: player-profile-api): identity, attributes, world ranking, earnings,
+     * tour, and career stats — aggregated read-only over existing engine reads. Assumes a player is assigned
+     * (callers guard with {@link #hasPlayer}). Attributes are returned in {@link Attribute} enum order.
+     */
+    public PlayerProfileDto playerProfile(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        String id = requirePlayerId(world);
+        Career career = world.careerOf(id);
+        Identity identity = career.player().identity();
+        Attributes attrs = career.player().attributes();
+        StatLine stats = world.careerStatisticsOf(id);
+        FinancialAccount.Snapshot finances = world.financialAccountOf(id).snapshot();
+        Integer worldRanking = world.currentRanking().positionOf(id).orElse(null);
+        String tour = world.tourOf(id).map(Enum::name).orElse(null);
+
+        List<AttributeValueDto> attributes = new java.util.ArrayList<>();
+        for (Attribute a : Attribute.values()) {
+            attributes.add(new AttributeValueDto(a.name(), attrs.get(a)));
+        }
+
+        return new PlayerProfileDto(id, identity.firstName(), identity.lastName(),
+                identity.nationality().name(), career.age(), identity.archetype().name(),
+                worldRanking, finances.tournamentEarnings(), finances.availableFunds(), tour,
+                stats.events(), stats.wins(), stats.topTens(), attributes);
     }
 
     /** The Hall-of-Fame inductions so far (spec: career-legacy). */

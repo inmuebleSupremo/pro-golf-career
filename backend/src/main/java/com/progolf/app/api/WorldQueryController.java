@@ -4,6 +4,7 @@ import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.LeaderboardRowDto;
+import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.SaveDto;
 import com.progolf.app.api.dto.ScheduleEntryDto;
 import com.progolf.app.api.dto.ShotSituationDto;
@@ -55,6 +56,15 @@ public class WorldQueryController {
             return List.of();
         }
         return ApiMapper.mapList(worldService.careerGoals(owner, id), ApiMapper::careerGoal);
+    }
+
+    @QueryMapping
+    public PlayerProfileDto playerProfile(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return null;
+        }
+        return worldService.playerProfile(owner, id);
     }
 
     @QueryMapping

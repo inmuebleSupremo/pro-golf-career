@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { CLUBS, STRATEGIES, humanize } from "@/lib/play/options";
+import { usePlayerProfile } from "@/lib/api/queries";
 import { isNotFound, isUnauthorized } from "@/lib/api/graphql-client";
 import {
   useCompleteEvent,
@@ -48,6 +49,7 @@ type Outcome = {
 export function PlayEvent({ id }: { id: string }) {
   const router = useRouter();
   const { data, isPending, isError, error } = usePlayState(id);
+  const playerGolferId = usePlayerProfile(id).data?.playerProfile?.golferId ?? null;
 
   const hasPendingEvent = data?.world?.hasPendingEvent ?? false;
 
@@ -115,10 +117,10 @@ export function PlayEvent({ id }: { id: string }) {
             />
             <SimControls id={id} />
           </div>
-          <Leaderboard rows={leaderboard} />
+          <Leaderboard rows={leaderboard} playerGolferId={playerGolferId} />
         </div>
       ) : (
-        <EventComplete id={id} leaderboard={leaderboard} />
+        <EventComplete id={id} leaderboard={leaderboard} playerGolferId={playerGolferId} />
       )}
     </div>
   );
@@ -271,35 +273,73 @@ function formatScore(score: number): string {
   return score > 0 ? `+${score}` : `${score}`;
 }
 
-function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
+function Leaderboard({
+  rows,
+  playerGolferId,
+}: {
+  rows: LeaderboardRow[];
+  playerGolferId: string | null;
+}) {
   const top = rows.slice(0, 10);
+  const playerRow = playerGolferId ? rows.find((r) => r.golfer.id === playerGolferId) : null;
+  const showPlayerBelow = playerRow && !top.some((r) => r.golfer.id === playerGolferId);
+
   return (
     <aside className="flex flex-col gap-4">
       <h2 className="font-serif text-xl font-medium">Leaderboard</h2>
-      {top.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="border-border bg-surface text-muted-foreground rounded-lg border border-dashed px-5 py-8 text-center text-sm">
           No standings yet.
         </p>
       ) : (
         <ul className="divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border">
           {top.map((row) => (
-            <li key={row.golfer.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-              <span className="flex min-w-0 items-center gap-3">
-                <span className="text-subtle-foreground w-5 text-right font-mono text-sm tabular-nums">
-                  {row.position}
-                </span>
-                <span className="truncate text-sm">{row.golfer.name}</span>
-              </span>
-              <span className="font-mono text-sm tabular-nums">{formatScore(row.score)}</span>
-            </li>
+            <LeaderboardRowItem
+              key={row.golfer.id}
+              row={row}
+              isPlayer={row.golfer.id === playerGolferId}
+            />
           ))}
+          {showPlayerBelow ? (
+            <>
+              <li className="text-subtle-foreground px-4 py-1 text-center text-xs">···</li>
+              <LeaderboardRowItem row={playerRow} isPlayer />
+            </>
+          ) : null}
         </ul>
       )}
     </aside>
   );
 }
 
-function EventComplete({ id, leaderboard }: { id: string; leaderboard: LeaderboardRow[] }) {
+function LeaderboardRowItem({ row, isPlayer }: { row: LeaderboardRow; isPlayer: boolean }) {
+  return (
+    <li
+      className={`flex items-center justify-between gap-3 px-4 py-2.5 ${isPlayer ? "bg-primary/[0.08]" : ""}`}
+    >
+      <span className="flex min-w-0 items-center gap-3">
+        <span className="text-subtle-foreground w-5 text-right font-mono text-sm tabular-nums">
+          {row.position}
+        </span>
+        <span className={`truncate text-sm ${isPlayer ? "text-foreground font-medium" : ""}`}>
+          {row.golfer.name}
+          {isPlayer ? " (you)" : ""}
+        </span>
+      </span>
+      <span className="font-mono text-sm tabular-nums">{formatScore(row.score)}</span>
+    </li>
+  );
+}
+
+function EventComplete({
+  id,
+  leaderboard,
+  playerGolferId,
+}: {
+  id: string;
+  leaderboard: LeaderboardRow[];
+  playerGolferId: string | null;
+}) {
   const router = useRouter();
   const complete = useCompleteEvent(id);
 
@@ -323,7 +363,7 @@ function EventComplete({ id, leaderboard }: { id: string; leaderboard: Leaderboa
           {complete.isPending ? "Finishing…" : "Finish event"}
         </Button>
       </div>
-      <Leaderboard rows={leaderboard} />
+      <Leaderboard rows={leaderboard} playerGolferId={playerGolferId} />
     </div>
   );
 }

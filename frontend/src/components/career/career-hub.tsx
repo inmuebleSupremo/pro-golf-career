@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { useCareerOverview } from "@/lib/api/queries";
+import { GolferHeader } from "@/components/career/golfer-header";
+import { useCareerOverview, usePlayerProfile } from "@/lib/api/queries";
 import { useAdvanceWeek } from "@/lib/api/play";
 import { isNotFound, isUnauthorized } from "@/lib/api/graphql-client";
 import {
@@ -30,6 +31,7 @@ type ScheduleEntry = {
 export function CareerHub({ id }: { id: string }) {
   const router = useRouter();
   const { data, isPending, isError, error } = useCareerOverview(id);
+  const profile = usePlayerProfile(id).data?.playerProfile ?? null;
 
   useEffect(() => {
     if (isError && isUnauthorized(error)) {
@@ -75,7 +77,7 @@ export function CareerHub({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col gap-10">
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-6">
         <Link
           href="/saves"
           className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1.5 text-sm transition-colors"
@@ -83,15 +85,11 @@ export function CareerHub({ id }: { id: string }) {
           <ArrowLeft className="size-4" aria-hidden="true" />
           Saves
         </Link>
+        {profile ? <GolferHeader profile={profile} /> : null}
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="font-serif text-4xl font-medium tracking-[-0.02em]">
-              Season {world.season}
-            </h1>
-            <p className="text-muted-foreground">
-              Week {world.week} · {world.activePopulation} golfers active
-            </p>
-          </div>
+          <p className="text-muted-foreground">
+            Season {world.season} · Week {world.week} · {world.activePopulation} golfers active
+          </p>
           <AdvanceControl id={id} hasPendingEvent={world.hasPendingEvent} />
         </div>
       </div>

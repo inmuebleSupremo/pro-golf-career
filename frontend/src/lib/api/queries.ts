@@ -3,7 +3,11 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { gqlRequest } from "@/lib/api/graphql-client";
-import { CareerOverviewDocument, ListSavesDocument } from "@/lib/graphql/operations";
+import {
+  CareerOverviewDocument,
+  ListSavesDocument,
+  PlayerProfileDocument,
+} from "@/lib/graphql/operations";
 
 /** The player's saved games, newest first — the vertical-slice read. */
 export function useSaves() {
@@ -20,6 +24,16 @@ export function useCareerOverview(id: string) {
     queryFn: () => gqlRequest(CareerOverviewDocument, { id }),
     // Never pause on perceived-offline (some embedded browsers report offline), and
     // don't retry a not-found session — surface the error immediately.
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The player's golfer profile — identity, attributes, ranking, earnings. */
+export function usePlayerProfile(id: string) {
+  return useQuery({
+    queryKey: ["profile", id],
+    queryFn: () => gqlRequest(PlayerProfileDocument, { id }),
     networkMode: "always",
     retry: false,
   });
