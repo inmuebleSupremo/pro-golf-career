@@ -48,6 +48,27 @@ class WorldCreatePlayerTest {
     }
 
     @Test
+    void aCreatedPlayerCompetesAtScaleWhereTheFieldCutBites() {
+        // A larger world: the Development tier holds more golfers than a field, so the field draw must cut.
+        // Before skill-based entry (spec: competitive-entry), a freshly-created golfer had zero season points
+        // and an id that sorts last, so they never entered a field, never scored, and stayed excluded. The
+        // skill tie-break lets a competent entry-tier build in.
+        WorldConfig large = new WorldConfig(160, 6, 3, 32, 4);
+        World world = World.create(11L, large);
+        String id = world.createPlayer("Ken", "Barlow", Nationality.USA, 20, Archetype.ALL_ROUNDER);
+
+        world.advanceSeason();
+        while (world.hasPendingPlayerEvent()) {
+            world.playerEvent().simEvent();
+            world.completePlayerEvent();
+        }
+
+        assertThat(world.careerStatisticsOf(id).events())
+                .as("a created golfer of entry-tier ability should make fields even when the cut bites")
+                .isGreaterThan(0);
+    }
+
+    @Test
     void onlyOnePlayerMayBeCreatedOrAssigned() {
         World world = World.create(3L, small());
         world.createPlayer("Ana", "Rivera", Nationality.ESP, 20, Archetype.ALL_ROUNDER);
