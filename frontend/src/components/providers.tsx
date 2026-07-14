@@ -13,10 +13,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
     () =>
       new QueryClient({
         defaultOptions: {
+          // networkMode "always": the app talks only to the same-origin BFF and has no
+          // offline-first behaviour, so never pause fetches/retries on perceived
+          // connectivity (some embedded browsers report navigator.onLine === false,
+          // which would otherwise pause a retrying query in a stuck pending state).
           queries: {
             staleTime: 30_000,
             retry: 1,
             refetchOnWindowFocus: false,
+            networkMode: "always",
+          },
+          mutations: {
+            networkMode: "always",
           },
         },
       }),

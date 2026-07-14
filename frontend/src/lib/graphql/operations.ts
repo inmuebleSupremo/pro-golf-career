@@ -59,3 +59,42 @@ export const SaveGameDocument = graphql(`
     save(id: $id, saveId: $saveId)
   }
 `);
+
+/* --- Career hub: resume a save, then read the loaded session's overview. --- */
+
+/** Loads a save into a new session; returns the restored session's status (incl. its new id). */
+export const LoadCareerDocument = graphql(`
+  mutation LoadCareer($saveId: ID!) {
+    load(saveId: $saveId) {
+      id
+      season
+      week
+    }
+  }
+`);
+
+/** The read-only career overview for a session: world status, goals, and schedule in one request. */
+export const CareerOverviewDocument = graphql(`
+  query CareerOverview($id: ID!) {
+    world(id: $id) {
+      id
+      season
+      week
+      activePopulation
+      hasPendingEvent
+    }
+    careerGoals(id: $id) {
+      type
+      target
+      current
+      achieved
+    }
+    playerSchedule(id: $id) {
+      tournamentId
+      week
+      tier
+      prestige
+      entered
+    }
+  }
+`);

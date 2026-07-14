@@ -7,13 +7,15 @@ import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
  * therefore never calls the cross-origin backend and never handles tokens.
  */
 
-/** Thrown when a GraphQL request fails; `status` carries the HTTP status. */
+/** Thrown when a GraphQL request fails; carries the HTTP status and error classification. */
 export class GraphQLRequestError extends Error {
   readonly status: number;
-  constructor(message: string, status: number) {
+  readonly classification?: string;
+  constructor(message: string, status: number, classification?: string) {
     super(message);
     this.name = "GraphQLRequestError";
     this.status = status;
+    this.classification = classification;
   }
 }
 
@@ -30,12 +32,16 @@ export async function gqlRequest<TResult, TVariables extends object>(
 
   const json = (await res.json().catch(() => null)) as {
     data?: TResult;
-    errors?: Array<{ message: string }>;
+    errors?: Array<{ message: string; extensions?: { classification?: string } }>;
   } | null;
 
   if (!res.ok || json?.errors?.length) {
-    const message = json?.errors?.[0]?.message ?? "Request failed.";
-    throw new GraphQLRequestError(message, res.status);
+    const first = json?.errors?.[0];
+    throw new GraphQLRequestError(
+      first?.message ?? "Request failed.",
+      res.status,
+      first?.extensions?.classification,
+    );
   }
 
   return json!.data as TResult;
@@ -44,4 +50,9 @@ export async function gqlRequest<TResult, TVariables extends object>(
 /** True when a request failed because the session is not (or no longer) valid. */
 export function isUnauthorized(error: unknown): boolean {
   return error instanceof GraphQLRequestError && error.status === 401;
+}
+
+/** True when a request failed because the target resource does not exist (e.g. an expired session). */
+export function isNotFound(error: unknown): boolean {
+  return error instanceof GraphQLRequestError && error.classification === "NOT_FOUND";
 }

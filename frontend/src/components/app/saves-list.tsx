@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import { useSaves } from "@/lib/api/queries";
+import { useLoadCareer } from "@/lib/api/mutations";
 import { isUnauthorized } from "@/lib/api/graphql-client";
 
 function formatSavedAt(savedAt: string): string {
@@ -52,12 +53,45 @@ export function SavesList() {
               {save.playerGolferId ? "Career in progress" : "No player assigned"}
             </span>
           </div>
-          <span className="text-subtle-foreground font-mono text-sm tabular-nums">
-            {formatSavedAt(save.savedAt)}
-          </span>
+          <div className="flex items-center gap-5">
+            <span className="text-subtle-foreground font-mono text-sm tabular-nums">
+              {formatSavedAt(save.savedAt)}
+            </span>
+            <ResumeButton saveId={save.saveId} />
+          </div>
         </li>
       ))}
     </ul>
+  );
+}
+
+function ResumeButton({ saveId }: { saveId: string }) {
+  const router = useRouter();
+  const load = useLoadCareer();
+  const [failed, setFailed] = useState(false);
+
+  async function onResume() {
+    setFailed(false);
+    try {
+      const sessionId = await load.mutateAsync(saveId);
+      router.push(`/career/${sessionId}`);
+    } catch (error) {
+      if (isUnauthorized(error)) {
+        router.push("/login");
+        router.refresh();
+        return;
+      }
+      setFailed(true);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button variant="secondary" size="sm" onClick={onResume} disabled={load.isPending}>
+        {load.isPending ? "Opening…" : "Resume"}
+      </Button>
+      {failed ? <span className="text-destructive text-xs">Couldn&apos;t open</span> : null}
+    </div>
   );
 }
 

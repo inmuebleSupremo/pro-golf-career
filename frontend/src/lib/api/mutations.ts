@@ -6,6 +6,7 @@ import { gqlRequest } from "@/lib/api/graphql-client";
 import {
   CreatePlayerDocument,
   CreateWorldDocument,
+  LoadCareerDocument,
   SaveGameDocument,
 } from "@/lib/graphql/operations";
 
@@ -58,6 +59,20 @@ export function useCreateCareer() {
     onSuccess: () => {
       // The new career should show when the player returns to their saves.
       queryClient.invalidateQueries({ queryKey: ["saves"] });
+    },
+  });
+}
+
+/**
+ * Loads a save into a new session and returns that session's id. The caller
+ * navigates to the career hub for the returned id (each load makes a fresh
+ * ephemeral session; the save is the durable handle — design D1).
+ */
+export function useLoadCareer() {
+  return useMutation<string, Error, string>({
+    mutationFn: async (saveId) => {
+      const { load } = await gqlRequest(LoadCareerDocument, { saveId });
+      return load.id;
     },
   });
 }
