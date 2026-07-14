@@ -7,6 +7,7 @@ import { ArrowLeft, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useCareerOverview } from "@/lib/api/queries";
+import { useAdvanceWeek } from "@/lib/api/play";
 import { isNotFound, isUnauthorized } from "@/lib/api/graphql-client";
 import {
   eventPrestigeLabel,
@@ -82,19 +83,50 @@ export function CareerHub({ id }: { id: string }) {
           <ArrowLeft className="size-4" aria-hidden="true" />
           Saves
         </Link>
-        <div className="flex flex-col gap-1">
-          <h1 className="font-serif text-4xl font-medium tracking-[-0.02em]">
-            Season {world.season}
-          </h1>
-          <p className="text-muted-foreground">
-            Week {world.week} · {world.activePopulation} golfers active
-          </p>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <h1 className="font-serif text-4xl font-medium tracking-[-0.02em]">
+              Season {world.season}
+            </h1>
+            <p className="text-muted-foreground">
+              Week {world.week} · {world.activePopulation} golfers active
+            </p>
+          </div>
+          <AdvanceControl id={id} hasPendingEvent={world.hasPendingEvent} />
         </div>
       </div>
 
       <CareerGoals goals={careerGoals} />
       <UpcomingSchedule schedule={playerSchedule} />
     </div>
+  );
+}
+
+function AdvanceControl({ id, hasPendingEvent }: { id: string; hasPendingEvent: boolean }) {
+  const router = useRouter();
+  const advance = useAdvanceWeek(id);
+
+  if (hasPendingEvent) {
+    return (
+      <Button asChild size="lg">
+        <Link href={`/career/${id}/play`}>Play your event</Link>
+      </Button>
+    );
+  }
+
+  async function onAdvance() {
+    // On reaching the player's tournament, go straight to it; otherwise the
+    // career query is invalidated and the hub re-renders with the new week.
+    const result = await advance.mutateAsync();
+    if (result.advanceWeek.hasPendingEvent) {
+      router.push(`/career/${id}/play`);
+    }
+  }
+
+  return (
+    <Button variant="secondary" size="lg" onClick={onAdvance} disabled={advance.isPending}>
+      {advance.isPending ? "Advancing…" : "Advance week"}
+    </Button>
   );
 }
 

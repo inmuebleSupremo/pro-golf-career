@@ -98,3 +98,105 @@ export const CareerOverviewDocument = graphql(`
     }
   }
 `);
+
+/* --- Play: advance the calendar, then play/sim a pending tournament event. --- */
+
+/** Advances the session one week; pauses at the player's event (hasPendingEvent). */
+export const AdvanceWeekDocument = graphql(`
+  mutation AdvanceWeek($id: ID!) {
+    advanceWeek(id: $id) {
+      id
+      season
+      week
+      hasPendingEvent
+    }
+  }
+`);
+
+/** The play state for a pending event: world status, current shot, and leaderboard, in one request. */
+export const PlayStateDocument = graphql(`
+  query PlayState($id: ID!) {
+    world(id: $id) {
+      id
+      season
+      week
+      hasPendingEvent
+    }
+    currentSituation(id: $id) {
+      holeNumber
+      par
+      shotNumber
+      strokesThisHole
+      distanceToPin
+      lie
+      pinLateral
+      minReach
+      maxReach
+    }
+    eventLeaderboard(id: $id) {
+      position
+      golfer {
+        id
+        name
+      }
+      score
+      roundsPlayed
+    }
+  }
+`);
+
+/** Plays the current shot with a club/target/strategy decision; returns the outcome. */
+export const PlayShotDocument = graphql(`
+  mutation PlayShot($id: ID!, $decision: ShotDecisionInput!) {
+    playShot(id: $id, decision: $decision) {
+      finalSurface
+      carry
+      lateral
+      distanceRemaining
+      hazardEntered
+      penaltyStrokes
+      strokes
+    }
+  }
+`);
+
+/** Sims the current shot; returns the outcome. */
+export const SimShotDocument = graphql(`
+  mutation SimShot($id: ID!) {
+    simShot(id: $id) {
+      finalSurface
+      carry
+      lateral
+      distanceRemaining
+      hazardEntered
+      penaltyStrokes
+      strokes
+    }
+  }
+`);
+
+/** Sims the rest of the current round. */
+export const SimRoundDocument = graphql(`
+  mutation SimRound($id: ID!) {
+    simRound(id: $id)
+  }
+`);
+
+/** Sims the remainder of the event (all remaining rounds and any playoff). */
+export const SimEventDocument = graphql(`
+  mutation SimEvent($id: ID!) {
+    simEvent(id: $id)
+  }
+`);
+
+/** Completes the finished event so its result counts and the paused week resumes. */
+export const CompleteEventDocument = graphql(`
+  mutation CompleteEvent($id: ID!) {
+    completeEvent(id: $id) {
+      id
+      season
+      week
+      hasPendingEvent
+    }
+  }
+`);
