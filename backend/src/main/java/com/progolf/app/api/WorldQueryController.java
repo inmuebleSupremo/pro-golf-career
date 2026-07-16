@@ -7,6 +7,7 @@ import com.progolf.app.api.dto.LeaderboardRowDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.SaveDto;
 import com.progolf.app.api.dto.ScheduleEntryDto;
+import com.progolf.app.api.dto.RoundScorecardDto;
 import com.progolf.app.api.dto.ShotSituationDto;
 import com.progolf.app.api.dto.SponsorshipOfferDto;
 import com.progolf.app.api.dto.StaffMemberDto;
@@ -126,6 +127,17 @@ public class WorldQueryController {
             return List.of();
         }
         return ApiMapper.mapList(worldService.eventLeaderboard(owner, id), ApiMapper::leaderboardRow);
+    }
+
+    @QueryMapping
+    public RoundScorecardDto playerScorecard(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPendingEvent(owner, id)) {
+            return null;
+        }
+        // Null when the pending event has no round in progress (a playoff, or played to the end).
+        var scorecard = worldService.currentScorecard(owner, id);
+        return scorecard == null ? null : ApiMapper.scorecard(scorecard);
     }
 
     @QueryMapping

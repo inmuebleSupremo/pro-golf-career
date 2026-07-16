@@ -43,6 +43,9 @@ type Query {
     "The live leaderboard for a paused player event; empty when no event is pending."
     eventLeaderboard(id: ID!): [LeaderboardRow!]!
 
+    "The player's current-round scorecard in a paused player event; null when no round is in progress."
+    playerScorecard(id: ID!): RoundScorecard
+
     "Whether the player made the cut in the pending event; null when no event is pending or the cut is not yet decided."
     playerMadeCut(id: ID!): Boolean
 
@@ -222,6 +225,22 @@ type LeaderboardRow {
     golfer: Golfer!
     score: Int!
     roundsPlayed: Int!
+}
+
+type RoundScorecard {
+    roundNumber: Int!
+    currentHole: Int!
+    "Strokes relative to par over the completed holes of this round."
+    toPar: Int!
+    "Total strokes over the completed holes of this round."
+    totalStrokes: Int!
+    holes: [HoleScore!]!
+}
+
+type HoleScore {
+    holeNumber: Int!
+    par: Int!
+    strokes: Int!
 }
 
 type ShotSituation {

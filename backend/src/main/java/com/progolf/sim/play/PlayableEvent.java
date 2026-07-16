@@ -164,6 +164,18 @@ public final class PlayableEvent {
         return tournament.leaderboard();
     }
 
+    /**
+     * The player's current-round scorecard, or {@code null} when no round is in progress (during a playoff
+     * or once the event is done — the round-by-round detail only exists while a round is being played).
+     */
+    public RoundScorecard currentScorecard() {
+        if (phase != Phase.ROUND) {
+            return null;
+        }
+        return new RoundScorecard(currentRoundNo, currentRound.currentHole(),
+                currentRound.scoreVsPar(), currentRound.totalStrokes(), currentRound.completedHoles());
+    }
+
     /** The completed tournament result (available once the event is complete). */
     public TournamentResult result() {
         if (phase != Phase.DONE) {

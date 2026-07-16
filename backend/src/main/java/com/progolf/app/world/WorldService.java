@@ -16,6 +16,7 @@ import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentCategory;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.play.PlayableEvent;
+import com.progolf.sim.play.RoundScorecard;
 import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Identity;
@@ -319,6 +320,11 @@ public class WorldService {
     /** The live field leaderboard for the player's event. */
     public List<LeaderboardEntry> eventLeaderboard(String ownerId, String sessionId) {
         return playerEvent(ownerId, sessionId).leaderboard();
+    }
+
+    /** The player's current-round scorecard, or null when no round is in progress (playoff or event done). */
+    public RoundScorecard currentScorecard(String ownerId, String sessionId) {
+        return playerEvent(ownerId, sessionId).currentScorecard();
     }
 
     /** Plays the current shot in the player's event with the human's decision (club / target / risk). */

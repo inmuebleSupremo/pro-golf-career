@@ -156,6 +156,35 @@ class WorldGraphQlMutationsTest {
                 .path("eventLeaderboard").entityList(Object.class).satisfies(l -> assertThat(l).isNotEmpty());
     }
 
+    @Test
+    void playerScorecardReportsTheCurrentRoundProgress() {
+        WorldSession session = worldService.create(OWNER, 22L, SMALL);
+        String golferId = session.world().activeGolferIds().get(0);
+        worldService.assignPlayer(OWNER, session.id(), golferId);
+
+        int guard = 0;
+        while (!worldService.hasPendingEvent(OWNER, session.id()) && guard++ < 60) {
+            worldService.advanceWeek(OWNER, session.id());
+        }
+        assertThat(worldService.hasPendingEvent(OWNER, session.id())).isTrue();
+
+        // At the start of the event: round 1, hole 1, nothing completed yet.
+        graphQlTester.document("query($id: ID!){ playerScorecard(id: $id){ roundNumber currentHole toPar holes { holeNumber } } }")
+                .variable("id", session.id()).execute()
+                .path("playerScorecard.roundNumber").entity(Integer.class).isEqualTo(1)
+                .path("playerScorecard.currentHole").entity(Integer.class).isEqualTo(1)
+                .path("playerScorecard.holes").entityList(Object.class).satisfies(l -> assertThat(l).isEmpty());
+
+        // Play a hole to completion — the scorecard advances and records it.
+        worldService.simHole(OWNER, session.id());
+        graphQlTester.document("query($id: ID!){ playerScorecard(id: $id){ currentHole holes { holeNumber par strokes } } }")
+                .variable("id", session.id()).execute()
+                .path("playerScorecard.currentHole").entity(Integer.class).isEqualTo(2)
+                .path("playerScorecard.holes").entityList(Object.class).satisfies(l -> assertThat(l).hasSize(1))
+                .path("playerScorecard.holes[0].strokes").entity(Integer.class)
+                .satisfies(s -> assertThat(s).isGreaterThanOrEqualTo(1));
+    }
+
     // --- Persistence writes ---
 
     @Test

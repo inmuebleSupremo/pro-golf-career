@@ -38,6 +38,16 @@ type LeaderboardRow = {
   score: number;
   roundsPlayed: number;
 };
+type HoleScore = { holeNumber: number; par: number; strokes: number };
+type Scorecard = {
+  roundNumber: number;
+  currentHole: number;
+  toPar: number;
+  totalStrokes: number;
+  holes: HoleScore[];
+};
+
+const ROUNDS_PER_EVENT = 4;
 type Outcome = {
   finalSurface: string;
   carry: number;
@@ -91,6 +101,7 @@ export function PlayEvent({ id }: { id: string }) {
 
   const situation = data.currentSituation as Situation | null;
   const leaderboard = (data.eventLeaderboard as LeaderboardRow[]) ?? [];
+  const scorecard = (data.playerScorecard as Scorecard | null) ?? null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -108,17 +119,23 @@ export function PlayEvent({ id }: { id: string }) {
       </div>
 
       {situation ? (
-        <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
-          <div className="flex flex-col gap-6">
-            <SituationPanel situation={situation} />
-            <ShotDecision
-              key={`${situation.holeNumber}-${situation.shotNumber}`}
-              id={id}
-              situation={situation}
-            />
-            <SimControls id={id} />
+        <div className="flex flex-col gap-6">
+          {scorecard ? <RoundProgress scorecard={scorecard} /> : null}
+          <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
+            <div className="flex flex-col gap-6">
+              {scorecard && scorecard.holes.length > 0 ? (
+                <ScorecardStrip scorecard={scorecard} />
+              ) : null}
+              <SituationPanel situation={situation} />
+              <ShotDecision
+                key={`${situation.holeNumber}-${situation.shotNumber}`}
+                id={id}
+                situation={situation}
+              />
+              <SimControls id={id} />
+            </div>
+            <Leaderboard rows={leaderboard} playerGolferId={playerGolferId} />
           </div>
-          <Leaderboard rows={leaderboard} playerGolferId={playerGolferId} />
         </div>
       ) : (
         <EventComplete
@@ -128,6 +145,62 @@ export function PlayEvent({ id }: { id: string }) {
           madeCut={data.playerMadeCut ?? null}
         />
       )}
+    </div>
+  );
+}
+
+function RoundProgress({ scorecard }: { scorecard: Scorecard }) {
+  return (
+    <div className="border-border bg-surface flex flex-wrap items-center justify-between gap-3 rounded-lg border px-5 py-3">
+      <span className="text-sm font-medium">
+        Round {scorecard.roundNumber} of {ROUNDS_PER_EVENT}
+        <span className="text-muted-foreground font-normal"> · Hole {scorecard.currentHole} of 18</span>
+      </span>
+      <span className="text-subtle-foreground text-sm">
+        Round{" "}
+        <span className={`font-mono tabular-nums ${scoreToneClass(scorecard.toPar)}`}>
+          {formatScore(scorecard.toPar)}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/** Colour for a score relative to par: under par reads as success, over par as destructive, level as neutral. */
+function scoreToneClass(relToPar: number): string {
+  if (relToPar < 0) return "text-success";
+  if (relToPar > 0) return "text-destructive";
+  return "text-foreground";
+}
+
+function ScorecardStrip({ scorecard }: { scorecard: Scorecard }) {
+  return (
+    <section className="border-border bg-surface overflow-x-auto rounded-lg border px-4 py-3">
+      <div className="flex items-stretch gap-1">
+        {scorecard.holes.map((hole) => (
+          <HoleCell key={hole.holeNumber} hole={hole} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HoleCell({ hole }: { hole: HoleScore }) {
+  const relToPar = hole.strokes - hole.par;
+  return (
+    <div className="flex min-w-8 flex-col items-center gap-1">
+      <span className="text-subtle-foreground font-mono text-[0.65rem] tabular-nums">{hole.holeNumber}</span>
+      <span
+        className={`flex size-7 items-center justify-center rounded font-mono text-sm tabular-nums ${
+          relToPar < 0
+            ? "bg-success/[0.12] text-success font-medium"
+            : relToPar > 0
+              ? "bg-destructive/[0.10] text-destructive"
+              : "text-foreground"
+        }`}
+      >
+        {hole.strokes}
+      </span>
     </div>
   );
 }

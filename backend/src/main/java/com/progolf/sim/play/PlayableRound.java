@@ -177,6 +177,15 @@ public final class PlayableRound {
         return List.copyOf(holeScores);
     }
 
+    /** The completed holes of this round as (hole number, par, strokes), in order. */
+    public List<RoundScorecard.HoleScore> completedHoles() {
+        List<RoundScorecard.HoleScore> result = new ArrayList<>(holeScores.size());
+        for (int i = 0; i < holeScores.size(); i++) {
+            result.add(new RoundScorecard.HoleScore(i + 1, holes.get(i).par(), holeScores.get(i)));
+        }
+        return result;
+    }
+
     /** Strokes relative to par over the completed holes (the round's score vs par once complete). */
     public int scoreVsPar() {
         int strokes = 0;
