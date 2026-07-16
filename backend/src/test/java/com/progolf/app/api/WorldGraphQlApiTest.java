@@ -166,6 +166,40 @@ class WorldGraphQlApiTest {
                 .expect(error -> error.getErrorType() == ErrorType.NOT_FOUND);
     }
 
+    @Test
+    void playerProfileReturnsTheGolfersIdentityAndBuild() {
+        WorldSession session = worldService.create(OWNER, 5L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Ana", "Rivera", Nationality.ESP, 20,
+                Archetype.SHORT_GAME_ARTIST);
+
+        graphQlTester.document("""
+                        query($id: ID!) {
+                          playerProfile(id: $id) {
+                            golferId firstName lastName nationality age archetype
+                            careerEarnings availableFunds tour events wins topTens
+                            attributes { attribute value }
+                          }
+                        }
+                        """)
+                .variable("id", session.id()).execute()
+                .path("playerProfile.firstName").entity(String.class).isEqualTo("Ana")
+                .path("playerProfile.lastName").entity(String.class).isEqualTo("Rivera")
+                .path("playerProfile.nationality").entity(String.class).isEqualTo("ESP")
+                .path("playerProfile.age").entity(Integer.class).isEqualTo(20)
+                .path("playerProfile.archetype").entity(String.class).isEqualTo("SHORT_GAME_ARTIST")
+                .path("playerProfile.tour").entity(String.class).isEqualTo("DEVELOPMENT")
+                .path("playerProfile.events").entity(Integer.class).isEqualTo(0)
+                .path("playerProfile.attributes").entityList(Object.class).satisfies(a -> assertPositive(a.size()));
+    }
+
+    @Test
+    void playerProfileIsNullWithoutAPlayer() {
+        WorldSession session = worldService.create(OWNER, 6L, SMALL);
+        graphQlTester.document("query($id: ID!){ playerProfile(id: $id){ golferId } }")
+                .variable("id", session.id()).execute()
+                .path("playerProfile").valueIsNull();
+    }
+
     private static void assertPositive(Integer value) {
         org.assertj.core.api.Assertions.assertThat(value).isPositive();
     }

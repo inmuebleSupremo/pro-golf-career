@@ -1,0 +1,13 @@
+# Applies to the frontend image build (context = repo root). Trims the build
+# context; the Dockerfile only copies frontend/ and the one backend schema file.
+**/node_modules
+**/.next
+**/target
+.git
+.gitignore
+frontend/.env*
+backend/users
+backend/saves
+docs
+openspec
+.claude

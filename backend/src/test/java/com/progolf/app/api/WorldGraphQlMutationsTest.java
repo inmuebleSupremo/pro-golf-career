@@ -131,6 +131,86 @@ class WorldGraphQlMutationsTest {
                 .path("completeEvent.hasPendingEvent").entity(Boolean.class).isEqualTo(false);
     }
 
+    @Test
+    void currentSituationIsNullNotAnErrorForAFinishedButPendingEvent() {
+        WorldSession session = worldService.create(OWNER, 21L, SMALL);
+        String golferId = session.world().activeGolferIds().get(0);
+        worldService.assignPlayer(OWNER, session.id(), golferId);
+
+        int guard = 0;
+        while (!worldService.hasPendingEvent(OWNER, session.id()) && guard++ < 60) {
+            worldService.advanceWeek(OWNER, session.id());
+        }
+        assertThat(worldService.hasPendingEvent(OWNER, session.id())).isTrue();
+
+        // Play the event to the end WITHOUT completing it — the "finish event" window the play page renders.
+        worldService.simEvent(OWNER, session.id());
+        assertThat(worldService.hasPendingEvent(OWNER, session.id())).as("still pending until completed").isTrue();
+
+        // The play page's batched read: currentSituation must resolve to null (→ show Finish), not NPE, and
+        // the final leaderboard is still readable. A thrown resolver would fail the whole query.
+        graphQlTester.document("query($id: ID!){ currentSituation(id: $id){ holeNumber } eventLeaderboard(id: $id){ position } }")
+                .variable("id", session.id()).execute()
+                .errors().verify()
+                .path("currentSituation").valueIsNull()
+                .path("eventLeaderboard").entityList(Object.class).satisfies(l -> assertThat(l).isNotEmpty());
+    }
+
+    @Test
+    void playerScorecardReportsTheCurrentRoundProgress() {
+        WorldSession session = worldService.create(OWNER, 22L, SMALL);
+        String golferId = session.world().activeGolferIds().get(0);
+        worldService.assignPlayer(OWNER, session.id(), golferId);
+
+        int guard = 0;
+        while (!worldService.hasPendingEvent(OWNER, session.id()) && guard++ < 60) {
+            worldService.advanceWeek(OWNER, session.id());
+        }
+        assertThat(worldService.hasPendingEvent(OWNER, session.id())).isTrue();
+
+        // At the start of the event: round 1, hole 1, nothing completed yet.
+        graphQlTester.document("query($id: ID!){ playerScorecard(id: $id){ roundNumber currentHole toPar holes { holeNumber } } }")
+                .variable("id", session.id()).execute()
+                .path("playerScorecard.roundNumber").entity(Integer.class).isEqualTo(1)
+                .path("playerScorecard.currentHole").entity(Integer.class).isEqualTo(1)
+                .path("playerScorecard.holes").entityList(Object.class).satisfies(l -> assertThat(l).isEmpty());
+
+        // Play a hole to completion — the scorecard advances and records it.
+        worldService.simHole(OWNER, session.id());
+        graphQlTester.document("query($id: ID!){ playerScorecard(id: $id){ currentHole holes { holeNumber par strokes } } }")
+                .variable("id", session.id()).execute()
+                .path("playerScorecard.currentHole").entity(Integer.class).isEqualTo(2)
+                .path("playerScorecard.holes").entityList(Object.class).satisfies(l -> assertThat(l).hasSize(1))
+                .path("playerScorecard.holes[0].strokes").entity(Integer.class)
+                .satisfies(s -> assertThat(s).isGreaterThanOrEqualTo(1));
+    }
+
+    @Test
+    void playerSeasonStatsReportsEachSeasonCompeted() {
+        WorldSession session = worldService.create(OWNER, 25L, SMALL);
+        String golferId = session.world().activeGolferIds().get(0);
+        worldService.assignPlayer(OWNER, session.id(), golferId);
+        worldService.advanceSeason(OWNER, session.id()); // season 1 is played out
+
+        graphQlTester.document("query($id: ID!){ playerSeasonStats(id: $id){ season events wins topTens earnings } }")
+                .variable("id", session.id()).execute()
+                .path("playerSeasonStats").entityList(Object.class).satisfies(l -> assertThat(l).isNotEmpty())
+                .path("playerSeasonStats[0].season").entity(Integer.class).isEqualTo(1)
+                .path("playerSeasonStats[0].events").entity(Integer.class)
+                .satisfies(e -> assertThat(e).isGreaterThan(0));
+    }
+
+    @Test
+    void newsFeedReportsRecentWorldNewsMostRecentFirst() {
+        WorldSession session = worldService.create(OWNER, 24L, SMALL);
+        worldService.advanceSeason(OWNER, session.id()); // a full season generates tournament results + milestones
+
+        graphQlTester.document("query($id: ID!){ newsFeed(id: $id, limit: 5){ season type headline } }")
+                .variable("id", session.id()).execute()
+                .path("newsFeed").entityList(Object.class).satisfies(l -> assertThat(l).isNotEmpty())
+                .path("newsFeed[0].headline").entity(String.class).satisfies(h -> assertThat(h).isNotBlank());
+    }
+
     // --- Persistence writes ---
 
     @Test

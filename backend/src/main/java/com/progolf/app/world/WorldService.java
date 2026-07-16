@@ -1,29 +1,42 @@
 package com.progolf.app.world;
 
+import com.progolf.app.api.dto.AttributeValueDto;
+import com.progolf.app.api.dto.HallOfFameDto;
+import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
 import com.progolf.app.persistence.SaveMetadata;
+import com.progolf.sim.career.Career;
 import com.progolf.sim.career.HallOfFameInduction;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.core.Attribute;
+import com.progolf.sim.core.Attributes;
+import com.progolf.sim.economy.FinancialAccount;
 import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentCategory;
 import com.progolf.sim.equipment.EquipmentItem;
+import com.progolf.sim.media.NewsEvent;
 import com.progolf.sim.play.PlayableEvent;
+import com.progolf.sim.play.RoundScorecard;
 import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.player.Archetype;
+import com.progolf.sim.player.Identity;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
+import com.progolf.sim.statistics.SeasonStatistics;
+import com.progolf.sim.statistics.StatLine;
 import com.progolf.sim.tournament.LeaderboardEntry;
 import com.progolf.sim.world.CareerGoalProgress;
 import com.progolf.sim.world.PlayerScheduleEntry;
 import com.progolf.sim.world.World;
 import com.progolf.sim.world.WorldConfig;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -185,9 +198,72 @@ public class WorldService {
         return required(ownerId, sessionId).world().careerGoals();
     }
 
+    /**
+     * The player's golfer profile (spec: player-profile-api): identity, attributes, world ranking, earnings,
+     * tour, and career stats — aggregated read-only over existing engine reads. Assumes a player is assigned
+     * (callers guard with {@link #hasPlayer}). Attributes are returned in {@link Attribute} enum order.
+     */
+    public PlayerProfileDto playerProfile(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        String id = requirePlayerId(world);
+        Career career = world.careerOf(id);
+        Identity identity = career.player().identity();
+        Attributes attrs = career.player().attributes();
+        StatLine stats = world.careerStatisticsOf(id);
+        FinancialAccount.Snapshot finances = world.financialAccountOf(id).snapshot();
+        Integer worldRanking = world.currentRanking().positionOf(id).orElse(null);
+        String tour = world.tourOf(id).map(Enum::name).orElse(null);
+
+        List<AttributeValueDto> attributes = new java.util.ArrayList<>();
+        for (Attribute a : Attribute.values()) {
+            attributes.add(new AttributeValueDto(a.name(), attrs.get(a)));
+        }
+
+        return new PlayerProfileDto(id, identity.firstName(), identity.lastName(),
+                identity.nationality().name(), career.age(), identity.archetype().name(),
+                worldRanking, finances.tournamentEarnings(), finances.availableFunds(), tour,
+                stats.events(), stats.wins(), stats.topTens(), career.isRetired(), attributes);
+    }
+
     /** The Hall-of-Fame inductions so far (spec: career-legacy). */
-    public List<HallOfFameInduction> hallOfFame(String ownerId, String sessionId) {
-        return required(ownerId, sessionId).world().hallOfFameInductions();
+    public List<HallOfFameDto> hallOfFame(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        List<HallOfFameDto> inductions = new ArrayList<>();
+        for (HallOfFameInduction i : world.hallOfFameInductions()) {
+            // Inductees keep their career permanently; fall back to the id if one is somehow absent.
+            Career career = world.careerOf(i.golferId());
+            String name = career != null ? career.player().identity().fullName() : i.golferId();
+            int careerWins = world.careerStatisticsOf(i.golferId()).wins();
+            inductions.add(new HallOfFameDto(i.golferId(), name, i.season(), i.score(), careerWins));
+        }
+        return inductions;
+    }
+
+    /** The most recent {@code limit} world news items, most recent first (the between-events feedback feed). */
+    public List<NewsEvent> recentNews(String ownerId, String sessionId, int limit) {
+        List<NewsEvent> feed = required(ownerId, sessionId).world().newsFeed();
+        int from = Math.max(0, feed.size() - Math.max(0, limit));
+        List<NewsEvent> recent = new ArrayList<>(feed.subList(from, feed.size()));
+        Collections.reverse(recent);
+        return recent;
+    }
+
+    /**
+     * The player's per-season statistics, one entry per season they actually competed in (season 1 through
+     * the current season, skipping any with no counted events). Requires a player (callers guard with
+     * {@link #hasPlayer}); the current, in-progress season is included as it accumulates.
+     */
+    public List<SeasonStatistics> playerSeasonStats(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        String id = requirePlayerId(world);
+        List<SeasonStatistics> stats = new ArrayList<>();
+        for (int season = 1; season <= world.currentSeason(); season++) {
+            StatLine line = world.seasonStatisticsOf(id, season);
+            if (line.events() > 0) {
+                stats.add(new SeasonStatistics(id, season, line));
+            }
+        }
+        return stats;
     }
 
     /** The player's pending sponsorship offers awaiting a decision. */
@@ -270,14 +346,26 @@ public class WorldService {
         return required(ownerId, sessionId).world().hasPendingPlayerEvent();
     }
 
-    /** The current shot situation in the player's event (the round or playoff hole they are playing). */
+    /**
+     * The current shot situation in the player's event (the round or playoff hole they are playing), or
+     * {@code null} when the event has been played to the end but not yet completed. A pending event can be
+     * finished-but-awaiting-completion (all rounds/playoff played, {@link #completeEvent} not yet called);
+     * the play surface reads this to decide whether to show the "finish event" step, so report no situation
+     * rather than throwing "the event is complete".
+     */
     public ShotSituation currentSituation(String ownerId, String sessionId) {
-        return playerEvent(ownerId, sessionId).situation();
+        PlayableEvent event = playerEvent(ownerId, sessionId);
+        return event.isComplete() ? null : event.situation();
     }
 
     /** The live field leaderboard for the player's event. */
     public List<LeaderboardEntry> eventLeaderboard(String ownerId, String sessionId) {
         return playerEvent(ownerId, sessionId).leaderboard();
+    }
+
+    /** The player's current-round scorecard, or null when no round is in progress (playoff or event done). */
+    public RoundScorecard currentScorecard(String ownerId, String sessionId) {
+        return playerEvent(ownerId, sessionId).currentScorecard();
     }
 
     /** Plays the current shot in the player's event with the human's decision (club / target / risk). */

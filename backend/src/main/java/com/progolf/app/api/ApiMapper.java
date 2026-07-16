@@ -4,10 +4,12 @@ import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.CareerGoalInput;
 import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.GolferDto;
-import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.LeaderboardRowDto;
+import com.progolf.app.api.dto.NewsItemDto;
+import com.progolf.app.api.dto.RoundScorecardDto;
 import com.progolf.app.api.dto.SaveDto;
 import com.progolf.app.api.dto.ScheduleEntryDto;
+import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.ShotDecisionInput;
 import com.progolf.app.api.dto.ShotOutcomeDto;
 import com.progolf.app.api.dto.ShotSituationDto;
@@ -15,7 +17,6 @@ import com.progolf.app.api.dto.SponsorshipOfferDto;
 import com.progolf.app.api.dto.StaffMemberDto;
 import com.progolf.app.api.dto.WorldConfigInput;
 import com.progolf.app.persistence.SaveMetadata;
-import com.progolf.sim.career.HallOfFameInduction;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.control.GoalType;
 import com.progolf.sim.core.Attribute;
@@ -23,6 +24,8 @@ import com.progolf.sim.economy.SponsorshipAgreement;
 import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentCharacteristics;
 import com.progolf.sim.equipment.EquipmentItem;
+import com.progolf.sim.media.NewsEvent;
+import com.progolf.sim.play.RoundScorecard;
 import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
@@ -33,6 +36,8 @@ import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
+import com.progolf.sim.statistics.SeasonStatistics;
+import com.progolf.sim.statistics.StatLine;
 import com.progolf.sim.tournament.LeaderboardEntry;
 import com.progolf.sim.world.CareerGoalProgress;
 import com.progolf.sim.world.PlayerScheduleEntry;
@@ -62,10 +67,6 @@ public final class ApiMapper {
         return new CareerGoalDto(p.goal().type().name(), p.target(), p.current(), p.achieved());
     }
 
-    public static HallOfFameDto hallOfFame(HallOfFameInduction i) {
-        return new HallOfFameDto(i.golferId(), i.season(), i.score());
-    }
-
     public static SponsorshipOfferDto sponsorship(SponsorshipOffer o) {
         SponsorshipAgreement a = o.agreement();
         return new SponsorshipOfferDto(a.sponsor(), a.perSeasonPayment(), a.signingBonus(),
@@ -90,6 +91,24 @@ public final class ApiMapper {
         return new ShotSituationDto(s.holeNumber(), s.par(), s.shotNumber(), s.strokesThisHole(),
                 s.distanceToPin(), s.lie().name(), s.pinLateral(),
                 s.reachable().minReach(), s.reachable().maxReach());
+    }
+
+    public static SeasonStatDto seasonStat(SeasonStatistics s) {
+        StatLine l = s.line();
+        return new SeasonStatDto(s.season(), l.events(), l.wins(), l.topTens(), l.cuts(), l.bestFinish(),
+                l.earnings());
+    }
+
+    public static NewsItemDto news(NewsEvent e) {
+        return new NewsItemDto(e.season(), e.type().name(), e.headline(), e.prominence(),
+                e.subjectGolferId().orElse(null));
+    }
+
+    public static RoundScorecardDto scorecard(RoundScorecard s) {
+        List<RoundScorecardDto.HoleScoreDto> holes = s.holes().stream()
+                .map(h -> new RoundScorecardDto.HoleScoreDto(h.holeNumber(), h.par(), h.strokes()))
+                .toList();
+        return new RoundScorecardDto(s.roundNumber(), s.currentHole(), s.scoreToPar(), s.totalStrokes(), holes);
     }
 
     public static SaveDto save(SaveMetadata m) {

@@ -16,8 +16,17 @@ type Query {
     "The player's career goals with live progress (empty when none chosen)."
     careerGoals(id: ID!): [CareerGoal!]!
 
+    "The player's golfer profile — identity, attributes, ranking, earnings; null when no player is assigned."
+    playerProfile(id: ID!): PlayerProfile
+
+    "The player's per-season statistics, one row per season competed (empty when no player is assigned)."
+    playerSeasonStats(id: ID!): [SeasonStat!]!
+
     "The world's Hall-of-Fame inductions so far."
     hallOfFame(id: ID!): [HallOfFameInduction!]!
+
+    "Recent world news (tournament results, milestones, promotions, retirements…), most recent first."
+    newsFeed(id: ID!, limit: Int = 20): [NewsItem!]!
 
     "The player's pending sponsorship offers awaiting a decision."
     pendingSponsorships(id: ID!): [SponsorshipOffer!]!
@@ -39,6 +48,9 @@ type Query {
 
     "The live leaderboard for a paused player event; empty when no event is pending."
     eventLeaderboard(id: ID!): [LeaderboardRow!]!
+
+    "The player's current-round scorecard in a paused player event; null when no round is in progress."
+    playerScorecard(id: ID!): RoundScorecard
 
     "Whether the player made the cut in the pending event; null when no event is pending or the cut is not yet decided."
     playerMadeCut(id: ID!): Boolean
@@ -157,10 +169,60 @@ type CareerGoal {
     achieved: Boolean!
 }
 
+type PlayerProfile {
+    golferId: ID!
+    firstName: String!
+    lastName: String!
+    nationality: String!
+    age: Int!
+    archetype: String!
+    "World ranking position; null when the golfer is unranked."
+    worldRanking: Int
+    careerEarnings: Float!
+    availableFunds: Float!
+    "Current tour tier (enum name); null if the golfer holds no membership."
+    tour: String
+    events: Int!
+    wins: Int!
+    topTens: Int!
+    "Whether the golfer has retired — their career is complete and they play no further events."
+    retired: Boolean!
+    attributes: [AttributeValue!]!
+}
+
+type AttributeValue {
+    attribute: String!
+    value: Int!
+}
+
+type SeasonStat {
+    season: Int!
+    events: Int!
+    wins: Int!
+    topTens: Int!
+    cuts: Int!
+    "Best (lowest) finishing position across the season's counted events."
+    bestFinish: Int!
+    earnings: Float!
+}
+
+type NewsItem {
+    season: Int!
+    "The NewsType enum name (e.g. TOURNAMENT_VICTORY, MAJOR_VICTORY, PROMOTION, RETIREMENT)."
+    type: String!
+    headline: String!
+    prominence: Int!
+    "The subject golfer's id when the item is about a specific golfer; null otherwise."
+    subjectGolferId: ID
+}
+
 type HallOfFameInduction {
     golferId: ID!
+    name: String!
     season: Int!
+    "The prestige-weighted score the golfer was inducted on."
     score: Float!
+    careerWins: Int!
 }
 
 type SponsorshipOffer {
@@ -195,6 +257,22 @@ type LeaderboardRow {
     golfer: Golfer!
     score: Int!
     roundsPlayed: Int!
+}
+
+type RoundScorecard {
+    roundNumber: Int!
+    currentHole: Int!
+    "Strokes relative to par over the completed holes of this round."
+    toPar: Int!
+    "Total strokes over the completed holes of this round."
+    totalStrokes: Int!
+    holes: [HoleScore!]!
+}
+
+type HoleScore {
+    holeNumber: Int!
+    par: Int!
+    strokes: Int!
 }
 
 type ShotSituation {

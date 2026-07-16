@@ -462,6 +462,29 @@ public final class World {
     }
 
     /**
+     * Field-entry priority (spec: competitive-entry): season standings first, then — where points are equal
+     * (e.g. at season start, when standings reset to zero) — attribute-based ability, so talent rather than
+     * an arbitrary id order decides who plays before results have separated the field. This lets a competent
+     * new golfer enter on merit rather than being buried by id order. Deterministic (id breaks any remaining
+     * tie). Ability uses attributes (not the live form rating, which starts uniform for everyone).
+     */
+    private java.util.Comparator<String> fieldPriority() {
+        return java.util.Comparator.comparingInt(tours::seasonPointsOf).reversed()
+                .thenComparing((String id) -> abilityOf(id), java.util.Comparator.reverseOrder())
+                .thenComparing(java.util.Comparator.naturalOrder());
+    }
+
+    /** A golfer's overall attribute-based ability — the merit signal for field entry when standings are tied. */
+    private double abilityOf(String golferId) {
+        Attributes attrs = golfers.get(golferId).player().attributes();
+        int sum = 0;
+        for (Attribute a : Attribute.values()) {
+            sum += attrs.get(a);
+        }
+        return (double) sum / Attribute.values().length;
+    }
+
+    /**
      * Builds an event up to a confirmed Tournament ready to play: draws and gates the field, generates the
      * weather, syncs each competitor's fatigue and equipment into the shot engine, and registers the field.
      * Returns {@code null} when no eligible field exists. Shared by automatic resolution and the player's
@@ -480,6 +503,7 @@ public final class World {
                         .filter(this::canEnterField) // availability gates entry; the player may play through (REQ-221)
                         .filter(id -> !committedThisWeek.contains(id)) // one event per week (spec: event-prestige)
                         .filter(id -> !(isPlayer(id) && playerSitsOut(event))) // player skipped/rested (player-control)
+                        .sorted(fieldPriority()) // ability breaks equal-standings ties so new golfers can enter
                         .limit(config.fieldSize())
                         .map(golfers::get)
                         .toList();

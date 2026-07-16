@@ -1,0 +1,6 @@
+.next/
+out/
+build/
+node_modules/
+src/lib/graphql/generated/
+pnpm-lock.yaml

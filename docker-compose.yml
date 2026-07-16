@@ -1,0 +1,33 @@
+# Run the whole game locally for E2E:  docker compose up --build
+# Frontend → http://localhost:3000   Backend → http://localhost:8080
+# Override the JWT secret via a root .env file (PROGOLF_JWT_SECRET=...) for anything real.
+
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      # HS256 needs >= 32 chars. The default is a dev-only secret — override it.
+      PROGOLF_JWT_SECRET: ${PROGOLF_JWT_SECRET:-dev-only-insecure-secret-change-me-0123456789abcdef}
+      PROGOLF_USERS_DIR: /data/users
+      PROGOLF_SAVES_DIR: /data/saves
+    ports:
+      - "8080:8080"
+    volumes:
+      - backend-data:/data
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      # The BFF calls the backend server-side over the compose network.
+      BACKEND_INTERNAL_URL: http://backend:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  backend-data:

@@ -4,8 +4,12 @@ import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.LeaderboardRowDto;
+import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.SaveDto;
 import com.progolf.app.api.dto.ScheduleEntryDto;
+import com.progolf.app.api.dto.NewsItemDto;
+import com.progolf.app.api.dto.RoundScorecardDto;
+import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.ShotSituationDto;
 import com.progolf.app.api.dto.SponsorshipOfferDto;
 import com.progolf.app.api.dto.StaffMemberDto;
@@ -58,8 +62,33 @@ public class WorldQueryController {
     }
 
     @QueryMapping
+    public PlayerProfileDto playerProfile(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return null;
+        }
+        return worldService.playerProfile(owner, id);
+    }
+
+    @QueryMapping
+    public List<SeasonStatDto> playerSeasonStats(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return List.of();
+        }
+        return ApiMapper.mapList(worldService.playerSeasonStats(owner, id), ApiMapper::seasonStat);
+    }
+
+    @QueryMapping
     public List<HallOfFameDto> hallOfFame(@Argument String id) {
-        return ApiMapper.mapList(worldService.hallOfFame(AuthenticatedUser.requireId(), id), ApiMapper::hallOfFame);
+        // Name-enriched in WorldService (needs the world to resolve golfer names), so no ApiMapper step.
+        return worldService.hallOfFame(AuthenticatedUser.requireId(), id);
+    }
+
+    @QueryMapping
+    public List<NewsItemDto> newsFeed(@Argument String id, @Argument Integer limit) {
+        int n = limit == null ? 20 : limit;
+        return ApiMapper.mapList(worldService.recentNews(AuthenticatedUser.requireId(), id, n), ApiMapper::news);
     }
 
     @QueryMapping
@@ -103,7 +132,10 @@ public class WorldQueryController {
         if (!worldService.hasPendingEvent(owner, id)) {
             return null;
         }
-        return ApiMapper.situation(worldService.currentSituation(owner, id));
+        // A pending event that has been played to the end has no current shot (awaiting completeEvent):
+        // the service returns null, which maps to a null situation rather than being mapped as a shot.
+        var situation = worldService.currentSituation(owner, id);
+        return situation == null ? null : ApiMapper.situation(situation);
     }
 
     @QueryMapping
@@ -113,6 +145,17 @@ public class WorldQueryController {
             return List.of();
         }
         return ApiMapper.mapList(worldService.eventLeaderboard(owner, id), ApiMapper::leaderboardRow);
+    }
+
+    @QueryMapping
+    public RoundScorecardDto playerScorecard(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPendingEvent(owner, id)) {
+            return null;
+        }
+        // Null when the pending event has no round in progress (a playoff, or played to the end).
+        var scorecard = worldService.currentScorecard(owner, id);
+        return scorecard == null ? null : ApiMapper.scorecard(scorecard);
     }
 
     @QueryMapping
