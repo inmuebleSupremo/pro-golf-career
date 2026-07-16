@@ -7,6 +7,7 @@ import {
   CareerOverviewDocument,
   HallOfFameDocument,
   ListSavesDocument,
+  PlayerCalendarDocument,
   PlayerProfileDocument,
 } from "@/lib/graphql/operations";
 
@@ -45,6 +46,16 @@ export function useHallOfFame(id: string) {
   return useQuery({
     queryKey: ["hallOfFame", id],
     queryFn: () => gqlRequest(HallOfFameDocument, { id }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The player's season calendar with per-event results. */
+export function usePlayerCalendar(id: string) {
+  return useQuery({
+    queryKey: ["calendar", id],
+    queryFn: () => gqlRequest(PlayerCalendarDocument, { id }),
     networkMode: "always",
     retry: false,
   });
