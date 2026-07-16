@@ -90,7 +90,12 @@ export function CareerHub({ id }: { id: string }) {
           <p className="text-muted-foreground">
             Season {world.season} · Week {world.week} · {world.activePopulation} golfers active
           </p>
-          <AdvanceControl id={id} hasPendingEvent={world.hasPendingEvent} />
+          <div className="flex items-center gap-3">
+            <Button asChild variant="secondary" size="lg">
+              <Link href={`/career/${id}/manage`}>Manage</Link>
+            </Button>
+            <AdvanceControl id={id} hasPendingEvent={world.hasPendingEvent} />
+          </div>
         </div>
       </div>
 

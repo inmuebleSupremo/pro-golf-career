@@ -124,6 +124,145 @@ export const PlayerProfileDocument = graphql(`
   }
 `);
 
+/* --- Manage: schedule & availability (skip/enter events, rest the golfer). --- */
+
+/** The player's full reviewable schedule — the manage view's source of truth for entered state. */
+export const PlayerScheduleDocument = graphql(`
+  query PlayerSchedule($id: ID!) {
+    playerSchedule(id: $id) {
+      tournamentId
+      week
+      tier
+      prestige
+      entered
+    }
+  }
+`);
+
+/** Skips a specific upcoming event for the player. */
+export const SkipEventDocument = graphql(`
+  mutation SkipEvent($id: ID!, $tournamentId: Long!) {
+    skipEvent(id: $id, tournamentId: $tournamentId)
+  }
+`);
+
+/** Re-enters a previously skipped event for the player. */
+export const EnterEventDocument = graphql(`
+  mutation EnterEvent($id: ID!, $tournamentId: Long!) {
+    enterEvent(id: $id, tournamentId: $tournamentId)
+  }
+`);
+
+/** Sets whether the player's golfer is resting (a blanket sit-out). */
+export const SetRestingDocument = graphql(`
+  mutation SetResting($id: ID!, $resting: Boolean!) {
+    setResting(id: $id, resting: $resting)
+  }
+`);
+
+/** Sets the player's development focus — an ordered list of Attribute enum names. */
+export const SetDevelopmentFocusDocument = graphql(`
+  mutation SetDevelopmentFocus($id: ID!, $focus: [String!]!) {
+    setDevelopmentFocus(id: $id, focus: $focus)
+  }
+`);
+
+/* --- Manage: equipment (current loadout, owned bag, and upgrade offers). --- */
+
+/** The player's equipment in one request: current loadout, everything owned, and pending upgrade offers. */
+export const EquipmentDocument = graphql(`
+  query Equipment($id: ID!) {
+    playerLoadout(id: $id) {
+      name
+      category
+      quality
+      cost
+      forgiveness
+      power
+      workability
+      feel
+    }
+    playerEquipment(id: $id) {
+      name
+      category
+      quality
+      cost
+      forgiveness
+      power
+      workability
+      feel
+    }
+    pendingEquipment(id: $id) {
+      name
+      category
+      quality
+      cost
+      forgiveness
+      power
+      workability
+      feel
+    }
+  }
+`);
+
+/** Buys a pending equipment upgrade by index (if affordable); auto-equips it. */
+export const BuyEquipmentDocument = graphql(`
+  mutation BuyEquipment($id: ID!, $index: Int!) {
+    buyEquipment(id: $id, index: $index)
+  }
+`);
+
+/** Switches the loadout to an already-owned item, by category (enum name) and item name. */
+export const SelectLoadoutItemDocument = graphql(`
+  mutation SelectLoadoutItem($id: ID!, $category: String!, $name: String!) {
+    selectLoadoutItem(id: $id, category: $category, name: $name)
+  }
+`);
+
+/* --- Manage: staff hiring (candidates awaiting a decision). --- */
+
+/** The player's pending staff candidates awaiting a hire decision. */
+export const PendingStaffDocument = graphql(`
+  query PendingStaff($id: ID!) {
+    pendingStaff(id: $id) {
+      role
+      name
+      quality
+      hiringCost
+      seasonalSalary
+    }
+  }
+`);
+
+/** Hires a pending staff candidate by index (if affordable). */
+export const HireStaffDocument = graphql(`
+  mutation HireStaff($id: ID!, $index: Int!) {
+    hireStaff(id: $id, index: $index)
+  }
+`);
+
+/* --- Manage: sponsorships (offers awaiting a decision). --- */
+
+/** The player's pending sponsorship offers awaiting a decision. */
+export const PendingSponsorshipsDocument = graphql(`
+  query PendingSponsorships($id: ID!) {
+    pendingSponsorships(id: $id) {
+      sponsor
+      perSeasonPayment
+      signingBonus
+      durationSeasons
+      grossValue
+    }
+  }
+`);
+
+/** Accepts a pending sponsorship offer by index. */
+export const AcceptSponsorshipDocument = graphql(`
+  mutation AcceptSponsorship($id: ID!, $index: Int!) {
+    acceptSponsorship(id: $id, index: $index)
+  }
+`);
+
 /* --- Play: advance the calendar, then play/sim a pending tournament event. --- */
 
 /** Advances the session one week; pauses at the player's event (hasPendingEvent). */
