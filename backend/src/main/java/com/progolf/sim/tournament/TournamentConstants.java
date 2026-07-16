@@ -34,10 +34,14 @@ public final class TournamentConstants {
     // the neutral 1.0 baseline held implicitly in EventPrestige.
     /** Ranking-point multiplier for a Signature event. */
     public static final double SIGNATURE_RANKING_WEIGHT = 1.75;
+    /** Ranking-point multiplier for a Tour Championship (a season finale, between Signature and Major). */
+    public static final double TOUR_CHAMPIONSHIP_RANKING_WEIGHT = 2.25;
     /** Ranking-point multiplier for a Major. */
     public static final double MAJOR_RANKING_WEIGHT = 3.0;
     /** Purse (top-prize) multiplier for a Signature event. */
     public static final double SIGNATURE_PURSE_WEIGHT = 2.0;
+    /** Purse (top-prize) multiplier for a Tour Championship (between Signature and Major). */
+    public static final double TOUR_CHAMPIONSHIP_PURSE_WEIGHT = 3.0;
     /** Purse (top-prize) multiplier for a Major. */
     public static final double MAJOR_PURSE_WEIGHT = 4.0;
 
@@ -64,6 +68,8 @@ public final class TournamentConstants {
     public static final double PRESSURE_ROUND_4_WEIGHT = 1.0;
     /** Prestige weight for a regular event's closing pressure. */
     public static final double PRESSURE_PRESTIGE_REGULAR = 0.6;
+    /** Closing-round pressure weight for a Tour Championship (between Signature and Major). */
+    public static final double PRESSURE_PRESTIGE_TOUR_CHAMPIONSHIP = 0.9;
     /** Prestige weight for a signature event's closing pressure. */
     public static final double PRESSURE_PRESTIGE_SIGNATURE = 0.8;
     /** Prestige weight for a major's closing pressure — the pinnacle. */

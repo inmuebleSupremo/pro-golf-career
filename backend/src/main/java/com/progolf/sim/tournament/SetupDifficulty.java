@@ -31,6 +31,7 @@ public final class SetupDifficulty {
     // Prestige bump added on top of the tier base.
     private static final double PRESTIGE_REGULAR = 0.00;
     private static final double PRESTIGE_SIGNATURE = 0.14;
+    private static final double PRESTIGE_TOUR_CHAMPIONSHIP = 0.25;
     private static final double PRESTIGE_MAJOR = 0.36;
 
     // Each factor is interpolated from its easy end (difficulty 0) to its hard end (difficulty 1). Most of the
@@ -62,6 +63,7 @@ public final class SetupDifficulty {
         return switch (prestige) {
             case REGULAR -> PRESTIGE_REGULAR;
             case SIGNATURE -> PRESTIGE_SIGNATURE;
+            case TOUR_CHAMPIONSHIP -> PRESTIGE_TOUR_CHAMPIONSHIP;
             case MAJOR -> PRESTIGE_MAJOR;
         };
     }

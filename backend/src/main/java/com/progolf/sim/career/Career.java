@@ -221,7 +221,8 @@ public final class Career {
         if (prestige.isMajor()) {
             return WinCategory.MAJOR;
         }
-        if (prestige == EventPrestige.SIGNATURE) {
+        // A Tour Championship is an elevated, non-major win — categorised with Signatures for career stats.
+        if (prestige == EventPrestige.SIGNATURE || prestige == EventPrestige.TOUR_CHAMPIONSHIP) {
             return WinCategory.SIGNATURE;
         }
         if (tier == Tier.DEVELOPMENT) {

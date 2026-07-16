@@ -1,8 +1,5 @@
-# world-schedule Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change add-world-loop. Update Purpose after archive.
-## Requirements
 ### Requirement: Season Schedule Generation
 
 At the start of every season the World SHALL deterministically generate a competitive calendar: a schedule of tournaments, each allocated to exactly one tour, one course, one week, and **one event prestige (Regular, Signature, Tour Championship, or Major)**. The schedule SHALL include regular tour events, spotlighted **signature** events elevated within a tour, a per-tour season-finale **Tour Championship**, and a configurable number of cross-tour **majors**. At the standard season scale the placement of these events SHALL follow a structured, tier-specific cadence (see *Structured Season Cadence*); at smaller scales it SHALL fall back to a simple proportional placement (see *Small-Season Schedule Degradation*). The schedule SHALL be generated from the world seed so it is reproducible.
@@ -27,28 +24,7 @@ At the start of every season the World SHALL deterministically generate a compet
 - **WHEN** two Worlds with the same seed generate the same season's schedule
 - **THEN** the two schedules SHALL be identical, including each event's week and prestige
 
-### Requirement: Fixed and Archived Schedule
-
-A season's schedule SHALL be fixed for the duration of that season and SHALL be archived when the season completes, remaining retrievable as history.
-
-#### Scenario: Schedule does not change mid-season
-
-- **WHEN** a season is in progress
-- **THEN** its schedule SHALL not change
-
-#### Scenario: Completed schedules are archived
-
-- **WHEN** a season completes
-- **THEN** its schedule and results SHALL be archived and remain accessible
-
-### Requirement: Every Scheduled Tournament Belongs to a Tour and Course
-
-Each scheduled tournament SHALL reference exactly one tour (determining its tier and eligible field) and exactly one course (its venue).
-
-#### Scenario: Allocation is complete
-
-- **WHEN** a scheduled tournament is inspected
-- **THEN** it SHALL have exactly one tour and exactly one course
+## ADDED Requirements
 
 ### Requirement: Structured Season Cadence
 
@@ -96,4 +72,3 @@ When the configured season is too short to host the structured cadence, the Worl
 
 - **WHEN** a season shorter than the structured-cadence minimum is generated
 - **THEN** the World SHALL produce a valid, reproducible schedule via the proportional fallback, with each event carrying a tour, course, week, and prestige
-
