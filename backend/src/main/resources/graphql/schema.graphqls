@@ -22,6 +22,9 @@ type Query {
     "The world's Hall-of-Fame inductions so far."
     hallOfFame(id: ID!): [HallOfFameInduction!]!
 
+    "Recent world news (tournament results, milestones, promotions, retirements…), most recent first."
+    newsFeed(id: ID!, limit: Int = 20): [NewsItem!]!
+
     "The player's pending sponsorship offers awaiting a decision."
     pendingSponsorships(id: ID!): [SponsorshipOffer!]!
 
@@ -185,6 +188,16 @@ type PlayerProfile {
 type AttributeValue {
     attribute: String!
     value: Int!
+}
+
+type NewsItem {
+    season: Int!
+    "The NewsType enum name (e.g. TOURNAMENT_VICTORY, MAJOR_VICTORY, PROMOTION, RETIREMENT)."
+    type: String!
+    headline: String!
+    prominence: Int!
+    "The subject golfer's id when the item is about a specific golfer; null otherwise."
+    subjectGolferId: ID
 }
 
 type HallOfFameInduction {

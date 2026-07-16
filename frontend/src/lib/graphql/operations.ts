@@ -96,6 +96,13 @@ export const CareerOverviewDocument = graphql(`
       prestige
       entered
     }
+    newsFeed(id: $id, limit: 12) {
+      season
+      type
+      headline
+      prominence
+      subjectGolferId
+    }
   }
 `);
 

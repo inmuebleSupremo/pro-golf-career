@@ -15,6 +15,7 @@ import com.progolf.sim.economy.FinancialAccount;
 import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentCategory;
 import com.progolf.sim.equipment.EquipmentItem;
+import com.progolf.sim.media.NewsEvent;
 import com.progolf.sim.play.PlayableEvent;
 import com.progolf.sim.play.RoundScorecard;
 import com.progolf.sim.play.ShotSituation;
@@ -32,6 +33,8 @@ import com.progolf.sim.world.PlayerScheduleEntry;
 import com.progolf.sim.world.World;
 import com.progolf.sim.world.WorldConfig;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -223,6 +226,15 @@ public class WorldService {
     /** The Hall-of-Fame inductions so far (spec: career-legacy). */
     public List<HallOfFameInduction> hallOfFame(String ownerId, String sessionId) {
         return required(ownerId, sessionId).world().hallOfFameInductions();
+    }
+
+    /** The most recent {@code limit} world news items, most recent first (the between-events feedback feed). */
+    public List<NewsEvent> recentNews(String ownerId, String sessionId, int limit) {
+        List<NewsEvent> feed = required(ownerId, sessionId).world().newsFeed();
+        int from = Math.max(0, feed.size() - Math.max(0, limit));
+        List<NewsEvent> recent = new ArrayList<>(feed.subList(from, feed.size()));
+        Collections.reverse(recent);
+        return recent;
     }
 
     /** The player's pending sponsorship offers awaiting a decision. */

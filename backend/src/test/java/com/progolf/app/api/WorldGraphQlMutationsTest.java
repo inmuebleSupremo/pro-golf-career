@@ -185,6 +185,17 @@ class WorldGraphQlMutationsTest {
                 .satisfies(s -> assertThat(s).isGreaterThanOrEqualTo(1));
     }
 
+    @Test
+    void newsFeedReportsRecentWorldNewsMostRecentFirst() {
+        WorldSession session = worldService.create(OWNER, 24L, SMALL);
+        worldService.advanceSeason(OWNER, session.id()); // a full season generates tournament results + milestones
+
+        graphQlTester.document("query($id: ID!){ newsFeed(id: $id, limit: 5){ season type headline } }")
+                .variable("id", session.id()).execute()
+                .path("newsFeed").entityList(Object.class).satisfies(l -> assertThat(l).isNotEmpty())
+                .path("newsFeed[0].headline").entity(String.class).satisfies(h -> assertThat(h).isNotBlank());
+    }
+
     // --- Persistence writes ---
 
     @Test

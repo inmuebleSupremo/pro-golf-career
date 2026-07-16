@@ -28,6 +28,13 @@ type ScheduleEntry = {
   prestige: string;
   entered: boolean;
 };
+type NewsItem = {
+  season: number;
+  type: string;
+  headline: string;
+  prominence: number;
+  subjectGolferId: string | null;
+};
 
 export function CareerHub({ id }: { id: string }) {
   const router = useRouter();
@@ -63,7 +70,7 @@ export function CareerHub({ id }: { id: string }) {
     );
   }
 
-  const { world, careerGoals, playerSchedule } = data;
+  const { world, careerGoals, playerSchedule, newsFeed } = data;
 
   // Defensive: the backend throws NOT_FOUND (handled above) rather than returning a
   // null world, but the field is nullable in the schema, so guard it.
@@ -101,6 +108,7 @@ export function CareerHub({ id }: { id: string }) {
       </div>
 
       <CareerGoals id={id} goals={careerGoals} />
+      <LatestNews news={newsFeed} playerGolferId={profile?.golferId ?? null} />
       <UpcomingSchedule schedule={playerSchedule} />
     </div>
   );
@@ -233,6 +241,45 @@ function ScheduleRow({ entry }: { entry: ScheduleEntry }) {
       >
         {entry.entered ? "Entered" : "Skipped"}
       </span>
+    </li>
+  );
+}
+
+function LatestNews({
+  news,
+  playerGolferId,
+}: {
+  news: NewsItem[];
+  playerGolferId: string | null;
+}) {
+  if (news.length === 0) return null;
+
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="font-serif text-xl font-medium">Latest</h2>
+      <ul className="divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border">
+        {news.map((item, i) => (
+          <NewsRow
+            key={`${item.season}-${i}`}
+            item={item}
+            isPlayer={playerGolferId != null && item.subjectGolferId === playerGolferId}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function NewsRow({ item, isPlayer }: { item: NewsItem; isPlayer: boolean }) {
+  return (
+    <li className={`flex items-center justify-between gap-4 px-5 py-3 ${isPlayer ? "bg-primary/[0.06]" : ""}`}>
+      <span className="flex min-w-0 items-center gap-2 text-sm">
+        {isPlayer ? <span className="bg-primary size-1.5 shrink-0 rounded-full" aria-hidden="true" /> : null}
+        <span className={`truncate ${isPlayer ? "text-foreground font-medium" : "text-foreground"}`}>
+          {item.headline}
+        </span>
+      </span>
+      <span className="text-subtle-foreground shrink-0 font-mono text-xs tabular-nums">S{item.season}</span>
     </li>
   );
 }

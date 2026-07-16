@@ -7,6 +7,7 @@ import com.progolf.app.api.dto.LeaderboardRowDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.SaveDto;
 import com.progolf.app.api.dto.ScheduleEntryDto;
+import com.progolf.app.api.dto.NewsItemDto;
 import com.progolf.app.api.dto.RoundScorecardDto;
 import com.progolf.app.api.dto.ShotSituationDto;
 import com.progolf.app.api.dto.SponsorshipOfferDto;
@@ -71,6 +72,12 @@ public class WorldQueryController {
     @QueryMapping
     public List<HallOfFameDto> hallOfFame(@Argument String id) {
         return ApiMapper.mapList(worldService.hallOfFame(AuthenticatedUser.requireId(), id), ApiMapper::hallOfFame);
+    }
+
+    @QueryMapping
+    public List<NewsItemDto> newsFeed(@Argument String id, @Argument Integer limit) {
+        int n = limit == null ? 20 : limit;
+        return ApiMapper.mapList(worldService.recentNews(AuthenticatedUser.requireId(), id, n), ApiMapper::news);
     }
 
     @QueryMapping

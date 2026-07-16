@@ -6,6 +6,7 @@ import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.GolferDto;
 import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.LeaderboardRowDto;
+import com.progolf.app.api.dto.NewsItemDto;
 import com.progolf.app.api.dto.RoundScorecardDto;
 import com.progolf.app.api.dto.SaveDto;
 import com.progolf.app.api.dto.ScheduleEntryDto;
@@ -24,6 +25,7 @@ import com.progolf.sim.economy.SponsorshipAgreement;
 import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentCharacteristics;
 import com.progolf.sim.equipment.EquipmentItem;
+import com.progolf.sim.media.NewsEvent;
 import com.progolf.sim.play.RoundScorecard;
 import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.player.Archetype;
@@ -92,6 +94,11 @@ public final class ApiMapper {
         return new ShotSituationDto(s.holeNumber(), s.par(), s.shotNumber(), s.strokesThisHole(),
                 s.distanceToPin(), s.lie().name(), s.pinLateral(),
                 s.reachable().minReach(), s.reachable().maxReach());
+    }
+
+    public static NewsItemDto news(NewsEvent e) {
+        return new NewsItemDto(e.season(), e.type().name(), e.headline(), e.prominence(),
+                e.subjectGolferId().orElse(null));
     }
 
     public static RoundScorecardDto scorecard(RoundScorecard s) {
