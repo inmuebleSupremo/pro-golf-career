@@ -113,7 +113,10 @@ public class WorldQueryController {
         if (!worldService.hasPendingEvent(owner, id)) {
             return null;
         }
-        return ApiMapper.situation(worldService.currentSituation(owner, id));
+        // A pending event that has been played to the end has no current shot (awaiting completeEvent):
+        // the service returns null, which maps to a null situation rather than being mapped as a shot.
+        var situation = worldService.currentSituation(owner, id);
+        return situation == null ? null : ApiMapper.situation(situation);
     }
 
     @QueryMapping

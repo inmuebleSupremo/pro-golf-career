@@ -131,6 +131,31 @@ class WorldGraphQlMutationsTest {
                 .path("completeEvent.hasPendingEvent").entity(Boolean.class).isEqualTo(false);
     }
 
+    @Test
+    void currentSituationIsNullNotAnErrorForAFinishedButPendingEvent() {
+        WorldSession session = worldService.create(OWNER, 21L, SMALL);
+        String golferId = session.world().activeGolferIds().get(0);
+        worldService.assignPlayer(OWNER, session.id(), golferId);
+
+        int guard = 0;
+        while (!worldService.hasPendingEvent(OWNER, session.id()) && guard++ < 60) {
+            worldService.advanceWeek(OWNER, session.id());
+        }
+        assertThat(worldService.hasPendingEvent(OWNER, session.id())).isTrue();
+
+        // Play the event to the end WITHOUT completing it — the "finish event" window the play page renders.
+        worldService.simEvent(OWNER, session.id());
+        assertThat(worldService.hasPendingEvent(OWNER, session.id())).as("still pending until completed").isTrue();
+
+        // The play page's batched read: currentSituation must resolve to null (→ show Finish), not NPE, and
+        // the final leaderboard is still readable. A thrown resolver would fail the whole query.
+        graphQlTester.document("query($id: ID!){ currentSituation(id: $id){ holeNumber } eventLeaderboard(id: $id){ position } }")
+                .variable("id", session.id()).execute()
+                .errors().verify()
+                .path("currentSituation").valueIsNull()
+                .path("eventLeaderboard").entityList(Object.class).satisfies(l -> assertThat(l).isNotEmpty());
+    }
+
     // --- Persistence writes ---
 
     @Test
