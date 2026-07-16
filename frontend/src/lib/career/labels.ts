@@ -23,6 +23,7 @@ const TOUR_TIER_LABELS: Record<string, string> = {
 const EVENT_PRESTIGE_LABELS: Record<string, string> = {
   REGULAR: "Regular",
   SIGNATURE: "Signature",
+  TOUR_CHAMPIONSHIP: "Tour Championship",
   MAJOR: "Major",
 };
 
