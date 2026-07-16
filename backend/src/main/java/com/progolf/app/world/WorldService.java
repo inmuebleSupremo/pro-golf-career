@@ -304,9 +304,16 @@ public class WorldService {
         return required(ownerId, sessionId).world().hasPendingPlayerEvent();
     }
 
-    /** The current shot situation in the player's event (the round or playoff hole they are playing). */
+    /**
+     * The current shot situation in the player's event (the round or playoff hole they are playing), or
+     * {@code null} when the event has been played to the end but not yet completed. A pending event can be
+     * finished-but-awaiting-completion (all rounds/playoff played, {@link #completeEvent} not yet called);
+     * the play surface reads this to decide whether to show the "finish event" step, so report no situation
+     * rather than throwing "the event is complete".
+     */
     public ShotSituation currentSituation(String ownerId, String sessionId) {
-        return playerEvent(ownerId, sessionId).situation();
+        PlayableEvent event = playerEvent(ownerId, sessionId);
+        return event.isComplete() ? null : event.situation();
     }
 
     /** The live field leaderboard for the player's event. */
