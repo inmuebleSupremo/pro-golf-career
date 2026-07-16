@@ -26,6 +26,7 @@ import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
+import com.progolf.sim.statistics.SeasonStatistics;
 import com.progolf.sim.statistics.StatLine;
 import com.progolf.sim.tournament.LeaderboardEntry;
 import com.progolf.sim.world.CareerGoalProgress;
@@ -235,6 +236,24 @@ public class WorldService {
         List<NewsEvent> recent = new ArrayList<>(feed.subList(from, feed.size()));
         Collections.reverse(recent);
         return recent;
+    }
+
+    /**
+     * The player's per-season statistics, one entry per season they actually competed in (season 1 through
+     * the current season, skipping any with no counted events). Requires a player (callers guard with
+     * {@link #hasPlayer}); the current, in-progress season is included as it accumulates.
+     */
+    public List<SeasonStatistics> playerSeasonStats(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        String id = requirePlayerId(world);
+        List<SeasonStatistics> stats = new ArrayList<>();
+        for (int season = 1; season <= world.currentSeason(); season++) {
+            StatLine line = world.seasonStatisticsOf(id, season);
+            if (line.events() > 0) {
+                stats.add(new SeasonStatistics(id, season, line));
+            }
+        }
+        return stats;
     }
 
     /** The player's pending sponsorship offers awaiting a decision. */

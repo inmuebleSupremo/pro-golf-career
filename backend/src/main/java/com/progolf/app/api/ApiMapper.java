@@ -10,6 +10,7 @@ import com.progolf.app.api.dto.NewsItemDto;
 import com.progolf.app.api.dto.RoundScorecardDto;
 import com.progolf.app.api.dto.SaveDto;
 import com.progolf.app.api.dto.ScheduleEntryDto;
+import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.ShotDecisionInput;
 import com.progolf.app.api.dto.ShotOutcomeDto;
 import com.progolf.app.api.dto.ShotSituationDto;
@@ -37,6 +38,8 @@ import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
+import com.progolf.sim.statistics.SeasonStatistics;
+import com.progolf.sim.statistics.StatLine;
 import com.progolf.sim.tournament.LeaderboardEntry;
 import com.progolf.sim.world.CareerGoalProgress;
 import com.progolf.sim.world.PlayerScheduleEntry;
@@ -94,6 +97,12 @@ public final class ApiMapper {
         return new ShotSituationDto(s.holeNumber(), s.par(), s.shotNumber(), s.strokesThisHole(),
                 s.distanceToPin(), s.lie().name(), s.pinLateral(),
                 s.reachable().minReach(), s.reachable().maxReach());
+    }
+
+    public static SeasonStatDto seasonStat(SeasonStatistics s) {
+        StatLine l = s.line();
+        return new SeasonStatDto(s.season(), l.events(), l.wins(), l.topTens(), l.cuts(), l.bestFinish(),
+                l.earnings());
     }
 
     public static NewsItemDto news(NewsEvent e) {

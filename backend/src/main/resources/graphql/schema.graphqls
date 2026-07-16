@@ -19,6 +19,9 @@ type Query {
     "The player's golfer profile — identity, attributes, ranking, earnings; null when no player is assigned."
     playerProfile(id: ID!): PlayerProfile
 
+    "The player's per-season statistics, one row per season competed (empty when no player is assigned)."
+    playerSeasonStats(id: ID!): [SeasonStat!]!
+
     "The world's Hall-of-Fame inductions so far."
     hallOfFame(id: ID!): [HallOfFameInduction!]!
 
@@ -188,6 +191,17 @@ type PlayerProfile {
 type AttributeValue {
     attribute: String!
     value: Int!
+}
+
+type SeasonStat {
+    season: Int!
+    events: Int!
+    wins: Int!
+    topTens: Int!
+    cuts: Int!
+    "Best (lowest) finishing position across the season's counted events."
+    bestFinish: Int!
+    earnings: Float!
 }
 
 type NewsItem {

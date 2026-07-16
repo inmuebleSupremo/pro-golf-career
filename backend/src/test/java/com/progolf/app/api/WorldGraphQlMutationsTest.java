@@ -186,6 +186,21 @@ class WorldGraphQlMutationsTest {
     }
 
     @Test
+    void playerSeasonStatsReportsEachSeasonCompeted() {
+        WorldSession session = worldService.create(OWNER, 25L, SMALL);
+        String golferId = session.world().activeGolferIds().get(0);
+        worldService.assignPlayer(OWNER, session.id(), golferId);
+        worldService.advanceSeason(OWNER, session.id()); // season 1 is played out
+
+        graphQlTester.document("query($id: ID!){ playerSeasonStats(id: $id){ season events wins topTens earnings } }")
+                .variable("id", session.id()).execute()
+                .path("playerSeasonStats").entityList(Object.class).satisfies(l -> assertThat(l).isNotEmpty())
+                .path("playerSeasonStats[0].season").entity(Integer.class).isEqualTo(1)
+                .path("playerSeasonStats[0].events").entity(Integer.class)
+                .satisfies(e -> assertThat(e).isGreaterThan(0));
+    }
+
+    @Test
     void newsFeedReportsRecentWorldNewsMostRecentFirst() {
         WorldSession session = worldService.create(OWNER, 24L, SMALL);
         worldService.advanceSeason(OWNER, session.id()); // a full season generates tournament results + milestones

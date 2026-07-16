@@ -13,6 +13,7 @@ import { useAdvanceWeek } from "@/lib/api/play";
 import { isNotFound, isUnauthorized } from "@/lib/api/graphql-client";
 import {
   eventPrestigeLabel,
+  formatMoney,
   goalLabel,
   goalProgressRatio,
   goalProgressText,
@@ -34,6 +35,15 @@ type NewsItem = {
   headline: string;
   prominence: number;
   subjectGolferId: string | null;
+};
+type SeasonStat = {
+  season: number;
+  events: number;
+  wins: number;
+  topTens: number;
+  cuts: number;
+  bestFinish: number;
+  earnings: number;
 };
 
 export function CareerHub({ id }: { id: string }) {
@@ -70,7 +80,7 @@ export function CareerHub({ id }: { id: string }) {
     );
   }
 
-  const { world, careerGoals, playerSchedule, newsFeed } = data;
+  const { world, careerGoals, playerSchedule, newsFeed, playerSeasonStats } = data;
 
   // Defensive: the backend throws NOT_FOUND (handled above) rather than returning a
   // null world, but the field is nullable in the schema, so guard it.
@@ -110,6 +120,7 @@ export function CareerHub({ id }: { id: string }) {
       <CareerGoals id={id} goals={careerGoals} />
       <LatestNews news={newsFeed} playerGolferId={profile?.golferId ?? null} />
       <UpcomingSchedule schedule={playerSchedule} />
+      <SeasonsTable seasons={playerSeasonStats} />
     </div>
   );
 }
@@ -243,6 +254,62 @@ function ScheduleRow({ entry }: { entry: ScheduleEntry }) {
       </span>
     </li>
   );
+}
+
+function SeasonsTable({ seasons }: { seasons: SeasonStat[] }) {
+  if (seasons.length === 0) return null;
+  const rows = [...seasons].reverse(); // most recent season first
+
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="font-serif text-xl font-medium">Seasons</h2>
+      <div className="border-border bg-surface overflow-x-auto rounded-lg border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-subtle-foreground border-divider border-b text-xs tracking-[0.06em] uppercase">
+              <th className="px-4 py-3 text-left font-medium">Season</th>
+              <NumHead>Events</NumHead>
+              <NumHead>Wins</NumHead>
+              <NumHead>Top 10s</NumHead>
+              <NumHead>Cuts</NumHead>
+              <NumHead>Best</NumHead>
+              <NumHead>Earnings</NumHead>
+            </tr>
+          </thead>
+          <tbody className="divide-divider divide-y">
+            {rows.map((s) => (
+              <tr key={s.season}>
+                <td className="px-4 py-3 font-medium">Season {s.season}</td>
+                <NumCell>{s.events}</NumCell>
+                <NumCell>{s.wins}</NumCell>
+                <NumCell>{s.topTens}</NumCell>
+                <NumCell>{s.cuts}</NumCell>
+                <NumCell>{ordinalFinish(s.bestFinish)}</NumCell>
+                <NumCell>{formatMoney(s.earnings)}</NumCell>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function NumHead({ children }: { children: React.ReactNode }) {
+  return <th className="px-4 py-3 text-right font-medium">{children}</th>;
+}
+
+function NumCell({ children }: { children: React.ReactNode }) {
+  return <td className="text-foreground px-4 py-3 text-right font-mono tabular-nums">{children}</td>;
+}
+
+/** A finishing position as an ordinal (1 → "1st"); a win reads better than a bare "1". */
+function ordinalFinish(position: number): string {
+  const suffix =
+    position % 100 >= 11 && position % 100 <= 13
+      ? "th"
+      : (["th", "st", "nd", "rd"][position % 10] ?? "th");
+  return `${position}${suffix}`;
 }
 
 function LatestNews({

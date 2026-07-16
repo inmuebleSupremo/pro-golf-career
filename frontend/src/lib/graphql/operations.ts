@@ -103,6 +103,15 @@ export const CareerOverviewDocument = graphql(`
       prominence
       subjectGolferId
     }
+    playerSeasonStats(id: $id) {
+      season
+      events
+      wins
+      topTens
+      cuts
+      bestFinish
+      earnings
+    }
   }
 `);
 
