@@ -20,7 +20,7 @@
 
 ## 4. Reward normalization (balance)
 
-- [ ] 4.1 Per-season reward normalization — **PAUSED for user decision.** The ~2× density did NOT break any balance/behavior suite (see 4.2), so the a-priori rationale (protect tuned balance) may not require action; a global reward down-scale would corrupt small-config balance, and a structured-only scale is speculative. Deciding whether to implement vs. accept density-natural growth.
+- [x] 4.1 Per-season reward normalization — **RESOLVED: SKIP (user decision).** The ~2× density broke no balance/behavior suite (4.2), so rewards are left as-is: more events → more earnings/points (density-natural growth, realistic). A global down-scale would have corrupted small-config balance and a structured-only scale was speculative. Revisit only if playtesting shows career inflation.
 - [x] 4.2 Balance/behavior suites (HoF election timing `WorldHallOfFameTest`, longevity `WorldLongevityTest`, economy `WorldEconomyTest`/`WorldEconomyStakesTest`, scale `WorldScaleTest`) all pass at the new density — 523 tests green.
 
 ## 5. Tests
@@ -33,5 +33,5 @@
 
 ## 6. Wrap-up
 
-- [ ] 6.1 Run the full backend suite; fix any fallout from the enum/weighting changes.
-- [ ] 6.2 Verify the frontend still renders the schedule and the new prestige label (no schema break; regenerate types if the enum surfaces in a typed field).
+- [x] 6.1 Full backend suite green — 523 tests, no fallout from the enum/weighting changes.
+- [ ] 6.2 Frontend prestige label for `TOUR_CHAMPIONSHIP` — DEFERRED to branch convergence on develop (no frontend on this branch; the label map falls back to the raw enum name meanwhile, so nothing breaks).
