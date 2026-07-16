@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -40,6 +40,7 @@ type LeaderboardRow = {
 };
 type Outcome = {
   finalSurface: string;
+  carry: number;
   distanceRemaining: number;
   hazardEntered: boolean;
   penaltyStrokes: number;
@@ -120,7 +121,12 @@ export function PlayEvent({ id }: { id: string }) {
           <Leaderboard rows={leaderboard} playerGolferId={playerGolferId} />
         </div>
       ) : (
-        <EventComplete id={id} leaderboard={leaderboard} playerGolferId={playerGolferId} />
+        <EventComplete
+          id={id}
+          leaderboard={leaderboard}
+          playerGolferId={playerGolferId}
+          madeCut={data.playerMadeCut ?? null}
+        />
       )}
     </div>
   );
@@ -232,13 +238,24 @@ function ShotDecision({ id, situation }: { id: string; situation: Situation }) {
 }
 
 function OutcomeNote({ outcome }: { outcome: Outcome }) {
+  const holed = outcome.distanceRemaining <= 0;
   return (
-    <div className="border-border bg-background rounded-md border px-4 py-3 text-sm">
-      <span className="font-medium">{humanize(outcome.finalSurface)}</span>
+    <div className="border-border bg-background flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-4 py-3 text-sm">
       <span className="text-muted-foreground">
-        {" "}
-        · {Math.round(outcome.distanceRemaining)} to the pin
+        Carried <span className="text-foreground font-mono tabular-nums">{Math.round(outcome.carry)}</span> yds to{" "}
       </span>
+      <span className="font-medium">{humanize(outcome.finalSurface)}</span>
+      {holed ? (
+        <span className="text-success font-medium">· holed</span>
+      ) : (
+        <span className="text-muted-foreground">
+          · <span className="text-foreground font-mono tabular-nums">{Math.round(outcome.distanceRemaining)}</span> to
+          the pin
+        </span>
+      )}
+      {outcome.hazardEntered ? (
+        <span className="text-destructive font-medium">· hazard</span>
+      ) : null}
       {outcome.penaltyStrokes > 0 ? (
         <span className="text-destructive"> · +{outcome.penaltyStrokes} penalty</span>
       ) : null}
@@ -335,13 +352,16 @@ function EventComplete({
   id,
   leaderboard,
   playerGolferId,
+  madeCut,
 }: {
   id: string;
   leaderboard: LeaderboardRow[];
   playerGolferId: string | null;
+  madeCut: boolean | null;
 }) {
   const router = useRouter();
   const complete = useCompleteEvent(id);
+  const playerRow = playerGolferId ? leaderboard.find((r) => r.golfer.id === playerGolferId) : null;
 
   async function onFinish() {
     await complete.mutateAsync();
@@ -351,14 +371,15 @@ function EventComplete({
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col items-center gap-3 py-8 text-center">
+      <div className="flex flex-col items-center gap-4 py-8 text-center">
         <p className="text-subtle-foreground font-mono text-xs tracking-[0.18em] uppercase">
           Event complete
         </p>
-        <h1 className="font-serif text-3xl font-medium tracking-[-0.01em]">That&apos;s a wrap</h1>
-        <p className="text-muted-foreground max-w-sm text-sm">
-          Record the result and resume your season.
-        </p>
+        {playerRow ? (
+          <ResultSummary row={playerRow} madeCut={madeCut} />
+        ) : (
+          <h1 className="font-serif text-3xl font-medium tracking-[-0.01em]">That&apos;s a wrap</h1>
+        )}
         <Button size="lg" onClick={onFinish} disabled={complete.isPending}>
           {complete.isPending ? "Finishing…" : "Finish event"}
         </Button>
@@ -366,6 +387,36 @@ function EventComplete({
       <Leaderboard rows={leaderboard} playerGolferId={playerGolferId} />
     </div>
   );
+}
+
+function ResultSummary({ row, madeCut }: { row: LeaderboardRow; madeCut: boolean | null }) {
+  const missedCut = madeCut === false;
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <h1 className="font-serif text-3xl font-medium tracking-[-0.01em]">
+        {missedCut ? "Missed the cut" : `Finished ${ordinal(row.position)}`}
+      </h1>
+      <p className="text-muted-foreground">
+        <span className="text-foreground font-mono tabular-nums">{formatScore(row.score)}</span> for the event
+      </p>
+          {/* madeCut is only meaningful once the cut has been evaluated; null (early rounds) shows nothing. */}
+      {madeCut === true ? (
+        <span className="bg-success/[0.12] text-success mt-1 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium">
+          <Check className="size-3.5" aria-hidden="true" />
+          Made the cut
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/** A leaderboard position as an ordinal, e.g. 1 → "1st", 12 → "12th". */
+function ordinal(position: number): string {
+  const suffix =
+    position % 100 >= 11 && position % 100 <= 13
+      ? "th"
+      : ["th", "st", "nd", "rd"][position % 10] ?? "th";
+  return `${position}${suffix}`;
 }
 
 function PlayMessage({ id, title, body }: { id: string; title: string; body: string }) {

@@ -306,6 +306,7 @@ export const PlayStateDocument = graphql(`
       score
       roundsPlayed
     }
+    playerMadeCut(id: $id)
   }
 `);
 
