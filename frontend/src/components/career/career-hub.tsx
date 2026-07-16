@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { GolferHeader } from "@/components/career/golfer-header";
+import { GoalsEditor } from "@/components/career/goals-editor";
 import { useCareerOverview, usePlayerProfile } from "@/lib/api/queries";
 import { useAdvanceWeek } from "@/lib/api/play";
 import { isNotFound, isUnauthorized } from "@/lib/api/graphql-client";
@@ -99,7 +100,7 @@ export function CareerHub({ id }: { id: string }) {
         </div>
       </div>
 
-      <CareerGoals goals={careerGoals} />
+      <CareerGoals id={id} goals={careerGoals} />
       <UpcomingSchedule schedule={playerSchedule} />
     </div>
   );
@@ -133,12 +134,23 @@ function AdvanceControl({ id, hasPendingEvent }: { id: string; hasPendingEvent: 
   );
 }
 
-function CareerGoals({ goals }: { goals: Goal[] }) {
+function CareerGoals({ id, goals }: { id: string; goals: Goal[] }) {
+  const [editing, setEditing] = useState(false);
+
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="font-serif text-xl font-medium">Career goals</h2>
-      {goals.length === 0 ? (
-        <EmptyNote>No goals set for this career.</EmptyNote>
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="font-serif text-xl font-medium">Career goals</h2>
+        {!editing ? (
+          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+            {goals.length === 0 ? "Set goals" : "Edit"}
+          </Button>
+        ) : null}
+      </div>
+      {editing ? (
+        <GoalsEditor id={id} goals={goals} onDone={() => setEditing(false)} />
+      ) : goals.length === 0 ? (
+        <EmptyNote>No goals set yet — choose what this career is chasing.</EmptyNote>
       ) : (
         <ul className="divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border">
           {goals.map((goal, i) => (

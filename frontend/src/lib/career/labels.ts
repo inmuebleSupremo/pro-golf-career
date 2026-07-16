@@ -46,6 +46,26 @@ export function isBooleanGoal(type: string): boolean {
   return BOOLEAN_GOAL_TYPES.has(type);
 }
 
+export type GoalTargetKind = "count" | "money";
+
+export interface GoalOption {
+  type: string;
+  /** Targeted goals carry a numeric target; boolean goals are simply on (target 1). */
+  targeted: boolean;
+  targetKind?: GoalTargetKind;
+  defaultTarget?: number;
+}
+
+/** The self-chooseable career goals, in display order. Mirrors the engine GoalType (target ≥ 1). */
+export const GOAL_OPTIONS: readonly GoalOption[] = [
+  { type: "REACH_TOP_TOUR", targeted: false },
+  { type: "WORLD_NUMBER_ONE", targeted: false },
+  { type: "WIN_A_MAJOR", targeted: true, targetKind: "count", defaultTarget: 1 },
+  { type: "CAREER_WINS", targeted: true, targetKind: "count", defaultTarget: 5 },
+  { type: "CAREER_EARNINGS", targeted: true, targetKind: "money", defaultTarget: 1_000_000 },
+  { type: "HALL_OF_FAME", targeted: false },
+];
+
 const moneyFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",

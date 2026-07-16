@@ -124,6 +124,13 @@ export const PlayerProfileDocument = graphql(`
   }
 `);
 
+/** Sets the player's self-chosen career goals (replaces the current set). */
+export const SetCareerGoalsDocument = graphql(`
+  mutation SetCareerGoals($id: ID!, $goals: [CareerGoalInput!]!) {
+    setCareerGoals(id: $id, goals: $goals)
+  }
+`);
+
 /* --- Manage: schedule & availability (skip/enter events, rest the golfer). --- */
 
 /** The player's full reviewable schedule — the manage view's source of truth for entered state. */
