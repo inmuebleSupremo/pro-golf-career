@@ -10,6 +10,7 @@ import java.util.Objects;
  */
 public record TournamentResult(
         String tournamentName,
+        long tournamentId,
         List<Finish> finishingOrder,
         ProfessionalGolfer winner,
         CutResult cutResult) {
@@ -44,7 +45,7 @@ public record TournamentResult(
      * rebuilt registry on restore. It lives here (not in the world package) so the world never imports the
      * shot engine even though a finish carries a shot-stat line.
      */
-    public record Snapshot(String tournamentName, List<FinishSnapshot> finishes, String winnerId,
+    public record Snapshot(String tournamentName, long tournamentId, List<FinishSnapshot> finishes, String winnerId,
                            CutResult cutResult) {
 
         public record FinishSnapshot(String golferId, int position, int score, boolean madeCut, boolean withdrawn,
@@ -56,7 +57,8 @@ public record TournamentResult(
                     .map(f -> new FinishSnapshot(f.golfer().player().id(), f.position(), f.score(), f.madeCut(),
                             f.withdrawn(), f.prize(), f.shotStats()))
                     .toList();
-            return new Snapshot(result.tournamentName(), finishes, result.winner().player().id(), result.cutResult());
+            return new Snapshot(result.tournamentName(), result.tournamentId(), finishes,
+                    result.winner().player().id(), result.cutResult());
         }
 
         public TournamentResult restore(java.util.Map<String, ProfessionalGolfer> registry) {
@@ -64,7 +66,7 @@ public record TournamentResult(
                     .map(f -> new Finish(require(registry, f.golferId()), f.position(), f.score(), f.madeCut(),
                             f.withdrawn(), f.prize(), f.shotStats()))
                     .toList();
-            return new TournamentResult(tournamentName, rebuilt, require(registry, winnerId), cutResult);
+            return new TournamentResult(tournamentName, tournamentId, rebuilt, require(registry, winnerId), cutResult);
         }
 
         private static ProfessionalGolfer require(java.util.Map<String, ProfessionalGolfer> registry, String id) {

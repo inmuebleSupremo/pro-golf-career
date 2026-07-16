@@ -26,6 +26,6 @@ final class RankingFixtures {
         for (int i = 0; i < order.size(); i++) {
             finishes.add(new TournamentResult.Finish(order.get(i), i + 1, -(order.size() - i), true, false, 0.0));
         }
-        return new TournamentResult(name, finishes, order.get(0), new CutResult(false, 0, order.size()));
+        return new TournamentResult(name, 0L, finishes, order.get(0), new CutResult(false, 0, order.size()));
     }
 }

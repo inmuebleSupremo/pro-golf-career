@@ -524,7 +524,7 @@ public final class World {
         int cutSize = Math.max(1, (int) Math.round(field.size() * TournamentConstants.CUT_FRACTION));
         TournamentFormat format = new TournamentFormat(TournamentConstants.ROUNDS, true, cutSize);
         TournamentDefinition def = new TournamentDefinition(
-                eventName(event, tier), course, tier, event.prestige(),
+                nameFor(event), course, tier, event.prestige(),
                 new EntryRequirements(config.fieldSize(), true),
                 PrizeStructure.forEvent(tier, event.prestige(), cutSize), format, date,
                 masterSeed, season, event.tournamentId());
@@ -1036,14 +1036,27 @@ public final class World {
                 .toList();
     }
 
-    /** The display name for a scheduled event, distinguishing majors and signature events. */
-    private static String eventName(ScheduledTournament event, Tier tier) {
-        return switch (event.prestige()) {
-            case MAJOR -> "Major Championship #" + event.tournamentId();
-            case TOUR_CHAMPIONSHIP -> tier + " Tour Championship #" + event.tournamentId();
-            case SIGNATURE -> tier + " Signature #" + event.tournamentId();
-            case REGULAR -> tier + " Event #" + event.tournamentId();
-        };
+    /**
+     * The realistic display name for a scheduled event (spec: world-schedule) — deterministic, so an event
+     * reads the same on the upcoming schedule and in its completed result. Majors carry fixed fictional names
+     * ordered by their place in the season; other events take their tour or venue.
+     */
+    public String nameFor(ScheduledTournament event) {
+        Course course = coursePool.get(event.courseIndex());
+        return EventNaming.name(event.prestige(), event.tier(), course, majorOrdinal(event));
+    }
+
+    /** An event's 0-based position among the season's majors (-1 when it is not a major), stable by week then id. */
+    private int majorOrdinal(ScheduledTournament event) {
+        if (event.prestige() != EventPrestige.MAJOR) {
+            return -1;
+        }
+        List<ScheduledTournament> majors = schedule.stream()
+                .filter(e -> e.prestige() == EventPrestige.MAJOR)
+                .sorted(Comparator.comparingInt(ScheduledTournament::week)
+                        .thenComparingLong(ScheduledTournament::tournamentId))
+                .toList();
+        return majors.indexOf(event);
     }
 
     // --- Accessors (read-only) ---
@@ -1332,7 +1345,7 @@ public final class World {
                     || tier.map(t -> t == event.tier()).orElse(false);
             if (eligibleByTour) {
                 out.add(new PlayerScheduleEntry(event.tournamentId(), event.week(), event.tier(),
-                        event.prestige(), !playerSitsOut(event)));
+                        event.prestige(), !playerSitsOut(event), nameFor(event)));
             }
         }
         return out;

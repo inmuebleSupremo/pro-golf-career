@@ -160,6 +160,8 @@ type ScheduleEntry {
     tier: String!
     prestige: String!
     entered: Boolean!
+    "The event's realistic display name."
+    name: String!
 }
 
 type CareerGoal {

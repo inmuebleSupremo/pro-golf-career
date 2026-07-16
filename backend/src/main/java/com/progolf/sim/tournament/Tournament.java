@@ -585,7 +585,7 @@ public final class Tournament {
         finishes.sort(Comparator.comparingInt(TournamentResult.Finish::position)
                 .thenComparingInt(f -> indexOf(f.golfer())));
 
-        result = new TournamentResult(definition.name(), finishes, winner, cutResult);
+        result = new TournamentResult(definition.name(), definition.tournamentId(), finishes, winner, cutResult);
         state = TournamentState.COMPLETED;
     }
 
