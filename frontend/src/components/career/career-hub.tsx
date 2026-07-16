@@ -8,7 +8,7 @@ import { ArrowLeft, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GolferHeader } from "@/components/career/golfer-header";
 import { GoalsEditor } from "@/components/career/goals-editor";
-import { useCareerOverview, usePlayerProfile } from "@/lib/api/queries";
+import { useCareerOverview, useHallOfFame, usePlayerProfile } from "@/lib/api/queries";
 import { useAdvanceWeek } from "@/lib/api/play";
 import { isNotFound, isUnauthorized } from "@/lib/api/graphql-client";
 import {
@@ -45,11 +45,19 @@ type SeasonStat = {
   bestFinish: number;
   earnings: number;
 };
+type Induction = {
+  golferId: string;
+  name: string;
+  season: number;
+  score: number;
+  careerWins: number;
+};
 
 export function CareerHub({ id }: { id: string }) {
   const router = useRouter();
   const { data, isPending, isError, error } = useCareerOverview(id);
   const profile = usePlayerProfile(id).data?.playerProfile ?? null;
+  const hallOfFame = useHallOfFame(id).data?.hallOfFame ?? [];
 
   useEffect(() => {
     if (isError && isUnauthorized(error)) {
@@ -121,6 +129,7 @@ export function CareerHub({ id }: { id: string }) {
       <LatestNews news={newsFeed} playerGolferId={profile?.golferId ?? null} />
       <UpcomingSchedule schedule={playerSchedule} />
       <SeasonsTable seasons={playerSeasonStats} />
+      <HallOfFameSection inductions={hallOfFame} playerGolferId={profile?.golferId ?? null} />
     </div>
   );
 }
@@ -251,6 +260,51 @@ function ScheduleRow({ entry }: { entry: ScheduleEntry }) {
         className={`shrink-0 text-sm ${entry.entered ? "text-foreground" : "text-subtle-foreground"}`}
       >
         {entry.entered ? "Entered" : "Skipped"}
+      </span>
+    </li>
+  );
+}
+
+function HallOfFameSection({
+  inductions,
+  playerGolferId,
+}: {
+  inductions: Induction[];
+  playerGolferId: string | null;
+}) {
+  if (inductions.length === 0) return null;
+
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="font-serif text-xl font-medium">Hall of Fame</h2>
+      <ul className="divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border">
+        {inductions.map((induction) => (
+          <InductionRow
+            key={induction.golferId}
+            induction={induction}
+            isPlayer={playerGolferId != null && induction.golferId === playerGolferId}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function InductionRow({ induction, isPlayer }: { induction: Induction; isPlayer: boolean }) {
+  return (
+    <li className={`flex items-center justify-between gap-4 px-5 py-4 ${isPlayer ? "bg-primary/[0.06]" : ""}`}>
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="flex items-center gap-2">
+          <span className={`truncate font-medium ${isPlayer ? "text-primary" : ""}`}>{induction.name}</span>
+          {isPlayer ? <span className="text-subtle-foreground text-xs">(you)</span> : null}
+        </span>
+        <span className="text-muted-foreground text-sm">
+          Inducted Season {induction.season} · {induction.careerWins}{" "}
+          {induction.careerWins === 1 ? "win" : "wins"}
+        </span>
+      </div>
+      <span className="text-subtle-foreground shrink-0 font-mono text-sm tabular-nums">
+        {Math.round(induction.score)}
       </span>
     </li>
   );

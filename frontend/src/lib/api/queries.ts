@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { gqlRequest } from "@/lib/api/graphql-client";
 import {
   CareerOverviewDocument,
+  HallOfFameDocument,
   ListSavesDocument,
   PlayerProfileDocument,
 } from "@/lib/graphql/operations";
@@ -34,6 +35,16 @@ export function usePlayerProfile(id: string) {
   return useQuery({
     queryKey: ["profile", id],
     queryFn: () => gqlRequest(PlayerProfileDocument, { id }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The world's Hall-of-Fame inductions (name-enriched). */
+export function useHallOfFame(id: string) {
+  return useQuery({
+    queryKey: ["hallOfFame", id],
+    queryFn: () => gqlRequest(HallOfFameDocument, { id }),
     networkMode: "always",
     retry: false,
   });

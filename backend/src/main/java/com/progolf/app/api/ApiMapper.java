@@ -4,7 +4,6 @@ import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.CareerGoalInput;
 import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.GolferDto;
-import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.LeaderboardRowDto;
 import com.progolf.app.api.dto.NewsItemDto;
 import com.progolf.app.api.dto.RoundScorecardDto;
@@ -18,7 +17,6 @@ import com.progolf.app.api.dto.SponsorshipOfferDto;
 import com.progolf.app.api.dto.StaffMemberDto;
 import com.progolf.app.api.dto.WorldConfigInput;
 import com.progolf.app.persistence.SaveMetadata;
-import com.progolf.sim.career.HallOfFameInduction;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.control.GoalType;
 import com.progolf.sim.core.Attribute;
@@ -67,10 +65,6 @@ public final class ApiMapper {
 
     public static CareerGoalDto careerGoal(CareerGoalProgress p) {
         return new CareerGoalDto(p.goal().type().name(), p.target(), p.current(), p.achieved());
-    }
-
-    public static HallOfFameDto hallOfFame(HallOfFameInduction i) {
-        return new HallOfFameDto(i.golferId(), i.season(), i.score());
     }
 
     public static SponsorshipOfferDto sponsorship(SponsorshipOffer o) {

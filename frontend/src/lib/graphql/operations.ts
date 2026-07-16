@@ -115,6 +115,19 @@ export const CareerOverviewDocument = graphql(`
   }
 `);
 
+/** The world's Hall-of-Fame inductions (name-enriched), for the legacy view. */
+export const HallOfFameDocument = graphql(`
+  query HallOfFame($id: ID!) {
+    hallOfFame(id: $id) {
+      golferId
+      name
+      season
+      score
+      careerWins
+    }
+  }
+`);
+
 /** The player's golfer profile — identity, attributes, ranking, earnings; null when no player. */
 export const PlayerProfileDocument = graphql(`
   query PlayerProfile($id: ID!) {

@@ -216,8 +216,11 @@ type NewsItem {
 
 type HallOfFameInduction {
     golferId: ID!
+    name: String!
     season: Int!
+    "The prestige-weighted score the golfer was inducted on."
     score: Float!
+    careerWins: Int!
 }
 
 type SponsorshipOffer {

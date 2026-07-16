@@ -1,6 +1,7 @@
 package com.progolf.app.world;
 
 import com.progolf.app.api.dto.AttributeValueDto;
+import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.persistence.SaveGame;
@@ -225,8 +226,17 @@ public class WorldService {
     }
 
     /** The Hall-of-Fame inductions so far (spec: career-legacy). */
-    public List<HallOfFameInduction> hallOfFame(String ownerId, String sessionId) {
-        return required(ownerId, sessionId).world().hallOfFameInductions();
+    public List<HallOfFameDto> hallOfFame(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        List<HallOfFameDto> inductions = new ArrayList<>();
+        for (HallOfFameInduction i : world.hallOfFameInductions()) {
+            // Inductees keep their career permanently; fall back to the id if one is somehow absent.
+            Career career = world.careerOf(i.golferId());
+            String name = career != null ? career.player().identity().fullName() : i.golferId();
+            int careerWins = world.careerStatisticsOf(i.golferId()).wins();
+            inductions.add(new HallOfFameDto(i.golferId(), name, i.season(), i.score(), careerWins));
+        }
+        return inductions;
     }
 
     /** The most recent {@code limit} world news items, most recent first (the between-events feedback feed). */

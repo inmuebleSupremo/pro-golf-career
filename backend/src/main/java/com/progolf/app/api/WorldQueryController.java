@@ -81,7 +81,8 @@ public class WorldQueryController {
 
     @QueryMapping
     public List<HallOfFameDto> hallOfFame(@Argument String id) {
-        return ApiMapper.mapList(worldService.hallOfFame(AuthenticatedUser.requireId(), id), ApiMapper::hallOfFame);
+        // Name-enriched in WorldService (needs the world to resolve golfer names), so no ApiMapper step.
+        return worldService.hallOfFame(AuthenticatedUser.requireId(), id);
     }
 
     @QueryMapping
