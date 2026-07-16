@@ -64,7 +64,7 @@ class WorldPlayerSchedulingTest {
         // The skipped major resolved automatically, without the player among its finishers...
         SeasonArchive season1 = world.archives().get(0);
         var skippedResult = season1.results().stream()
-                .filter(r -> r.tournamentName().endsWith("#" + skipped)).findFirst().orElseThrow();
+                .filter(r -> r.tournamentId() == skipped).findFirst().orElseThrow();
         assertThat(skippedResult.finishingOrder()).noneMatch(f -> f.golfer().player().id().equals(id));
         // ...while the player still played their other entered events.
         assertThat(world.careerStatisticsOf(id).events()).isGreaterThan(0);

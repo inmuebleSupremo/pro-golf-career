@@ -95,6 +95,7 @@ export const CareerOverviewDocument = graphql(`
       tier
       prestige
       entered
+      name
     }
     newsFeed(id: $id, limit: 12) {
       season
@@ -172,6 +173,45 @@ export const PlayerScheduleDocument = graphql(`
       tier
       prestige
       entered
+      name
+    }
+  }
+`);
+
+/** The player's season calendar with per-event results — the calendar page's source of truth. */
+export const PlayerCalendarDocument = graphql(`
+  query PlayerCalendar($id: ID!) {
+    playerCalendar(id: $id) {
+      tournamentId
+      week
+      tier
+      prestige
+      entered
+      name
+      played
+      result {
+        winner {
+          position
+          name
+          score
+          madeCut
+          earnings
+        }
+        topThree {
+          position
+          name
+          score
+          madeCut
+          earnings
+        }
+        playerFinish {
+          position
+          name
+          score
+          madeCut
+          earnings
+        }
+      }
     }
   }
 `);

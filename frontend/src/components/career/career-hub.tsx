@@ -28,6 +28,7 @@ type ScheduleEntry = {
   tier: string;
   prestige: string;
   entered: boolean;
+  name: string;
 };
 type NewsItem = {
   season: number;
@@ -133,7 +134,7 @@ export function CareerHub({ id }: { id: string }) {
 
       <CareerGoals id={id} goals={careerGoals} />
       <LatestNews news={newsFeed} playerGolferId={profile?.golferId ?? null} />
-      <UpcomingSchedule schedule={playerSchedule} />
+      <UpcomingSchedule id={id} schedule={playerSchedule} currentWeek={world.week} />
       <SeasonsTable seasons={playerSeasonStats} />
       <HallOfFameSection inductions={hallOfFame} playerGolferId={profile?.golferId ?? null} />
     </div>
@@ -260,13 +261,32 @@ function GoalRow({ goal }: { goal: Goal }) {
   );
 }
 
-function UpcomingSchedule({ schedule }: { schedule: ScheduleEntry[] }) {
-  const upcoming = schedule.slice(0, 8);
+function UpcomingSchedule({
+  id,
+  schedule,
+  currentWeek,
+}: {
+  id: string;
+  schedule: ScheduleEntry[];
+  currentWeek: number;
+}) {
+  const upcoming = [...schedule]
+    .filter((e) => e.week >= currentWeek)
+    .sort((a, b) => a.week - b.week)
+    .slice(0, 6);
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="font-serif text-xl font-medium">Upcoming</h2>
-      {schedule.length === 0 ? (
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="font-serif text-xl font-medium">Upcoming</h2>
+        <Link
+          href={`/career/${id}/calendar`}
+          className="text-accent text-sm underline-offset-4 hover:underline"
+        >
+          Full calendar
+        </Link>
+      </div>
+      {upcoming.length === 0 ? (
         <EmptyNote>No upcoming events on the calendar.</EmptyNote>
       ) : (
         <ul className="divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border">
@@ -280,17 +300,14 @@ function UpcomingSchedule({ schedule }: { schedule: ScheduleEntry[] }) {
 }
 
 function ScheduleRow({ entry }: { entry: ScheduleEntry }) {
-  const isMajor = entry.prestige === "MAJOR";
+  const marquee = entry.prestige === "MAJOR" || entry.prestige === "TOUR_CHAMPIONSHIP";
 
   return (
     <li className="flex items-center justify-between gap-4 px-5 py-4">
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="font-medium">Week {entry.week}</span>
+        <span className={`truncate font-medium ${marquee ? "text-accent" : ""}`}>{entry.name}</span>
         <span className="text-muted-foreground text-sm">
-          {tourTierLabel(entry.tier)} tour ·{" "}
-          <span className={isMajor ? "text-accent font-medium" : undefined}>
-            {eventPrestigeLabel(entry.prestige)}
-          </span>
+          Week {entry.week} · {tourTierLabel(entry.tier)} tour · {eventPrestigeLabel(entry.prestige)}
         </span>
       </div>
       <span

@@ -8,6 +8,7 @@ import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.SaveDto;
 import com.progolf.app.api.dto.ScheduleEntryDto;
 import com.progolf.app.api.dto.NewsItemDto;
+import com.progolf.app.api.dto.CalendarEntryDto;
 import com.progolf.app.api.dto.RoundScorecardDto;
 import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.ShotSituationDto;
@@ -50,6 +51,15 @@ public class WorldQueryController {
             return List.of();
         }
         return ApiMapper.mapList(worldService.playerSchedule(owner, id), ApiMapper::schedule);
+    }
+
+    @QueryMapping
+    public List<CalendarEntryDto> playerCalendar(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return List.of();
+        }
+        return worldService.playerCalendar(owner, id);
     }
 
     @QueryMapping

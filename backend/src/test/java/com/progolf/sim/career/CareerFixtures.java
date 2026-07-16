@@ -31,10 +31,10 @@ final class CareerFixtures {
         if (position == 1) {
             finishes.add(new TournamentResult.Finish(subject, 1, -5, true, false, prize));
             finishes.add(new TournamentResult.Finish(filler, 2, -3, true, false, 0.0));
-            return new TournamentResult(name, finishes, subject, new CutResult(false, 0, 2));
+            return new TournamentResult(name, 0L, finishes, subject, new CutResult(false, 0, 2));
         }
         finishes.add(new TournamentResult.Finish(filler, 1, -5, true, false, 0.0));
         finishes.add(new TournamentResult.Finish(subject, position, 0, madeCut, withdrawn, prize));
-        return new TournamentResult(name, finishes, filler, new CutResult(false, 0, 2));
+        return new TournamentResult(name, 0L, finishes, filler, new CutResult(false, 0, 2));
     }
 }

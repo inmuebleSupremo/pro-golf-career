@@ -14,6 +14,7 @@ type ScheduleEntry = {
   tier: string;
   prestige: string;
   entered: boolean;
+  name: string;
 };
 
 /**
@@ -74,9 +75,9 @@ function ScheduleRow({ id, entry }: { id: string; entry: ScheduleEntry }) {
   return (
     <li className="flex items-center justify-between gap-4 px-5 py-4">
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="font-medium">Week {entry.week}</span>
+        <span className={`truncate font-medium ${isMajor ? "text-accent" : ""}`}>{entry.name}</span>
         <span className="text-muted-foreground text-sm">
-          {tourTierLabel(entry.tier)} tour ·{" "}
+          Week {entry.week} · {tourTierLabel(entry.tier)} tour ·{" "}
           <span className={isMajor ? "text-accent font-medium" : undefined}>
             {eventPrestigeLabel(entry.prestige)}
           </span>

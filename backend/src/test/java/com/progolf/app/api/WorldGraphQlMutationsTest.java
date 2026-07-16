@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.progolf.app.world.WorldService;
 import com.progolf.app.world.WorldSession;
 import com.progolf.sim.world.WorldConfig;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.graphql.tester.AutoConfigureGraphQlTester;
@@ -209,6 +210,49 @@ class WorldGraphQlMutationsTest {
                 .variable("id", session.id()).execute()
                 .path("newsFeed").entityList(Object.class).satisfies(l -> assertThat(l).isNotEmpty())
                 .path("newsFeed[0].headline").entity(String.class).satisfies(h -> assertThat(h).isNotBlank());
+    }
+
+    @Test
+    void playerCalendarNamesEventsAndReportsPlayedResults() {
+        WorldSession session = worldService.create(OWNER, 26L, SMALL);
+        String golferId = session.world().activeGolferIds().get(0);
+        worldService.assignPlayer(OWNER, session.id(), golferId);
+
+        int guard = 0;
+        while (!worldService.hasPendingEvent(OWNER, session.id()) && guard++ < 60) {
+            worldService.advanceWeek(OWNER, session.id());
+        }
+        worldService.simEvent(OWNER, session.id());
+        worldService.completeEvent(OWNER, session.id()); // at least one event is now played
+
+        List<CalendarProbe> calendar = graphQlTester.document("""
+                        query($id: ID!){
+                          playerCalendar(id: $id){
+                            name played
+                            result { winner { position name score madeCut earnings }
+                                     topThree { position name score madeCut earnings }
+                                     playerFinish { position name score madeCut earnings } }
+                          }
+                        }
+                        """)
+                .variable("id", session.id()).execute()
+                .path("playerCalendar").entityList(CalendarProbe.class).get();
+
+        assertThat(calendar).isNotEmpty();
+        assertThat(calendar).allSatisfy(e -> assertThat(e.name()).isNotBlank());
+        CalendarProbe played = calendar.stream().filter(CalendarProbe::played).findFirst().orElseThrow();
+        assertThat(played.result()).isNotNull();
+        assertThat(played.result().winner().name()).isNotBlank();
+        assertThat(played.result().topThree()).isNotEmpty();
+    }
+
+    private record CalendarProbe(String name, boolean played, ResultProbe result) {
+    }
+
+    private record ResultProbe(FinisherProbe winner, List<FinisherProbe> topThree, FinisherProbe playerFinish) {
+    }
+
+    private record FinisherProbe(int position, String name, int score, boolean madeCut, double earnings) {
     }
 
     // --- Persistence writes ---

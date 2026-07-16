@@ -94,3 +94,18 @@ export function formatMoney(value: number | string): string {
   const n = Number(value);
   return Number.isFinite(n) ? moneyFormatter.format(n) : String(value);
 }
+
+/** A stroke total relative to par: "E", "+3", or "-8". */
+export function formatScore(score: number): string {
+  if (score === 0) return "E";
+  return score > 0 ? `+${score}` : `${score}`;
+}
+
+/** A finishing position as an ordinal: 1 → "1st", 12 → "12th". */
+export function ordinalPosition(position: number): string {
+  const suffix =
+    position % 100 >= 11 && position % 100 <= 13
+      ? "th"
+      : (["th", "st", "nd", "rd"][position % 10] ?? "th");
+  return `${position}${suffix}`;
+}

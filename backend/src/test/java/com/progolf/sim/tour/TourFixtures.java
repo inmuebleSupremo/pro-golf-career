@@ -26,13 +26,13 @@ final class TourFixtures {
         for (int i = 0; i < order.size(); i++) {
             finishes.add(new TournamentResult.Finish(order.get(i), i + 1, -(order.size() - i), true, false, 0.0));
         }
-        return new TournamentResult(name, finishes, order.get(0), new CutResult(false, 0, order.size()));
+        return new TournamentResult(name, 0L, finishes, order.get(0), new CutResult(false, 0, order.size()));
     }
 
     /** A minimal result in which {@code winner} finishes first. */
     static TournamentResult winFor(ProfessionalGolfer winner) {
         List<TournamentResult.Finish> finishes = List.of(
                 new TournamentResult.Finish(winner, 1, -5, true, false, 0.0));
-        return new TournamentResult("Win", finishes, winner, new CutResult(false, 0, 1));
+        return new TournamentResult("Win", 0L, finishes, winner, new CutResult(false, 0, 1));
     }
 }
