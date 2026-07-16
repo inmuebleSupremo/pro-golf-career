@@ -954,6 +954,24 @@ public final class World {
     }
 
     private List<ScheduledTournament> generateSchedule(int season) {
+        // At the standard scale, use the designed tier-specific cadence (majors at chapter weeks, signature
+        // spotlights, rest weeks, a per-tour championship finale); otherwise a simple proportional schedule
+        // (spec: world-schedule). Both are deterministic — courses/ids are assigned here from the seed order.
+        return SeasonCadence.appliesTo(config) ? generateStructuredSchedule() : generateProportionalSchedule();
+    }
+
+    /** The designed 30-week cadence (spec: world-schedule structured cadence). */
+    private List<ScheduledTournament> generateStructuredSchedule() {
+        List<ScheduledTournament> generated = new ArrayList<>();
+        for (SeasonCadence.Placement p : SeasonCadence.forSeason(config.weeksPerSeason())) {
+            int courseIndex = (int) (nextTournamentId % coursePool.size());
+            generated.add(new ScheduledTournament(p.week(), p.tier(), courseIndex, p.prestige(), nextTournamentId++));
+        }
+        return generated;
+    }
+
+    /** The proportional fallback for non-standard (e.g. small test) seasons (spec: world-schedule degradation). */
+    private List<ScheduledTournament> generateProportionalSchedule() {
         List<ScheduledTournament> generated = new ArrayList<>();
         int events = config.eventsPerTierPerSeason();
         int signature = config.signatureEventsPerTier();

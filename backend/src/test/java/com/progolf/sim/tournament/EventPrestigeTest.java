@@ -48,6 +48,21 @@ class EventPrestigeTest {
     }
 
     @Test
+    void tourChampionshipSitsBetweenSignatureAndMajor() {
+        assertThat(EventPrestige.TOUR_CHAMPIONSHIP.rankingWeight())
+                .isGreaterThan(EventPrestige.SIGNATURE.rankingWeight())
+                .isLessThan(EventPrestige.MAJOR.rankingWeight());
+        assertThat(EventPrestige.TOUR_CHAMPIONSHIP.purseWeight())
+                .isGreaterThan(EventPrestige.SIGNATURE.purseWeight())
+                .isLessThan(EventPrestige.MAJOR.purseWeight());
+        assertThat(EventPrestige.TOUR_CHAMPIONSHIP.isMajor()).isFalse();
+        // Closing-round pressure and course-setup difficulty are likewise ordered between Signature and Major.
+        assertThat(TournamentConstants.PRESSURE_PRESTIGE_TOUR_CHAMPIONSHIP)
+                .isGreaterThan(TournamentConstants.PRESSURE_PRESTIGE_SIGNATURE)
+                .isLessThan(TournamentConstants.PRESSURE_PRESTIGE_MAJOR);
+    }
+
+    @Test
     void aBiggerPursePaysMore() {
         assertThat(PrizeStructure.standard(EventPrestige.MAJOR).amountForPosition(1))
                 .isGreaterThan(PrizeStructure.standard(EventPrestige.SIGNATURE).amountForPosition(1))

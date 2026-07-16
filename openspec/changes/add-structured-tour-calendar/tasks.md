@@ -8,28 +8,28 @@
 
 ## 2. Cadence definition
 
-- [ ] 2.1 Add cadence constants/params to `WorldConstants` / `WorldConfig`: `STRUCTURED_MIN_WEEKS` (~20), target events per tier for the structured path (~14), and the anchor weeks (major weeks, championship weeks per tier, signature spotlight weeks incl. the collision week).
-- [ ] 2.2 Define the season cadence as a declarative template: a set of `{week, tier, prestige}` anchors plus a fill rule that lays Regular events on remaining "on" weeks up to the target density. Keep it seed-independent (courses stay seed-assigned).
-- [ ] 2.3 Encode per-tier rhythm: majors on Elite chapter weeks (still `tier = ELITE`, field cross-tour); Development/Secondary/Primary signature spotlights offset from Elite major weeks; each tour's championship at its final week, Development one week before Elite.
+- [x] 2.1 Cadence constants in `SeasonCadence`: `TARGET_EVENTS_PER_TIER`=14, `MAJOR_WEEKS`={7,14,21,27}, championship weeks (Elite 30 / non-Elite 29), signature spotlight weeks per tier (incl. the week-17 collision), Elite rest weeks. `appliesTo(config)` gates on the standard 30-week / 4-major profile.
+- [x] 2.2 Declarative template: `SeasonCadence.forSeason` places anchors (majors/championship/signatures) then fills Regulars evenly on remaining eligible weeks (excluding anchors + rest weeks) to the target density. Seed-independent; World assigns courses/ids.
+- [x] 2.3 Per-tier rhythm: majors on Elite chapter weeks (tier=ELITE, cross-tour field); Development/mid signatures offset from major weeks; each tour's championship at its final week, non-Elite one week before Elite; non-Elite tours rest during majors, Elite rests the week before each.
 
 ## 3. Schedule generation
 
-- [ ] 3.1 Rewrite `World.generateSchedule` to build the structured cadence (Section 2) when `weeksPerSeason >= STRUCTURED_MIN_WEEKS`.
-- [ ] 3.2 Keep the existing even-spread logic as the `< STRUCTURED_MIN_WEEKS` proportional fallback (preserves the base schedule contract for small/test configs).
-- [ ] 3.3 Confirm majors still route through `majorField` (cross-tour strongest field) and the one-event-per-week / `committedThisWeek` rule holds with the denser calendar.
+- [x] 3.1 `World.generateSchedule` → `generateStructuredSchedule()` (via `SeasonCadence.forSeason`) at the standard profile.
+- [x] 3.2 Old even-spread logic kept verbatim as `generateProportionalSchedule()` fallback for non-standard configs (small-config tests unchanged).
+- [x] 3.3 Majors stay Elite-tagged / cross-tour via `majorField`; one-event-per-week holds (a tier never plays twice in a week; `committedThisWeek` handles cross-tour overlap on major weeks — asserted by `SeasonCadenceTest`).
 
 ## 4. Reward normalization (balance)
 
-- [ ] 4.1 Scale per-event Regular reward magnitudes so a *season's* total ranking points and prize stay ~constant vs. the pre-change 6-events/tier baseline (Signature/Championship/Major keep their relative premiums). (Pending the reward-normalization open question.)
-- [ ] 4.2 Re-run the balance/behavior suites that pin scoring, Hall-of-Fame election timing, career length, and world-scoring recalibration; adjust constants if the density shift moved them.
+- [ ] 4.1 Per-season reward normalization — **PAUSED for user decision.** The ~2× density did NOT break any balance/behavior suite (see 4.2), so the a-priori rationale (protect tuned balance) may not require action; a global reward down-scale would corrupt small-config balance, and a structured-only scale is speculative. Deciding whether to implement vs. accept density-natural growth.
+- [x] 4.2 Balance/behavior suites (HoF election timing `WorldHallOfFameTest`, longevity `WorldLongevityTest`, economy `WorldEconomyTest`/`WorldEconomyStakesTest`, scale `WorldScaleTest`) all pass at the new density — 523 tests green.
 
 ## 5. Tests
 
-- [ ] 5.1 Structured-cadence test (standard scale): majors on the fixed chapter weeks; exactly one championship per tour at its final week; Development championship before Elite; signatures spotlighted (not all in opening weeks); the mid-season Elite+Development signature collision; target density per tier.
-- [ ] 5.2 Determinism test: same-seed standard-scale schedules are identical (weeks + prestige).
-- [ ] 5.3 Degradation test: a 6-week config still produces a valid, reproducible schedule via the fallback (existing small-config schedule/progression tests stay green).
-- [ ] 5.4 Prestige-weighting tests: Tour Championship rewards/pressure/setup sit strictly between Signature and Major.
-- [ ] 5.5 Performance check: advancing several standard-scale seasons unattended stays responsive (record a rough per-season time; flag if a full season exceeds a couple of seconds).
+- [x] 5.1 `SeasonCadenceTest`: majors on {7,14,21,27}; one championship per tour at its final week; Dev championship (29) before Elite (30); signatures spotlighted (a signature past week 15); the Elite+Development week-17 collision; target density (14) per tier; no tier plays twice a week.
+- [x] 5.2 Determinism: `SeasonCadence.forSeason` is pure/identical across calls; same-seed World schedules are already pinned byte-identical by `WorldSnapshotRoundTripTest` (archives are in the snapshot).
+- [x] 5.3 Degradation: `appliesTo` is false for the 6-week config; existing small-config schedule/progression tests stay green via the proportional fallback.
+- [x] 5.4 `EventPrestigeTest`: Tour Championship ranking/purse/pressure sit strictly between Signature and Major.
+- [x] 5.5 Performance: a standard-scale season roughly doubled in sim time (`WorldScaleTest` 1.3s→2.5s for 3 seasons ≈ 0.8s/season; `WorldHallOfFameTest` many seasons in 4.6s) — well within responsive; no action needed.
 
 ## 6. Wrap-up
 
