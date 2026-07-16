@@ -185,6 +185,8 @@ type PlayerProfile {
     events: Int!
     wins: Int!
     topTens: Int!
+    "Whether the golfer has retired — their career is complete and they play no further events."
+    retired: Boolean!
     attributes: [AttributeValue!]!
 }
 

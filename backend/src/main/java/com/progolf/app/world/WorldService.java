@@ -222,7 +222,7 @@ public class WorldService {
         return new PlayerProfileDto(id, identity.firstName(), identity.lastName(),
                 identity.nationality().name(), career.age(), identity.archetype().name(),
                 worldRanking, finances.tournamentEarnings(), finances.availableFunds(), tour,
-                stats.events(), stats.wins(), stats.topTens(), attributes);
+                stats.events(), stats.wins(), stats.topTens(), career.isRetired(), attributes);
     }
 
     /** The Hall-of-Fame inductions so far (spec: career-legacy). */

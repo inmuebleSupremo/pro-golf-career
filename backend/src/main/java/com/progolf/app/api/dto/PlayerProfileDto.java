@@ -22,5 +22,6 @@ public record PlayerProfileDto(
         int events,
         int wins,
         int topTens,
+        boolean retired,
         List<AttributeValueDto> attributes) {
 }

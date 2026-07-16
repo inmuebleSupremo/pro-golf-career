@@ -145,6 +145,7 @@ export const PlayerProfileDocument = graphql(`
       events
       wins
       topTens
+      retired
       attributes {
         attribute
         value

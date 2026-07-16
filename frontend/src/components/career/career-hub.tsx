@@ -89,6 +89,8 @@ export function CareerHub({ id }: { id: string }) {
   }
 
   const { world, careerGoals, playerSchedule, newsFeed, playerSeasonStats } = data;
+  const retired = profile?.retired ?? false;
+  const inHallOfFame = profile != null && hallOfFame.some((i) => i.golferId === profile.golferId);
 
   // Defensive: the backend throws NOT_FOUND (handled above) rather than returning a
   // null world, but the field is nullable in the schema, so guard it.
@@ -112,17 +114,21 @@ export function CareerHub({ id }: { id: string }) {
           Saves
         </Link>
         {profile ? <GolferHeader profile={profile} /> : null}
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <p className="text-muted-foreground">
-            Season {world.season} · Week {world.week} · {world.activePopulation} golfers active
-          </p>
-          <div className="flex items-center gap-3">
-            <Button asChild variant="secondary" size="lg">
-              <Link href={`/career/${id}/manage`}>Manage</Link>
-            </Button>
-            <AdvanceControl id={id} hasPendingEvent={world.hasPendingEvent} />
+        {retired ? (
+          <RetirementBanner profile={profile} inHallOfFame={inHallOfFame} />
+        ) : (
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <p className="text-muted-foreground">
+              Season {world.season} · Week {world.week} · {world.activePopulation} golfers active
+            </p>
+            <div className="flex items-center gap-3">
+              <Button asChild variant="secondary" size="lg">
+                <Link href={`/career/${id}/manage`}>Manage</Link>
+              </Button>
+              <AdvanceControl id={id} hasPendingEvent={world.hasPendingEvent} />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <CareerGoals id={id} goals={careerGoals} />
@@ -159,6 +165,37 @@ function AdvanceControl({ id, hasPendingEvent }: { id: string; hasPendingEvent: 
     <Button variant="secondary" size="lg" onClick={onAdvance} disabled={advance.isPending}>
       {advance.isPending ? "Advancing…" : "Advance week"}
     </Button>
+  );
+}
+
+function RetirementBanner({
+  profile,
+  inHallOfFame,
+}: {
+  profile: { firstName: string; wins: number; careerEarnings: number } | null;
+  inHallOfFame: boolean;
+}) {
+  if (!profile) return null;
+
+  return (
+    <div className="border-border bg-surface flex flex-col items-center gap-3 rounded-lg border p-8 text-center">
+      <p className="text-subtle-foreground font-mono text-xs tracking-[0.18em] uppercase">
+        Career complete
+      </p>
+      <h2 className="font-serif text-2xl font-medium tracking-[-0.01em]">
+        {profile.firstName} has retired
+      </h2>
+      <p className="text-muted-foreground max-w-md text-sm">
+        A career of {profile.wins} {profile.wins === 1 ? "win" : "wins"} and{" "}
+        {formatMoney(profile.careerEarnings)} earned. The record stands below.
+      </p>
+      {inHallOfFame ? (
+        <span className="bg-accent/[0.12] text-accent inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium">
+          <Check className="size-3.5" aria-hidden="true" />
+          Hall of Fame inductee
+        </span>
+      ) : null}
+    </div>
   );
 }
 
