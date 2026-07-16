@@ -91,6 +91,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -1089,6 +1090,23 @@ public final class World {
 
     public List<SeasonArchive> archives() {
         return List.copyOf(archives);
+    }
+
+    /** The completed result of a tournament by id, from the current season or any archived season; empty if unplayed. */
+    public Optional<TournamentResult> resultOf(long tournamentId) {
+        for (TournamentResult r : seasonResults) {
+            if (r.tournamentId() == tournamentId) {
+                return Optional.of(r);
+            }
+        }
+        for (SeasonArchive archive : archives) {
+            for (TournamentResult r : archive.results()) {
+                if (r.tournamentId() == tournamentId) {
+                    return Optional.of(r);
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     public List<RankingSnapshot> rankingSnapshots() {

@@ -1,6 +1,9 @@
 package com.progolf.app.world;
 
 import com.progolf.app.api.dto.AttributeValueDto;
+import com.progolf.app.api.dto.CalendarEntryDto;
+import com.progolf.app.api.dto.EventResultDto;
+import com.progolf.app.api.dto.FinisherDto;
 import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.WorldStatusDto;
@@ -30,6 +33,7 @@ import com.progolf.sim.staff.StaffRole;
 import com.progolf.sim.statistics.SeasonStatistics;
 import com.progolf.sim.statistics.StatLine;
 import com.progolf.sim.tournament.LeaderboardEntry;
+import com.progolf.sim.tournament.TournamentResult;
 import com.progolf.sim.world.CareerGoalProgress;
 import com.progolf.sim.world.PlayerScheduleEntry;
 import com.progolf.sim.world.World;
@@ -37,7 +41,9 @@ import com.progolf.sim.world.WorldConfig;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -176,6 +182,41 @@ public class WorldService {
     /** The player's reviewable eligible schedule (each event's prestige and entry status). */
     public List<PlayerScheduleEntry> playerSchedule(String ownerId, String sessionId) {
         return required(ownerId, sessionId).world().playerSchedule();
+    }
+
+    /**
+     * The player's season calendar: every eligible event with its name and entry status, marked played once
+     * resolved, and — for played events — the result (winner, top finishers, and the player's own finish).
+     * Requires a player (callers guard with {@link #hasPlayer}).
+     */
+    public List<CalendarEntryDto> playerCalendar(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        String playerId = requirePlayerId(world);
+        List<CalendarEntryDto> calendar = new ArrayList<>();
+        for (PlayerScheduleEntry entry : world.playerSchedule()) {
+            Optional<TournamentResult> result = world.resultOf(entry.tournamentId());
+            EventResultDto resultDto = result.map(r -> eventResult(r, playerId)).orElse(null);
+            calendar.add(new CalendarEntryDto(entry.tournamentId(), entry.week(), entry.tier().name(),
+                    entry.prestige().name(), entry.entered(), entry.name(), result.isPresent(), resultDto));
+        }
+        return calendar;
+    }
+
+    private static EventResultDto eventResult(TournamentResult result, String playerId) {
+        List<TournamentResult.Finish> byPosition = result.finishingOrder().stream()
+                .sorted(Comparator.comparingInt(TournamentResult.Finish::position))
+                .toList();
+        List<FinisherDto> topThree = byPosition.stream().limit(3).map(WorldService::finisher).toList();
+        FinisherDto winner = topThree.isEmpty() ? null : topThree.get(0);
+        FinisherDto playerFinish = byPosition.stream()
+                .filter(f -> f.golfer().player().id().equals(playerId))
+                .findFirst().map(WorldService::finisher).orElse(null);
+        return new EventResultDto(winner, topThree, playerFinish);
+    }
+
+    private static FinisherDto finisher(TournamentResult.Finish f) {
+        return new FinisherDto(f.position(), f.golfer().player().identity().fullName(), f.score(),
+                f.madeCut(), f.prize());
     }
 
     /** Skips a specific upcoming event by tournament id for the player. */

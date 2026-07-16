@@ -16,6 +16,9 @@ type Query {
     "The player's career goals with live progress (empty when none chosen)."
     careerGoals(id: ID!): [CareerGoal!]!
 
+    "The player's season calendar: each eligible event with its name and entry status, marked played once resolved, with the result once played (empty when no player is assigned)."
+    playerCalendar(id: ID!): [CalendarEntry!]!
+
     "The player's golfer profile — identity, attributes, ranking, earnings; null when no player is assigned."
     playerProfile(id: ID!): PlayerProfile
 
@@ -162,6 +165,36 @@ type ScheduleEntry {
     entered: Boolean!
     "The event's realistic display name."
     name: String!
+}
+
+type CalendarEntry {
+    tournamentId: Long!
+    week: Int!
+    tier: String!
+    prestige: String!
+    entered: Boolean!
+    name: String!
+    "Whether the event has been played (its result is available)."
+    played: Boolean!
+    "The event's result once played; null while it is upcoming."
+    result: EventResult
+}
+
+type EventResult {
+    winner: Finisher
+    "The leading finishers (up to three)."
+    topThree: [Finisher!]!
+    "The player's own finish; null when they were not in the field (skipped or ineligible)."
+    playerFinish: Finisher
+}
+
+type Finisher {
+    position: Int!
+    name: String!
+    "Score relative to par."
+    score: Int!
+    madeCut: Boolean!
+    earnings: Float!
 }
 
 type CareerGoal {
