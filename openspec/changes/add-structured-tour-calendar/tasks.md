@@ -1,10 +1,10 @@
 ## 1. Tour Championship prestige level
 
-- [ ] 1.1 Add `TOUR_CHAMPIONSHIP` to `EventPrestige`, ordered between `SIGNATURE` and `MAJOR`; update any `isMajor()`-style helpers and exhaustive switches over the enum.
-- [ ] 1.2 Extend the prestige reward weighting (ranking points + prize multipliers, in `TourSystem` / standings / prize logic) so the order Regular < Signature < Tour Championship < Major holds monotonically.
-- [ ] 1.3 Extend situational closing-round pressure scaling for the new level (between Signature and Major).
-- [ ] 1.4 Extend course-setup difficulty scaling (`course-setup`) for the new level (between Signature and Major).
-- [ ] 1.5 Add a display/enum-name mapping wherever prestige is surfaced (GraphQL passes the enum name through; add the frontend label for `TOUR_CHAMPIONSHIP`).
+- [x] 1.1 Add `TOUR_CHAMPIONSHIP` to `EventPrestige`, ordered between `SIGNATURE` and `MAJOR`; update any `isMajor()`-style helpers and exhaustive switches over the enum.
+- [x] 1.2 Extend the prestige reward weighting (ranking points + prize multipliers) so the order Regular < Signature < Tour Championship < Major holds monotonically. (Ranking 2.25, purse 3.0 via `purseWeight()`.)
+- [x] 1.3 Extend situational closing-round pressure scaling for the new level (PRESSURE 0.9, between Signature 0.8 and Major 1.0).
+- [x] 1.4 Extend course-setup difficulty scaling for the new level (setup bump 0.25, between Signature 0.14 and Major 0.36).
+- [ ] 1.5 Frontend label for `TOUR_CHAMPIONSHIP` — DEFERRED to when branches converge on develop (this branch has no frontend; prestige surfaces as the enum name with a raw-value fallback meanwhile).
 
 ## 2. Cadence definition
 

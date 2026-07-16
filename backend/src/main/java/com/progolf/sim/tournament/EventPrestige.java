@@ -10,6 +10,8 @@ package com.progolf.sim.tournament;
 public enum EventPrestige {
     REGULAR(1.0, 1.0),
     SIGNATURE(TournamentConstants.SIGNATURE_RANKING_WEIGHT, TournamentConstants.SIGNATURE_PURSE_WEIGHT),
+    TOUR_CHAMPIONSHIP(TournamentConstants.TOUR_CHAMPIONSHIP_RANKING_WEIGHT,
+            TournamentConstants.TOUR_CHAMPIONSHIP_PURSE_WEIGHT),
     MAJOR(TournamentConstants.MAJOR_RANKING_WEIGHT, TournamentConstants.MAJOR_PURSE_WEIGHT);
 
     private final double rankingWeight;

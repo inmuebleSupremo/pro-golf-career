@@ -998,6 +998,7 @@ public final class World {
     private static String eventName(ScheduledTournament event, Tier tier) {
         return switch (event.prestige()) {
             case MAJOR -> "Major Championship #" + event.tournamentId();
+            case TOUR_CHAMPIONSHIP -> tier + " Tour Championship #" + event.tournamentId();
             case SIGNATURE -> tier + " Signature #" + event.tournamentId();
             case REGULAR -> tier + " Event #" + event.tournamentId();
         };

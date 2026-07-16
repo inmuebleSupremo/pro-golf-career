@@ -32,6 +32,7 @@ public final class PressureModel {
         }
         double prestigeWeight = switch (prestige) {
             case MAJOR -> TournamentConstants.PRESSURE_PRESTIGE_MAJOR;
+            case TOUR_CHAMPIONSHIP -> TournamentConstants.PRESSURE_PRESTIGE_TOUR_CHAMPIONSHIP;
             case SIGNATURE -> TournamentConstants.PRESSURE_PRESTIGE_SIGNATURE;
             case REGULAR -> TournamentConstants.PRESSURE_PRESTIGE_REGULAR;
         };
