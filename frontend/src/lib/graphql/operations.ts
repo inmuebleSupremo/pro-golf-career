@@ -62,6 +62,13 @@ export const SaveGameDocument = graphql(`
 
 /* --- Career hub: resume a save, then read the loaded session's overview. --- */
 
+/** Permanently deletes a stored save. */
+export const DeleteSaveDocument = graphql(`
+  mutation DeleteSave($saveId: ID!) {
+    deleteSave(saveId: $saveId)
+  }
+`);
+
 /** Loads a save into a new session; returns the restored session's status (incl. its new id). */
 export const LoadCareerDocument = graphql(`
   mutation LoadCareer($saveId: ID!) {
@@ -342,6 +349,18 @@ export const AcceptSponsorshipDocument = graphql(`
 
 /* --- Play: advance the calendar, then play/sim a pending tournament event. --- */
 
+/** Advances the session to the end of the season, simming any events the player is entered in. */
+export const AdvanceSeasonDocument = graphql(`
+  mutation AdvanceSeason($id: ID!) {
+    advanceSeason(id: $id) {
+      id
+      season
+      week
+      hasPendingEvent
+    }
+  }
+`);
+
 /** Advances the session one week; pauses at the player's event (hasPendingEvent). */
 export const AdvanceWeekDocument = graphql(`
   mutation AdvanceWeek($id: ID!) {
@@ -425,6 +444,13 @@ export const SimShotDocument = graphql(`
       penaltyStrokes
       strokes
     }
+  }
+`);
+
+/** Sims the rest of the current hole. */
+export const SimHoleDocument = graphql(`
+  mutation SimHole($id: ID!) {
+    simHole(id: $id)
   }
 `);
 

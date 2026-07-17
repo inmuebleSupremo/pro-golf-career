@@ -5,11 +5,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { gqlRequest } from "@/lib/api/graphql-client";
 import type { ShotDecisionInput } from "@/lib/graphql/generated/graphql";
 import {
+  AdvanceSeasonDocument,
   AdvanceWeekDocument,
   CompleteEventDocument,
   PlayShotDocument,
   PlayStateDocument,
   SimEventDocument,
+  SimHoleDocument,
   SimRoundDocument,
   SimShotDocument,
 } from "@/lib/graphql/operations";
@@ -42,6 +44,20 @@ export function useAdvanceWeek(id: string) {
   });
 }
 
+/**
+ * Advance to the end of the season, simming the player's remaining entered events. A whole season
+ * moves ranking, earnings, standings, offers and history at once, so every session-scoped query is
+ * refetched rather than trying to enumerate what changed.
+ */
+export function useAdvanceSeason(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => gqlRequest(AdvanceSeasonDocument, { id }),
+    networkMode: "always",
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
+}
+
 export function usePlayShot(id: string) {
   const invalidate = useInvalidatePlay(id);
   return useMutation({
@@ -55,6 +71,15 @@ export function useSimShot(id: string) {
   const invalidate = useInvalidatePlay(id);
   return useMutation({
     mutationFn: () => gqlRequest(SimShotDocument, { id }),
+    networkMode: "always",
+    onSuccess: invalidate,
+  });
+}
+
+export function useSimHole(id: string) {
+  const invalidate = useInvalidatePlay(id);
+  return useMutation({
+    mutationFn: () => gqlRequest(SimHoleDocument, { id }),
     networkMode: "always",
     onSuccess: invalidate,
   });

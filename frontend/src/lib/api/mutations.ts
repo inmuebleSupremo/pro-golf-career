@@ -6,6 +6,7 @@ import { gqlRequest } from "@/lib/api/graphql-client";
 import {
   CreatePlayerDocument,
   CreateWorldDocument,
+  DeleteSaveDocument,
   LoadCareerDocument,
   SaveGameDocument,
 } from "@/lib/graphql/operations";
@@ -60,6 +61,19 @@ export function useCreateCareer() {
       // The new career should show when the player returns to their saves.
       queryClient.invalidateQueries({ queryKey: ["saves"] });
     },
+  });
+}
+
+/**
+ * Permanently deletes a save. Irreversible — the career is gone, so callers must
+ * confirm before invoking. The saves list refreshes on success.
+ */
+export function useDeleteSave() {
+  const queryClient = useQueryClient();
+  return useMutation<boolean, Error, string>({
+    mutationFn: async (saveId) => (await gqlRequest(DeleteSaveDocument, { saveId })).deleteSave,
+    networkMode: "always",
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["saves"] }),
   });
 }
 

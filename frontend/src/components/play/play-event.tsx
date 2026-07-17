@@ -17,6 +17,7 @@ import {
   usePlayShot,
   usePlayState,
   useSimEvent,
+  useSimHole,
   useSimRound,
   useSimShot,
 } from "@/lib/api/play";
@@ -338,15 +339,19 @@ function OutcomeNote({ outcome }: { outcome: Outcome }) {
 
 function SimControls({ id }: { id: string }) {
   const simShot = useSimShot(id);
+  const simHole = useSimHole(id);
   const simRound = useSimRound(id);
   const simEvent = useSimEvent(id);
-  const busy = simShot.isPending || simRound.isPending || simEvent.isPending;
+  const busy = simShot.isPending || simHole.isPending || simRound.isPending || simEvent.isPending;
 
   return (
     <section className="flex flex-wrap items-center gap-3">
       <span className="text-muted-foreground text-sm">Skip ahead</span>
       <Button variant="secondary" size="sm" disabled={busy} onClick={() => simShot.mutate()}>
         Sim shot
+      </Button>
+      <Button variant="secondary" size="sm" disabled={busy} onClick={() => simHole.mutate()}>
+        Sim hole
       </Button>
       <Button variant="secondary" size="sm" disabled={busy} onClick={() => simRound.mutate()}>
         Sim round

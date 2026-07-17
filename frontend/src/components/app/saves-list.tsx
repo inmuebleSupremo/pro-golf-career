@@ -7,7 +7,7 @@ import { format } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import { useSaves } from "@/lib/api/queries";
-import { useLoadCareer } from "@/lib/api/mutations";
+import { useDeleteSave, useLoadCareer } from "@/lib/api/mutations";
 import { isUnauthorized } from "@/lib/api/graphql-client";
 
 function formatSavedAt(savedAt: string): string {
@@ -53,10 +53,11 @@ export function SavesList() {
               {save.playerGolferId ? "Career in progress" : "No player assigned"}
             </span>
           </div>
-          <div className="flex items-center gap-5">
-            <span className="text-subtle-foreground font-mono text-sm tabular-nums">
+          <div className="flex items-center gap-3">
+            <span className="text-subtle-foreground mr-2 font-mono text-sm tabular-nums">
               {formatSavedAt(save.savedAt)}
             </span>
+            <DeleteControl saveId={save.saveId} />
             <ResumeButton saveId={save.saveId} />
           </div>
         </li>
@@ -92,6 +93,55 @@ function ResumeButton({ saveId }: { saveId: string }) {
       </Button>
       {failed ? <span className="text-destructive text-xs">Couldn&apos;t open</span> : null}
     </div>
+  );
+}
+
+/**
+ * Deleting a save is permanent — the career cannot be recovered — so the action asks for an
+ * explicit confirmation in place before it fires.
+ */
+function DeleteControl({ saveId }: { saveId: string }) {
+  const router = useRouter();
+  const remove = useDeleteSave();
+  const [confirming, setConfirming] = useState(false);
+
+  async function onDelete() {
+    try {
+      await remove.mutateAsync(saveId); // the list refreshes via query invalidation
+    } catch (error) {
+      if (isUnauthorized(error)) {
+        router.push("/login");
+        router.refresh();
+      }
+    }
+  }
+
+  if (!confirming) {
+    return (
+      <Button variant="ghost" size="sm" onClick={() => setConfirming(true)}>
+        Delete
+      </Button>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-2">
+      <span className="text-muted-foreground text-sm">Delete permanently?</span>
+      <Button variant="destructive" size="sm" onClick={onDelete} disabled={remove.isPending}>
+        {remove.isPending ? "Deleting…" : "Delete"}
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setConfirming(false)}
+        disabled={remove.isPending}
+      >
+        Cancel
+      </Button>
+      {remove.isError ? (
+        <span className="text-destructive text-xs">Couldn&apos;t delete</span>
+      ) : null}
+    </span>
   );
 }
 

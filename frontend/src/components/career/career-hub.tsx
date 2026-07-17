@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { GolferHeader } from "@/components/career/golfer-header";
 import { GoalsEditor } from "@/components/career/goals-editor";
 import { useCareerOverview, useHallOfFame, usePlayerProfile } from "@/lib/api/queries";
-import { useAdvanceWeek } from "@/lib/api/play";
+import { useAdvanceSeason, useAdvanceWeek } from "@/lib/api/play";
 import { isNotFound, isUnauthorized } from "@/lib/api/graphql-client";
 import {
   eventPrestigeLabel,
@@ -163,9 +163,52 @@ function AdvanceControl({ id, hasPendingEvent }: { id: string; hasPendingEvent: 
   }
 
   return (
-    <Button variant="secondary" size="lg" onClick={onAdvance} disabled={advance.isPending}>
-      {advance.isPending ? "Advancing…" : "Advance week"}
-    </Button>
+    <>
+      <SimSeasonControl id={id} />
+      <Button variant="secondary" size="lg" onClick={onAdvance} disabled={advance.isPending}>
+        {advance.isPending ? "Advancing…" : "Advance week"}
+      </Button>
+    </>
+  );
+}
+
+/**
+ * Fast-forward to the end of the season. It sims every remaining event the player is entered in —
+ * they give up playing them — so it confirms in place first. Only offered when no event is pending
+ * (the engine cannot advance past one).
+ */
+function SimSeasonControl({ id }: { id: string }) {
+  const advanceSeason = useAdvanceSeason(id);
+  const [confirming, setConfirming] = useState(false);
+
+  if (!confirming) {
+    return (
+      <Button variant="ghost" size="lg" onClick={() => setConfirming(true)}>
+        Sim season
+      </Button>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-2">
+      <span className="text-muted-foreground text-sm">Sim your remaining events?</span>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => advanceSeason.mutate()}
+        disabled={advanceSeason.isPending}
+      >
+        {advanceSeason.isPending ? "Simming…" : "Sim season"}
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setConfirming(false)}
+        disabled={advanceSeason.isPending}
+      >
+        Cancel
+      </Button>
+    </span>
   );
 }
 
