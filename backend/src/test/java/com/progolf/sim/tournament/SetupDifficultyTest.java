@@ -40,11 +40,26 @@ class SetupDifficultyTest {
     }
 
     @Test
-    void theEasiestTourIsWiderThanNeutralAndTheHardestMajorTighter() {
-        // The weakest tour's regular events play wider than baseline; the strongest tour's major plays tighter.
-        assertThat(SetupDifficulty.forEvent(Tier.DEVELOPMENT, EventPrestige.REGULAR).widthScale())
-                .isGreaterThan(1.0);
+    void everyTourPlaysARealGolfCourseAndTheHardestMajorIsTighter() {
+        // No tour is set up so wide that the course stops asking questions of a golfer. The entry tour used
+        // to play at 1.45x width in pursuit of a "scores near even par" target, which removed the very
+        // difficulty that separates a good golfer from a poor one — and handed a strong golfer on a weak tour
+        // a -40 week. What separates the tours is the field, not the golf course.
+        for (Tier tier : Tier.values()) {
+            assertThat(SetupDifficulty.forEvent(tier, EventPrestige.REGULAR).widthScale())
+                    .as("%s regular width", tier)
+                    .isLessThanOrEqualTo(1.05);
+        }
         assertThat(SetupDifficulty.forEvent(Tier.ELITE, EventPrestige.MAJOR).widthScale())
                 .isLessThan(1.0);
+    }
+
+    @Test
+    void theHardestEventStopsShortOfTheLeversLimit() {
+        // An Elite major is the hardest thing in the game. If it clamped, it would play identically to an
+        // Elite tour championship and to a Premier major, flattening the prestige ladder into a plateau.
+        var eliteMajor = SetupDifficulty.forEvent(Tier.ELITE, EventPrestige.MAJOR);
+        assertHarder(eliteMajor, SetupDifficulty.forEvent(Tier.ELITE, EventPrestige.TOUR_CHAMPIONSHIP));
+        assertHarder(eliteMajor, SetupDifficulty.forEvent(Tier.PREMIER, EventPrestige.MAJOR));
     }
 }
