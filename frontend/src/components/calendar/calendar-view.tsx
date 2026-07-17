@@ -7,7 +7,7 @@ import { ArrowLeft, Trophy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { isNotFound, isUnauthorized } from "@/lib/api/graphql-client";
-import { usePlayerCalendar } from "@/lib/api/queries";
+import { useCareerOverview, usePlayerCalendar } from "@/lib/api/queries";
 import {
   eventPrestigeLabel,
   formatMoney,
@@ -36,6 +36,8 @@ type CalendarEntry = {
 export function CalendarView({ id }: { id: string }) {
   const router = useRouter();
   const { data, isPending, isError, error } = usePlayerCalendar(id);
+  // Season/week context, already cached by the hub's overview query.
+  const world = useCareerOverview(id).data?.world ?? null;
 
   useEffect(() => {
     if (isError && isUnauthorized(error)) {
@@ -62,6 +64,9 @@ export function CalendarView({ id }: { id: string }) {
   }
 
   const entries = [...(data.playerCalendar as CalendarEntry[])].sort((a, b) => a.week - b.week);
+  // The event the player is heading into next — the first entered event still to come.
+  const nextUpId = entries.find((e) => !e.played && e.entered)?.tournamentId ?? null;
+  const playedCount = entries.filter((e) => e.played).length;
 
   return (
     <div className="flex flex-col gap-8">
@@ -73,7 +78,13 @@ export function CalendarView({ id }: { id: string }) {
           <ArrowLeft className="size-4" aria-hidden="true" />
           Career
         </Link>
-        <h1 className="font-serif text-3xl font-medium">Season calendar</h1>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <h1 className="font-serif text-3xl font-medium">Season calendar</h1>
+          <p className="text-muted-foreground text-sm">
+            {world ? `Season ${world.season} · Week ${world.week} · ` : ""}
+            {playedCount} of {entries.length} played
+          </p>
+        </div>
       </div>
 
       {entries.length === 0 ? (
@@ -81,9 +92,13 @@ export function CalendarView({ id }: { id: string }) {
           No events on the calendar yet.
         </p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border">
           {entries.map((entry) => (
-            <CalendarRow key={entry.tournamentId} entry={entry} />
+            <CalendarRow
+              key={entry.tournamentId}
+              entry={entry}
+              isNext={entry.tournamentId === nextUpId}
+            />
           ))}
         </ul>
       )}
@@ -91,20 +106,21 @@ export function CalendarView({ id }: { id: string }) {
   );
 }
 
-function CalendarRow({ entry }: { entry: CalendarEntry }) {
-  const isMajor = entry.prestige === "MAJOR";
-  const isChampionship = entry.prestige === "TOUR_CHAMPIONSHIP";
-  const marquee = isMajor || isChampionship;
+function CalendarRow({ entry, isNext }: { entry: CalendarEntry; isNext: boolean }) {
+  const marquee = entry.prestige === "MAJOR" || entry.prestige === "TOUR_CHAMPIONSHIP";
 
   return (
-    <li
-      className={`flex flex-col gap-3 rounded-lg border px-5 py-4 ${
-        marquee ? "border-accent/40 bg-accent/[0.04]" : "border-border bg-surface"
-      }`}
-    >
+    <li className={`flex flex-col gap-3 px-5 py-4 ${isNext ? "bg-primary/[0.06]" : ""}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className={`font-medium ${marquee ? "text-accent" : ""}`}>{entry.name}</span>
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className={`truncate font-medium ${marquee ? "text-accent" : ""}`}>{entry.name}</span>
+            {isNext ? (
+              <span className="text-subtle-foreground shrink-0 text-xs tracking-[0.08em] uppercase">
+                Next
+              </span>
+            ) : null}
+          </span>
           <span className="text-muted-foreground text-sm">
             Week {entry.week} · {tourTierLabel(entry.tier)} tour · {eventPrestigeLabel(entry.prestige)}
           </span>
@@ -145,15 +161,15 @@ function StatusBadge({ entry }: { entry: CalendarEntry }) {
   );
 }
 
-/** Winner + leading finishers for a played event. */
+/** Winner and leading finishers for a played event. */
 function ResultDetail({ result }: { result: EventResult }) {
   if (!result.winner) return null;
   return (
-    <div className="border-divider flex flex-col gap-2 border-t pt-3">
+    <div className="border-divider flex flex-col gap-1.5 border-t pt-3">
       <div className="flex items-center gap-2 text-sm">
         <Trophy className="text-accent size-4 shrink-0" aria-hidden="true" />
-        <span className="font-medium">{result.winner.name}</span>
-        <span className="text-muted-foreground font-mono text-xs tabular-nums">
+        <span className="min-w-0 truncate font-medium">{result.winner.name}</span>
+        <span className="text-subtle-foreground font-mono text-xs tabular-nums">
           {formatScore(result.winner.score)}
         </span>
       </div>
@@ -161,7 +177,7 @@ function ResultDetail({ result }: { result: EventResult }) {
         <ol className="text-muted-foreground flex flex-col gap-1 text-sm">
           {result.topThree.slice(1).map((f) => (
             <li key={f.position} className="flex items-center gap-2">
-              <span className="text-subtle-foreground w-6 font-mono text-xs tabular-nums">
+              <span className="text-subtle-foreground w-6 shrink-0 font-mono text-xs tabular-nums">
                 {ordinalPosition(f.position)}
               </span>
               <span className="min-w-0 truncate">{f.name}</span>
@@ -194,11 +210,7 @@ function CalendarSkeleton() {
   return (
     <div aria-hidden="true" className="flex flex-col gap-8">
       <div className="bg-divider h-9 w-56 animate-pulse rounded" />
-      <div className="flex flex-col gap-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="border-border bg-surface h-20 animate-pulse rounded-lg border" />
-        ))}
-      </div>
+      <div className="border-border bg-surface h-96 animate-pulse rounded-lg border" />
     </div>
   );
 }

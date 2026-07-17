@@ -189,7 +189,7 @@ function HoleCell({ hole }: { hole: HoleScore }) {
   const relToPar = hole.strokes - hole.par;
   return (
     <div className="flex min-w-8 flex-col items-center gap-1">
-      <span className="text-subtle-foreground font-mono text-[0.65rem] tabular-nums">{hole.holeNumber}</span>
+      <span className="text-subtle-foreground font-mono text-xs tabular-nums">{hole.holeNumber}</span>
       <span
         className={`flex size-7 items-center justify-center rounded font-mono text-sm tabular-nums ${
           relToPar < 0

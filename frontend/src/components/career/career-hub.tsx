@@ -279,12 +279,9 @@ function UpcomingSchedule({
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <h2 className="font-serif text-xl font-medium">Upcoming</h2>
-        <Link
-          href={`/career/${id}/calendar`}
-          className="text-accent text-sm underline-offset-4 hover:underline"
-        >
-          Full calendar
-        </Link>
+        <Button asChild variant="link" size="sm">
+          <Link href={`/career/${id}/calendar`}>Full calendar</Link>
+        </Button>
       </div>
       {upcoming.length === 0 ? (
         <EmptyNote>No upcoming events on the calendar.</EmptyNote>
@@ -374,7 +371,7 @@ function SeasonsTable({ seasons }: { seasons: SeasonStat[] }) {
       <div className="border-border bg-surface overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-subtle-foreground border-divider border-b text-xs tracking-[0.06em] uppercase">
+            <tr className="text-subtle-foreground border-divider border-b text-xs tracking-[0.08em] uppercase">
               <th className="px-4 py-3 text-left font-medium">Season</th>
               <NumHead>Events</NumHead>
               <NumHead>Wins</NumHead>

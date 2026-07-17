@@ -105,7 +105,7 @@ function CandidateCard({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-subtle-foreground text-[0.65rem] tracking-[0.06em] uppercase">{label}</dt>
+      <dt className="text-subtle-foreground text-xs tracking-[0.08em] uppercase">{label}</dt>
       <dd className="text-foreground font-mono text-sm tabular-nums">{value}</dd>
     </div>
   );

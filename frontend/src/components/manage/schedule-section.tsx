@@ -113,7 +113,7 @@ function RestControl({ id }: { id: string }) {
   const setRestingMutation = useSetResting(id);
 
   function choose(next: boolean) {
-    if (next === resting || setRestingMutation.isPending) return;
+    if (setRestingMutation.isPending) return;
     setResting(next);
     setRestingMutation.mutate(next);
   }
@@ -126,24 +126,14 @@ function RestControl({ id }: { id: string }) {
           {resting ? "Resting — sitting out every event this season." : "Playing your schedule."}
         </span>
       </div>
-      <div className="border-border bg-background inline-flex rounded-md border p-0.5">
-        <Button
-          variant={resting ? "ghost" : "primary"}
-          size="sm"
-          onClick={() => choose(false)}
-          disabled={setRestingMutation.isPending}
-        >
-          Playing
-        </Button>
-        <Button
-          variant={resting ? "primary" : "ghost"}
-          size="sm"
-          onClick={() => choose(true)}
-          disabled={setRestingMutation.isPending}
-        >
-          Resting
-        </Button>
-      </div>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => choose(!resting)}
+        disabled={setRestingMutation.isPending}
+      >
+        {resting ? "Resume playing" : "Rest this season"}
+      </Button>
     </div>
   );
 }

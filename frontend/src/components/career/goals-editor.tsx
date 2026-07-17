@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,7 +113,7 @@ function GoalRow({
           }`}
           aria-hidden="true"
         >
-          {state.selected ? <CheckMark /> : null}
+          {state.selected ? <Check className="size-3" aria-hidden="true" /> : null}
         </span>
         {goalLabel(option.type)}
       </button>
@@ -131,13 +132,5 @@ function GoalRow({
         </label>
       ) : null}
     </li>
-  );
-}
-
-function CheckMark() {
-  return (
-    <svg viewBox="0 0 12 12" className="size-3" fill="none" stroke="currentColor" strokeWidth={2}>
-      <path d="M2.5 6.5l2.5 2.5 4.5-5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
