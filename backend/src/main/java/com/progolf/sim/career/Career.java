@@ -53,6 +53,25 @@ public final class Career {
         this.age = startAge;
     }
 
+    /**
+     * Starts a Career already in progress, for a golfer who turned professional at {@code startAge} and is
+     * now {@code currentAge} (REQ-025/026/028). This is how a world is seeded with an age structure: the tour
+     * opens with veterans who are mid-career, not with everyone at their first event. Their competitive
+     * record begins empty — a seeded world has no history before its first season.
+     */
+    public static Career inProgress(Player player, int startAge, int currentAge) {
+        Career career = new Career(player, startAge);
+        if (currentAge < startAge) {
+            throw new IllegalArgumentException(
+                    "Current age " + currentAge + " precedes the starting age " + startAge);
+        }
+        if (currentAge >= CareerConstants.RETIREMENT_AGE) {
+            throw new IllegalArgumentException("A career cannot begin at or past retirement: " + currentAge);
+        }
+        career.age = currentAge;
+        return career;
+    }
+
     /** Private no-validation constructor used by {@link #restore} (a retired/aged career is reconstructed as-is). */
     private Career(Player player, int startAge, int age) {
         this.player = player;
@@ -239,6 +258,20 @@ public final class Career {
     }
 
     /** Retires the golfer: coordinates the Player status, records history, and evaluates the Hall of Fame. */
+    /**
+     * Retires the golfer by choice, before the mandatory age (spec: golfer-population). A tour needs golfers
+     * to leave it: without this, a seeded age structure just ages in lockstep until everyone reaches 65 at
+     * once, and no rookie ever comes through behind them. The decision itself is the World's — it owns the
+     * seeded randomness and knows how the golfer is faring — this only performs it.
+     */
+    public void retireEarly(LocalDate date) {
+        Objects.requireNonNull(date, "date");
+        if (isRetired()) {
+            throw new IllegalStateException("Already retired");
+        }
+        retire(date);
+    }
+
     private void retire(LocalDate date) {
         // An ACTIVE golfer may transition to RETIRED (the career is guarded against being already
         // retired before this is called).

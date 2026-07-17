@@ -39,6 +39,7 @@ class AgingTest {
     void careerStageDerivesFromAge() {
         assertThat(CareerStage.of(20)).isEqualTo(CareerStage.DEVELOPMENT);
         assertThat(CareerStage.of(28)).isEqualTo(CareerStage.PRIME);
-        assertThat(CareerStage.of(42)).isEqualTo(CareerStage.LATE_CAREER);
+        assertThat(CareerStage.of(42)).isEqualTo(CareerStage.PRIME); // a golfer in their early 40s is not winding down
+        assertThat(CareerStage.of(48)).isEqualTo(CareerStage.LATE_CAREER);
     }
 }

@@ -7,6 +7,7 @@ import com.progolf.sim.player.Identity;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.player.Player;
 import com.progolf.sim.player.ProfessionalGolfer;
+import com.progolf.sim.progression.Maturity;
 import java.time.LocalDate;
 import java.util.EnumMap;
 import java.util.Map;
@@ -40,21 +41,28 @@ public final class GolferFactory {
                     + PopulationConstants.CREATION_MIN_AGE + "-" + PopulationConstants.CREATION_MAX_AGE + ": " + startAge);
         }
 
-        Attributes attributes = buildAttributes(archetype);
+        Attributes potential = buildPotential(archetype);
+        Attributes attributes = Maturity.abilityAt(potential, startAge);
         LocalDate dob = LocalDate.of(referenceYear - startAge, 1, 1);
         Identity identity = new Identity(firstName, lastName, nationality, dob, archetype);
 
-        Player player = new Player(id, identity, attributes);
+        Player player = new Player(id, identity, attributes, potential);
         player.activate(); // CREATED -> ACTIVE
 
         return ProfessionalGolfer.human(id, player, "career-" + id);
     }
 
-    /** The starting build: a rookie baseline, raised on the archetype's strengths and lowered on its weaknesses. */
-    private static Attributes buildAttributes(Archetype archetype) {
+    /**
+     * The created golfer's ceiling: a high baseline, raised on the archetype's strengths and lowered on its
+     * weaknesses. Deliberately near the top of the population's band — the player is a genuine prospect, so
+     * a career that is developed well can reach the elite tour, and one that is not will not. Their starting
+     * attributes are this ceiling discounted to their age, exactly as for the AI population, so the player
+     * begins as a raw talent rather than a finished article.
+     */
+    private static Attributes buildPotential(Archetype archetype) {
         Map<Attribute, Integer> values = new EnumMap<>(Attribute.class);
         for (Attribute a : Attribute.values()) {
-            int value = PopulationConstants.CREATION_BASELINE;
+            int value = PopulationConstants.CREATION_POTENTIAL_BASELINE;
             if (archetype.strengths().contains(a)) {
                 value += PopulationConstants.CREATION_EMPHASIS;
             } else if (archetype.weaknesses().contains(a)) {

@@ -24,12 +24,20 @@ public final class HealthConstants {
     public static final double FITNESS_MAX = 1.0;
 
     // --- Fatigue accrual (per event) ---
-    public static final double FATIGUE_PER_EVENT = 0.20;
+    /**
+     * Fatigue added by competing. Sized against {@link #RECOVERY_PER_WEEK} and the season's shape: a golfer
+     * playing a full schedule (~14 events over ~30 weeks) must be able to recover between them. At 0.20
+     * against a 0.11 recovery this was unpayable by construction — fatigue only ever climbed, every golfer
+     * pinned against {@link #REST_THRESHOLD}, and the whole tour played every event exhausted (worth ~9
+     * strokes a round) while being forced to sit events out to shed it.
+     */
+    public static final double FATIGUE_PER_EVENT = 0.12;
     public static final double FITNESS_FATIGUE_FACTOR = 0.60;   // unfit golfers tire faster
     public static final double AGE_FATIGUE_PER_YEAR = 0.02;     // beyond the reference age
 
     // --- Recovery (per rested week) ---
-    public static final double RECOVERY_PER_WEEK = 0.11;
+    /** Recovery from a rested week. A busy run still builds fatigue; a rest week must meaningfully clear it. */
+    public static final double RECOVERY_PER_WEEK = 0.16;
     public static final double AGE_RECOVERY_PENALTY_PER_YEAR = 0.01; // capped below
     public static final double AGE_RECOVERY_PENALTY_CAP = 0.50;
 

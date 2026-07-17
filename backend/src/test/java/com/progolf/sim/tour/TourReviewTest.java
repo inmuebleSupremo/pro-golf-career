@@ -25,12 +25,38 @@ class TourReviewTest {
         SeasonReviewResult review = system.reviewSeasonEnd();
 
         assertThat(system.membershipOf(field.get(0).player().id())).contains(TourTier.PRIMARY);    // top -> up
-        assertThat(system.membershipOf(field.get(9).player().id())).contains(TourTier.PRIMARY);
         assertThat(system.membershipOf(field.get(20).player().id())).contains(TourTier.SECONDARY); // middle stays
         assertThat(system.membershipOf(field.get(39).player().id())).contains(TourTier.DEVELOPMENT); // bottom -> down
-        assertThat(review.promotions()).hasSize(TourConstants.PROMOTE_COUNT);
-        assertThat(review.relegations()).hasSize(TourConstants.RELEGATE_COUNT);
         assertThat(system.currentSeason()).isEqualTo(2); // advanced
+
+        // The tour above was empty, so it fills to the number of cards it carries — no more, however many
+        // golfers below would like one.
+        assertThat(review.promotions()).hasSize(TourConstants.targetSize(TourTier.PRIMARY, field.size()));
+        assertThat(system.membershipOf(field.get(0).player().id())).contains(TourTier.PRIMARY);
+        assertThat(review.relegations()).hasSize(TourConstants.RELEGATE_COUNT);
+    }
+
+    @Test
+    void aTourThinnedByDeparturesRefillsFromTheTourBelow() {
+        // Elite has lost most of its members (retirement); Primary is full. The review must pull golfers up
+        // to restore Elite's card count rather than leave the ladder hollow at the top.
+        TourSystem system = new TourSystem();
+        List<ProfessionalGolfer> all = TourFixtures.golfers(100);
+        List<ProfessionalGolfer> elite = all.subList(0, 2);
+        List<ProfessionalGolfer> primary = all.subList(2, 100);
+        registerAll(system, elite, TourTier.ELITE);
+        registerAll(system, primary, TourTier.PRIMARY);
+        system.recordResult(TourFixtures.resultInOrder("P", primary), TourTier.PRIMARY);
+
+        SeasonReviewResult review = system.reviewSeasonEnd();
+
+        int eliteCards = TourConstants.targetSize(TourTier.ELITE, all.size());
+        long onElite = all.stream().filter(g -> system.membershipOf(g.player().id())
+                .filter(t -> t == TourTier.ELITE).isPresent()).count();
+        assertThat(onElite).isEqualTo(eliteCards);
+        assertThat(review.promotions()).allMatch(m -> m.toTier() == TourTier.ELITE);
+        // ...and it is the tour below's best who are pulled up.
+        assertThat(system.membershipOf(primary.get(0).player().id())).contains(TourTier.ELITE);
     }
 
     @Test

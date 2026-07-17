@@ -21,16 +21,23 @@ public final class Player {
     private final String id;
     private final Identity identity;
     private Attributes attributes;
+    private final Attributes potential;
     private final PlayerState state;
     private CareerStatus status;
     private final List<AttributeChange> attributeChanges = new ArrayList<>();
 
-    public Player(String id, Identity identity, Attributes attributes) {
+    public Player(String id, Identity identity, Attributes attributes, Attributes potential) {
         this.id = Objects.requireNonNull(id, "id");
         this.identity = Objects.requireNonNull(identity, "identity");
         this.attributes = Objects.requireNonNull(attributes, "attributes");
+        this.potential = Objects.requireNonNull(potential, "potential");
         this.state = PlayerState.fresh();
         this.status = CareerStatus.CREATED;
+    }
+
+    /** A golfer with no headroom left — potential equals current ability. For fixtures and tests. */
+    public Player(String id, Identity identity, Attributes attributes) {
+        this(id, identity, attributes, attributes);
     }
 
     public String id() {
@@ -45,6 +52,16 @@ public final class Player {
     /** The referenced permanent attributes (single source of truth). */
     public Attributes attributes() {
         return attributes;
+    }
+
+    /**
+     * The golfer's innate ceiling, per attribute: how good they could become if they develop perfectly. Drawn
+     * once at generation and immutable for life — talent is not earned. Development converges current
+     * attributes toward it and can never pass it, so a golfer's career is the story of how much of their
+     * potential they actually realise (spec: player-development).
+     */
+    public Attributes potential() {
+        return potential;
     }
 
     /**
@@ -76,8 +93,9 @@ public final class Player {
     }
 
     /** An immutable capture of a Player's full state (spec: world-snapshot). */
-    public record Snapshot(String id, Identity identity, Attributes attributes, CareerStatus status,
-                           List<AttributeChange> attributeChanges, PlayerState.Snapshot state) {
+    public record Snapshot(String id, Identity identity, Attributes attributes, Attributes potential,
+                           CareerStatus status, List<AttributeChange> attributeChanges,
+                           PlayerState.Snapshot state) {
         public Snapshot {
             attributeChanges = List.copyOf(attributeChanges);
         }
@@ -85,12 +103,12 @@ public final class Player {
 
     /** Captures this Player. */
     public Snapshot snapshot() {
-        return new Snapshot(id, identity, attributes, status, attributeChanges, state.snapshot());
+        return new Snapshot(id, identity, attributes, potential, status, attributeChanges, state.snapshot());
     }
 
     /** Rebuilds a Player from a snapshot, bypassing the guarded transition machine (net-new reconstruction). */
     public static Player restore(Snapshot s) {
-        Player p = new Player(s.id(), s.identity(), s.attributes());
+        Player p = new Player(s.id(), s.identity(), s.attributes(), s.potential());
         p.status = s.status();
         p.attributeChanges.addAll(s.attributeChanges());
         p.restoreState(s.state());

@@ -16,6 +16,18 @@ public final class CareerConstants {
     /** Mandatory retirement age. */
     public static final int RETIREMENT_AGE = 65;
 
+    /**
+     * The age from which a golfer may choose to retire. Below it nobody walks away; from it the chance rises
+     * each year toward certainty at {@link #RETIREMENT_AGE}, so careers end across a spread of ages instead
+     * of every golfer playing on to the mandatory limit.
+     */
+    public static final int RETIREMENT_CONSIDER_AGE = 38;
+    /**
+     * Shapes how sharply the retirement chance rises between the two ages. Above 1.0 the early years past the
+     * threshold are gentle and the pressure builds late, so a golfer's 40s are a real playing decade.
+     */
+    public static final double RETIREMENT_CURVE = 2.4;
+
     /** A finish at or better than this counts as a top-10. */
     public static final int TOP_10 = 10;
 

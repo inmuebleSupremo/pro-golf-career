@@ -30,8 +30,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class FilesystemSaveGameStore implements SaveGameStore {
 
-    /** The current on-disk format version. A save recorded with a different version is rejected on load. */
-    static final int FORMAT_VERSION = 1;
+    /**
+     * The current on-disk format version. A save recorded with a different version is rejected on load.
+     *
+     * <p>v2: every golfer carries a {@code potential} (spec: player-development). A v1 save has no ceiling
+     * recorded for anyone, and one cannot be inferred after the fact — a golfer's talent is drawn at
+     * generation, and their attributes today say nothing about how much headroom they were born with. Such a
+     * save is rejected rather than loaded against a guessed ceiling.
+     */
+    static final int FORMAT_VERSION = 2;
     private static final String EXTENSION = ".json";
 
     private final Path directory;

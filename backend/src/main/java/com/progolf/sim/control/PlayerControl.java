@@ -19,6 +19,13 @@ public final class PlayerControl {
     private final String golferId;
     private List<Attribute> developmentFocus = List.of();
     private boolean resting;
+    /**
+     * Whether the player has chosen to compete through a recovering injury (spec: injury-recovery
+     * play-through). Off by default: grinding costs real shot impairment, and every AI golfer sits a
+     * recovering injury out, so defaulting it on silently handicapped the one golfer the player controls
+     * against the entire field for their whole career.
+     */
+    private boolean playingThroughInjury;
     private final Set<Long> skippedEvents = new LinkedHashSet<>();
     private List<CareerGoal> careerGoals = List.of();
 
@@ -43,6 +50,15 @@ public final class PlayerControl {
     /** Whether the player's golfer is resting (sitting out event entry to recover). */
     public boolean isResting() {
         return resting;
+    }
+
+    /** Whether the player's golfer competes through a recovering injury rather than sitting it out. */
+    public boolean isPlayingThroughInjury() {
+        return playingThroughInjury;
+    }
+
+    public void setPlayingThroughInjury(boolean playingThroughInjury) {
+        this.playingThroughInjury = playingThroughInjury;
     }
 
     public void setResting(boolean resting) {
@@ -80,7 +96,7 @@ public final class PlayerControl {
 
     /** An immutable capture of the player's control state (spec: world-snapshot). */
     public record Snapshot(String golferId, List<Attribute> developmentFocus, boolean resting,
-                           Set<Long> skippedEvents, List<CareerGoal> careerGoals) {
+                           boolean playingThroughInjury, Set<Long> skippedEvents, List<CareerGoal> careerGoals) {
         public Snapshot {
             developmentFocus = List.copyOf(developmentFocus);
             skippedEvents = new LinkedHashSet<>(skippedEvents); // preserve order
@@ -89,7 +105,7 @@ public final class PlayerControl {
     }
 
     public Snapshot snapshot() {
-        return new Snapshot(golferId, developmentFocus, resting, skippedEvents, careerGoals);
+        return new Snapshot(golferId, developmentFocus, resting, playingThroughInjury, skippedEvents, careerGoals);
     }
 
     /** Rebuilds a player control from a snapshot via the existing setters (no new mutation surface). */
@@ -97,6 +113,7 @@ public final class PlayerControl {
         PlayerControl c = new PlayerControl(s.golferId());
         c.setDevelopmentFocus(s.developmentFocus());
         c.setResting(s.resting());
+        c.setPlayingThroughInjury(s.playingThroughInjury());
         s.skippedEvents().forEach(c::skipEvent);
         c.setCareerGoals(s.careerGoals());
         return c;

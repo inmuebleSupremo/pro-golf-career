@@ -23,8 +23,5 @@ public final class WorldConstants {
     /** Elevated signature events per tour tier each season. */
     public static final int SIGNATURE_EVENTS_PER_TIER = 1;
 
-    // --- Initial tier distribution (fractions of the population; remainder goes to Development) ---
-    public static final double ELITE_FRACTION = 0.08;
-    public static final double PRIMARY_FRACTION = 0.17;
-    public static final double SECONDARY_FRACTION = 0.30;
+    // The initial tier distribution lives with the ladder that maintains it: see TourConstants#targetSize.
 }
