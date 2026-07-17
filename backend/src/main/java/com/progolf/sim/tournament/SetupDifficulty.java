@@ -4,35 +4,51 @@ import com.progolf.sim.course.CourseSetup;
 
 /**
  * Maps an event's tour tier and prestige to a {@link CourseSetup} (spec: course-setup / event-prestige).
- * The tier component normalizes for field strength — a weaker-field tour is set up easier (wide, calm,
- * centre pins) and a stronger-field tour harder — so every tier's Regular events play near even par; the
- * prestige component adds difficulty on top (Signature harder than Regular, Majors hardest).
+ * A stronger-field tour plays a mildly tougher course, and prestige adds difficulty on top (Signature harder
+ * than Regular, Majors hardest).
  *
  * <p>A single {@code difficulty} in [0,1] per event class (tier base + prestige bump) is mapped linearly to
  * each of the three setup factors between an easy end (difficulty 0) and a hard end (difficulty 1).
- * Magnitudes are calibrated (throwaway per-tier/prestige diagnostic over the real tour fractions and
- * field sizes) to the scoring targets: each tier's Regular events ~even par, Signature ~+1, Majors ~+3.
- * Measured calm field means at this calibration (weather adds on top): Regular ~−0.4..+0.3 across all tiers
- * (tightly normalized), Signature ~+0.7..+1.2, Major ~+2.1..+2.7 (an Elite-strength major field ~+2.1 calm,
- * lifting into the +2.5..+4 target under typical weather). Most of the difficulty lives in the
- * weather-independent width/pin levers so these hold regardless of wind.
+ *
+ * <p>The tier component deliberately does NOT normalize scores across tours. Calibrated (throwaway
+ * difficulty-grid diagnostic, {@code SetupCalibrationHarnessTest}) so each tour's typical field averages
+ * near even par given the golfers who actually play it, which lands winners around −15 to −20 for four
+ * rounds on every tour. Scores differ between tours because the fields do.
+ *
+ * <p><b>This file is coupled to the shot engine's calibration.</b> It maps difficulty to geometry, and what
+ * that geometry is worth in strokes depends on {@code SimConstants.ATTRIBUTE_FACTOR_K} and the dispersion
+ * fractions. It is not self-correcting: when the engine's skill scaling changed and this did not, the entry
+ * tour's winners went to −40. Re-run the difficulty grid after any shot-engine or population-ability change.
  */
 public final class SetupDifficulty {
 
     private SetupDifficulty() {
     }
 
-    // Tier base difficulty (ascends with field strength; a stronger field needs a harder setup to score ~E).
-    private static final double TIER_DEVELOPMENT = 0.05;
-    private static final double TIER_STANDARD = 0.34;
-    private static final double TIER_PREMIER = 0.54;
-    private static final double TIER_ELITE = 0.67;
+    // Tier base difficulty. Ascends with field strength — a stronger tour plays a tougher course, as it does
+    // in life — but only mildly. These sit in a narrow band on purpose: what separates a tour from the one
+    // below it is the FIELD, not the golf course.
+    //
+    // They were previously spread 0.05-0.67, which flattened the entry tour to a 1.45x-wide, centre-pinned
+    // course in pursuit of an "every tier scores ~even par" target. That target is a mistake twice over. It
+    // asks the weakest tour to play the easiest course, which removes the very difficulty that separates a
+    // good golfer from a poor one — and it breaks down completely the moment a strong golfer is present on a
+    // weak tour, which is exactly what an entry tour full of future stars is: a 90-rated golfer on a course
+    // set up for 60-rated golfers shot -40 for four rounds. A tour's scores should follow from who is playing
+    // it: the entry tour's winner shoots -15 because the field is weak, the elite tour's -20 because they are
+    // brilliant.
+    private static final double TIER_DEVELOPMENT = 0.50;
+    private static final double TIER_STANDARD = 0.58;
+    private static final double TIER_PREMIER = 0.66;
+    private static final double TIER_ELITE = 0.74;
 
-    // Prestige bump added on top of the tier base.
+    // Prestige bump added on top of the tier base. Sized so the hardest combination (an Elite major) lands
+    // just under the maximum rather than past it: bumps that clamp make a major and a tour championship on
+    // the top tours play identically, and silently flatten the prestige ladder they exist to create.
     private static final double PRESTIGE_REGULAR = 0.00;
-    private static final double PRESTIGE_SIGNATURE = 0.14;
-    private static final double PRESTIGE_TOUR_CHAMPIONSHIP = 0.25;
-    private static final double PRESTIGE_MAJOR = 0.36;
+    private static final double PRESTIGE_SIGNATURE = 0.09;
+    private static final double PRESTIGE_TOUR_CHAMPIONSHIP = 0.16;
+    private static final double PRESTIGE_MAJOR = 0.24;
 
     // Each factor is interpolated from its easy end (difficulty 0) to its hard end (difficulty 1). Most of the
     // difficulty lives in the weather-independent width/pin levers; wind is a modest amplifier so windy days
