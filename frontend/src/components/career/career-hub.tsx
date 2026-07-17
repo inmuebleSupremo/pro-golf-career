@@ -279,7 +279,7 @@ function UpcomingSchedule({
     <section className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
         <h2 className="font-serif text-xl font-medium">Upcoming</h2>
-        <Button asChild variant="link" size="sm">
+        <Button asChild variant="ghost" size="sm">
           <Link href={`/career/${id}/calendar`}>Full calendar</Link>
         </Button>
       </div>
