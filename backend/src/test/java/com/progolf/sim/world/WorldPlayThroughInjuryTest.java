@@ -29,6 +29,7 @@ class WorldPlayThroughInjuryTest {
         World world = World.create(10L, small());
         String id = world.activeGolferIds().get(0); // the strongest golfer — an Elite regular who plays often
         world.assignPlayer(id);
+        world.setPlayingThroughInjury(true); // the player opts in to grinding; it is never taken for them
 
         // Keep the player recovering each week until their event comes up (so a rest week can't heal it first).
         int guard = 0;
@@ -63,6 +64,23 @@ class WorldPlayThroughInjuryTest {
         // Rehabilitation advanced because they did not compete.
         assertThat(world.physicalStateOf(id).injury().orElseThrow().rehabWeeksRemaining())
                 .isEqualTo(weeksBefore - 1);
+    }
+
+    @Test
+    void aPlayerWhoHasNotOptedInRestsARecoveringInjuryJustLikeTheField() {
+        // The default. Grinding costs shot impairment and no AI golfer ever takes it, so a player who never
+        // asked to grind must not be entered impaired against a field that is resting and healing.
+        World world = World.create(10L, small());
+        String id = world.activeGolferIds().get(0);
+        world.assignPlayer(id);
+        assertThat(world.isPlayingThroughInjury()).isFalse();
+
+        int guard = 0;
+        while (!world.hasPendingPlayerEvent() && guard++ < 60) {
+            world.injectPhysicalStateForTest(id, recovering());
+            world.advanceWeek();
+        }
+        assertThat(world.hasPendingPlayerEvent()).as("a recovering player must not be entered").isFalse();
     }
 
     @Test

@@ -26,9 +26,20 @@ public final class SimConstants {
     public static final double DISTANCE_DISPERSION_FLOOR = 0.20;
 
     // --- Attribute influence ---
-    /** Attribute normalised value maps to a factor in [MIN_FACTOR, MIN_FACTOR + FACTOR_SPAN]. */
-    public static final double MIN_ATTRIBUTE_FACTOR = 0.5;
-    public static final double ATTRIBUTE_FACTOR_SPAN = 1.0;
+    /**
+     * An attribute divides dispersion by {@code exp(K * (norm - PIVOT))} — so skill compounds: a tighter
+     * player is tighter by a ratio, not by a subtraction.
+     *
+     * <p>This replaced a linear map, which could not make ability matter no matter how it was tuned. Golfers
+     * only ever occupy roughly 55-95, which is a span of 0.4 on the normalised scale, and any linear map over
+     * so narrow a band yields a dispersion ratio near 1: a 30-point gap in ability bought ~3 strokes a round
+     * against a ~4-stroke round-to-round swing, so tournaments were close to coin flips and a career's
+     * results said nothing about the golfer playing it. An exponential keeps the ratio meaningful across the
+     * band that is actually populated. {@code K} is the master dial for how much golf is skill versus luck.
+     */
+    public static final double ATTRIBUTE_FACTOR_K = 2.2;
+    /** The rating (normalised) that plays at neutral dispersion — below it a golfer is worse than baseline. */
+    public static final double ATTRIBUTE_FACTOR_PIVOT = 0.5;
     /** Fraction of club base distance reachable at attribute 0 vs. the span added by distance skill. */
     public static final double REACH_FLOOR = 0.80;
     public static final double REACH_SPAN = 0.40;
@@ -51,12 +62,21 @@ public final class SimConstants {
     public static final double INJURY_MEAN_WEIGHT = 0.12;
 
     // --- Rare extremes (mixture tail) ---
-    /** Base probability of a mishit before Course Management reduces it. */
-    public static final double BASE_MISHIT_PROBABILITY = 0.030;
-    /** Fraction of mishit probability removed at maximum Course Management. */
-    public static final double MISHIT_MANAGEMENT_RELIEF = 0.50;
+    /**
+     * Base probability of a mishit before Course Management reduces it. This is the sim's largest source of
+     * skill-independent noise: every mishit is a 4x error, and at 0.030 over ~70 shots a round every golfer
+     * threw two of them away per round regardless of how good they were. Kept rare enough that a round is
+     * decided by ability, common enough that a card can still fall apart.
+     */
+    public static final double BASE_MISHIT_PROBABILITY = 0.016;
+    /**
+     * Fraction of mishit probability removed at maximum Course Management. Raised so avoiding blow-ups is a
+     * skill a golfer can actually own — at 0.50 course management was worth 0.10 strokes a round, which is
+     * to say it was a stat the player could see, spend on, and get nothing for.
+     */
+    public static final double MISHIT_MANAGEMENT_RELIEF = 0.80;
     /** Probability of an exceptional recovery / hero shot. */
-    public static final double HERO_PROBABILITY = 0.020;
+    public static final double HERO_PROBABILITY = 0.012;
     /** Error inflation applied on a mishit. */
     public static final double MISHIT_ERROR_MULTIPLIER = 4.0;
     /** Fraction of intended carry lost on a mishit. */

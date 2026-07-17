@@ -29,20 +29,46 @@ class GolferFactoryTest {
 
     @Test
     void aPowerHitterStartsStrongerOffTheTeeThanOnTheGreen() {
-        var attrs = create(Archetype.POWER_HITTER).player().attributes();
+        var golfer = create(Archetype.POWER_HITTER);
+        var attrs = golfer.player().attributes();
+        var potential = golfer.player().potential();
         assertThat(attrs.get(Attribute.DRIVING_DISTANCE))
                 .isGreaterThan(attrs.get(Attribute.PUTTING_ACCURACY));
-        assertThat(attrs.get(Attribute.DRIVING_DISTANCE))
-                .isGreaterThan(PopulationConstants.CREATION_BASELINE);
-        assertThat(attrs.get(Attribute.WEDGES)).isLessThan(PopulationConstants.CREATION_BASELINE);
+        // The archetype shapes the ceiling, and the starting build inherits that shape.
+        assertThat(potential.get(Attribute.DRIVING_DISTANCE))
+                .isGreaterThan(PopulationConstants.CREATION_POTENTIAL_BASELINE);
+        assertThat(potential.get(Attribute.WEDGES))
+                .isLessThan(PopulationConstants.CREATION_POTENTIAL_BASELINE);
     }
 
     @Test
     void anAllRounderStartsBalanced() {
-        var attrs = create(Archetype.ALL_ROUNDER).player().attributes();
+        var golfer = create(Archetype.ALL_ROUNDER);
         for (Attribute a : Attribute.values()) {
-            assertThat(attrs.get(a)).as("attribute %s", a).isEqualTo(PopulationConstants.CREATION_BASELINE);
+            assertThat(golfer.player().potential().get(a)).as("potential %s", a)
+                    .isEqualTo(PopulationConstants.CREATION_POTENTIAL_BASELINE);
         }
+        var attrs = golfer.player().attributes();
+        assertThat(Attribute.values()).allSatisfy(a ->
+                assertThat(attrs.get(a)).as("attribute %s", a).isEqualTo(attrs.get(Attribute.DRIVING_DISTANCE)));
+    }
+
+    @Test
+    void aCreatedGolferStartsWellShortOfTheirCeilingAndHasRoomToGrow() {
+        var golfer = create(Archetype.ALL_ROUNDER); // created at 20: a prospect, not a finished article
+        for (Attribute a : Attribute.values()) {
+            assertThat(golfer.player().attributes().get(a)).as("attribute %s", a)
+                    .isLessThan(golfer.player().potential().get(a));
+        }
+    }
+
+    @Test
+    void aCreatedGolfersCeilingIsHighEnoughToReachTheTop() {
+        // The player is a genuine prospect: developed well, they can compete with the best golfers the
+        // population generates. A ceiling below the population's top would make the career unwinnable.
+        var potential = create(Archetype.ALL_ROUNDER).player().potential();
+        assertThat(potential.get(Attribute.PUTTING_ACCURACY))
+                .isGreaterThan((int) PopulationConstants.SKILL_MIN);
     }
 
     @Test

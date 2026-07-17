@@ -64,10 +64,12 @@ import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.population.GolferFactory;
 import com.progolf.sim.population.PopulationGenerator;
+import com.progolf.sim.progression.ProgressionConstants;
 import com.progolf.sim.progression.ProgressionEngine;
 import com.progolf.sim.ranking.RankingHistory;
 import com.progolf.sim.ranking.RankingSnapshot;
 import com.progolf.sim.ranking.WorldRanking;
+import com.progolf.sim.tour.TourConstants;
 import com.progolf.sim.tour.TourSystem;
 import com.progolf.sim.tour.TourTier;
 import com.progolf.sim.tournament.EntryRequirements;
@@ -138,6 +140,9 @@ public final class World {
     private final Set<String> committedThisWeek = new LinkedHashSet<>();
     // Career goals the player has already been congratulated for, so each is announced once (spec: career-goals).
     private final Set<CareerGoal> achievedGoals = new LinkedHashSet<>();
+    /** Salt for the retirement draw, keeping it independent of every other seeded stream. */
+    private static final long RETIREMENT_SALT = 555_555_557L;
+
     private TourSystem tours = new TourSystem();
     private WorldRanking ranking = new WorldRanking();
     private final Map<String, ProfessionalGolfer> golfers = new LinkedHashMap<>();
@@ -292,9 +297,9 @@ public final class World {
                 .thenComparing(g -> g.player().id()));
 
         int pop = ranked.size();
-        int eliteN = (int) Math.round(pop * WorldConstants.ELITE_FRACTION);
-        int primaryN = (int) Math.round(pop * WorldConstants.PRIMARY_FRACTION);
-        int secondaryN = (int) Math.round(pop * WorldConstants.SECONDARY_FRACTION);
+        int eliteN = TourConstants.targetSize(TourTier.ELITE, pop);
+        int primaryN = TourConstants.targetSize(TourTier.PRIMARY, pop);
+        int secondaryN = TourConstants.targetSize(TourTier.SECONDARY, pop);
         for (int i = 0; i < pop; i++) {
             ProfessionalGolfer g = ranked.get(i);
             TourTier tier;
@@ -317,7 +322,7 @@ public final class World {
     private void admit(ProfessionalGolfer golfer, TourTier tier) {
         String id = golfer.player().id();
         golfers.put(id, golfer);
-        careers.put(id, new Career(golfer.player(), startAgeOf(golfer)));
+        careers.put(id, careerFor(golfer));
         accounts.put(id, new FinancialAccount(id, calendar.currentDate()));
         physicalStates.put(id, HealthSystem.initialState(
                 new SplitMix64Rng(Seeds.deriveSeed(Seeds.deriveSeed(masterSeed, HealthConstants.HEALTH_SALT), id.hashCode()))));
@@ -470,7 +475,11 @@ public final class World {
      * tie). Ability uses attributes (not the live form rating, which starts uniform for everyone).
      */
     private java.util.Comparator<String> fieldPriority() {
-        return java.util.Comparator.comparingInt(tours::seasonPointsOf).reversed()
+        // An exemption comes first: a golfer promoted last season holds a card for this one, so a field can
+        // never be drawn without them (spec: TourSystem#isExempt). Then season standings, then ability to
+        // break the season-opening tie when every golfer's points are still zero.
+        return java.util.Comparator.comparing(tours::isExempt, java.util.Comparator.reverseOrder())
+                .thenComparing(tours::seasonPointsOf, java.util.Comparator.reverseOrder())
                 .thenComparing((String id) -> abilityOf(id), java.util.Comparator.reverseOrder())
                 .thenComparing(java.util.Comparator.naturalOrder());
     }
@@ -546,9 +555,11 @@ public final class World {
             ProfessionalGolfer g = field.get(i);
             String id = g.player().id();
             g.player().state().setFatigue(physicalStates.get(id).fatigue());
-            // Injury impairment if playing through a recovering injury (spec: injury-recovery play-through);
-            // 0 for everyone but a controlled player who chose to grind, so the field is otherwise unaffected.
-            g.player().state().setInjuryImpairment(physicalStates.get(id).injuryImpairment());
+            // Injury impairment if playing through a recovering injury (spec: injury-recovery play-through).
+            // Only a controlled player who chose to grind is in a field while recovering at all, so this is 0
+            // for everyone else and the field is otherwise unaffected.
+            g.player().state().setInjuryImpairment(
+                    isPlayer(id) && playerGrindsThroughInjury() ? physicalStates.get(id).injuryImpairment() : 0.0);
             GolfBag bag = GolfBag.fromLoadout(loadouts.get(id));
             g.player().state().setEquipment(bag.forgivenessBonus(), bag.powerBonus(),
                     bag.workabilityBonus(), bag.feelBonus());
@@ -704,7 +715,10 @@ public final class World {
         List<String> retirees = new ArrayList<>();
         for (String id : new ArrayList<>(activeGolfers)) {
             Career career = careers.get(id);
-            career.advanceSeason(date);
+            career.advanceSeason(date); // retires at the mandatory age
+            if (!career.isRetired() && retiresByChoice(id, career.age(), season)) {
+                career.retireEarly(date);
+            }
             if (career.isRetired()) {
                 retirees.add(id);
                 retirementSeason.putIfAbsent(id, season); // for seasons-since-retirement (spec: career-legacy)
@@ -1263,6 +1277,20 @@ public final class World {
         requirePlayer().setResting(resting);
     }
 
+    /**
+     * Sets whether the player's golfer competes through a recovering injury instead of sitting it out
+     * (spec: injury-recovery play-through). Off by default — grinding costs real shot impairment, and every
+     * AI golfer rests a recovering injury, so this is a risk the player opts into, never one taken for them.
+     */
+    public void setPlayingThroughInjury(boolean playThrough) {
+        requirePlayer().setPlayingThroughInjury(playThrough);
+    }
+
+    /** Whether the player's golfer is set to compete through a recovering injury. */
+    public boolean isPlayingThroughInjury() {
+        return requirePlayer().isPlayingThroughInjury();
+    }
+
     /** Skips a specific upcoming event by tournament id (the player is entered in eligible events by default). */
     public void skipEvent(long tournamentId) {
         requirePlayer().skipEvent(tournamentId);
@@ -1480,14 +1508,21 @@ public final class World {
         return isPlayerEligible(event) && !playerSitsOut(event);
     }
 
+    /** Whether the player has opted to compete through a recovering injury (spec: player-control). */
+    private boolean playerGrindsThroughInjury() {
+        return playerControl != null && playerControl.isPlayingThroughInjury();
+    }
+
     /**
-     * Whether a golfer may be entered into a field: available, or — only for the controlled player — able to
-     * play through a recovering injury (spec: injury-recovery play-through). Other golfers rest recovering
-     * injuries and heal, so AI field behaviour is unchanged.
+     * Whether a golfer may be entered into a field: available, or — only for the controlled player, and only
+     * when they have chosen to grind — able to play through a recovering injury (spec: injury-recovery
+     * play-through). Every AI golfer rests a recovering injury and heals, so this must be the player's own
+     * choice and must default off: taken automatically it entered them impaired in every event an AI would
+     * have sat out, a permanent handicap against the entire field that no amount of ability could pay for.
      */
     private boolean canEnterField(String id) {
         PhysicalState ps = physicalStates.get(id);
-        return ps.canCompete() || (isPlayer(id) && ps.canPlayThroughInjury());
+        return ps.canCompete() || (isPlayer(id) && playerGrindsThroughInjury() && ps.canPlayThroughInjury());
     }
 
     /** Whether the player is eligible for an event (the hard gates they cannot override). */
@@ -1571,13 +1606,37 @@ public final class World {
         double developmentFactor = 1.0 + supportTeams.get(golfer.player().id()).effects().developmentBonus();
         // The player directs their golfer's development to a chosen focus (spec: player-control); everyone
         // else (and every unassigned world) uses the automatic allocation.
+        Attributes potential = golfer.player().potential();
+        // Playing well develops you faster (spec: player-development). A golfer who competes and contends
+        // improves more than one who misses cuts, so progress is earned on the course rather than issued.
+        developmentFactor *= performanceFactor(golfer.player().id(), season);
         Attributes developed = isPlayer(golfer.player().id()) && !playerControl.developmentFocus().isEmpty()
-                ? ProgressionEngine.develop(golfer.player().attributes(), age, developmentFactor,
+                ? ProgressionEngine.develop(golfer.player().attributes(), potential, age, developmentFactor,
                         playerControl.developmentFocus())
-                : ProgressionEngine.develop(golfer.player().attributes(), age, developmentFactor);
+                : ProgressionEngine.develop(golfer.player().attributes(), potential, age, developmentFactor);
         golfer.player().evolveAttributes(developed, AttributeChange.Reason.DEVELOPMENT, season);
         Attributes aged = ProgressionEngine.age(golfer.player().attributes(), age);
         golfer.player().evolveAttributes(aged, AttributeChange.Reason.AGING, season);
+    }
+
+    /**
+     * How much the season's play is worth to a golfer's development (spec: player-development), scaling the
+     * Development Points they earn. Read from their scoring average for the season, so it rewards playing
+     * the game well rather than any single result. A golfer who did not compete gets the neutral factor —
+     * an injured or rested season neither accelerates nor punishes development.
+     */
+    private double performanceFactor(String golferId, int season) {
+        StatLine line = seasonStatisticsOf(golferId, season);
+        if (line.events() == 0 || line.holesPlayed() == 0) {
+            return 1.0;
+        }
+        double scoring = line.scoringAverage();
+        double best = ProgressionConstants.PERFORMANCE_BEST_SCORING;
+        double worst = ProgressionConstants.PERFORMANCE_WORST_SCORING;
+        double t = (worst - scoring) / (worst - best); // 1.0 at the best scoring, 0.0 at the worst
+        t = Math.max(0.0, Math.min(1.0, t));
+        return ProgressionConstants.PERFORMANCE_DP_MIN
+                + (ProgressionConstants.PERFORMANCE_DP_MAX - ProgressionConstants.PERFORMANCE_DP_MIN) * t;
     }
 
     private static Tier mapTier(TourTier tier) {
@@ -1589,8 +1648,41 @@ public final class World {
         };
     }
 
-    private static int startAgeOf(ProfessionalGolfer golfer) {
+    /**
+     * Whether a golfer walks away this season (spec: golfer-population). The chance is zero until the
+     * consider-age and rises toward certainty at the mandatory age, so careers end across a spread of ages
+     * and the tour keeps an age structure — veterans leave, rookies come through, and the field is never one
+     * cohort. Seeded from the world seed, the season and the golfer, so it is reproducible.
+     *
+     * <p>The player is never retired by the world: their career ends when the mandatory age says so, or when
+     * they choose to stop. A career game must not delete the career out from under them.
+     */
+    private boolean retiresByChoice(String golferId, int age, int season) {
+        if (isPlayer(golferId) || age < CareerConstants.RETIREMENT_CONSIDER_AGE) {
+            return false;
+        }
+        double span = CareerConstants.RETIREMENT_AGE - CareerConstants.RETIREMENT_CONSIDER_AGE;
+        double progress = (age - CareerConstants.RETIREMENT_CONSIDER_AGE) / span;
+        double chance = Math.pow(Math.min(1.0, progress), CareerConstants.RETIREMENT_CURVE);
+        SplitMix64Rng rng = new SplitMix64Rng(Seeds.deriveSeed(
+                Seeds.deriveSeed(Seeds.deriveSeed(masterSeed, RETIREMENT_SALT), season), golferId.hashCode()));
+        return rng.nextDouble() < chance;
+    }
+
+    private static int ageOf(ProfessionalGolfer golfer) {
         return WorldConstants.BASE_YEAR - golfer.player().identity().dateOfBirth().getYear();
+    }
+
+    /**
+     * The Career for a golfer entering the world at whatever age they are. A rookie's career starts now; a
+     * veteran seeded into the opening field turned professional at the latest age they plausibly could have,
+     * and is already that many seasons into a career whose competitive record starts empty.
+     */
+    private static Career careerFor(ProfessionalGolfer golfer) {
+        int age = ageOf(golfer);
+        int turnedProAt = Math.max(CareerConstants.MIN_START_AGE,
+                Math.min(age, CareerConstants.MAX_START_AGE));
+        return Career.inProgress(golfer.player(), turnedProAt, age);
     }
 
     private static double meanAttribute(ProfessionalGolfer golfer) {

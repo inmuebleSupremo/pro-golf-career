@@ -17,11 +17,11 @@ public final class ProgressionEngine {
 
     /**
      * Applies one season of development: awards Development Points for the age's career stage, allocates
-     * them via the AI policy, and raises attributes (gradual, capped, diminishing returns). Returns the
-     * developed attributes.
+     * them via the AI policy, and raises attributes toward {@code potential} (gradual, capped, diminishing
+     * returns). Returns the developed attributes.
      */
-    public static Attributes develop(Attributes current, int age) {
-        return develop(current, age, 1.0);
+    public static Attributes develop(Attributes current, Attributes potential, int age) {
+        return develop(current, potential, age, 1.0);
     }
 
     /**
@@ -29,11 +29,9 @@ public final class ProgressionEngine {
      * Development Points are scaled by {@code supportFactor} (1.0 = unsupported) before allocation. A
      * coach raises this factor; attributes still change only through the sanctioned, capped allocation.
      */
-    public static Attributes develop(Attributes current, int age, double supportFactor) {
-        CareerStage stage = CareerStage.of(age);
-        int points = (int) Math.round(DevelopmentPoints.award(stage) * Math.max(0.0, supportFactor));
-        Map<Attribute, Integer> allocation = AllocationPolicy.aiAllocate(current, points);
-        return applyAllocation(current, allocation);
+    public static Attributes develop(Attributes current, Attributes potential, int age, double supportFactor) {
+        Map<Attribute, Integer> allocation = AllocationPolicy.aiAllocate(current, potential, pointsFor(age, supportFactor));
+        return applyAllocation(current, potential, allocation);
     }
 
     /**
@@ -42,16 +40,32 @@ public final class ProgressionEngine {
      * priority order under the same per-season cap and cost curve as the automatic allocation. An empty or
      * null focus delegates to the automatic allocation, so unfocused development is unchanged.
      */
-    public static Attributes develop(Attributes current, int age, double supportFactor, List<Attribute> focus) {
+    public static Attributes develop(Attributes current, Attributes potential, int age, double supportFactor,
+                                     List<Attribute> focus) {
         if (focus == null || focus.isEmpty()) {
-            return develop(current, age, supportFactor);
+            return develop(current, potential, age, supportFactor);
         }
-        int points = (int) Math.round(DevelopmentPoints.award(CareerStage.of(age)) * Math.max(0.0, supportFactor));
+        return spend(current, potential, focus, pointsFor(age, supportFactor));
+    }
+
+    /** The season's Development Points at an age, scaled by a support factor. */
+    private static int pointsFor(int age, double supportFactor) {
+        return (int) Math.round(DevelopmentPoints.award(CareerStage.of(age)) * Math.max(0.0, supportFactor));
+    }
+
+    /**
+     * Applies a specific Development-Point allocation to attributes, bounded by {@code potential}: no
+     * attribute is ever raised past its ceiling, so points aimed at a maxed-out attribute simply buy nothing.
+     */
+    public static Attributes applyAllocation(Attributes current, Attributes potential,
+                                             Map<Attribute, Integer> allocation) {
         Attributes result = current;
         double totalGained = 0;
-        for (Attribute a : focus) {
+        for (Attribute a : Attribute.values()) { // deterministic order
+            int points = allocation.getOrDefault(a, 0);
             int rating = result.get(a);
-            while (points > 0 && rating < Attributes.MAX
+            int ceiling = ceilingFor(potential, a);
+            while (points > 0 && rating < ceiling
                     && totalGained < ProgressionConstants.MAX_DEVELOPMENT_PER_SEASON) {
                 int cost = DevelopmentPoints.costToRaise(rating);
                 if (points < cost) {
@@ -68,14 +82,19 @@ public final class ProgressionEngine {
         return result;
     }
 
-    /** Applies a specific Development-Point allocation to attributes (used by the player-driven path). */
-    public static Attributes applyAllocation(Attributes current, Map<Attribute, Integer> allocation) {
+    /**
+     * Spends a single pool of points down a priority list: each attribute is raised toward its ceiling until
+     * it is maxed or the season's cap is reached, and whatever is left carries on to the next. This is what
+     * makes a focus worth setting — points that would be wasted on an attribute already at its ceiling roll
+     * onward instead of vanishing.
+     */
+    private static Attributes spend(Attributes current, Attributes potential, List<Attribute> priority, int points) {
         Attributes result = current;
         double totalGained = 0;
-        for (Attribute a : Attribute.values()) { // deterministic order
-            int points = allocation.getOrDefault(a, 0);
+        for (Attribute a : priority) {
             int rating = result.get(a);
-            while (points > 0 && rating < Attributes.MAX
+            int ceiling = ceilingFor(potential, a);
+            while (points > 0 && rating < ceiling
                     && totalGained < ProgressionConstants.MAX_DEVELOPMENT_PER_SEASON) {
                 int cost = DevelopmentPoints.costToRaise(rating);
                 if (points < cost) {
@@ -90,6 +109,11 @@ public final class ProgressionEngine {
             }
         }
         return result;
+    }
+
+    /** An attribute's development ceiling: its potential, never above the numerical maximum. */
+    private static int ceilingFor(Attributes potential, Attribute a) {
+        return Math.min(potential.get(a), Attributes.MAX);
     }
 
     /** Applies one season of attribute-specific aging, returning the aged attributes (clamped). */

@@ -52,7 +52,11 @@ class TournamentInteractivePlayoffTest {
     // The player's fixed opening submissions: a runaway lead (rounds 1-3) so the field is identical between
     // the probe and the real run. Situational pressure now couples the field to the leaderboard, so the tie
     // must be computed against the field as it actually plays WITH the player present (a two-pass fixed point).
-    private static final int R1 = -40, R2 = 0, R3 = 0, AFTER3 = R1 + R2 + R3;
+    //
+    // The opening must be far enough clear that the field CANNOT reach it, or the probe itself ends in a
+    // playoff and never produces a result to read. It is deliberately well beyond any reachable score rather
+    // than just beyond the current calibration's.
+    private static final int R1 = -90, R2 = 0, R3 = 0, AFTER3 = R1 + R2 + R3;
 
     /**
      * Drives the interactive player to tie the field leader for the lead. Because contention-based pressure

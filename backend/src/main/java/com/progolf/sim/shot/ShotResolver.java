@@ -224,9 +224,11 @@ public final class ShotResolver {
         return new ShotOutcome(Surface.GREEN, d - remainingAfter, 0.0, remainingAfter, false, 0, 1, factors);
     }
 
-    /** Maps a raw attribute to a factor in [MIN_ATTRIBUTE_FACTOR, MIN_ATTRIBUTE_FACTOR + span]; higher = better. */
+
+    /** Skill compounds: dispersion is divided by an exponential in the rating (spec: shot-resolution). */
     private static double attributeFactor(Attributes attr, Attribute which) {
-        return SimConstants.MIN_ATTRIBUTE_FACTOR + SimConstants.ATTRIBUTE_FACTOR_SPAN * attr.norm(which);
+        return Math.exp(SimConstants.ATTRIBUTE_FACTOR_K
+                * (attr.norm(which) - SimConstants.ATTRIBUTE_FACTOR_PIVOT));
     }
 
     /**

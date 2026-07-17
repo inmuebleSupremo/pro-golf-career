@@ -3,11 +3,13 @@ package com.progolf.sim.tour;
 import com.progolf.sim.tournament.TournamentResult;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The Tour domain engine (REQ-126–140): a tiered ladder of Tours, per-golfer membership, the resetting
@@ -24,6 +26,9 @@ public final class TourSystem {
     private final SeasonStandings standings = new SeasonStandings();
     private final List<TourMovement> movementHistory = new ArrayList<>();
     private int season = 1;
+    /** Cache of {@link #isExempt} for {@code exemptSeason}; derived from movementHistory, never persisted. */
+    private final Set<String> exempt = new HashSet<>();
+    private int exemptSeason = -1;
 
     public TourSystem() {
         for (TourTier tier : TourTier.values()) {
@@ -137,42 +142,84 @@ public final class TourSystem {
         return standings.pointsOf(golferId);
     }
 
+    // --- Exemptions ---
+
+    /**
+     * Whether a golfer is exempt for the current season: they were promoted into the tier they now hold at
+     * the end of the previous season, so they hold a card for it. A promoted golfer is the weakest member of
+     * the tier they arrive in, and standings reset to zero every season — without an exemption, merit-ordered
+     * entry would leave them outside every field, earning no points, and relegate them straight back with no
+     * chance to compete (REQ-136/137: the ladder must be a pathway, not a revolving door).
+     *
+     * <p>Derived from the recorded movement history rather than stored, so it survives snapshot/restore and
+     * never disagrees with the movements it is computed from. The tier check keeps the exemption tied to the
+     * tier that was actually earned: a golfer moved on again since (e.g. by a qualification pathway) is no
+     * longer exempt on the strength of the old promotion.
+     */
+    public boolean isExempt(String golferId) {
+        if (exemptSeason != season) {
+            exempt.clear();
+            for (TourMovement m : movementHistory) {
+                if (m.season() == season - 1 && m.type() == MovementType.PROMOTION
+                        && m.toTier() == membership.get(m.golferId())) {
+                    exempt.add(m.golferId());
+                }
+            }
+            exemptSeason = season;
+        }
+        return exempt.contains(golferId);
+    }
+
     // --- Season-end review ---
 
     /**
-     * Reviews membership at season end (REQ-136): per tier, promotes the top season-standings golfers to
-     * the tier above and relegates the bottom golfers to the tier below, per published counts. Movements
-     * are computed from the current standings, then applied together; the season index advances and
-     * standings reset. Deterministic and reproducible.
+     * Reviews membership at season end (REQ-136): each tour above the entry tier sheds its bottom golfers,
+     * then refills its cards from the top of the tour below. Deterministic and reproducible — movement is a
+     * pure function of the standings and the published tier sizes.
+     *
+     * <p>Worked from the top tour down, so vacancies cascade: a tour thinned by retirement pulls golfers up
+     * behind it in the same review, and the ladder holds its shape instead of hollowing out at the top while
+     * the entry tier swells with everyone who could not be promoted fast enough. Promotion is therefore
+     * demand-driven rather than a fixed count — at rest a tour promotes exactly as many as it relegated.
      */
     public SeasonReviewResult reviewSeasonEnd() {
         int reviewed = season;
         List<TourMovement> movements = new ArrayList<>();
+        int totalMembers = membership.size();
 
-        // Compute all movements from the current snapshot before applying any (so a promoted golfer is
-        // never re-evaluated in the tier they move into).
+        Map<TourTier, List<String>> ranked = new EnumMap<>(TourTier.class);
         for (TourTier tier : TourTier.values()) {
-            List<String> ranked = standings.ranked(membersOf(tier));
-            int size = ranked.size();
-            if (size == 0) {
-                continue;
-            }
-            int maxMove = (int) Math.floor(size * TourConstants.MAX_MOVE_FRACTION);
-            int promoteN = tier.above().isPresent() ? Math.min(TourConstants.PROMOTE_COUNT, maxMove) : 0;
-            int relegateN = tier.below().isPresent() ? Math.min(TourConstants.RELEGATE_COUNT, maxMove) : 0;
-            // Guard against overlap: promotions (top) and relegations (bottom) must be disjoint.
-            if (promoteN + relegateN > size) {
-                relegateN = Math.max(0, size - promoteN);
+            ranked.put(tier, new ArrayList<>(standings.ranked(membersOf(tier))));
+        }
+
+        TourTier[] tiers = TourTier.values();
+        for (int i = tiers.length - 1; i >= 1; i--) { // the entry tier is the reservoir; it is never reviewed
+            TourTier tier = tiers[i];
+            TourTier below = tiers[i - 1];
+            List<String> here = ranked.get(tier);
+            List<String> lower = ranked.get(below);
+
+            // Shed the bottom: these golfers lose their cards.
+            List<String> relegated = new ArrayList<>();
+            int relegateN = Math.min(TourConstants.RELEGATE_COUNT, maxMove(here.size()));
+            for (int k = 0; k < relegateN; k++) {
+                String id = here.remove(here.size() - 1);
+                relegated.add(id);
+                movements.add(new TourMovement(id, tier, below, reviewed, MovementType.RELEGATION));
             }
 
-            for (int i = 0; i < promoteN; i++) {
-                String id = ranked.get(i);
-                movements.add(new TourMovement(id, tier, tier.above().orElseThrow(), reviewed, MovementType.PROMOTION));
+            // Refill the vacated cards from the top of the tour below.
+            int vacancies = Math.max(0, TourConstants.targetSize(tier, totalMembers) - here.size());
+            int promoteN = Math.min(vacancies, Math.min(lower.size(), maxMove(lower.size())));
+            for (int k = 0; k < promoteN; k++) {
+                String id = lower.remove(0);
+                here.add(id);
+                movements.add(new TourMovement(id, below, tier, reviewed, MovementType.PROMOTION));
             }
-            for (int i = 0; i < relegateN; i++) {
-                String id = ranked.get(size - 1 - i);
-                movements.add(new TourMovement(id, tier, tier.below().orElseThrow(), reviewed, MovementType.RELEGATION));
-            }
+
+            // The relegated join the tour below only once its promotions are drawn, so a golfer dropped from
+            // above can never be promoted straight back in the same review.
+            lower.addAll(relegated);
         }
 
         // Apply, record, reset, advance.
@@ -184,6 +231,11 @@ public final class TourSystem {
         season++;
 
         return new SeasonReviewResult(reviewed, movements);
+    }
+
+    /** The most golfers that may leave a tier in one review, so a tier is never emptied by a single season. */
+    private static int maxMove(int size) {
+        return (int) Math.floor(size * TourConstants.MAX_MOVE_FRACTION);
     }
 
     // --- History ---

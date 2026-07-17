@@ -4,49 +4,77 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
+import java.util.Map;
+import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 
-/** Player-aging/development spec: a multi-decade trajectory rises to a peak then declines, staying in range. */
+/**
+ * Player-aging/development spec: a golfer keeps getting better for as long as a real one does. Ability rises
+ * deep into a career rather than topping out in the early 30s, and inside a normal career only raw power
+ * actually fades — a 45-year-old is a better player than they were at 33, just a shorter one.
+ */
 class ProgressionTrajectoryTest {
 
+    /** A talented golfer's ability at each age, developed and aged season by season toward their ceiling. */
+    private static Map<Integer, Double> abilityByAge(int from, int to) {
+        Attributes potential = Attributes.uniform(88);
+        Attributes attrs = Maturity.abilityAt(potential, from);
+        Map<Integer, Double> ability = new TreeMap<>();
+        for (int age = from; age <= to; age++) {
+            attrs = ProgressionEngine.develop(attrs, potential, age);
+            attrs = ProgressionEngine.age(attrs, age);
+            ability.put(age, ProgressionEngine.overallAbility(attrs));
+        }
+        return ability;
+    }
+
     @Test
-    void overACareerAbilityRisesToAPeakThenDeclinesGraduallyInRange() {
-        Attributes attrs = Attributes.uniform(55);
-        double at20 = ProgressionEngine.overallAbility(attrs);
+    void abilityKeepsRisingThroughAGolfersFortiesInsteadOfPeakingInTheEarlyThirties() {
+        Map<Integer, Double> ability = abilityByAge(21, 58);
 
-        double peak = at20;
-        for (int age = 21; age <= 34; age++) { // development + prime
-            attrs = ProgressionEngine.develop(attrs, age);
-            attrs = ProgressionEngine.age(attrs, age);
-            peak = Math.max(peak, ProgressionEngine.overallAbility(attrs));
+        // The regression this guards: ability used to top out at ~33 and fall every season after, so a
+        // career's best years were always its earliest ones.
+        assertThat(ability.get(40)).isGreaterThan(ability.get(33));
+        assertThat(ability.get(45)).isGreaterThan(ability.get(40));
+        // No sustained backslide anywhere from the mid-20s to the mid-40s. Compared over a five-year window
+        // rather than season to season: a single season may still tick down a fraction when driving distance
+        // rounds off a point and that season's development lands elsewhere, which is the power fade working
+        // as intended — the regression was a decade-long slide, not a rounding blip.
+        for (int age = 26; age <= 45; age++) {
+            assertThat(ability.get(age))
+                    .as("age %d should be better off than age %d", age, age - 5)
+                    .isGreaterThan(ability.get(age - 5));
         }
-        double atPrimeEnd = ProgressionEngine.overallAbility(attrs);
-        Attributes primeAttrs = attrs;
+    }
 
-        for (int age = 35; age <= 58; age++) { // late career decline
-            attrs = ProgressionEngine.develop(attrs, age);
-            attrs = ProgressionEngine.age(attrs, age);
+    @Test
+    void onlyRawPowerFadesInsideANormalCareerWhileSkillAndJudgmentSharpen() {
+        // Aging alone, so the shape of the curves is isolated from where development points happen to land.
+        Attributes at30 = Attributes.uniform(60);
+        for (int age = 21; age <= 30; age++) {
+            at30 = ProgressionEngine.age(at30, age);
         }
-        double atOld = ProgressionEngine.overallAbility(attrs);
+        Attributes at50 = at30;
+        for (int age = 31; age <= 50; age++) {
+            at50 = ProgressionEngine.age(at50, age);
+        }
 
-        // Rises to a peak above the starting level ...
-        assertThat(peak).isGreaterThan(at20);
-        // ... and declines from the prime by old age (physical fade outpaces reduced late development).
-        assertThat(atOld).isLessThan(atPrimeEnd);
-        // Non-uniform: a physical attribute is below its prime while a mental one is at or above it.
-        assertThat(attrs.get(Attribute.DRIVING_DISTANCE)).isLessThan(primeAttrs.get(Attribute.DRIVING_DISTANCE));
-        assertThat(attrs.get(Attribute.COURSE_MANAGEMENT)).isGreaterThanOrEqualTo(primeAttrs.get(Attribute.COURSE_MANAGEMENT));
-        // Everything stays within range throughout.
+        assertThat(at50.get(Attribute.DRIVING_DISTANCE)).isLessThan(at30.get(Attribute.DRIVING_DISTANCE));
+        // ...but everything else is sharper at 50 than it was at 30, including finding the fairway.
+        assertThat(at50.get(Attribute.DRIVING_ACCURACY)).isGreaterThan(at30.get(Attribute.DRIVING_ACCURACY));
+        assertThat(at50.get(Attribute.PUTTING_ACCURACY)).isGreaterThan(at30.get(Attribute.PUTTING_ACCURACY));
+        assertThat(at50.get(Attribute.COURSE_MANAGEMENT)).isGreaterThan(at30.get(Attribute.COURSE_MANAGEMENT));
         for (Attribute a : Attribute.values()) {
-            assertThat(attrs.get(a)).isBetween(0, 100);
+            assertThat(at50.get(a)).isBetween(0, 100);
         }
     }
 
     @Test
     void applyingASeasonIsAPureDeterministicFunction() {
         Attributes attrs = Attributes.uniform(62);
-        Attributes once = ProgressionEngine.age(ProgressionEngine.develop(attrs, 29), 29);
-        Attributes twice = ProgressionEngine.age(ProgressionEngine.develop(attrs, 29), 29);
+        Attributes potential = Attributes.uniform(88);
+        Attributes once = ProgressionEngine.age(ProgressionEngine.develop(attrs, potential, 29), 29);
+        Attributes twice = ProgressionEngine.age(ProgressionEngine.develop(attrs, potential, 29), 29);
         for (Attribute a : Attribute.values()) {
             assertThat(once.get(a)).isEqualTo(twice.get(a));
         }
