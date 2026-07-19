@@ -98,11 +98,17 @@ public final class ShotResolver {
         double baseDistanceDispersion = SimConstants.DISTANCE_DISPERSION_FRACTION * shotDistance * club.distanceDispersion()
                 + SimConstants.DISTANCE_DISPERSION_FLOOR;
 
-        double sigmaLateral = baseLateral / lateralFactor
+        // Course management tightens every full shot a little — smart target selection, playing to the fat
+        // side, taking the club that keeps trouble out of play (spec: shot-resolution). This is its always-on
+        // value, distinct from the blow-up avoidance it already provides on the mishit tail: without it,
+        // course management moved a golfer's score by essentially nothing and was not worth developing.
+        double managementFactor = 1.0 + managementNorm * SimConstants.MANAGEMENT_DISPERSION_RELIEF;
+
+        double sigmaLateral = baseLateral / lateralFactor / managementFactor
                 * strategyMult * pressureMult * fatigueSigmaMult * injurySigmaMult * crossMult * lieMult * equipmentDispersion;
         // Feel (equipment) tightens distance dispersion — better proximity/touch (spec: equipment-influence);
         // neutral at 0.
-        double sigmaDistance = baseDistanceDispersion / distanceFactor
+        double sigmaDistance = baseDistanceDispersion / distanceFactor / managementFactor
                 * strategyMult * pressureMult * fatigueSigmaMult * injurySigmaMult * lieMult * equipmentDispersion
                 * (1.0 - state.equipmentFeel());
 
@@ -192,8 +198,13 @@ public final class ShotResolver {
 
         // Make probability: logistic in feet, centred on a skill-raised 50%-make distance. Nerves (fatigue,
         // uncomposed pressure) shave it; mental support (psychologist) softens both.
+        // Holing a putt is line AND speed: accuracy reads and starts it true, proximity (touch) rolls it the
+        // right pace to drop rather than lip out. Blending proximity into the make distance gives it real
+        // value in holing putts, not only in the leave — accuracy alone used to own putting outright.
+        double puttSkill = SimConstants.PUTT_MAKE_ACCURACY_WEIGHT * accNorm
+                + (1.0 - SimConstants.PUTT_MAKE_ACCURACY_WEIGHT) * proxNorm;
         double feet = d * SimConstants.YARDS_TO_FEET;
-        double f50 = SimConstants.PUTT_MAKE_F50_BASE + SimConstants.PUTT_MAKE_F50_SPAN * accNorm;
+        double f50 = SimConstants.PUTT_MAKE_F50_BASE + SimConstants.PUTT_MAKE_F50_SPAN * puttSkill;
         double makeProbability = 1.0 / (1.0 + StrictMath.pow(feet / f50, SimConstants.PUTT_MAKE_SHARPNESS));
         makeProbability *= (1.0 - effectiveFatigue * SimConstants.PUTT_FATIGUE_PENALTY);
         makeProbability *= (1.0 - effectivePressure * (1.0 - composureNorm) * SimConstants.PUTT_PRESSURE_PENALTY);

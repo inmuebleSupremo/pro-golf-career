@@ -16,12 +16,19 @@ public final class SimConstants {
     // Dispersion = FRACTION * shotDistance + FLOOR, before attribute/condition modifiers. This governs the
     // full ball-flight shots (tee to green); putts bypass it entirely (see the putting model below). The
     // fractions are calibrated so greens-in-regulation, fairways, and scoring land on realistic targets.
-    /** Lateral dispersion as a fraction of intended shot distance. */
-    public static final double LATERAL_DISPERSION_FRACTION = 0.094;
+    /**
+     * Lateral dispersion as a fraction of intended shot distance.
+     *
+     * <p>Balanced against {@link #DISTANCE_DISPERSION_FRACTION}: together these decide how much of a golfer's
+     * scoring rides on aiming straight versus controlling distance, and therefore how much the "accuracy"
+     * attributes are worth relative to the "control" ones. Lateral used to carry most of it, which made irons
+     * accuracy worth ~5x irons control and turned a balanced golfer into a wasted build.
+     */
+    public static final double LATERAL_DISPERSION_FRACTION = 0.072;
     /** Minimum lateral dispersion (yards) regardless of shot length — keeps short pitches/chips accurate. */
     public static final double LATERAL_DISPERSION_FLOOR = 0.10;
-    /** Longitudinal dispersion as a fraction of intended shot distance. */
-    public static final double DISTANCE_DISPERSION_FRACTION = 0.058;
+    /** Longitudinal dispersion as a fraction of intended shot distance. See the lateral fraction above. */
+    public static final double DISTANCE_DISPERSION_FRACTION = 0.082;
     /** Minimum longitudinal dispersion (yards) regardless of shot length — keeps short pitches/chips accurate. */
     public static final double DISTANCE_DISPERSION_FLOOR = 0.20;
 
@@ -46,6 +53,13 @@ public final class SimConstants {
     /** Wind resistance from distance skill: floor and span (higher distance skill resists wind more). */
     public static final double WIND_RESIST_FLOOR = 0.30;
     public static final double WIND_RESIST_SPAN = 0.50;
+    /**
+     * How much full-shot dispersion Course Management tightens at maximum rating — smart target selection and
+     * risk avoidance, applied to every tee-to-green shot. Its always-on value, alongside the blow-up
+     * avoidance it already gives on the mishit tail. At 0.16 a top-rated golfer plays ~14% tighter than a
+     * neutral one, which makes course management worth developing without letting it rival the shot skills.
+     */
+    public static final double MANAGEMENT_DISPERSION_RELIEF = 0.16;
 
     // --- Condition penalties (sigma multipliers / mean adjustments) ---
     public static final double HEADWIND_MEAN_WEIGHT = 0.70;
@@ -139,8 +153,14 @@ public final class SimConstants {
     public static final double YARDS_TO_FEET = 3.0;
     /** Distance (feet) at which a neutral (0-skill) putter makes 50% — raised by putting accuracy. */
     public static final double PUTT_MAKE_F50_BASE = 5.0;
-    /** Additional 50%-make distance (feet) contributed at maximum putting accuracy. */
+    /** Additional 50%-make distance (feet) contributed at maximum putting skill (accuracy blended with touch). */
     public static final double PUTT_MAKE_F50_SPAN = 6.0;
+    /**
+     * How much of putting make-skill is line (putting accuracy) versus speed/touch (putting proximity). The
+     * make distance used to be pure accuracy, which made accuracy worth ~7x proximity; blending touch in
+     * gives proximity real value in holing putts, not only in the length of the miss.
+     */
+    public static final double PUTT_MAKE_ACCURACY_WEIGHT = 0.6;
     /** Steepness of the make-probability fall-off with distance (higher = sharper cliff past f50). */
     public static final double PUTT_MAKE_SHARPNESS = 2.6;
     /** Ceiling on make probability so even a tap-in can (very rarely) miss. */
@@ -156,8 +176,8 @@ public final class SimConstants {
     public static final double PUTT_LEAVE_FLOOR = 0.15;
     /** Leave as a fraction of the putt distance, before proximity relief. */
     public static final double PUTT_LEAVE_FRACTION = 0.06;
-    /** Fraction of the distance-scaled leave removed at maximum putting proximity. */
-    public static final double PUTT_LEAVE_PROX_RELIEF = 0.5;
+    /** Fraction of the distance-scaled leave removed at maximum putting proximity — cutting three-putts. */
+    public static final double PUTT_LEAVE_PROX_RELIEF = 0.7;
     /** Relative spread of the (gaussian) leave around its mean. */
     public static final double PUTT_LEAVE_SIGMA = 0.5;
     /** Hard minimum leave (yards) so a missed putt always leaves a real tap-in (> HOLED_THRESHOLD). */
