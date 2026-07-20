@@ -42,7 +42,7 @@ public final class ProgressionConstants {
      * bounds. A golfer who competes and contends improves faster than one who misses cuts — progress is
      * earned on the course, which is where a career game should ask the player to earn it.
      */
-    public static final double PERFORMANCE_DP_MIN = 0.65;
+    public static final double PERFORMANCE_DP_MIN = 0.90;
     public static final double PERFORMANCE_DP_MAX = 1.45;
     /** Weight on cut-making (competence) versus top-ten rate (excellence) in the performance scaling. */
     public static final double PERFORMANCE_CUT_WEIGHT = 0.4;

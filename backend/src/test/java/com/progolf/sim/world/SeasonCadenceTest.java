@@ -21,9 +21,9 @@ class SeasonCadenceTest {
     }
 
     @Test
-    void majorsAnchorFixedChapterWeeksOnElite() {
-        List<SeasonCadence.Placement> elite = tier(SeasonCadence.forSeason(30), TourTier.ELITE);
-        assertThat(weeksOf(elite, EventPrestige.MAJOR)).containsExactly(7, 14, 21, 27);
+    void majorsAnchorFixedChapterWeeksOnPro() {
+        List<SeasonCadence.Placement> pro = tier(SeasonCadence.forSeason(30), TourTier.PRO);
+        assertThat(weeksOf(pro, EventPrestige.MAJOR)).containsExactly(7, 14, 21, 27);
     }
 
     @Test
@@ -32,33 +32,33 @@ class SeasonCadenceTest {
         for (TourTier t : TourTier.values()) {
             assertThat(weeksOf(tier(all, t), EventPrestige.TOUR_CHAMPIONSHIP)).as("championships for %s", t).hasSize(1);
         }
-        int elite = weeksOf(tier(all, TourTier.ELITE), EventPrestige.TOUR_CHAMPIONSHIP).get(0);
+        int pro = weeksOf(tier(all, TourTier.PRO), EventPrestige.TOUR_CHAMPIONSHIP).get(0);
         int dev = weeksOf(tier(all, TourTier.DEVELOPMENT), EventPrestige.TOUR_CHAMPIONSHIP).get(0);
-        assertThat(elite).isEqualTo(30);
+        assertThat(pro).isEqualTo(30);
         assertThat(dev).isEqualTo(29);
-        assertThat(dev).isLessThan(elite);
+        assertThat(dev).isLessThan(pro);
     }
 
     @Test
     void signaturesAreSpotlightedNotClusteredAtTheStart() {
-        List<Integer> eliteSignatures = weeksOf(tier(SeasonCadence.forSeason(30), TourTier.ELITE),
+        List<Integer> proSignatures = weeksOf(tier(SeasonCadence.forSeason(30), TourTier.PRO),
                 EventPrestige.SIGNATURE);
-        assertThat(eliteSignatures).isNotEmpty();
+        assertThat(proSignatures).isNotEmpty();
         // At least one signature falls in the back half of the season (not all bunched at the opening).
-        assertThat(eliteSignatures).anyMatch(w -> w > 15);
+        assertThat(proSignatures).anyMatch(w -> w > 15);
     }
 
     @Test
-    void thereIsAMidSeasonEliteDevelopmentCollisionWeek() {
+    void thereIsAMidSeasonProDevelopmentCollisionWeek() {
         List<SeasonCadence.Placement> all = SeasonCadence.forSeason(30);
-        List<Integer> eliteSigs = weeksOf(tier(all, TourTier.ELITE), EventPrestige.SIGNATURE);
+        List<Integer> proSigs = weeksOf(tier(all, TourTier.PRO), EventPrestige.SIGNATURE);
         List<Integer> devSigs = weeksOf(tier(all, TourTier.DEVELOPMENT), EventPrestige.SIGNATURE);
-        List<Integer> collision = eliteSigs.stream().filter(devSigs::contains).toList();
-        assertThat(collision).as("a week where both Elite and Development host a signature").isNotEmpty();
+        List<Integer> collision = proSigs.stream().filter(devSigs::contains).toList();
+        assertThat(collision).as("a week where both Pro and Development host a signature").isNotEmpty();
     }
 
     @Test
-    void developmentSignaturesAvoidTheEliteMajorWeeks() {
+    void developmentSignaturesAvoidTheProMajorWeeks() {
         List<Integer> devSigs = weeksOf(tier(SeasonCadence.forSeason(30), TourTier.DEVELOPMENT),
                 EventPrestige.SIGNATURE);
         assertThat(devSigs).doesNotContain(7, 14, 21, 27);

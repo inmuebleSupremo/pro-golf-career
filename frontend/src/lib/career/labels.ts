@@ -15,9 +15,7 @@ const GOAL_TYPE_LABELS: Record<string, string> = {
 
 const TOUR_TIER_LABELS: Record<string, string> = {
   DEVELOPMENT: "Development",
-  SECONDARY: "Secondary",
-  PRIMARY: "Primary",
-  ELITE: "Elite",
+  PRO: "Pro",
 };
 
 const EVENT_PRESTIGE_LABELS: Record<string, string> = {

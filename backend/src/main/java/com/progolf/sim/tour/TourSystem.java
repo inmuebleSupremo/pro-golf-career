@@ -259,9 +259,7 @@ public final class TourSystem {
     private static String tierName(TourTier tier) {
         return switch (tier) {
             case DEVELOPMENT -> "Development Tour";
-            case SECONDARY -> "Secondary Tour";
-            case PRIMARY -> "Primary Tour";
-            case ELITE -> "Elite Tour";
+            case PRO -> "Pro Tour";
         };
     }
 }

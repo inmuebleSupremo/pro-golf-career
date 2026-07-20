@@ -298,21 +298,11 @@ public final class World {
                 .thenComparing(g -> g.player().id()));
 
         int pop = ranked.size();
-        int eliteN = TourConstants.targetSize(TourTier.ELITE, pop);
-        int primaryN = TourConstants.targetSize(TourTier.PRIMARY, pop);
-        int secondaryN = TourConstants.targetSize(TourTier.SECONDARY, pop);
+        int proN = TourConstants.targetSize(TourTier.PRO, pop);
         for (int i = 0; i < pop; i++) {
             ProfessionalGolfer g = ranked.get(i);
-            TourTier tier;
-            if (i < eliteN) {
-                tier = TourTier.ELITE;
-            } else if (i < eliteN + primaryN) {
-                tier = TourTier.PRIMARY;
-            } else if (i < eliteN + primaryN + secondaryN) {
-                tier = TourTier.SECONDARY;
-            } else {
-                tier = TourTier.DEVELOPMENT;
-            }
+            // The strongest golfers hold Pro cards; everyone else starts on the Development tour.
+            TourTier tier = i < proN ? TourTier.PRO : TourTier.DEVELOPMENT;
             admit(g, tier);
         }
 
@@ -685,12 +675,10 @@ public final class World {
         checkCareerGoals(); // a win/major/ranking move may complete a player goal (spec: career-goals)
     }
 
-    /** Per-event entry fee by tour tier (more prestigious tours cost more to enter). */
+    /** Per-event entry fee by tour tier (the top tour costs more to enter). */
     private static double entryFeeFor(TourTier tier) {
         return switch (tier) {
-            case ELITE -> EconomyConstants.ENTRY_FEE_ELITE;
-            case PRIMARY -> EconomyConstants.ENTRY_FEE_PRIMARY;
-            case SECONDARY -> EconomyConstants.ENTRY_FEE_SECONDARY;
+            case PRO -> EconomyConstants.ENTRY_FEE_ELITE;
             case DEVELOPMENT -> EconomyConstants.ENTRY_FEE_DEVELOPMENT;
         };
     }
@@ -1035,7 +1023,7 @@ public final class World {
         for (int m = 0; m < majors; m++) {
             int week = 1 + (int) ((long) m * config.weeksPerSeason() / Math.max(1, majors));
             int courseIndex = (int) (nextTournamentId % coursePool.size());
-            generated.add(new ScheduledTournament(week, TourTier.ELITE, courseIndex, EventPrestige.MAJOR,
+            generated.add(new ScheduledTournament(week, TourTier.PRO, courseIndex, EventPrestige.MAJOR,
                     nextTournamentId++));
         }
         return generated;
@@ -1346,7 +1334,7 @@ public final class World {
         long target = goal.target();
         switch (goal.type()) {
             case REACH_TOP_TOUR -> {
-                current = tours.membershipOf(playerId).map(t -> t == TourTier.ELITE ? 1L : 0L).orElse(0L);
+                current = tours.membershipOf(playerId).map(t -> t == TourTier.PRO ? 1L : 0L).orElse(0L);
                 target = 1;
             }
             case WIN_A_MAJOR -> current = stats.majorsWon();
@@ -1675,10 +1663,8 @@ public final class World {
 
     private static Tier mapTier(TourTier tier) {
         return switch (tier) {
-            case DEVELOPMENT -> Tier.DEVELOPMENT;
-            case SECONDARY -> Tier.STANDARD;
-            case PRIMARY -> Tier.PREMIER;
-            case ELITE -> Tier.ELITE;
+            case DEVELOPMENT -> Tier.STANDARD; // a real developmental tour, not a soft one
+            case PRO -> Tier.ELITE;            // the pinnacle: strongest field, hardest setup, richest purse
         };
     }
 

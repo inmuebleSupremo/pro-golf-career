@@ -19,23 +19,19 @@ public final class TourConstants {
      */
     public static final double MAX_MOVE_FRACTION = 0.34;
 
-    // --- Tier sizes (fractions of total membership; the entry tier holds the remainder) ---
+    // --- Tier sizes (fraction of total membership; the Development tour holds the remainder) ---
     /**
-     * Each tour above the entry tier carries a fixed number of cards, as a share of the golfers in the
-     * system. A tour is refilled to its size every season from the tour below, so retirement thinning the
-     * upper tours pulls golfers up behind it instead of leaving the ladder hollow and the entry tier
-     * swollen. The entry tier is the reservoir and has no target — it holds whatever is left.
+     * The Pro tour carries a fixed number of cards, as a share of the golfers in the system — the top tour
+     * is selective, so a card is worth earning. It is refilled to this size every season from the Development
+     * tour, so retirement thinning it pulls the best developmental golfers up behind it instead of leaving it
+     * hollow. The Development tour is the reservoir and has no target — it holds everyone else.
      */
-    public static final double ELITE_FRACTION = 0.08;
-    public static final double PRIMARY_FRACTION = 0.17;
-    public static final double SECONDARY_FRACTION = 0.30;
+    public static final double PRO_FRACTION = 0.16;
 
-    /** The number of cards a tier carries, given the total membership. Zero for the entry tier. */
+    /** The number of cards a tier carries, given the total membership. Zero for the Development tour. */
     public static int targetSize(TourTier tier, int totalMembers) {
         double fraction = switch (tier) {
-            case ELITE -> ELITE_FRACTION;
-            case PRIMARY -> PRIMARY_FRACTION;
-            case SECONDARY -> SECONDARY_FRACTION;
+            case PRO -> PRO_FRACTION;
             case DEVELOPMENT -> 0.0;
         };
         return (int) Math.round(totalMembers * fraction);

@@ -37,9 +37,7 @@ final class EventNaming {
     private static String tierLabel(TourTier tier) {
         return switch (tier) {
             case DEVELOPMENT -> "Development";
-            case SECONDARY -> "Secondary";
-            case PRIMARY -> "Primary";
-            case ELITE -> "Elite";
+            case PRO -> "Pro";
         };
     }
 }

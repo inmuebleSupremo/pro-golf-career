@@ -37,7 +37,7 @@ class WorldPlayerSuccessTest {
         }
 
         // Reaches the pinnacle tour during a full career...
-        assertThat(best).as("best tour reached over the career").isEqualTo(TourTier.ELITE);
+        assertThat(best).as("best tour reached over the career").isEqualTo(TourTier.PRO);
         // ...and wins real events on merit — a superstar career, not a winless one.
         assertThat(world.careerOf(id).statistics().wins())
                 .as("career wins for a fully-played created golfer").isGreaterThanOrEqualTo(5);

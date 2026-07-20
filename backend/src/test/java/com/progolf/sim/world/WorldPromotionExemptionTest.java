@@ -10,7 +10,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
- * Tour-movement spec: promotion must be a pathway, not a revolving door. At realistic scale the Secondary
+ * Tour-movement spec: promotion must be a pathway, not a revolving door. At realistic scale the Pro
  * tour holds more members (~192) than an event's field can seat (120), so entry is merit-ordered — and a
  * golfer promoted for topping Development arrives as the weakest member of the tier they earned. Without a
  * card they would miss every field, score no points, and be relegated straight back without ever teeing off.
@@ -35,7 +35,7 @@ class WorldPromotionExemptionTest {
 
         List<String> promoted = new ArrayList<>();
         for (var e : before.entrySet()) {
-            if (e.getValue() == TourTier.DEVELOPMENT && after.get(e.getKey()) == TourTier.SECONDARY) {
+            if (e.getValue() == TourTier.DEVELOPMENT && after.get(e.getKey()) == TourTier.PRO) {
                 promoted.add(e.getKey());
             }
         }
@@ -59,10 +59,10 @@ class WorldPromotionExemptionTest {
         world.advanceSeason();
         Map<String, TourTier> end = tiersOf(world);
 
-        // Nobody promoted to Secondary bounced back to Development having never teed off.
+        // Nobody promoted to Pro bounced back to Development having never teed off.
         for (var e : before.entrySet()) {
             String id = e.getKey();
-            if (e.getValue() == TourTier.DEVELOPMENT && after.get(id) == TourTier.SECONDARY
+            if (e.getValue() == TourTier.DEVELOPMENT && after.get(id) == TourTier.PRO
                     && end.get(id) == TourTier.DEVELOPMENT) {
                 assertThat(world.seasonStatisticsOf(id, 2).events())
                         .as("relegated golfer %s must at least have had the chance to compete", id)

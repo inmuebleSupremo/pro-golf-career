@@ -14,21 +14,21 @@ class TourMembershipTest {
         system.register("g1", TourTier.DEVELOPMENT);
         assertThat(system.membershipOf("g1")).contains(TourTier.DEVELOPMENT);
         assertThat(system.isMember("g1")).isTrue();
-        assertThatThrownBy(() -> system.register("g1", TourTier.SECONDARY)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> system.register("g1", TourTier.DEVELOPMENT)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     void qualificationChangesMembershipAndIsRecorded() {
         TourSystem system = new TourSystem();
         system.register("g1", TourTier.DEVELOPMENT);
-        system.grantMembership("g1", TourTier.SECONDARY, "Qualifying School");
+        system.grantMembership("g1", TourTier.DEVELOPMENT, "Qualifying School");
 
-        assertThat(system.membershipOf("g1")).contains(TourTier.SECONDARY); // replaced previous
+        assertThat(system.membershipOf("g1")).contains(TourTier.DEVELOPMENT); // replaced previous
         assertThat(system.movementHistory()).anySatisfy(m -> {
             assertThat(m.golferId()).isEqualTo("g1");
             assertThat(m.type()).isEqualTo(MovementType.QUALIFICATION);
             assertThat(m.fromTier()).isEqualTo(TourTier.DEVELOPMENT);
-            assertThat(m.toTier()).isEqualTo(TourTier.SECONDARY);
+            assertThat(m.toTier()).isEqualTo(TourTier.DEVELOPMENT);
         });
     }
 

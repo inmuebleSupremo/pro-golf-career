@@ -11,11 +11,11 @@ class TourStructureTest {
     @Test
     void tierLadderIsOrderedWithNeighboursAndACompletePathway() {
         assertThat(TourTier.DEVELOPMENT.rank()).isEqualTo(0);
-        assertThat(TourTier.ELITE.rank()).isEqualTo(TourTier.values().length - 1);
+        assertThat(TourTier.PRO.rank()).isEqualTo(TourTier.values().length - 1);
         assertThat(TourTier.DEVELOPMENT.below()).isEmpty();
-        assertThat(TourTier.DEVELOPMENT.above()).contains(TourTier.SECONDARY);
-        assertThat(TourTier.ELITE.above()).isEmpty();
-        assertThat(TourTier.ELITE.below()).contains(TourTier.PRIMARY);
+        assertThat(TourTier.DEVELOPMENT.above()).contains(TourTier.PRO);
+        assertThat(TourTier.PRO.above()).isEmpty();
+        assertThat(TourTier.PRO.below()).contains(TourTier.DEVELOPMENT);
 
         // Continuous path from lowest to highest.
         TourTier t = TourTier.DEVELOPMENT;
@@ -24,7 +24,7 @@ class TourStructureTest {
             t = t.above().get();
             steps++;
         }
-        assertThat(t).isEqualTo(TourTier.ELITE);
+        assertThat(t).isEqualTo(TourTier.PRO);
         assertThat(steps).isEqualTo(TourTier.values().length - 1);
     }
 
@@ -34,7 +34,7 @@ class TourStructureTest {
         for (TourTier tier : TourTier.values()) {
             assertThat(system.tour(tier).tier()).isEqualTo(tier);
         }
-        assertThat(system.tour(TourTier.ELITE).id()).isNotEqualTo(system.tour(TourTier.PRIMARY).id());
+        assertThat(system.tour(TourTier.PRO).id()).isNotEqualTo(system.tour(TourTier.DEVELOPMENT).id());
     }
 
     @Test
@@ -42,10 +42,10 @@ class TourStructureTest {
         TourSystem system = new TourSystem();
         ProfessionalGolfer g = TourFixtures.golfers(1).get(0);
         String id = g.player().id();
-        system.register(id, TourTier.PRIMARY);
+        system.register(id, TourTier.DEVELOPMENT);
 
-        assertThat(system.isEligible(id, TourTier.PRIMARY, false)).isTrue();
-        assertThat(system.isEligible(id, TourTier.ELITE, false)).isFalse();
-        assertThat(system.isEligible(id, TourTier.ELITE, true)).isTrue(); // invitation exception
+        assertThat(system.isEligible(id, TourTier.DEVELOPMENT, false)).isTrue();
+        assertThat(system.isEligible(id, TourTier.PRO, false)).isFalse();
+        assertThat(system.isEligible(id, TourTier.PRO, true)).isTrue(); // invitation exception
     }
 }

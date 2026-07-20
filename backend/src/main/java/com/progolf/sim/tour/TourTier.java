@@ -3,15 +3,15 @@ package com.progolf.sim.tour;
 import java.util.Optional;
 
 /**
- * The ordered competitive tier ladder (REQ-127). Declaration order is the rank, lowest first: higher
- * tiers hold stronger competition. The ladder is continuous, giving a complete pathway from the
- * entry-level tier to the elite tier (REQ-137).
+ * The competitive tour ladder (REQ-127), modelled on real professional golf as two levels: a Development
+ * tour where new professionals prove themselves, feeding a top Pro tour — the pinnacle, where the best
+ * players compete. Declaration order is the rank, lowest first. The ladder is continuous, giving a complete
+ * pathway from the entry level to the top (REQ-137): a golfer earns a Pro card by finishing high on the
+ * Development tour, and loses it by finishing low on the Pro tour.
  */
 public enum TourTier {
     DEVELOPMENT,
-    SECONDARY,
-    PRIMARY,
-    ELITE;
+    PRO;
 
     /** Rank, 0 = lowest tier. */
     public int rank() {

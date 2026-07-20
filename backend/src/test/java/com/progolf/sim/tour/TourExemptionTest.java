@@ -13,7 +13,7 @@ class TourExemptionTest {
         golfers.forEach(g -> system.register(g.player().id(), tier));
     }
 
-    /** A system whose season-1 review promotes the top of Development into Secondary. */
+    /** A system whose season-1 review promotes the top of Development into the Pro tour. */
     private static TourSystem promotedFromDevelopment(List<ProfessionalGolfer> field) {
         TourSystem system = new TourSystem();
         registerAll(system, field, TourTier.DEVELOPMENT);
@@ -28,7 +28,7 @@ class TourExemptionTest {
         TourSystem system = promotedFromDevelopment(field);
 
         String promoted = field.get(0).player().id();
-        assertThat(system.membershipOf(promoted)).contains(TourTier.SECONDARY);
+        assertThat(system.membershipOf(promoted)).contains(TourTier.PRO);
         assertThat(system.isExempt(promoted)).isTrue();
     }
 
@@ -59,8 +59,8 @@ class TourExemptionTest {
         TourSystem system = promotedFromDevelopment(field);
         String promoted = field.get(0).player().id();
 
-        // A qualification pathway moves them elsewhere; the Secondary card no longer applies.
-        system.grantMembership(promoted, TourTier.PRIMARY, "sponsor exemption");
+        // A qualification pathway moves them elsewhere; the Pro card no longer applies.
+        system.grantMembership(promoted, TourTier.DEVELOPMENT, "sponsor exemption");
 
         assertThat(system.isExempt(promoted)).isFalse();
     }
