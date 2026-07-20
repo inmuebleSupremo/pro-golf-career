@@ -261,8 +261,10 @@ body {
   --surface-3: #202a25;
 
   --foreground: #eef2f0;
-  --muted-foreground: #a2b1a9;
-  --subtle-foreground: #728177;
+  --muted-foreground: #a7b6ac;
+  /* Lifted from #728177 (~3.6:1) to clear WCAG AA (4.5:1) on the dark surface —
+   * it carries the smallest captions, so it must stay legible everywhere. */
+  --subtle-foreground: #8b9d92;
 
   --border: #263029;
   --border-strong: #33423a;
@@ -294,8 +296,27 @@ body {
   --shadow-md: 0 8px 22px -10px rgba(0, 0, 0, 0.6);
   --shadow-lg: 0 18px 40px -20px rgba(0, 0, 0, 0.75);
 
-  background: var(--background);
   color: var(--foreground);
+  /*
+   * Texture: a faint golf-ball dimple field (a concave pit with a light rim, tiled)
+   * under two ambient brand glows. Kept very low-contrast so it reads as surface
+   * grain behind the cards, never as pattern — opaque surfaces sit cleanly on top.
+   */
+  background-color: var(--background);
+  background-image:
+    radial-gradient(1100px 600px at 84% -10%, rgba(87, 208, 138, 0.06), transparent 60%),
+    radial-gradient(900px 520px at 2% 108%, rgba(99, 168, 236, 0.05), transparent 55%),
+    radial-gradient(
+      circle at center,
+      rgba(0, 0, 0, 0.06) 0 32%,
+      rgba(255, 255, 255, 0.016) 46% 58%,
+      transparent 66%
+    );
+  background-size:
+    100% 100%,
+    100% 100%,
+    17px 17px;
+  background-attachment: fixed, fixed, fixed;
 }
 
 /* The metallic-gold moment — honours only (majors, records, hall of fame). */
