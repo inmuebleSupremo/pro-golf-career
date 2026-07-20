@@ -38,19 +38,16 @@ public final class ProgressionConstants {
 
     // --- Performance-driven development ---
     /**
-     * A season's Development Points are scaled by how the golfer actually played, between these bounds. A
-     * golfer who competes and contends improves faster than one who misses cuts — progress is earned on the
-     * course, which is where a career game should ask the player to earn it.
+     * A season's Development Points are scaled by how the golfer finished against their field, between these
+     * bounds. A golfer who competes and contends improves faster than one who misses cuts — progress is
+     * earned on the course, which is where a career game should ask the player to earn it.
      */
     public static final double PERFORMANCE_DP_MIN = 0.65;
     public static final double PERFORMANCE_DP_MAX = 1.45;
-    /**
-     * Season scoring average at or below which a golfer earns the maximum scaling. In strokes to par per
-     * EVENT (a full event is four rounds; a missed cut is two), matching {@code StatLine#scoringAverage}.
-     */
-    public static final double PERFORMANCE_BEST_SCORING = -12.0;
-    /** Season scoring average (to par, per event) at or above which a golfer earns the minimum scaling. */
-    public static final double PERFORMANCE_WORST_SCORING = 8.0;
+    /** Weight on cut-making (competence) versus top-ten rate (excellence) in the performance scaling. */
+    public static final double PERFORMANCE_CUT_WEIGHT = 0.4;
+    /** Top-ten rate at which a golfer earns the full excellence share of the scaling — a genuine contender. */
+    public static final double PERFORMANCE_TOP_TEN_TARGET = 0.35;
 
     // --- Development-point stage multipliers ---
     public static final double DP_MULT_DEVELOPMENT = 1.3;

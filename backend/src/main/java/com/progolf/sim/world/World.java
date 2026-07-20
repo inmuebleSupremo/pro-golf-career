@@ -1651,22 +1651,26 @@ public final class World {
 
     /**
      * How much the season's play is worth to a golfer's development (spec: player-development), scaling the
-     * Development Points they earn. Read from their scoring average for the season, so it rewards playing
-     * the game well rather than any single result. A golfer who did not compete gets the neutral factor —
-     * an injured or rested season neither accelerates nor punishes development.
+     * Development Points they earn. Read from how the golfer FINISHED against their field — cut-making and
+     * top-ten rate — rather than their raw score to par. Relative finishing is what "playing well" means and,
+     * unlike an absolute score, it does not shift when the scoring calibration changes, so a golfer who
+     * contends is rewarded whether winning scores are -15 or -25. A golfer who did not compete gets the
+     * neutral factor — an injured or rested season neither accelerates nor punishes development.
      */
     private double performanceFactor(String golferId, int season) {
         StatLine line = seasonStatisticsOf(golferId, season);
-        if (line.events() == 0 || line.holesPlayed() == 0) {
+        if (line.events() == 0) {
             return 1.0;
         }
-        double scoring = line.scoringAverage();
-        double best = ProgressionConstants.PERFORMANCE_BEST_SCORING;
-        double worst = ProgressionConstants.PERFORMANCE_WORST_SCORING;
-        double t = (worst - scoring) / (worst - best); // 1.0 at the best scoring, 0.0 at the worst
-        t = Math.max(0.0, Math.min(1.0, t));
+        double cutRate = line.cutMakeRate();
+        double topTenRate = (double) line.topTens() / line.events();
+        // Making cuts is competence; contending (top-tens) is excellence. A golfer who tops-ten at the target
+        // rate and makes their cuts earns the full acceleration.
+        double performance = ProgressionConstants.PERFORMANCE_CUT_WEIGHT * cutRate
+                + (1.0 - ProgressionConstants.PERFORMANCE_CUT_WEIGHT)
+                        * Math.min(1.0, topTenRate / ProgressionConstants.PERFORMANCE_TOP_TEN_TARGET);
         return ProgressionConstants.PERFORMANCE_DP_MIN
-                + (ProgressionConstants.PERFORMANCE_DP_MAX - ProgressionConstants.PERFORMANCE_DP_MIN) * t;
+                + (ProgressionConstants.PERFORMANCE_DP_MAX - ProgressionConstants.PERFORMANCE_DP_MIN) * performance;
     }
 
     private static Tier mapTier(TourTier tier) {

@@ -38,8 +38,10 @@ class ShotStatisticsTest {
             }
             best = Math.min(best, remaining);
         }
-        // Central tendency: most shots cluster near the target.
-        assertThat((double) nearTarget / N).isGreaterThan(0.65);
+        // Central tendency: most shots cluster near the target. The band is a fairway-width scatter at the
+        // current realistic tour dispersion — a below-average golfer misses it a fair share of the time, which
+        // is the point (pros hit only ~60-65% of fairways); this guards that the bulk still finds it.
+        assertThat((double) nearTarget / N).isGreaterThan(0.60);
         // Extremes: rare.
         assertThat((double) catastrophic / N).isLessThan(0.05);
         // Exceptional shots still happen.

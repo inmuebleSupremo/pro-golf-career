@@ -24,11 +24,11 @@ public final class SimConstants {
      * attributes are worth relative to the "control" ones. Lateral used to carry most of it, which made irons
      * accuracy worth ~5x irons control and turned a balanced golfer into a wasted build.
      */
-    public static final double LATERAL_DISPERSION_FRACTION = 0.072;
+    public static final double LATERAL_DISPERSION_FRACTION = 0.100;
     /** Minimum lateral dispersion (yards) regardless of shot length — keeps short pitches/chips accurate. */
     public static final double LATERAL_DISPERSION_FLOOR = 0.10;
     /** Longitudinal dispersion as a fraction of intended shot distance. See the lateral fraction above. */
-    public static final double DISTANCE_DISPERSION_FRACTION = 0.082;
+    public static final double DISTANCE_DISPERSION_FRACTION = 0.110;
     /** Minimum longitudinal dispersion (yards) regardless of shot length — keeps short pitches/chips accurate. */
     public static final double DISTANCE_DISPERSION_FLOOR = 0.20;
 
@@ -39,12 +39,17 @@ public final class SimConstants {
      *
      * <p>This replaced a linear map, which could not make ability matter no matter how it was tuned. Golfers
      * only ever occupy roughly 55-95, which is a span of 0.4 on the normalised scale, and any linear map over
-     * so narrow a band yields a dispersion ratio near 1: a 30-point gap in ability bought ~3 strokes a round
-     * against a ~4-stroke round-to-round swing, so tournaments were close to coin flips and a career's
-     * results said nothing about the golfer playing it. An exponential keeps the ratio meaningful across the
-     * band that is actually populated. {@code K} is the master dial for how much golf is skill versus luck.
+     * so narrow a band yields a dispersion ratio near 1, so tournaments were coin flips. An exponential keeps
+     * the ratio meaningful across the band that is actually populated. {@code K} is the master dial for how
+     * much golf is skill versus luck.
+     *
+     * <p>Lowered from 2.2 to 1.4 with the dispersion fractions raised alongside: at 2.2 the best golfers were
+     * so machine-tight they hit ~90% of greens (pros hit ~65-70%) and won at -35 to -40 for four rounds, which
+     * no course setup could defend. At 1.4 with the higher base dispersion, greens-in-regulation and winning
+     * scores are realistic while the skill signal holds (a 20-point gap is still worth ~4.5 strokes a round
+     * against a ~2.5-stroke round-to-round swing).
      */
-    public static final double ATTRIBUTE_FACTOR_K = 2.2;
+    public static final double ATTRIBUTE_FACTOR_K = 1.4;
     /** The rating (normalised) that plays at neutral dispersion — below it a golfer is worse than baseline. */
     public static final double ATTRIBUTE_FACTOR_PIVOT = 0.5;
     /** Fraction of club base distance reachable at attribute 0 vs. the span added by distance skill. */
