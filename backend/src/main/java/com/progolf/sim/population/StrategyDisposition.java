@@ -2,7 +2,9 @@ package com.progolf.sim.population;
 
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
+import com.progolf.sim.core.RiskApproach;
 import com.progolf.sim.shot.Strategy;
+import java.util.Optional;
 
 /**
  * Derives a generated golfer's innate strategic disposition — their risk appetite — from their attributes,
@@ -23,6 +25,24 @@ import com.progolf.sim.shot.Strategy;
 public final class StrategyDisposition {
 
     private StrategyDisposition() {
+    }
+
+    /**
+     * The disposition a golfer plays: the player's chosen {@link RiskApproach} if they set one, otherwise the
+     * disposition their build implies. This is the one place the layer-neutral risk choice is mapped to the
+     * shot engine's concrete {@link Strategy}, so callers above the shot layer (the World) never name it.
+     */
+    public static Strategy resolve(Optional<RiskApproach> choice, Attributes attrs) {
+        return choice.map(StrategyDisposition::toStrategy).orElseGet(() -> fromAttributes(attrs));
+    }
+
+    /** Maps a chosen risk approach to the shot engine's strategy. */
+    private static Strategy toStrategy(RiskApproach approach) {
+        return switch (approach) {
+            case CONSERVATIVE -> Strategy.CONSERVATIVE;
+            case BALANCED -> Strategy.BALANCED;
+            case AGGRESSIVE -> Strategy.AGGRESSIVE;
+        };
     }
 
     /** The strategic disposition implied by {@code attrs}. Pure and deterministic. */

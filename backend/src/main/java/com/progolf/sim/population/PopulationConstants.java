@@ -50,7 +50,7 @@ public final class PopulationConstants {
      * their age by {@link com.progolf.sim.progression.Maturity}, so they still start as a raw talent who has
      * to be developed (spec: competitive-entry / player-development).
      */
-    public static final int CREATION_POTENTIAL_BASELINE = 93;
+    public static final int CREATION_POTENTIAL_BASELINE = 97;
     /** How much an archetype's strength attributes start above the baseline. */
     public static final int CREATION_EMPHASIS = 12;
     /** How much an archetype's weakness attributes start below the baseline. */

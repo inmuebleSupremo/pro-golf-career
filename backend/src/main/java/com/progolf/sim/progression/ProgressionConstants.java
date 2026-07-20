@@ -25,6 +25,17 @@ public final class ProgressionConstants {
      * seasons: at 4.0 the ceiling was unreachable, which made a golfer's starting draw their whole career.
      */
     public static final double MAX_DEVELOPMENT_PER_SEASON = 14.0;
+    /**
+     * How many development increments the human player realises per season, versus one for an AI golfer
+     * (spec: player-development / golfer-creation). The player is the generational-talent protagonist: they
+     * grind up from a teenage debut while the world is seeded with veterans already near their high ceilings,
+     * so without an edge they only reach elite level in their 40s, long after their prime — never a superstar.
+     * Several increments a season lets a well-played career realise its potential during its prime, reach the
+     * top tour, and contend for wins and majors. Each increment still respects the cost curve, the per-season
+     * cap, and the potential ceiling, so talent is realised faster but never exceeded.
+     */
+    public static final int PLAYER_TALENT_INCREMENTS = 4;
+
     // --- Performance-driven development ---
     /**
      * A season's Development Points are scaled by how the golfer actually played, between these bounds. A
