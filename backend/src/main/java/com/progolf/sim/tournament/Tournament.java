@@ -45,6 +45,12 @@ public final class Tournament {
     // its per-round score supplied externally instead of computed by the shared resolver. Null = fully
     // automatic (unchanged behaviour). The interactive playoff state is populated only during sudden death.
     private Integer interactiveFieldIndex;
+    /**
+     * The human competitor's base disposition (spec: player-control), or null to fall through to the normal
+     * rule (their policy default, or BALANCED). Null keeps a simmed player event identical to its automatic
+     * resolution when the World has not chosen a disposition; the World sets it in real play.
+     */
+    private Strategy interactiveDisposition;
     private final Map<Integer, Integer> interactiveRoundScores = new HashMap<>();
     private List<TournamentEntry> playoffRemaining;
     private int playoffHoleCounter;
@@ -143,6 +149,17 @@ public final class Tournament {
             throw new IllegalArgumentException("No competitor at field index " + fieldIndex);
         }
         this.interactiveFieldIndex = fieldIndex;
+    }
+
+    /**
+     * Sets the base risk disposition for the interactive (human) competitor (spec: player-control). A human
+     * golfer carries no decision policy, so without this they would always play {@link Strategy#BALANCED}
+     * while every AI plays the disposition their build implies — and since strategy shapes scoring and its
+     * variance, that quietly denied the player the aggressive, win-hunting play the field's winners use. The
+     * scoreboard still bends this disposition on the closing rounds exactly as it does for everyone.
+     */
+    public void setInteractiveDisposition(Strategy disposition) {
+        this.interactiveDisposition = Objects.requireNonNull(disposition, "disposition");
     }
 
     /** Whether an interactive competitor has been designated. */
@@ -262,8 +279,15 @@ public final class Tournament {
         return second == Integer.MAX_VALUE ? best : second;
     }
 
-    /** A competitor's innate strategic disposition (its policy's default), or Balanced for a human. */
-    private static Strategy dispositionOf(CompetitorStanding s) {
+    /**
+     * A competitor's base strategic disposition: an AI's is its policy default; the human interactive
+     * competitor's is the disposition the World set for them (their choice, or the one their build implies).
+     */
+    private Strategy dispositionOf(CompetitorStanding s) {
+        if (interactiveDisposition != null && interactiveFieldIndex != null
+                && s.fieldIndex() == interactiveFieldIndex) {
+            return interactiveDisposition;
+        }
         return s.golfer().policy().map(DecisionPolicy::defaultStrategy).orElse(Strategy.BALANCED);
     }
 

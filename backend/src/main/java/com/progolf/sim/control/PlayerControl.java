@@ -1,9 +1,11 @@
 package com.progolf.sim.control;
 
 import com.progolf.sim.core.Attribute;
+import com.progolf.sim.core.RiskApproach;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -26,6 +28,13 @@ public final class PlayerControl {
      * against the entire field for their whole career.
      */
     private boolean playingThroughInjury;
+    /**
+     * The player's chosen risk approach for their golfer's rounds (spec: player-control), or empty to let the
+     * golfer play the disposition their build implies. Aggressive play is higher-variance — more birdies and
+     * more blow-ups — which is how the field's winners post low scores; letting the player choose it is how
+     * they chase a win rather than grind out steady mid-pack finishes.
+     */
+    private RiskApproach riskApproach;
     private final Set<Long> skippedEvents = new LinkedHashSet<>();
     private List<CareerGoal> careerGoals = List.of();
 
@@ -50,6 +59,16 @@ public final class PlayerControl {
     /** Whether the player's golfer is resting (sitting out event entry to recover). */
     public boolean isResting() {
         return resting;
+    }
+
+    /** The player's chosen risk approach, or empty to play the disposition their build implies. */
+    public Optional<RiskApproach> riskApproach() {
+        return Optional.ofNullable(riskApproach);
+    }
+
+    /** Sets the player's chosen risk approach; null clears it back to the build-implied disposition. */
+    public void setRiskApproach(RiskApproach riskApproach) {
+        this.riskApproach = riskApproach;
     }
 
     /** Whether the player's golfer competes through a recovering injury rather than sitting it out. */
@@ -96,7 +115,8 @@ public final class PlayerControl {
 
     /** An immutable capture of the player's control state (spec: world-snapshot). */
     public record Snapshot(String golferId, List<Attribute> developmentFocus, boolean resting,
-                           boolean playingThroughInjury, Set<Long> skippedEvents, List<CareerGoal> careerGoals) {
+                           boolean playingThroughInjury, RiskApproach riskApproach, Set<Long> skippedEvents,
+                           List<CareerGoal> careerGoals) {
         public Snapshot {
             developmentFocus = List.copyOf(developmentFocus);
             skippedEvents = new LinkedHashSet<>(skippedEvents); // preserve order
@@ -105,7 +125,8 @@ public final class PlayerControl {
     }
 
     public Snapshot snapshot() {
-        return new Snapshot(golferId, developmentFocus, resting, playingThroughInjury, skippedEvents, careerGoals);
+        return new Snapshot(golferId, developmentFocus, resting, playingThroughInjury, riskApproach,
+                skippedEvents, careerGoals);
     }
 
     /** Rebuilds a player control from a snapshot via the existing setters (no new mutation surface). */
@@ -114,6 +135,7 @@ public final class PlayerControl {
         c.setDevelopmentFocus(s.developmentFocus());
         c.setResting(s.resting());
         c.setPlayingThroughInjury(s.playingThroughInjury());
+        c.setRiskApproach(s.riskApproach());
         s.skippedEvents().forEach(c::skipEvent);
         c.setCareerGoals(s.careerGoals());
         return c;

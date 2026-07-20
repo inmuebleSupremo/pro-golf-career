@@ -64,6 +64,7 @@ import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.population.GolferFactory;
 import com.progolf.sim.population.PopulationGenerator;
+import com.progolf.sim.population.StrategyDisposition;
 import com.progolf.sim.progression.ProgressionConstants;
 import com.progolf.sim.progression.ProgressionEngine;
 import com.progolf.sim.ranking.RankingHistory;
@@ -377,6 +378,11 @@ public final class World {
                 BuiltEvent built = buildEvent(event);
                 if (built != null && built.playerFieldIndex() >= 0) {
                     built.tournament().designateInteractiveCompetitor(built.playerFieldIndex());
+                    // The player's own risk approach (their choice, or the one their build implies), resolved
+                    // to a shot strategy in the population layer so the World never names the shot engine.
+                    var disposition = StrategyDisposition.resolve(playerControl.riskApproach(),
+                            golfers.get(playerControl.golferId()).player().attributes());
+                    built.tournament().setInteractiveDisposition(disposition);
                     PlayableEvent playable = new PlayableEvent(built.tournament(),
                             golfers.get(playerControl.golferId()), built.playerFieldIndex(),
                             built.course(), built.weather(), masterSeed, built.season(), event.tournamentId());
@@ -1291,6 +1297,21 @@ public final class World {
         return requirePlayer().isPlayingThroughInjury();
     }
 
+    /**
+     * Sets the player's risk approach for their rounds (spec: player-control): a steady balanced game, a
+     * conservative one that protects position, or an aggressive one that hunts pins — higher variance, more
+     * birdies and more blow-ups, the play that wins tournaments. Null clears the choice back to the
+     * disposition the golfer's build implies.
+     */
+    public void setPlayerRiskApproach(com.progolf.sim.core.RiskApproach approach) {
+        requirePlayer().setRiskApproach(approach);
+    }
+
+    /** The player's chosen risk approach, if they have set one. */
+    public java.util.Optional<com.progolf.sim.core.RiskApproach> playerRiskApproach() {
+        return requirePlayer().riskApproach();
+    }
+
     /** Skips a specific upcoming event by tournament id (the player is entered in eligible events by default). */
     public void skipEvent(long tournamentId) {
         requirePlayer().skipEvent(tournamentId);
@@ -1610,10 +1631,19 @@ public final class World {
         // Playing well develops you faster (spec: player-development). A golfer who competes and contends
         // improves more than one who misses cuts, so progress is earned on the course rather than issued.
         developmentFactor *= performanceFactor(golfer.player().id(), season);
-        Attributes developed = isPlayer(golfer.player().id()) && !playerControl.developmentFocus().isEmpty()
-                ? ProgressionEngine.develop(golfer.player().attributes(), potential, age, developmentFactor,
-                        playerControl.developmentFocus())
-                : ProgressionEngine.develop(golfer.player().attributes(), potential, age, developmentFactor);
+        // The human player is the generational-talent protagonist: they realise several development
+        // increments a season where an AI realises one, so a well-played career reaches elite level during
+        // its prime instead of long after it (spec: player-development). Each increment is a normal capped,
+        // cost-curved, ceiling-bounded step — talent is realised faster, never past its potential.
+        boolean isPlayer = isPlayer(golfer.player().id());
+        int increments = isPlayer ? ProgressionConstants.PLAYER_TALENT_INCREMENTS : 1;
+        List<Attribute> focus = isPlayer ? playerControl.developmentFocus() : List.of();
+        Attributes developed = golfer.player().attributes();
+        for (int i = 0; i < increments; i++) {
+            developed = focus.isEmpty()
+                    ? ProgressionEngine.develop(developed, potential, age, developmentFactor)
+                    : ProgressionEngine.develop(developed, potential, age, developmentFactor, focus);
+        }
         golfer.player().evolveAttributes(developed, AttributeChange.Reason.DEVELOPMENT, season);
         Attributes aged = ProgressionEngine.age(golfer.player().attributes(), age);
         golfer.player().evolveAttributes(aged, AttributeChange.Reason.AGING, season);

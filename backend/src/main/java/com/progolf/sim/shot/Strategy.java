@@ -6,9 +6,9 @@ package com.progolf.sim.shot;
  * greater risk) — but it never alters how attributes contribute.
  */
 public enum Strategy {
-    CONSERVATIVE(0.91, 0.0),
-    BALANCED(1.00, 0.4),
-    AGGRESSIVE(1.12, 1.0);
+    CONSERVATIVE(0.93, 0.0),
+    BALANCED(1.00, 0.35),
+    AGGRESSIVE(1.42, 1.0);
 
     private final double dispersionMultiplier;
     private final double pinAttack;
