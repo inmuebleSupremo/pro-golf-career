@@ -8,7 +8,10 @@ package com.progolf.sim.shot;
 public enum Strategy {
     CONSERVATIVE(0.93, 0.0),
     BALANCED(1.00, 0.35),
-    AGGRESSIVE(1.42, 1.0);
+    // Aggressive's dispersion penalty is retuned whenever the base dispersion changes: it must offset the
+    // birdie gain from pin-attacking so aggression stays a variance trade-off, not a strictly better mean.
+    // At the current (higher) base dispersion, 1.18 makes aggressive ~mean-neutral versus balanced.
+    AGGRESSIVE(1.18, 1.0);
 
     private final double dispersionMultiplier;
     private final double pinAttack;

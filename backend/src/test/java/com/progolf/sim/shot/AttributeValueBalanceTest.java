@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
  */
 class AttributeValueBalanceTest {
 
-    private static final int ROUNDS = 150;
+    private static final int ROUNDS = 300;
     private static final int LOW_RATING = 70;
     private static final int HIGH_RATING = 95;
 
