@@ -11,7 +11,6 @@ import {
   Flag,
   Globe,
   LayoutDashboard,
-  ListOrdered,
   Newspaper,
   Target,
   Trophy,
@@ -26,16 +25,16 @@ import { cn } from "@/lib/utils";
 type NavItem = {
   label: string;
   icon: LucideIcon;
-  /** Relative to /career/[id]; omit for a not-yet-built page (shown as "Soon"). */
-  path?: string;
+  /** Relative to /career/[id]; "" is the hub itself. */
+  path: string;
   /** exact = active only when the path matches exactly (the hub). */
   exact?: boolean;
 };
 
 type NavGroup = { label?: string; items: NavItem[] };
 
-// Only Leaderboard has no `path` — it is live only inside an event (the /play surface
-// owns it), so it stays on the map as "Soon". Everything else routes to a real spoke page.
+// Every item routes to a real spoke page. (Leaderboard is intentionally absent — it is
+// live only inside an event, and the /play surface owns it.)
 const GROUPS: NavGroup[] = [
   { items: [{ label: "Hub", icon: LayoutDashboard, path: "", exact: true }] },
   {
@@ -43,7 +42,6 @@ const GROUPS: NavGroup[] = [
     items: [
       { label: "Schedule", icon: CalendarDays, path: "/calendar" },
       { label: "Play Event", icon: Flag, path: "/play" },
-      { label: "Leaderboard", icon: ListOrdered },
     ],
   },
   {
@@ -113,21 +111,6 @@ function NavRow({ item, base, pathname }: { item: NavItem; base: string; pathnam
   const rowClass =
     "group relative flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[0.84375rem] font-medium transition-colors duration-[var(--duration-base)]";
 
-  if (!item.path) {
-    // Not built yet — shown so the full map is visible, but inert.
-    return (
-      <span
-        className={cn(rowClass, "text-subtle-foreground/80 cursor-default")}
-        title="Coming soon"
-        aria-disabled="true"
-      >
-        <Icon className="size-[1.0625rem] shrink-0 opacity-80" aria-hidden="true" />
-        <span>{item.label}</span>
-        <SoonTag />
-      </span>
-    );
-  }
-
   const href = `${base}${item.path}`;
   const active = item.exact ? pathname === href : pathname.startsWith(href);
 
@@ -148,13 +131,5 @@ function NavRow({ item, base, pathname }: { item: NavItem; base: string; pathnam
       <Icon className="size-[1.0625rem] shrink-0" aria-hidden="true" />
       <span>{item.label}</span>
     </Link>
-  );
-}
-
-function SoonTag() {
-  return (
-    <span className="text-subtle-foreground/70 ml-auto text-[0.625rem] font-semibold tracking-wide uppercase">
-      Soon
-    </span>
   );
 }
