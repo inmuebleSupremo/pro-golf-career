@@ -129,6 +129,23 @@ export function recordValueText(type: string, value: number): string {
   return pair ? `${n} ${n === 1 ? pair[0] : pair[1]}` : String(n);
 }
 
+const ATTRIBUTE_SHORT_LABELS: Record<string, string> = {
+  DRIVING_ACCURACY: "Driving Acc.",
+  DRIVING_DISTANCE: "Driving Dist.",
+  IRONS_ACCURACY: "Irons Acc.",
+  IRONS_CONTROL: "Irons Ctrl.",
+  WEDGES: "Wedges",
+  PUTTING_ACCURACY: "Putting Acc.",
+  PUTTING_PROXIMITY: "Putting Prox.",
+  COMPOSURE: "Composure",
+  COURSE_MANAGEMENT: "Course Mgmt.",
+};
+
+/** A compact attribute label for tight spots (radar axes, hub bars). Falls back to the raw name. */
+export function attributeShortLabel(attribute: string): string {
+  return ATTRIBUTE_SHORT_LABELS[attribute] ?? attribute;
+}
+
 /** A finishing position as an ordinal: 1 → "1st", 12 → "12th". */
 export function ordinalPosition(position: number): string {
   const suffix =

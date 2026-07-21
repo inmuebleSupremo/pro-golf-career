@@ -5,6 +5,7 @@ import { Check, Play, Trophy } from "lucide-react";
 import { Card, CardHeader } from "@/components/command/card";
 import { useCareerOverview, useHallOfFame, usePlayerProfile } from "@/lib/api/queries";
 import {
+  attributeShortLabel,
   eventPrestigeLabel,
   formatMoney,
   goalLabel,
@@ -14,18 +15,6 @@ import {
   ordinalPosition,
   tourTierLabel,
 } from "@/lib/career/labels";
-
-const ATTR_LABEL: Record<string, string> = {
-  DRIVING_ACCURACY: "Driving Acc.",
-  DRIVING_DISTANCE: "Driving Dist.",
-  IRONS_ACCURACY: "Irons Acc.",
-  IRONS_CONTROL: "Irons Ctrl.",
-  WEDGES: "Wedges",
-  PUTTING_ACCURACY: "Putting Acc.",
-  PUTTING_PROXIMITY: "Putting Prox.",
-  COMPOSURE: "Composure",
-  COURSE_MANAGEMENT: "Course Mgmt.",
-};
 
 type NewsTone = "gold" | "info" | "danger" | "neutral";
 function newsTone(type: string): { tone: NewsTone; label: string } {
@@ -202,7 +191,7 @@ export function HubDashboard({ id }: { id: string }) {
               {attrs.map((a) => (
                 <div key={a.attribute}>
                   <div className="mb-1.5 flex justify-between text-[0.72rem]">
-                    <span className="text-muted-foreground">{ATTR_LABEL[a.attribute] ?? a.attribute}</span>
+                    <span className="text-muted-foreground">{attributeShortLabel(a.attribute)}</span>
                     <span className="font-bold tabular-nums">{a.value}</span>
                   </div>
                   <div className="bg-surface-3 h-[5px] overflow-hidden rounded-full">
