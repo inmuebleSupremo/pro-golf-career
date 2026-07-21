@@ -217,18 +217,20 @@ export function HubDashboard({ id }: { id: string }) {
           )}
         </Card>
 
-        {/* News */}
+        {/* News — fixed height so new headlines never grow the card (zero CLS). */}
         <Card href={`/career/${id}/news`} className="sm:col-span-2 xl:col-span-1">
           <CardHeader title="Tour News" portal />
-          {news.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No headlines yet — the season is young.</p>
-          ) : (
-            <div className="flex flex-col">
-              {news.map((n, i) => (
-                <NewsRow key={i} type={n.type} headline={n.headline} season={n.season} />
-              ))}
-            </div>
-          )}
+          <div className="h-[13.5rem] overflow-hidden">
+            {news.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No headlines yet — the season is young.</p>
+            ) : (
+              <div className="flex flex-col">
+                {news.map((n, i) => (
+                  <NewsRow key={i} type={n.type} headline={n.headline} season={n.season} />
+                ))}
+              </div>
+            )}
+          </div>
         </Card>
 
         {/* Hall of Fame */}
@@ -308,8 +310,8 @@ function NewsRow({ type, headline, season }: { type: string; headline: string; s
       >
         {label}
       </span>
-      <div>
-        <p className="text-[0.82rem] leading-snug">{headline}</p>
+      <div className="min-w-0">
+        <p className="truncate text-[0.82rem] leading-snug">{headline}</p>
         <p className="text-subtle-foreground mt-1 text-[0.7rem]">Season {season}</p>
       </div>
     </div>
