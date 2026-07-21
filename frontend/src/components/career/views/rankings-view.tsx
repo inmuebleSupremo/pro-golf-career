@@ -10,33 +10,61 @@ export type RankingRow = {
   rankingValue: number;
 };
 
-/** Rankings spoke: the current World Ranking board, the player's own row highlighted. */
+const TOP_COUNT = 15;
+
+/** Rankings spoke: the top of the World Ranking, with the player's own row anchored below if outside it. */
 export function RankingsView({ id }: { id: string }) {
+  // Fetch a deep slice so the player's real row (with points) is present even when ranked well down.
   const query = useWorldRankings(id, 100);
-  const playerGolferId = usePlayerProfile(id).data?.playerProfile?.golferId ?? null;
+  const profile = usePlayerProfile(id).data?.playerProfile ?? null;
   const gate = useSpokeGate(query);
   if (gate) return gate;
 
   const rows: RankingRow[] = query.data?.worldRankings ?? [];
+  const playerGolferId = profile?.golferId ?? null;
+  const top = rows.slice(0, TOP_COUNT);
+  const inTop = playerGolferId != null && top.some((r) => r.golferId === playerGolferId);
+
+  // When the player sits outside the top, anchor their row below a divider (leaderboard style).
+  let trailing: RankingRow | null = null;
+  if (!inTop && playerGolferId != null) {
+    const found = rows.find((r) => r.golferId === playerGolferId);
+    if (found) {
+      trailing = found;
+    } else if (profile?.worldRanking != null) {
+      // Ranked beyond the fetched slice — show position + name from the profile (points unknown here).
+      trailing = {
+        position: profile.worldRanking,
+        golferId: playerGolferId,
+        name: `${profile.firstName} ${profile.lastName}`,
+        rankingValue: Number.NaN,
+      };
+    }
+  }
 
   return (
     <SpokeShell title="World Ranking" description="The top of the professional game.">
       {rows.length === 0 ? (
         <SpokeEmpty>The ranking is empty — no events have been ranked yet.</SpokeEmpty>
       ) : (
-        <RankingList rows={rows} playerGolferId={playerGolferId} />
+        <RankingList rows={top} playerGolferId={playerGolferId} trailing={trailing} />
       )}
     </SpokeShell>
   );
 }
 
-/** The divided ranking list with a caption header. Shared by the rankings + rivals spokes. */
+/**
+ * The divided ranking list with a caption header. Shared by the rankings + rivals spokes.
+ * `trailing` appends the player's row below a divider (used when they're outside the shown rows).
+ */
 export function RankingList({
   rows,
   playerGolferId,
+  trailing = null,
 }: {
   rows: RankingRow[];
   playerGolferId: string | null;
+  trailing?: RankingRow | null;
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -53,6 +81,14 @@ export function RankingList({
             isPlayer={playerGolferId != null && row.golferId === playerGolferId}
           />
         ))}
+        {trailing ? (
+          <>
+            <li className="text-subtle-foreground px-5 py-1 text-center text-xs" aria-hidden="true">
+              ···
+            </li>
+            <RankingRowItem row={trailing} isPlayer />
+          </>
+        ) : null}
       </ul>
     </div>
   );
@@ -69,7 +105,7 @@ function RankingRowItem({ row, isPlayer }: { row: RankingRow; isPlayer: boolean 
         {isPlayer ? <span className="text-subtle-foreground text-xs">(you)</span> : null}
       </span>
       <span className="text-subtle-foreground shrink-0 font-mono text-sm tabular-nums">
-        {Math.round(row.rankingValue)}
+        {Number.isFinite(row.rankingValue) ? Math.round(row.rankingValue) : "—"}
       </span>
     </li>
   );
