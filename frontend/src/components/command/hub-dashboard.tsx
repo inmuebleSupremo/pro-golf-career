@@ -56,7 +56,9 @@ export function HubDashboard({ id }: { id: string }) {
 
   const world = data.world;
   const goals = data.careerGoals ?? [];
-  const news = (data.newsFeed ?? []).slice(0, 5);
+  // The card only has five slots — show the most newsworthy of the recent items (a stable sort
+  // keeps recency order among equal prominence, since the feed arrives most-recent-first).
+  const news = [...(data.newsFeed ?? [])].sort((a, b) => b.prominence - a.prominence).slice(0, 5);
   const seasonStat = data.playerSeasonStats?.find((s) => s.season === world.season);
   const nextEvent = (data.playerSchedule ?? [])
     .filter((e) => e.entered && e.week >= world.week)

@@ -17,7 +17,6 @@ public final class MediaConstants {
     public static final int PROMINENCE_WORLD_NUMBER_ONE = 95;
     public static final int PROMINENCE_GOAL_ACHIEVED = 80; // a self-chosen career goal reached (discoverable)
     public static final int PROMINENCE_MAJOR_UPSET = 85;
-    public static final int PROMINENCE_RETIREMENT = 75;
     public static final int PROMINENCE_CAREER_MILESTONE = 70;
     public static final int PROMINENCE_SEVERE_WEATHER = 65;
     public static final int PROMINENCE_TOURNAMENT_VICTORY = 60;
@@ -25,6 +24,14 @@ public final class MediaConstants {
     public static final int PROMINENCE_PROMOTION = 55;
     public static final int PROMINENCE_INJURY = 55;
     public static final int PROMINENCE_RISING_PROSPECT = 50;
+
+    // A retirement's prominence scales with the career it ends: a winless journeyman's exit is mere
+    // flavour (below a tournament victory), a decorated champion's farewell is major news. Formula:
+    // BASE + wins * PER_WIN, capped at MAX. Winless → 40 (< a 60-prominence victory); ~5 wins reaches
+    // the significance threshold; a great tops out near a major upset.
+    public static final int PROMINENCE_RETIREMENT_BASE = 40;
+    public static final int PROMINENCE_RETIREMENT_PER_WIN = 6;
+    public static final int PROMINENCE_RETIREMENT_MAX = 90;
 
     /** News at or above this prominence is "historically significant" and stays discoverable (REQ-246). */
     public static final int SIGNIFICANCE_THRESHOLD = 70;
