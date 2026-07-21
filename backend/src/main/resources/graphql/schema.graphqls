@@ -31,6 +31,9 @@ type Query {
     "The current World Ranking, top `limit` golfers by ranking value (name-enriched)."
     worldRankings(id: ID!, limit: Int = 100): [RankingRow!]!
 
+    "The player's fitness — condition, fatigue, availability, and any active injury; null when no player is assigned."
+    playerFitness(id: ID!): PlayerFitness
+
     "Recent world news (tournament results, milestones, promotions, retirements…), most recent first."
     newsFeed(id: ID!, limit: Int = 20): [NewsItem!]!
 
@@ -270,6 +273,29 @@ type RankingRow {
     name: String!
     "The golfer's decayed ranking value as of now."
     rankingValue: Float!
+}
+
+type PlayerFitness {
+    "AVAILABLE, RESTING, RECOVERING, or INJURED (derived)."
+    availability: String!
+    "Long-term physical condition in [0,1]."
+    fitness: Float!
+    "Accumulated fatigue in [0,1]."
+    fatigue: Float!
+    "Whether the golfer may enter an event unimpaired."
+    canCompete: Boolean!
+    "Whether the golfer could play through a recovering injury (at a shot impairment)."
+    canPlayThroughInjury: Boolean!
+    "The active injury, or null when healthy."
+    injury: Injury
+}
+
+type Injury {
+    "Body area: WRIST, BACK, SHOULDER, KNEE, ELBOW, or HAND."
+    type: String!
+    "MINOR, MODERATE, or SEVERE."
+    severity: String!
+    rehabWeeksRemaining: Int!
 }
 
 type SponsorshipOffer {

@@ -212,6 +212,37 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void playerFitnessReturnsHealthyStateForAFreshlyCreatedPlayer() {
+        WorldSession session = worldService.create(OWNER, 8L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Ana", "Rivera", Nationality.ESP, 20,
+                Archetype.ALL_ROUNDER);
+
+        graphQlTester.document("""
+                        query($id: ID!) {
+                          playerFitness(id: $id) {
+                            availability fitness fatigue canCompete canPlayThroughInjury
+                            injury { type severity rehabWeeksRemaining }
+                          }
+                        }
+                        """)
+                .variable("id", session.id()).execute()
+                .path("playerFitness.availability").entity(String.class).isEqualTo("AVAILABLE")
+                .path("playerFitness.canCompete").entity(Boolean.class).isEqualTo(true)
+                .path("playerFitness.fatigue").entity(Double.class).isEqualTo(0.0)
+                .path("playerFitness.fitness").entity(Double.class).satisfies(value ->
+                        org.assertj.core.api.Assertions.assertThat(value).isBetween(0.0, 1.0))
+                .path("playerFitness.injury").valueIsNull();
+    }
+
+    @Test
+    void playerFitnessIsNullWithoutAPlayer() {
+        WorldSession session = worldService.create(OWNER, 9L, SMALL);
+        graphQlTester.document("query($id: ID!){ playerFitness(id: $id){ availability } }")
+                .variable("id", session.id()).execute()
+                .path("playerFitness").valueIsNull();
+    }
+
+    @Test
     void playerProfileIsNullWithoutAPlayer() {
         WorldSession session = worldService.create(OWNER, 6L, SMALL);
         graphQlTester.document("query($id: ID!){ playerProfile(id: $id){ golferId } }")

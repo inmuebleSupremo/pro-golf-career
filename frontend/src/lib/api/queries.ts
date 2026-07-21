@@ -8,6 +8,7 @@ import {
   HallOfFameDocument,
   ListSavesDocument,
   PlayerCalendarDocument,
+  PlayerFitnessDocument,
   PlayerProfileDocument,
   WorldRankingsDocument,
 } from "@/lib/graphql/operations";
@@ -57,6 +58,16 @@ export function useWorldRankings(id: string, limit = 100) {
   return useQuery({
     queryKey: ["rankings", id, limit],
     queryFn: () => gqlRequest(WorldRankingsDocument, { id, limit }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The player's fitness — condition, fatigue, availability, and any active injury. */
+export function usePlayerFitness(id: string) {
+  return useQuery({
+    queryKey: ["fitness", id],
+    queryFn: () => gqlRequest(PlayerFitnessDocument, { id }),
     networkMode: "always",
     retry: false,
   });

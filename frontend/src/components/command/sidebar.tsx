@@ -70,7 +70,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { label: "Development", icon: Dumbbell, path: "/manage" },
       { label: "Finances", icon: Wallet, path: "/finances" },
-      { label: "Fitness", icon: Activity },
+      { label: "Fitness", icon: Activity, path: "/fitness" },
     ],
   },
 ];

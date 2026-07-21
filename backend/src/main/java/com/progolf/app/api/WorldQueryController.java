@@ -3,6 +3,7 @@ package com.progolf.app.api;
 import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.HallOfFameDto;
+import com.progolf.app.api.dto.PlayerFitnessDto;
 import com.progolf.app.api.dto.RankingRowDto;
 import com.progolf.app.api.dto.LeaderboardRowDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
@@ -100,6 +101,15 @@ public class WorldQueryController {
     public List<RankingRowDto> worldRankings(@Argument String id, @Argument Integer limit) {
         // Name-enriched in WorldService; not player-scoped (the world ranking exists without a player).
         return worldService.worldRankings(AuthenticatedUser.requireId(), id, limit == null ? 100 : limit);
+    }
+
+    @QueryMapping
+    public PlayerFitnessDto playerFitness(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return null;
+        }
+        return worldService.playerFitness(owner, id);
     }
 
     @QueryMapping

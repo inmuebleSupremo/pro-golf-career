@@ -5,6 +5,8 @@ import com.progolf.app.api.dto.CalendarEntryDto;
 import com.progolf.app.api.dto.EventResultDto;
 import com.progolf.app.api.dto.FinisherDto;
 import com.progolf.app.api.dto.HallOfFameDto;
+import com.progolf.app.api.dto.InjuryDto;
+import com.progolf.app.api.dto.PlayerFitnessDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.RankingRowDto;
 import com.progolf.app.api.dto.WorldStatusDto;
@@ -300,6 +302,25 @@ public class WorldService {
             rows.add(new RankingRowDto(s.position(), s.golferId(), name, s.rankingValue()));
         }
         return rows;
+    }
+
+    /**
+     * The player's fitness (spec: physical-state): condition, fatigue, derived availability, and any active
+     * injury. Requires a player (callers guard with {@link #hasPlayer}); returns null if the golfer has no
+     * tracked physical state (e.g. once retired and removed from the active pool).
+     */
+    public PlayerFitnessDto playerFitness(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        String id = requirePlayerId(world);
+        var state = world.physicalStateOf(id);
+        if (state == null) {
+            return null;
+        }
+        InjuryDto injury = state.injury()
+                .map(i -> new InjuryDto(i.type().name(), i.severity().name(), i.rehabWeeksRemaining()))
+                .orElse(null);
+        return new PlayerFitnessDto(state.availability().name(), state.fitness(), state.fatigue(),
+                state.canCompete(), state.canPlayThroughInjury(), injury);
     }
 
     /** The most recent {@code limit} world news items, most recent first (the between-events feedback feed). */

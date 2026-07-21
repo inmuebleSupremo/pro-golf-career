@@ -148,6 +148,24 @@ export const WorldRankingsDocument = graphql(`
   }
 `);
 
+/** The player's fitness — condition, fatigue, availability, and any injury. */
+export const PlayerFitnessDocument = graphql(`
+  query PlayerFitness($id: ID!) {
+    playerFitness(id: $id) {
+      availability
+      fitness
+      fatigue
+      canCompete
+      canPlayThroughInjury
+      injury {
+        type
+        severity
+        rehabWeeksRemaining
+      }
+    }
+  }
+`);
+
 /** The player's golfer profile — identity, attributes, ranking, earnings; null when no player. */
 export const PlayerProfileDocument = graphql(`
   query PlayerProfile($id: ID!) {
