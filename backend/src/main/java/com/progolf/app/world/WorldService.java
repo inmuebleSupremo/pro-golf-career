@@ -9,6 +9,7 @@ import com.progolf.app.api.dto.InjuryDto;
 import com.progolf.app.api.dto.PlayerFitnessDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.RankingRowDto;
+import com.progolf.app.api.dto.RecordDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
@@ -321,6 +322,25 @@ public class WorldService {
                 .orElse(null);
         return new PlayerFitnessDto(state.availability().name(), state.fitness(), state.fatigue(),
                 state.canCompete(), state.canPlayThroughInjury(), injury);
+    }
+
+    /**
+     * The world Record Book (spec: records-archive): the current holder of each record, name-enriched. Not
+     * player-scoped — records exist regardless of whether a player is assigned. Iterated in RecordType enum
+     * order (the underlying map is an EnumMap); only records that have been set are included.
+     */
+    public List<RecordDto> records(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        List<RecordDto> rows = new ArrayList<>();
+        for (var entry : world.records().entrySet()) {
+            var holder = entry.getValue();
+            // A record holder keeps their career; fall back to the id if one is somehow absent.
+            Career career = world.careerOf(holder.golferId());
+            String name = career != null ? career.player().identity().fullName() : holder.golferId();
+            rows.add(new RecordDto(entry.getKey().name(), holder.golferId(), name,
+                    holder.value(), holder.season()));
+        }
+        return rows;
     }
 
     /** The most recent {@code limit} world news items, most recent first (the between-events feedback feed). */

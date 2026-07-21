@@ -99,6 +99,36 @@ export function formatScore(score: number): string {
   return score > 0 ? `+${score}` : `${score}`;
 }
 
+const RECORD_TYPE_LABELS: Record<string, string> = {
+  MOST_CAREER_WINS: "Most career wins",
+  MOST_MAJOR_WINS: "Most major wins",
+  LOWEST_TOURNAMENT_SCORE: "Lowest tournament score",
+  MOST_CONSECUTIVE_CUTS: "Most consecutive cuts",
+  LONGEST_CAREER: "Longest career",
+};
+
+/** The record type as a display label (falls back to the raw name). */
+export function recordTypeLabel(type: string): string {
+  return RECORD_TYPE_LABELS[type] ?? type;
+}
+
+/**
+ * A record's value formatted for its type: a score-to-par for the lowest-score record, otherwise a counted
+ * quantity with its unit ("14 wins", "9 seasons"). The engine stores every value as a number.
+ */
+export function recordValueText(type: string, value: number): string {
+  if (type === "LOWEST_TOURNAMENT_SCORE") return formatScore(Math.round(value));
+  const n = Math.round(value);
+  const unit: Record<string, [string, string]> = {
+    MOST_CAREER_WINS: ["win", "wins"],
+    MOST_MAJOR_WINS: ["major", "majors"],
+    MOST_CONSECUTIVE_CUTS: ["cut", "cuts"],
+    LONGEST_CAREER: ["season", "seasons"],
+  };
+  const pair = unit[type];
+  return pair ? `${n} ${n === 1 ? pair[0] : pair[1]}` : String(n);
+}
+
 /** A finishing position as an ordinal: 1 → "1st", 12 → "12th". */
 export function ordinalPosition(position: number): string {
   const suffix =

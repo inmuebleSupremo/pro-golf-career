@@ -5,6 +5,7 @@ import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.PlayerFitnessDto;
 import com.progolf.app.api.dto.RankingRowDto;
+import com.progolf.app.api.dto.RecordDto;
 import com.progolf.app.api.dto.LeaderboardRowDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.SaveDto;
@@ -110,6 +111,12 @@ public class WorldQueryController {
             return null;
         }
         return worldService.playerFitness(owner, id);
+    }
+
+    @QueryMapping
+    public List<RecordDto> records(@Argument String id) {
+        // Name-enriched in WorldService; not player-scoped (records exist without a player).
+        return worldService.records(AuthenticatedUser.requireId(), id);
     }
 
     @QueryMapping

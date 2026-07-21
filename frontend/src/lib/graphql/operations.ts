@@ -148,6 +148,19 @@ export const WorldRankingsDocument = graphql(`
   }
 `);
 
+/** The world Record Book — the current holder of each record (name-enriched). */
+export const RecordsDocument = graphql(`
+  query Records($id: ID!) {
+    records(id: $id) {
+      type
+      holderGolferId
+      holderName
+      value
+      season
+    }
+  }
+`);
+
 /** The player's fitness — condition, fatigue, availability, and any injury. */
 export const PlayerFitnessDocument = graphql(`
   query PlayerFitness($id: ID!) {

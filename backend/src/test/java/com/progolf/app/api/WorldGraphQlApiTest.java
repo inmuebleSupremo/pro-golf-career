@@ -133,6 +133,27 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void recordsAreEmptyForAFreshWorldAndPopulateAfterASeason() {
+        String id = worldService.create(OWNER, 808L, SMALL).id();
+        graphQlTester.document("query($id: ID!){ records(id: $id){ type } }")
+                .variable("id", id).execute()
+                .path("records").entityList(Object.class).hasSize(0);
+
+        worldService.advanceSeason(OWNER, id); // a season of events sets record holders
+
+        graphQlTester.document("""
+                        query($id: ID!){
+                          records(id: $id){ type holderGolferId holderName value season }
+                        }
+                        """)
+                .variable("id", id).execute()
+                .path("records").entityList(Object.class).satisfies(rows ->
+                        org.assertj.core.api.Assertions.assertThat(rows).isNotEmpty())
+                .path("records[0].holderName").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank)
+                .path("records[0].season").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive);
+    }
+
+    @Test
     void careerGoalsReportLiveProgressForAnAssignedPlayer() {
         WorldSession session = worldService.create(OWNER, 404L, SMALL);
         worldService.createPlayer(OWNER, session.id(), "Test", "Golfer", Nationality.USA, 20, Archetype.ALL_ROUNDER);

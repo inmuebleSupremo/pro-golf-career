@@ -10,6 +10,7 @@ import {
   PlayerCalendarDocument,
   PlayerFitnessDocument,
   PlayerProfileDocument,
+  RecordsDocument,
   WorldRankingsDocument,
 } from "@/lib/graphql/operations";
 
@@ -58,6 +59,16 @@ export function useWorldRankings(id: string, limit = 100) {
   return useQuery({
     queryKey: ["rankings", id, limit],
     queryFn: () => gqlRequest(WorldRankingsDocument, { id, limit }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The world Record Book — the current holder of each record (name-enriched). */
+export function useRecords(id: string) {
+  return useQuery({
+    queryKey: ["records", id],
+    queryFn: () => gqlRequest(RecordsDocument, { id }),
     networkMode: "always",
     retry: false,
   });

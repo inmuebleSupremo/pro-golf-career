@@ -34,6 +34,9 @@ type Query {
     "The player's fitness — condition, fatigue, availability, and any active injury; null when no player is assigned."
     playerFitness(id: ID!): PlayerFitness
 
+    "The world Record Book — the current holder of each record (name-enriched)."
+    records(id: ID!): [WorldRecord!]!
+
     "Recent world news (tournament results, milestones, promotions, retirements…), most recent first."
     newsFeed(id: ID!, limit: Int = 20): [NewsItem!]!
 
@@ -296,6 +299,17 @@ type Injury {
     "MINOR, MODERATE, or SEVERE."
     severity: String!
     rehabWeeksRemaining: Int!
+}
+
+type WorldRecord {
+    "MOST_CAREER_WINS, MOST_MAJOR_WINS, LOWEST_TOURNAMENT_SCORE, MOST_CONSECUTIVE_CUTS, or LONGEST_CAREER."
+    type: String!
+    holderGolferId: ID!
+    holderName: String!
+    "The record value: a count for most records, a score-to-par for LOWEST_TOURNAMENT_SCORE."
+    value: Float!
+    "The season the record was established."
+    season: Int!
 }
 
 type SponsorshipOffer {

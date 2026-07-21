@@ -34,9 +34,8 @@ type NavItem = {
 
 type NavGroup = { label?: string; items: NavItem[] };
 
-// Items without a `path` have no backend query to drive them yet — they stay on the
-// map as "Soon" (Leaderboard is live only inside an event; Records + Fitness need a new
-// resolver). Everything else routes to a real spoke page.
+// Only Leaderboard has no `path` — it is live only inside an event (the /play surface
+// owns it), so it stays on the map as "Soon". Everything else routes to a real spoke page.
 const GROUPS: NavGroup[] = [
   { items: [{ label: "Hub", icon: LayoutDashboard, path: "", exact: true }] },
   {
@@ -53,7 +52,7 @@ const GROUPS: NavGroup[] = [
       { label: "News", icon: Newspaper, path: "/news" },
       { label: "Rankings", icon: Globe, path: "/rankings" },
       { label: "Rivals", icon: Users, path: "/rivals" },
-      { label: "Records", icon: Award },
+      { label: "Records", icon: Award, path: "/records" },
     ],
   },
   {
