@@ -1,6 +1,8 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { SpokeShell, SpokeEmpty, useSpokeGate } from "@/components/career/spoke";
+import { useAcceptSponsorship, usePendingSponsorships } from "@/lib/api/manage";
 import { useCareerOverview, usePlayerProfile } from "@/lib/api/queries";
 import { formatMoney } from "@/lib/career/labels";
 
@@ -9,6 +11,13 @@ type SeasonStat = {
   events: number;
   wins: number;
   earnings: number;
+};
+type Offer = {
+  sponsor: string;
+  perSeasonPayment: number;
+  signingBonus: number;
+  durationSeasons: number;
+  grossValue: number;
 };
 
 /** Finances spoke: available funds, career earnings, and a per-season earnings ledger. */
@@ -35,6 +44,8 @@ export function FinancesView({ id }: { id: string }) {
         <FigureCard label="Available funds" value={formatMoney(profile.availableFunds)} accent />
         <FigureCard label="Career earnings" value={formatMoney(profile.careerEarnings)} />
       </div>
+
+      <Sponsorships id={id} />
 
       <section className="flex flex-col gap-4">
         <h2 className="text-muted-foreground text-[0.6875rem] font-bold tracking-[0.12em] uppercase">
@@ -76,6 +87,66 @@ function FigureCard({ label, value, accent }: { label: string; value: string; ac
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+/** Pending endorsement offers — signing them pays a bonus and per-season income. */
+function Sponsorships({ id }: { id: string }) {
+  const { data, isError } = usePendingSponsorships(id);
+  const accept = useAcceptSponsorship(id);
+  const offers: Offer[] = data?.pendingSponsorships ?? [];
+
+  // Secondary to the figures above — stay quiet on error and when there's nothing to sign.
+  if (isError || offers.length === 0) return null;
+
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="text-muted-foreground text-[0.6875rem] font-bold tracking-[0.12em] uppercase">
+        Sponsorship offers
+      </h2>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {offers.map((offer, index) => (
+          <div
+            key={`${offer.sponsor}:${index}`}
+            className="border-border bg-surface flex flex-col gap-3 rounded-lg border px-4 py-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="truncate font-medium">{offer.sponsor}</span>
+                <span className="text-muted-foreground text-sm">
+                  {offer.durationSeasons} {offer.durationSeasons === 1 ? "season" : "seasons"} ·{" "}
+                  <span className="text-foreground font-mono tabular-nums">
+                    {formatMoney(offer.grossValue)}
+                  </span>{" "}
+                  total
+                </span>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => accept.mutate(index)}
+                disabled={accept.isPending}
+                className="shrink-0"
+              >
+                Accept
+              </Button>
+            </div>
+            <dl className="grid grid-cols-2 gap-2">
+              <OfferStat label="Signing bonus" value={formatMoney(offer.signingBonus)} />
+              <OfferStat label="Per season" value={formatMoney(offer.perSeasonPayment)} />
+            </dl>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function OfferStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-subtle-foreground text-xs tracking-[0.08em] uppercase">{label}</dt>
+      <dd className="text-foreground font-mono text-sm tabular-nums">{value}</dd>
     </div>
   );
 }

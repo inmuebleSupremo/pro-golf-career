@@ -28,11 +28,12 @@ export function usePlayerSchedule(id: string) {
   });
 }
 
-/** Invalidate the schedule and the career overview after a management mutation. */
+/** Invalidate the schedule, calendar, and career overview after a management mutation. */
 function useInvalidateManage(id: string) {
   const queryClient = useQueryClient();
   return () => {
     queryClient.invalidateQueries({ queryKey: ["schedule", id] });
+    queryClient.invalidateQueries({ queryKey: ["calendar", id] });
     queryClient.invalidateQueries({ queryKey: ["career", id] });
   };
 }
