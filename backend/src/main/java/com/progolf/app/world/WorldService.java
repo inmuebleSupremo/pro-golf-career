@@ -5,7 +5,11 @@ import com.progolf.app.api.dto.CalendarEntryDto;
 import com.progolf.app.api.dto.EventResultDto;
 import com.progolf.app.api.dto.FinisherDto;
 import com.progolf.app.api.dto.HallOfFameDto;
+import com.progolf.app.api.dto.InjuryDto;
+import com.progolf.app.api.dto.PlayerFitnessDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
+import com.progolf.app.api.dto.RankingRowDto;
+import com.progolf.app.api.dto.RecordDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
@@ -26,6 +30,7 @@ import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Identity;
 import com.progolf.sim.player.Nationality;
+import com.progolf.sim.ranking.RankingStanding;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
@@ -278,6 +283,64 @@ public class WorldService {
             inductions.add(new HallOfFameDto(i.golferId(), name, i.season(), i.score(), careerWins));
         }
         return inductions;
+    }
+
+    /**
+     * The current World Ranking, top {@code limit} golfers by ranking value, name-enriched. Not player-scoped
+     * — the ranking exists regardless of whether a player is assigned. Rows are already ordered by position.
+     */
+    public List<RankingRowDto> worldRankings(String ownerId, String sessionId, int limit) {
+        World world = required(ownerId, sessionId).world();
+        int cap = Math.max(0, limit);
+        List<RankingRowDto> rows = new ArrayList<>();
+        for (RankingStanding s : world.currentRanking().standings()) {
+            if (rows.size() >= cap) {
+                break;
+            }
+            // A ranked golfer keeps their career; fall back to the id if one is somehow absent.
+            Career career = world.careerOf(s.golferId());
+            String name = career != null ? career.player().identity().fullName() : s.golferId();
+            rows.add(new RankingRowDto(s.position(), s.golferId(), name, s.rankingValue()));
+        }
+        return rows;
+    }
+
+    /**
+     * The player's fitness (spec: physical-state): condition, fatigue, derived availability, and any active
+     * injury. Requires a player (callers guard with {@link #hasPlayer}); returns null if the golfer has no
+     * tracked physical state (e.g. once retired and removed from the active pool).
+     */
+    public PlayerFitnessDto playerFitness(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        String id = requirePlayerId(world);
+        var state = world.physicalStateOf(id);
+        if (state == null) {
+            return null;
+        }
+        InjuryDto injury = state.injury()
+                .map(i -> new InjuryDto(i.type().name(), i.severity().name(), i.rehabWeeksRemaining()))
+                .orElse(null);
+        return new PlayerFitnessDto(state.availability().name(), state.fitness(), state.fatigue(),
+                state.canCompete(), state.canPlayThroughInjury(), injury);
+    }
+
+    /**
+     * The world Record Book (spec: records-archive): the current holder of each record, name-enriched. Not
+     * player-scoped — records exist regardless of whether a player is assigned. Iterated in RecordType enum
+     * order (the underlying map is an EnumMap); only records that have been set are included.
+     */
+    public List<RecordDto> records(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        List<RecordDto> rows = new ArrayList<>();
+        for (var entry : world.records().entrySet()) {
+            var holder = entry.getValue();
+            // A record holder keeps their career; fall back to the id if one is somehow absent.
+            Career career = world.careerOf(holder.golferId());
+            String name = career != null ? career.player().identity().fullName() : holder.golferId();
+            rows.add(new RecordDto(entry.getKey().name(), holder.golferId(), name,
+                    holder.value(), holder.season()));
+        }
+        return rows;
     }
 
     /** The most recent {@code limit} world news items, most recent first (the between-events feedback feed). */

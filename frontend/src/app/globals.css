@@ -34,6 +34,19 @@
   --accent: oklch(0.45 0.095 248);
   --accent-foreground: oklch(0.99 0.005 250);
 
+  /* Command-centre accents — defined globally so utilities resolve; the values are
+   * tuned for the dark command-centre shell (.command-centre) where they are used. */
+  --info: #63a8ec;             /* azure — world & informational data */
+  --info-foreground: #04121f;
+  --gold: #ecca7e;             /* honours — majors, records, hall of fame */
+  --gold-metal: linear-gradient(125deg, #f7e6ad 0%, #e6bd6a 34%, #cf9f47 52%, #f4dfa0 74%, #d9ab55 100%);
+  --gold-glow: 0 0 18px -4px rgba(236, 202, 126, 0.5);
+
+  /* Fallbacks so the utilities resolve outside the command-centre; the real dark
+   * values are set on .command-centre where these are actually used. */
+  --surface-3: oklch(0.93 0.005 150);
+  --border-strong: oklch(0.82 0.008 150);
+
   /* Colour — status */
   --success: oklch(0.53 0.11 148);
   --success-foreground: oklch(0.99 0.005 150);
@@ -152,6 +165,8 @@
   --color-background: var(--background);
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
+  --color-surface-3: var(--surface-3);
+  --color-border-strong: var(--border-strong);
   --color-foreground: var(--foreground);
   --color-muted-foreground: var(--muted-foreground);
   --color-subtle-foreground: var(--subtle-foreground);
@@ -162,6 +177,9 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-gold: var(--gold);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
@@ -224,4 +242,118 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/*
+ * Command Centre (v2) — the dark, broadcast-grade shell for the career surface.
+ * Scoped to a wrapper so the redesign lands on the career pages first without
+ * disturbing auth/onboarding. Overrides the semantic token *values* only, so every
+ * existing component (which consumes the tokens) adopts the new look for free.
+ * Dark-first; a future light mode redefines these values, not the components.
+ * Realises docs/frontend/references.md + the "Command Centre (v2)" tokens.
+ */
+.command-centre {
+  color-scheme: dark;
+
+  --background: #0e1311;
+  --surface: #141b18;
+  --surface-elevated: #18201c;
+  --surface-3: #202a25;
+
+  --foreground: #eef2f0;
+  --muted-foreground: #a7b6ac;
+  /* Lifted from #728177 (~3.6:1) to clear WCAG AA (4.5:1) on the dark surface —
+   * it carries the smallest captions, so it must stay legible everywhere. */
+  --subtle-foreground: #8b9d92;
+
+  --border: #263029;
+  --border-strong: #33423a;
+  --divider: #1e2621;
+
+  /* Green — your performance & actions */
+  --primary: #57d08a;
+  --primary-hover: #6ade97;
+  --primary-foreground: #04160c;
+
+  /* Azure carries informational data; keep the shared --accent aligned to it */
+  --accent: #63a8ec;
+  --accent-foreground: #04121f;
+  --info: #63a8ec;
+  --info-foreground: #04121f;
+
+  --gold: #ecca7e;
+
+  --success: #57d08a;
+  --success-foreground: #04160c;
+  --warning: #e6b455;
+  --warning-foreground: #201803;
+  --destructive: #f0817f;
+  --destructive-foreground: #1c0605;
+
+  --ring: #57d08a;
+
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 22px -10px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 18px 40px -20px rgba(0, 0, 0, 0.75);
+
+  color: var(--foreground);
+  /*
+   * Texture: a faint golf-ball dimple field (a concave pit with a light rim, tiled)
+   * under two ambient brand glows. Kept very low-contrast so it reads as surface
+   * grain behind the cards, never as pattern — opaque surfaces sit cleanly on top.
+   */
+  background-color: var(--background);
+  background-image:
+    radial-gradient(1100px 600px at 84% -10%, rgba(87, 208, 138, 0.06), transparent 60%),
+    radial-gradient(900px 520px at 2% 108%, rgba(99, 168, 236, 0.05), transparent 55%),
+    radial-gradient(
+      circle at center,
+      rgba(0, 0, 0, 0.06) 0 32%,
+      rgba(255, 255, 255, 0.016) 46% 58%,
+      transparent 66%
+    );
+  background-size:
+    100% 100%,
+    100% 100%,
+    17px 17px;
+  background-attachment: fixed, fixed, fixed;
+}
+
+/* The metallic-gold moment — honours only (majors, records, hall of fame). */
+.gold-metal {
+  background: var(--gold-metal);
+  color: #3c2f12;
+  box-shadow: var(--gold-glow);
+}
+.gold-metal-text {
+  background: var(--gold-metal);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+/* A restrained shine sweep that catches the light; reserved for gold honour chips. */
+.gold-shine {
+  position: relative;
+  overflow: hidden;
+}
+.gold-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 34%, rgba(255, 255, 255, 0.6) 50%, transparent 66%);
+  transform: translateX(-140%);
+  animation: gold-sheen 4.8s ease-in-out infinite;
+}
+@keyframes gold-sheen {
+  0%, 72% { transform: translateX(-140%); }
+  88%, 100% { transform: translateX(140%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gold-shine::after { display: none; }
+}
+
+/* Command-centre card entrance — one restrained, staggered rise on load. */
+@keyframes cc-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
 }

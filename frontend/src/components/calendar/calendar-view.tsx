@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Trophy } from "lucide-react";
+import { useState } from "react";
+import { CalendarOff, CalendarPlus, Trophy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { isNotFound, isUnauthorized } from "@/lib/api/graphql-client";
-import { useCareerOverview, usePlayerCalendar } from "@/lib/api/queries";
+import { SpokeShell, SpokeEmpty, useSpokeGate } from "@/components/career/spoke";
+import { useEnterEvent, useSetResting, useSkipEvent } from "@/lib/api/manage";
+import { useCareerOverview, usePlayerCalendar, usePlayerFitness } from "@/lib/api/queries";
 import {
   eventPrestigeLabel,
   formatMoney,
@@ -33,85 +32,134 @@ type CalendarEntry = {
   result: EventResult | null;
 };
 
+/*
+ * The season runs April → late October in real golf. The engine tracks events by week
+ * only, so we lay them on a nominal calendar: week 1 is the first Thursday of April, and
+ * each event spans Thursday–Sunday. This is presentation only — the engine is unchanged.
+ */
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const SEASON_MONTHS = [3, 4, 5, 6, 7, 8, 9]; // April (3) … October (9)
+
+function eventDates(week: number): { start: Date; end: Date } {
+  const startDay = 3 + (week - 1) * 7; // 3 = first Thursday of April in the nominal year
+  return { start: new Date(2025, 3, startDay), end: new Date(2025, 3, startDay + 3) };
+}
+
+/** The month bucket for an event (clamped to the April–October season window). */
+function eventMonth(week: number): number {
+  return Math.min(9, Math.max(3, eventDates(week).start.getMonth()));
+}
+
+/** "Apr 3–6" within a month, or "Apr 30 – May 3" across one. */
+function formatDateRange(week: number): string {
+  const { start, end } = eventDates(week);
+  const sM = MONTH_NAMES[start.getMonth()];
+  if (start.getMonth() === end.getMonth()) return `${sM} ${start.getDate()}–${end.getDate()}`;
+  return `${sM} ${start.getDate()} – ${MONTH_NAMES[end.getMonth()]} ${end.getDate()}`;
+}
+
 export function CalendarView({ id }: { id: string }) {
-  const router = useRouter();
-  const { data, isPending, isError, error } = usePlayerCalendar(id);
-  // Season/week context, already cached by the hub's overview query.
+  const query = usePlayerCalendar(id);
   const world = useCareerOverview(id).data?.world ?? null;
+  const gate = useSpokeGate(query);
+  if (gate) return gate;
 
-  useEffect(() => {
-    if (isError && isUnauthorized(error)) {
-      router.push("/login");
-      router.refresh();
-    }
-  }, [isError, error, router]);
-
-  if (isPending) return <CalendarSkeleton />;
-
-  if (isError) {
-    if (isUnauthorized(error)) return null;
-    return (
-      <CalendarMessage
-        id={id}
-        title={isNotFound(error) ? "This session is no longer available" : "Couldn't load the calendar"}
-        body={
-          isNotFound(error)
-            ? "Loaded careers don't survive a restart. Reopen it from your saves."
-            : "Something went wrong. Head back to the career and try again."
-        }
-      />
-    );
-  }
-
-  const entries = [...(data.playerCalendar as CalendarEntry[])].sort((a, b) => a.week - b.week);
-  // The event the player is heading into next — the first entered event still to come.
-  const nextUpId = entries.find((e) => !e.played && e.entered)?.tournamentId ?? null;
+  const entries = [...((query.data?.playerCalendar as CalendarEntry[]) ?? [])].sort(
+    (a, b) => a.week - b.week,
+  );
+  const currentWeek = world?.week ?? 1;
   const playedCount = entries.filter((e) => e.played).length;
+  const nextUpId = entries.find((e) => !e.played && e.entered)?.tournamentId ?? null;
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
-        <Link
-          href={`/career/${id}`}
-          className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1.5 text-sm transition-colors"
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          Career
-        </Link>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <h1 className="font-serif text-3xl font-medium">Season calendar</h1>
-          <p className="text-muted-foreground text-sm">
-            {world ? `Season ${world.season} · Week ${world.week} · ` : ""}
-            {playedCount} of {entries.length} played
-          </p>
-        </div>
-      </div>
+    <SpokeShell
+      title="Schedule"
+      description="Your season, month by month — Thursday to Sunday."
+      action={
+        <span className="border-border bg-surface text-muted-foreground rounded-full border px-3 py-1.5 text-xs font-semibold tabular-nums">
+          {world ? `Season ${world.season} · ` : ""}
+          {playedCount}/{entries.length} played
+        </span>
+      }
+    >
+      <AvailabilityBar id={id} />
 
       {entries.length === 0 ? (
-        <p className="border-border bg-surface text-muted-foreground rounded-lg border border-dashed px-5 py-8 text-center text-sm">
-          No events on the calendar yet.
+        <SpokeEmpty>No events on the calendar yet.</SpokeEmpty>
+      ) : (
+        <div className="flex flex-col gap-5">
+          {SEASON_MONTHS.map((month) => (
+            <MonthSection
+              key={month}
+              month={month}
+              entries={entries.filter((e) => eventMonth(e.week) === month)}
+              currentWeek={currentWeek}
+              nextUpId={nextUpId}
+              id={id}
+            />
+          ))}
+        </div>
+      )}
+    </SpokeShell>
+  );
+}
+
+function MonthSection({
+  month,
+  entries,
+  currentWeek,
+  nextUpId,
+  id,
+}: {
+  month: number;
+  entries: CalendarEntry[];
+  currentWeek: number;
+  nextUpId: string | null;
+  id: string;
+}) {
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="text-subtle-foreground text-xs font-bold tracking-[0.12em] uppercase">
+        {MONTH_NAMES[month]}
+      </h2>
+      {entries.length === 0 ? (
+        <p className="border-border text-subtle-foreground rounded-lg border border-dashed px-4 py-3 text-sm">
+          No events
         </p>
       ) : (
         <ul className="divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border">
           {entries.map((entry) => (
-            <CalendarRow
+            <EventRow
               key={entry.tournamentId}
+              id={id}
               entry={entry}
+              currentWeek={currentWeek}
               isNext={entry.tournamentId === nextUpId}
             />
           ))}
         </ul>
       )}
-    </div>
+    </section>
   );
 }
 
-function CalendarRow({ entry, isNext }: { entry: CalendarEntry; isNext: boolean }) {
+function EventRow({
+  id,
+  entry,
+  currentWeek,
+  isNext,
+}: {
+  id: string;
+  entry: CalendarEntry;
+  currentWeek: number;
+  isNext: boolean;
+}) {
   const marquee = entry.prestige === "MAJOR" || entry.prestige === "TOUR_CHAMPIONSHIP";
+  const upcoming = !entry.played && entry.week >= currentWeek;
 
   return (
     <li className={`flex flex-col gap-3 px-5 py-4 ${isNext ? "bg-primary/[0.06]" : ""}`}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 flex-col gap-1">
           <span className="flex min-w-0 items-center gap-2">
             <span className={`truncate font-medium ${marquee ? "text-accent" : ""}`}>{entry.name}</span>
@@ -122,10 +170,15 @@ function CalendarRow({ entry, isNext }: { entry: CalendarEntry; isNext: boolean 
             ) : null}
           </span>
           <span className="text-muted-foreground text-sm">
-            Week {entry.week} · {tourTierLabel(entry.tier)} tour · {eventPrestigeLabel(entry.prestige)}
+            <span className="text-foreground font-medium">{formatDateRange(entry.week)}</span> ·{" "}
+            {tourTierLabel(entry.tier)} tour · {eventPrestigeLabel(entry.prestige)}
           </span>
         </div>
-        <StatusBadge entry={entry} />
+        {upcoming ? (
+          <EnterSkipButton id={id} entry={entry} />
+        ) : (
+          <StatusBadge entry={entry} />
+        )}
       </div>
 
       {entry.played && entry.result ? <ResultDetail result={entry.result} /> : null}
@@ -133,16 +186,46 @@ function CalendarRow({ entry, isNext }: { entry: CalendarEntry; isNext: boolean 
   );
 }
 
-/** The right-aligned headline: the player's result once played, else the entry status. */
+function EnterSkipButton({ id, entry }: { id: string; entry: CalendarEntry }) {
+  const skip = useSkipEvent(id);
+  const enter = useEnterEvent(id);
+  const pending = skip.isPending || enter.isPending;
+
+  function onToggle() {
+    if (entry.entered) skip.mutate(entry.tournamentId);
+    else enter.mutate(entry.tournamentId);
+  }
+
+  return (
+    <Button
+      variant={entry.entered ? "secondary" : "primary"}
+      size="sm"
+      onClick={onToggle}
+      disabled={pending}
+      className="shrink-0"
+      aria-label={entry.entered ? `Skip ${entry.name}` : `Enter ${entry.name}`}
+    >
+      {entry.entered ? (
+        <>
+          <CalendarOff className="size-4" aria-hidden="true" />
+          Skip
+        </>
+      ) : (
+        <>
+          <CalendarPlus className="size-4" aria-hidden="true" />
+          Enter
+        </>
+      )}
+    </Button>
+  );
+}
+
+/** The right-aligned headline for a past event: the player's result once played, else the status. */
 function StatusBadge({ entry }: { entry: CalendarEntry }) {
   if (entry.played) {
     const finish = entry.result?.playerFinish ?? null;
-    if (!finish) {
-      return <span className="text-subtle-foreground shrink-0 text-sm">Did not play</span>;
-    }
-    if (!finish.madeCut) {
-      return <span className="text-muted-foreground shrink-0 text-sm">Missed the cut</span>;
-    }
+    if (!finish) return <span className="text-subtle-foreground shrink-0 text-sm">Did not play</span>;
+    if (!finish.madeCut) return <span className="text-muted-foreground shrink-0 text-sm">Missed the cut</span>;
     return (
       <span className="shrink-0 text-sm font-medium">
         {ordinalPosition(finish.position)}
@@ -154,11 +237,8 @@ function StatusBadge({ entry }: { entry: CalendarEntry }) {
       </span>
     );
   }
-  return (
-    <span className={`shrink-0 text-sm ${entry.entered ? "text-foreground" : "text-subtle-foreground"}`}>
-      {entry.entered ? "Entered" : "Skipped"}
-    </span>
-  );
+  // Not played and in the past — the player skipped it.
+  return <span className="text-subtle-foreground shrink-0 text-sm">Skipped</span>;
 }
 
 /** Winner and leading finishers for a played event. */
@@ -192,25 +272,52 @@ function ResultDetail({ result }: { result: EventResult }) {
   );
 }
 
-function CalendarMessage({ id, title, body }: { id: string; title: string; body: string }) {
-  return (
-    <div className="flex flex-col items-center gap-4 py-16 text-center">
-      <div className="flex flex-col gap-2">
-        <p className="text-foreground font-serif text-xl">{title}</p>
-        <p className="text-muted-foreground max-w-sm text-sm">{body}</p>
-      </div>
-      <Button asChild>
-        <Link href={`/career/${id}`}>Back to career</Link>
-      </Button>
-    </div>
-  );
-}
+const AVAILABILITY_TONE: Record<string, { label: string; dot: string }> = {
+  AVAILABLE: { label: "Available", dot: "bg-success" },
+  RESTING: { label: "Resting", dot: "bg-info" },
+  RECOVERING: { label: "Recovering", dot: "bg-gold" },
+  INJURED: { label: "Injured", dot: "bg-destructive" },
+};
 
-function CalendarSkeleton() {
+/**
+ * Season availability: the golfer's current status (fitness-derived) plus the season-long
+ * rest decision. Resting is write-only on the backend, so the toggle reflects the last choice
+ * made this session (defaults to playing).
+ */
+function AvailabilityBar({ id }: { id: string }) {
+  const availability = usePlayerFitness(id).data?.playerFitness?.availability ?? null;
+  const tone = availability ? AVAILABILITY_TONE[availability] : null;
+
+  const [resting, setResting] = useState(false);
+  const setRestingMutation = useSetResting(id);
+
+  function choose(next: boolean) {
+    if (setRestingMutation.isPending) return;
+    setResting(next);
+    setRestingMutation.mutate(next);
+  }
+
   return (
-    <div aria-hidden="true" className="flex flex-col gap-8">
-      <div className="bg-divider h-9 w-56 animate-pulse rounded" />
-      <div className="border-border bg-surface h-96 animate-pulse rounded-lg border" />
+    <div className="border-border bg-surface flex flex-wrap items-center justify-between gap-4 rounded-lg border px-5 py-4">
+      <div className="flex flex-col gap-0.5">
+        <span className="flex items-center gap-2 font-medium">
+          {tone ? (
+            <span className={`size-2 rounded-full ${tone.dot}`} aria-hidden="true" />
+          ) : null}
+          {tone ? tone.label : "Availability"}
+        </span>
+        <span className="text-muted-foreground text-sm">
+          {resting ? "Resting — sitting out every event this season." : "Playing your schedule."}
+        </span>
+      </div>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => choose(!resting)}
+        disabled={setRestingMutation.isPending}
+      >
+        {resting ? "Resume playing" : "Rest this season"}
+      </Button>
     </div>
   );
 }

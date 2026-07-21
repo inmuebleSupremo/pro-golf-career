@@ -57,9 +57,13 @@ public final class NewsFactory {
     }
 
     public static NewsEvent retirement(int season, String golferId, String golferName, int careerWins) {
+        int prominence = Math.min(
+                MediaConstants.PROMINENCE_RETIREMENT_MAX,
+                MediaConstants.PROMINENCE_RETIREMENT_BASE
+                        + Math.max(0, careerWins) * MediaConstants.PROMINENCE_RETIREMENT_PER_WIN);
         return of(season, NewsType.RETIREMENT, golferId,
                 golferName + " retires after a career of " + careerWins + " win" + (careerWins == 1 ? "" : "s"),
-                MediaConstants.PROMINENCE_RETIREMENT);
+                prominence);
     }
 
     public static NewsEvent injury(int season, String golferId, String golferName, String description) {

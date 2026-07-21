@@ -136,6 +136,49 @@ export const HallOfFameDocument = graphql(`
   }
 `);
 
+/** The current World Ranking, name-enriched, for the rankings + rivals spokes. */
+export const WorldRankingsDocument = graphql(`
+  query WorldRankings($id: ID!, $limit: Int) {
+    worldRankings(id: $id, limit: $limit) {
+      position
+      golferId
+      name
+      rankingValue
+    }
+  }
+`);
+
+/** The world Record Book — the current holder of each record (name-enriched). */
+export const RecordsDocument = graphql(`
+  query Records($id: ID!) {
+    records(id: $id) {
+      type
+      holderGolferId
+      holderName
+      value
+      season
+    }
+  }
+`);
+
+/** The player's fitness — condition, fatigue, availability, and any injury. */
+export const PlayerFitnessDocument = graphql(`
+  query PlayerFitness($id: ID!) {
+    playerFitness(id: $id) {
+      availability
+      fitness
+      fatigue
+      canCompete
+      canPlayThroughInjury
+      injury {
+        type
+        severity
+        rehabWeeksRemaining
+      }
+    }
+  }
+`);
+
 /** The player's golfer profile — identity, attributes, ranking, earnings; null when no player. */
 export const PlayerProfileDocument = graphql(`
   query PlayerProfile($id: ID!) {

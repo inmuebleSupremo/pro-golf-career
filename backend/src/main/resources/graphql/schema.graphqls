@@ -28,6 +28,15 @@ type Query {
     "The world's Hall-of-Fame inductions so far."
     hallOfFame(id: ID!): [HallOfFameInduction!]!
 
+    "The current World Ranking, top `limit` golfers by ranking value (name-enriched)."
+    worldRankings(id: ID!, limit: Int = 100): [RankingRow!]!
+
+    "The player's fitness — condition, fatigue, availability, and any active injury; null when no player is assigned."
+    playerFitness(id: ID!): PlayerFitness
+
+    "The world Record Book — the current holder of each record (name-enriched)."
+    records(id: ID!): [WorldRecord!]!
+
     "Recent world news (tournament results, milestones, promotions, retirements…), most recent first."
     newsFeed(id: ID!, limit: Int = 20): [NewsItem!]!
 
@@ -258,6 +267,49 @@ type HallOfFameInduction {
     "The prestige-weighted score the golfer was inducted on."
     score: Float!
     careerWins: Int!
+}
+
+type RankingRow {
+    "1-based position in the World Ranking."
+    position: Int!
+    golferId: ID!
+    name: String!
+    "The golfer's decayed ranking value as of now."
+    rankingValue: Float!
+}
+
+type PlayerFitness {
+    "AVAILABLE, RESTING, RECOVERING, or INJURED (derived)."
+    availability: String!
+    "Long-term physical condition in [0,1]."
+    fitness: Float!
+    "Accumulated fatigue in [0,1]."
+    fatigue: Float!
+    "Whether the golfer may enter an event unimpaired."
+    canCompete: Boolean!
+    "Whether the golfer could play through a recovering injury (at a shot impairment)."
+    canPlayThroughInjury: Boolean!
+    "The active injury, or null when healthy."
+    injury: Injury
+}
+
+type Injury {
+    "Body area: WRIST, BACK, SHOULDER, KNEE, ELBOW, or HAND."
+    type: String!
+    "MINOR, MODERATE, or SEVERE."
+    severity: String!
+    rehabWeeksRemaining: Int!
+}
+
+type WorldRecord {
+    "MOST_CAREER_WINS, MOST_MAJOR_WINS, LOWEST_TOURNAMENT_SCORE, MOST_CONSECUTIVE_CUTS, or LONGEST_CAREER."
+    type: String!
+    holderGolferId: ID!
+    holderName: String!
+    "The record value: a count for most records, a score-to-par for LOWEST_TOURNAMENT_SCORE."
+    value: Float!
+    "The season the record was established."
+    season: Int!
 }
 
 type SponsorshipOffer {

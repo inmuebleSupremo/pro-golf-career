@@ -1,22 +1,22 @@
 "use client";
 
 import { useCallback } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 
 import { EquipmentSection } from "@/components/manage/equipment-section";
-import { ScheduleSection } from "@/components/manage/schedule-section";
-import { SponsorshipSection } from "@/components/manage/sponsorship-section";
 import { StaffSection } from "@/components/manage/staff-section";
 import { TrainingSection } from "@/components/manage/training-section";
+import { usePlayerProfile } from "@/lib/api/queries";
+import { formatMoney } from "@/lib/career/labels";
 
 /**
- * Management surface for a loaded career. Composes independent sections, each owning
- * its own data and mutations. Unauthorized sessions bubble up here and redirect once.
+ * Development surface for a loaded career: train, equip, and staff the golfer, presented as
+ * bento boxes. Schedule + availability live on Schedule; sponsorships + finances on Finance.
+ * Available funds is shown here purely so upgrades and hires can be judged for affordability.
  */
 export function ManageView({ id }: { id: string }) {
   const router = useRouter();
+  const funds = usePlayerProfile(id).data?.playerProfile?.availableFunds ?? null;
 
   const onUnauthorized = useCallback(() => {
     router.push("/login");
@@ -24,23 +24,39 @@ export function ManageView({ id }: { id: string }) {
   }, [router]);
 
   return (
-    <div className="flex flex-col gap-10">
-      <div className="flex flex-col gap-3">
-        <Link
-          href={`/career/${id}`}
-          className="text-muted-foreground hover:text-foreground inline-flex w-fit items-center gap-1.5 text-sm transition-colors"
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          Career
-        </Link>
-        <h1 className="font-serif text-3xl font-medium">Manage career</h1>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h1 className="text-[1.45rem] font-bold tracking-[-0.025em]">Development</h1>
+        <span className="text-muted-foreground text-sm">Train, equip, and staff your golfer.</span>
+        {funds !== null ? (
+          <span className="border-border bg-surface text-muted-foreground ml-auto rounded-full border px-3 py-1.5 text-xs font-semibold tabular-nums">
+            Funds <span className="text-foreground">{formatMoney(funds)}</span>
+          </span>
+        ) : null}
       </div>
 
-      <ScheduleSection id={id} onUnauthorized={onUnauthorized} />
-      <TrainingSection id={id} onUnauthorized={onUnauthorized} />
-      <EquipmentSection id={id} onUnauthorized={onUnauthorized} />
-      <StaffSection id={id} onUnauthorized={onUnauthorized} />
-      <SponsorshipSection id={id} onUnauthorized={onUnauthorized} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <BentoBox className="lg:col-span-2">
+          <TrainingSection id={id} onUnauthorized={onUnauthorized} />
+        </BentoBox>
+        <BentoBox>
+          <EquipmentSection id={id} onUnauthorized={onUnauthorized} />
+        </BentoBox>
+        <BentoBox>
+          <StaffSection id={id} onUnauthorized={onUnauthorized} />
+        </BentoBox>
+      </div>
+    </div>
+  );
+}
+
+/** A bento panel: an elevated surface so the section's inner surface tiles read against it. */
+function BentoBox({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <div
+      className={`border-border from-surface-elevated to-surface rounded-xl border bg-gradient-to-b p-5 shadow-[var(--shadow-md)] ${className ?? ""}`}
+    >
+      {children}
     </div>
   );
 }

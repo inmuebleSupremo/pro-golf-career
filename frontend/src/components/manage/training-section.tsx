@@ -28,7 +28,7 @@ export function TrainingSection({ id, onUnauthorized }: { id: string; onUnauthor
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h2 className="font-serif text-xl font-medium">Training focus</h2>
+        <h2 className="text-base font-bold tracking-[-0.01em]">Training focus</h2>
         <p className="text-muted-foreground text-sm">
           Prioritise the attributes to develop. Tap in the order you want them improved.
         </p>

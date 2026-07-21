@@ -114,6 +114,46 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void worldRankingsReturnOrderedNameEnrichedRowsAfterASeason() {
+        String id = worldService.create(OWNER, 707L, SMALL).id();
+        worldService.advanceSeason(OWNER, id); // resolve a season of events so ranking points accrue
+
+        graphQlTester.document("""
+                        query($id: ID!, $limit: Int){
+                          worldRankings(id: $id, limit: $limit){ position golferId name rankingValue }
+                        }
+                        """)
+                .variable("id", id).variable("limit", 5).execute()
+                .path("worldRankings").entityList(Object.class).satisfies(rows ->
+                        org.assertj.core.api.Assertions.assertThat(rows).isNotEmpty().hasSizeLessThanOrEqualTo(5))
+                .path("worldRankings[0].position").entity(Integer.class).isEqualTo(1)
+                .path("worldRankings[0].name").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank)
+                .path("worldRankings[0].rankingValue").entity(Double.class).satisfies(value ->
+                        org.assertj.core.api.Assertions.assertThat(value).isPositive());
+    }
+
+    @Test
+    void recordsAreEmptyForAFreshWorldAndPopulateAfterASeason() {
+        String id = worldService.create(OWNER, 808L, SMALL).id();
+        graphQlTester.document("query($id: ID!){ records(id: $id){ type } }")
+                .variable("id", id).execute()
+                .path("records").entityList(Object.class).hasSize(0);
+
+        worldService.advanceSeason(OWNER, id); // a season of events sets record holders
+
+        graphQlTester.document("""
+                        query($id: ID!){
+                          records(id: $id){ type holderGolferId holderName value season }
+                        }
+                        """)
+                .variable("id", id).execute()
+                .path("records").entityList(Object.class).satisfies(rows ->
+                        org.assertj.core.api.Assertions.assertThat(rows).isNotEmpty())
+                .path("records[0].holderName").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank)
+                .path("records[0].season").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive);
+    }
+
+    @Test
     void careerGoalsReportLiveProgressForAnAssignedPlayer() {
         WorldSession session = worldService.create(OWNER, 404L, SMALL);
         worldService.createPlayer(OWNER, session.id(), "Test", "Golfer", Nationality.USA, 20, Archetype.ALL_ROUNDER);
@@ -190,6 +230,37 @@ class WorldGraphQlApiTest {
                 .path("playerProfile.tour").entity(String.class).isEqualTo("DEVELOPMENT")
                 .path("playerProfile.events").entity(Integer.class).isEqualTo(0)
                 .path("playerProfile.attributes").entityList(Object.class).satisfies(a -> assertPositive(a.size()));
+    }
+
+    @Test
+    void playerFitnessReturnsHealthyStateForAFreshlyCreatedPlayer() {
+        WorldSession session = worldService.create(OWNER, 8L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Ana", "Rivera", Nationality.ESP, 20,
+                Archetype.ALL_ROUNDER);
+
+        graphQlTester.document("""
+                        query($id: ID!) {
+                          playerFitness(id: $id) {
+                            availability fitness fatigue canCompete canPlayThroughInjury
+                            injury { type severity rehabWeeksRemaining }
+                          }
+                        }
+                        """)
+                .variable("id", session.id()).execute()
+                .path("playerFitness.availability").entity(String.class).isEqualTo("AVAILABLE")
+                .path("playerFitness.canCompete").entity(Boolean.class).isEqualTo(true)
+                .path("playerFitness.fatigue").entity(Double.class).isEqualTo(0.0)
+                .path("playerFitness.fitness").entity(Double.class).satisfies(value ->
+                        org.assertj.core.api.Assertions.assertThat(value).isBetween(0.0, 1.0))
+                .path("playerFitness.injury").valueIsNull();
+    }
+
+    @Test
+    void playerFitnessIsNullWithoutAPlayer() {
+        WorldSession session = worldService.create(OWNER, 9L, SMALL);
+        graphQlTester.document("query($id: ID!){ playerFitness(id: $id){ availability } }")
+                .variable("id", session.id()).execute()
+                .path("playerFitness").valueIsNull();
     }
 
     @Test
