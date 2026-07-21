@@ -136,6 +136,18 @@ export const HallOfFameDocument = graphql(`
   }
 `);
 
+/** The current World Ranking, name-enriched, for the rankings + rivals spokes. */
+export const WorldRankingsDocument = graphql(`
+  query WorldRankings($id: ID!, $limit: Int) {
+    worldRankings(id: $id, limit: $limit) {
+      position
+      golferId
+      name
+      rankingValue
+    }
+  }
+`);
+
 /** The player's golfer profile — identity, attributes, ranking, earnings; null when no player. */
 export const PlayerProfileDocument = graphql(`
   query PlayerProfile($id: ID!) {

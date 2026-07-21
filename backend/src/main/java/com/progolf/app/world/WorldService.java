@@ -6,6 +6,7 @@ import com.progolf.app.api.dto.EventResultDto;
 import com.progolf.app.api.dto.FinisherDto;
 import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
+import com.progolf.app.api.dto.RankingRowDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
@@ -26,6 +27,7 @@ import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Identity;
 import com.progolf.sim.player.Nationality;
+import com.progolf.sim.ranking.RankingStanding;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
@@ -278,6 +280,26 @@ public class WorldService {
             inductions.add(new HallOfFameDto(i.golferId(), name, i.season(), i.score(), careerWins));
         }
         return inductions;
+    }
+
+    /**
+     * The current World Ranking, top {@code limit} golfers by ranking value, name-enriched. Not player-scoped
+     * — the ranking exists regardless of whether a player is assigned. Rows are already ordered by position.
+     */
+    public List<RankingRowDto> worldRankings(String ownerId, String sessionId, int limit) {
+        World world = required(ownerId, sessionId).world();
+        int cap = Math.max(0, limit);
+        List<RankingRowDto> rows = new ArrayList<>();
+        for (RankingStanding s : world.currentRanking().standings()) {
+            if (rows.size() >= cap) {
+                break;
+            }
+            // A ranked golfer keeps their career; fall back to the id if one is somehow absent.
+            Career career = world.careerOf(s.golferId());
+            String name = career != null ? career.player().identity().fullName() : s.golferId();
+            rows.add(new RankingRowDto(s.position(), s.golferId(), name, s.rankingValue()));
+        }
+        return rows;
     }
 
     /** The most recent {@code limit} world news items, most recent first (the between-events feedback feed). */

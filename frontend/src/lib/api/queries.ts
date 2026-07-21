@@ -9,6 +9,7 @@ import {
   ListSavesDocument,
   PlayerCalendarDocument,
   PlayerProfileDocument,
+  WorldRankingsDocument,
 } from "@/lib/graphql/operations";
 
 /** The player's saved games, newest first — the vertical-slice read. */
@@ -46,6 +47,16 @@ export function useHallOfFame(id: string) {
   return useQuery({
     queryKey: ["hallOfFame", id],
     queryFn: () => gqlRequest(HallOfFameDocument, { id }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The current World Ranking (name-enriched), for the rankings + rivals spokes. */
+export function useWorldRankings(id: string, limit = 100) {
+  return useQuery({
+    queryKey: ["rankings", id, limit],
+    queryFn: () => gqlRequest(WorldRankingsDocument, { id, limit }),
     networkMode: "always",
     retry: false,
   });

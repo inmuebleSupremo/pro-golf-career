@@ -114,6 +114,25 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void worldRankingsReturnOrderedNameEnrichedRowsAfterASeason() {
+        String id = worldService.create(OWNER, 707L, SMALL).id();
+        worldService.advanceSeason(OWNER, id); // resolve a season of events so ranking points accrue
+
+        graphQlTester.document("""
+                        query($id: ID!, $limit: Int){
+                          worldRankings(id: $id, limit: $limit){ position golferId name rankingValue }
+                        }
+                        """)
+                .variable("id", id).variable("limit", 5).execute()
+                .path("worldRankings").entityList(Object.class).satisfies(rows ->
+                        org.assertj.core.api.Assertions.assertThat(rows).isNotEmpty().hasSizeLessThanOrEqualTo(5))
+                .path("worldRankings[0].position").entity(Integer.class).isEqualTo(1)
+                .path("worldRankings[0].name").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank)
+                .path("worldRankings[0].rankingValue").entity(Double.class).satisfies(value ->
+                        org.assertj.core.api.Assertions.assertThat(value).isPositive());
+    }
+
+    @Test
     void careerGoalsReportLiveProgressForAnAssignedPlayer() {
         WorldSession session = worldService.create(OWNER, 404L, SMALL);
         worldService.createPlayer(OWNER, session.id(), "Test", "Golfer", Nationality.USA, 20, Archetype.ALL_ROUNDER);

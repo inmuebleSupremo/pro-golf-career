@@ -28,6 +28,9 @@ type Query {
     "The world's Hall-of-Fame inductions so far."
     hallOfFame(id: ID!): [HallOfFameInduction!]!
 
+    "The current World Ranking, top `limit` golfers by ranking value (name-enriched)."
+    worldRankings(id: ID!, limit: Int = 100): [RankingRow!]!
+
     "Recent world news (tournament results, milestones, promotions, retirements…), most recent first."
     newsFeed(id: ID!, limit: Int = 20): [NewsItem!]!
 
@@ -258,6 +261,15 @@ type HallOfFameInduction {
     "The prestige-weighted score the golfer was inducted on."
     score: Float!
     careerWins: Int!
+}
+
+type RankingRow {
+    "1-based position in the World Ranking."
+    position: Int!
+    golferId: ID!
+    name: String!
+    "The golfer's decayed ranking value as of now."
+    rankingValue: Float!
 }
 
 type SponsorshipOffer {

@@ -130,7 +130,7 @@ export function HubDashboard({ id }: { id: string }) {
         </Card>
 
         {/* World rank */}
-        <Card href={`/career/${id}/profile`}>
+        <Card href={`/career/${id}/rankings`}>
           <CardHeader title="World Rank" portal />
           <div className="text-info text-[2.25rem] leading-none font-bold tabular-nums tracking-[-0.035em]">
             <span className="text-subtle-foreground align-[3px] text-xl">#</span>
