@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { ArrowRight, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useCareerOverview, usePlayerProfile } from "@/lib/api/queries";
-import { useAdvanceWeek } from "@/lib/api/play";
+import { useAdvanceSeason, useAdvanceWeek } from "@/lib/api/play";
 import { formatMoney, ordinalPosition, tourTierLabel } from "@/lib/career/labels";
 
 /*
@@ -106,9 +107,46 @@ function NextAction({ id, hasPendingEvent }: { id: string; hasPendingEvent: bool
   }
 
   return (
-    <Button variant="secondary" onClick={onAdvance} disabled={advance.isPending}>
-      {advance.isPending ? "Advancing…" : "Advance week"}
-      <ArrowRight className="size-4" aria-hidden="true" />
-    </Button>
+    <>
+      <SimSeasonControl id={id} />
+      <Button variant="secondary" onClick={onAdvance} disabled={advance.isPending}>
+        {advance.isPending ? "Advancing…" : "Advance week"}
+        <ArrowRight className="size-4" aria-hidden="true" />
+      </Button>
+    </>
+  );
+}
+
+/**
+ * Fast-forward to the end of the season. It sims every remaining event the player is
+ * entered in, so it confirms in place first. Only reachable when no event is pending
+ * (the engine cannot advance past one) — NextAction only renders it in that branch.
+ */
+function SimSeasonControl({ id }: { id: string }) {
+  const advanceSeason = useAdvanceSeason(id);
+  const [confirming, setConfirming] = useState(false);
+
+  if (!confirming) {
+    return (
+      <Button variant="ghost" onClick={() => setConfirming(true)}>
+        Sim season
+      </Button>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="text-muted-foreground hidden text-sm sm:inline">Sim remaining events?</span>
+      <Button
+        variant="secondary"
+        onClick={() => advanceSeason.mutate()}
+        disabled={advanceSeason.isPending}
+      >
+        {advanceSeason.isPending ? "Simming…" : "Confirm"}
+      </Button>
+      <Button variant="ghost" onClick={() => setConfirming(false)} disabled={advanceSeason.isPending}>
+        Cancel
+      </Button>
+    </span>
   );
 }

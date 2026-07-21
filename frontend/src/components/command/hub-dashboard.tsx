@@ -130,7 +130,7 @@ export function HubDashboard({ id }: { id: string }) {
         </Card>
 
         {/* World rank */}
-        <Card href={`/career/${id}`}>
+        <Card href={`/career/${id}/profile`}>
           <CardHeader title="World Rank" portal />
           <div className="text-info text-[2.25rem] leading-none font-bold tabular-nums tracking-[-0.035em]">
             <span className="text-subtle-foreground align-[3px] text-xl">#</span>
@@ -142,7 +142,7 @@ export function HubDashboard({ id }: { id: string }) {
         </Card>
 
         {/* Finances */}
-        <Card href={`/career/${id}`}>
+        <Card href={`/career/${id}/finances`}>
           <CardHeader title="Finances" portal />
           <div className="text-[2rem] leading-none font-bold tabular-nums tracking-[-0.03em]">
             {profile ? formatMoney(profile.availableFunds) : "—"}
@@ -154,7 +154,7 @@ export function HubDashboard({ id }: { id: string }) {
         </Card>
 
         {/* Career goals */}
-        <Card href={`/career/${id}`} className="sm:col-span-2">
+        <Card href={`/career/${id}/goals`} className="sm:col-span-2">
           <CardHeader title="Career Goals" portal />
           {goals.length === 0 ? (
             <p className="text-muted-foreground text-sm">No goals set yet — choose your ambitions.</p>
@@ -168,7 +168,7 @@ export function HubDashboard({ id }: { id: string }) {
         </Card>
 
         {/* This season */}
-        <Card href={`/career/${id}`} className="sm:col-span-2">
+        <Card href={`/career/${id}/seasons`} className="sm:col-span-2">
           <CardHeader title={`Season ${world.season}`} portal />
           <div className="grid grid-cols-4 gap-2">
             <SeasonFig k="Events" v={seasonStat?.events ?? 0} />
@@ -218,8 +218,8 @@ export function HubDashboard({ id }: { id: string }) {
         </Card>
 
         {/* News */}
-        <Card className="sm:col-span-2 xl:col-span-1">
-          <CardHeader title="Tour News" />
+        <Card href={`/career/${id}/news`} className="sm:col-span-2 xl:col-span-1">
+          <CardHeader title="Tour News" portal />
           {news.length === 0 ? (
             <p className="text-muted-foreground text-sm">No headlines yet — the season is young.</p>
           ) : (
@@ -232,8 +232,8 @@ export function HubDashboard({ id }: { id: string }) {
         </Card>
 
         {/* Hall of Fame */}
-        <Card>
-          <CardHeader title="Hall of Fame" />
+        <Card href={`/career/${id}/hall-of-fame`}>
+          <CardHeader title="Hall of Fame" portal />
           {inductions.length === 0 ? (
             <p className="text-muted-foreground text-sm">No inductees yet.</p>
           ) : (

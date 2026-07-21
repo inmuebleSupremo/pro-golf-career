@@ -10,7 +10,6 @@ import {
   Dumbbell,
   Flag,
   Globe,
-  Handshake,
   LayoutDashboard,
   ListOrdered,
   Newspaper,
@@ -19,7 +18,6 @@ import {
   User,
   Users,
   Wallet,
-  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -28,16 +26,17 @@ import { cn } from "@/lib/utils";
 type NavItem = {
   label: string;
   icon: LucideIcon;
-  /** Relative to /career/[id]; omit for a not-yet-built page. */
+  /** Relative to /career/[id]; omit for a not-yet-built page (shown as "Soon"). */
   path?: string;
   /** exact = active only when the path matches exactly (the hub). */
   exact?: boolean;
-  /** Backend already computes this; the page is next to build. */
-  status?: "ready" | "new";
 };
 
 type NavGroup = { label?: string; items: NavItem[] };
 
+// Items without a `path` have no backend query to drive them yet — they stay on the
+// map as "Soon" (Leaderboard is live only inside an event; Rankings/Rivals/Records/
+// Fitness need a new resolver). Everything else routes to a real spoke page.
 const GROUPS: NavGroup[] = [
   { items: [{ label: "Hub", icon: LayoutDashboard, path: "", exact: true }] },
   {
@@ -51,29 +50,27 @@ const GROUPS: NavGroup[] = [
   {
     label: "World",
     items: [
-      { label: "Rankings", icon: Globe, status: "ready" },
-      { label: "Rivals", icon: Users, status: "ready" },
-      { label: "Records", icon: Award, status: "ready" },
-      { label: "News", icon: Newspaper },
+      { label: "News", icon: Newspaper, path: "/news" },
+      { label: "Rankings", icon: Globe },
+      { label: "Rivals", icon: Users },
+      { label: "Records", icon: Award },
     ],
   },
   {
     label: "Career",
     items: [
-      { label: "Profile", icon: User },
-      { label: "Season Stats", icon: BarChart3 },
-      { label: "Goals", icon: Target },
-      { label: "Hall of Fame", icon: Trophy },
+      { label: "Profile", icon: User, path: "/profile" },
+      { label: "Season Stats", icon: BarChart3, path: "/seasons" },
+      { label: "Goals", icon: Target, path: "/goals" },
+      { label: "Hall of Fame", icon: Trophy, path: "/hall-of-fame" },
     ],
   },
   {
     label: "Manage",
     items: [
-      { label: "Development", icon: Dumbbell, path: "/manage", status: "new" },
-      { label: "Team", icon: Handshake },
-      { label: "Equipment", icon: Wrench },
-      { label: "Finances", icon: Wallet, status: "ready" },
-      { label: "Fitness", icon: Activity, status: "ready" },
+      { label: "Development", icon: Dumbbell, path: "/manage" },
+      { label: "Finances", icon: Wallet, path: "/finances" },
+      { label: "Fitness", icon: Activity },
     ],
   },
 ];
@@ -127,7 +124,7 @@ function NavRow({ item, base, pathname }: { item: NavItem; base: string; pathnam
       >
         <Icon className="size-[1.0625rem] shrink-0 opacity-80" aria-hidden="true" />
         <span>{item.label}</span>
-        {item.status ? <StatusDot status={item.status} /> : <SoonTag />}
+        <SoonTag />
       </span>
     );
   }
@@ -151,20 +148,7 @@ function NavRow({ item, base, pathname }: { item: NavItem; base: string; pathnam
       )}
       <Icon className="size-[1.0625rem] shrink-0" aria-hidden="true" />
       <span>{item.label}</span>
-      {item.status && <StatusDot status={item.status} />}
     </Link>
-  );
-}
-
-function StatusDot({ status }: { status: "ready" | "new" }) {
-  return (
-    <span
-      className={cn(
-        "ml-auto size-1.5 rounded-full",
-        status === "ready" ? "bg-gold" : "bg-primary shadow-[0_0_0_3px_color-mix(in_oklch,var(--primary),transparent_84%)]",
-      )}
-      aria-hidden="true"
-    />
   );
 }
 
