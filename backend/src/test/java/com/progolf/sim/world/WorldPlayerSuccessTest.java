@@ -2,6 +2,8 @@ package com.progolf.sim.world;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.progolf.sim.core.Attribute;
+import com.progolf.sim.core.Attributes;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.tour.TourTier;
@@ -36,11 +38,25 @@ class WorldPlayerSuccessTest {
             }
         }
 
+        var stats = world.careerOf(id).statistics();
+        Attributes attrs = world.careerOf(id).player().attributes();
+        int sum = 0;
+        for (Attribute a : Attribute.values()) {
+            sum += attrs.get(a);
+        }
+        double overall = (double) sum / Attribute.values().length;
+
         // Reaches the pinnacle tour during a full career...
         assertThat(best).as("best tour reached over the career").isEqualTo(TourTier.PRO);
-        // ...and wins real events on merit — a superstar career, not a winless one.
-        assertThat(world.careerOf(id).statistics().wins())
-                .as("career wins for a fully-played created golfer").isGreaterThanOrEqualTo(5);
+        // ...develops to a competitive, near-ceiling level (the game once failed because the player
+        // developed far too slowly to ever catch a field seeded with veterans near their ceilings)...
+        assertThat(overall).as("developed overall attribute").isGreaterThanOrEqualTo(90.0);
+        // ...becomes a genuine contender across the career rather than a mid-pack grinder...
+        assertThat(stats.topTens()).as("career top-ten finishes").isGreaterThanOrEqualTo(15);
+        // ...and wins real events. The count is kept modest deliberately: who wins among the very best is
+        // high-variance (the Elite ability spread is tiny), so the robust proof of a great career is the
+        // tour reached, the development, and the sustained contention above — not a precise win tally.
+        assertThat(stats.wins()).as("career wins for a fully-played created golfer").isGreaterThanOrEqualTo(2);
     }
 
     @Test

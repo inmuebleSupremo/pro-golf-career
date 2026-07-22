@@ -69,6 +69,26 @@ class WorldCreatePlayerTest {
     }
 
     @Test
+    void aCreatedPlayerCompetesFromTheirFirstSeasonAtDefaultScale() {
+        // Regression (spec: player-control): at default scale the Development tour holds far more golfers
+        // than a field (640 population, ~84% on Development, 120-slot field), so a baseline created golfer
+        // ranked below the standings cut used to sit out entire early seasons until training lifted them.
+        // An entered event on the player's own tour must be played from season 1.
+        World world = World.create(42L);
+        String id = world.createPlayer("Rookie", "Debut", Nationality.USA, 20, Archetype.ALL_ROUNDER);
+
+        world.advanceSeason();
+        while (world.hasPendingPlayerEvent()) {
+            world.playerEvent().simEvent();
+            world.completePlayerEvent();
+        }
+
+        assertThat(world.careerStatisticsOf(id).events())
+                .as("a created golfer must play events from their first season, not sit out until developed")
+                .isGreaterThan(0);
+    }
+
+    @Test
     void onlyOnePlayerMayBeCreatedOrAssigned() {
         World world = World.create(3L, small());
         world.createPlayer("Ana", "Rivera", Nationality.ESP, 20, Archetype.ALL_ROUNDER);
