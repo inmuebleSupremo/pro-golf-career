@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { SpokeShell, SpokeEmpty, useSpokeGate } from "@/components/career/spoke";
+import { SpokeEmpty, useSpokeGate } from "@/components/career/spoke";
 import { SeasonCalendar, type CalendarEntry } from "@/components/calendar/season-calendar";
 import { useCareerOverview, usePlayerCalendar, usePlayerFitness } from "@/lib/api/queries";
 import { useSetResting } from "@/lib/api/manage";
@@ -20,24 +20,21 @@ export function CalendarView({ id }: { id: string }) {
   const playedCount = entries.filter((e) => e.played).length;
 
   return (
-    <SpokeShell
-      title="Schedule"
-      description="Your season, month by month — Thursday to Sunday."
-      action={
-        <span className="border-border bg-surface text-muted-foreground rounded-full border px-3 py-1.5 text-xs font-semibold tabular-nums">
-          {world ? `Season ${world.season} · ` : ""}
-          {playedCount}/{entries.length} played
-        </span>
-      }
-    >
+    <div className="flex flex-col gap-4">
       <AvailabilityBar id={id} />
 
       {entries.length === 0 ? (
         <SpokeEmpty>No events on the calendar yet.</SpokeEmpty>
       ) : (
-        <SeasonCalendar id={id} entries={entries} currentWeek={world?.week ?? 1} />
+        <SeasonCalendar
+          id={id}
+          entries={entries}
+          currentWeek={world?.week ?? 1}
+          season={world?.season ?? null}
+          playedCount={playedCount}
+        />
       )}
-    </SpokeShell>
+    </div>
   );
 }
 
