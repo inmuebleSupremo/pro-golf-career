@@ -10,6 +10,7 @@ import {
   Dumbbell,
   Flag,
   Globe,
+  Handshake,
   LayoutDashboard,
   Newspaper,
   Target,
@@ -17,6 +18,7 @@ import {
   User,
   Users,
   Wallet,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -66,6 +68,8 @@ const GROUPS: NavGroup[] = [
     label: "Manage",
     items: [
       { label: "Development", icon: Dumbbell, path: "/manage" },
+      { label: "Equipment", icon: Wrench, path: "/equipment" },
+      { label: "Staff", icon: Handshake, path: "/staff" },
       { label: "Finances", icon: Wallet, path: "/finances" },
       { label: "Fitness", icon: Activity, path: "/fitness" },
     ],

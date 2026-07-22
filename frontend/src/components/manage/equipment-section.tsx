@@ -41,21 +41,6 @@ export function EquipmentSection({
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-base font-bold tracking-[-0.01em]">Equipment</h2>
-          <p className="text-muted-foreground text-sm">
-            Set your loadout and buy upgrades between events.
-          </p>
-        </div>
-        {funds !== null ? (
-          <span className="text-subtle-foreground text-sm">
-            Available funds{" "}
-            <span className="text-foreground font-mono tabular-nums">{formatMoney(funds)}</span>
-          </span>
-        ) : null}
-      </div>
-
       {isPending ? (
         <SectionSkeleton />
       ) : isError ? (
