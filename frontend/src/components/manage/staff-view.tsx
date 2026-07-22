@@ -2,16 +2,16 @@
 
 import { Button } from "@/components/ui/button";
 import { SpokeShell, SpokeEmpty, useSpokeGate } from "@/components/career/spoke";
-import { StarRating } from "@/components/manage/star-rating";
+import { StarRating, staffTier } from "@/components/manage/star-rating";
 import { usePlayerStaff, useReleaseStaff } from "@/lib/api/manage";
 import { formatMoney } from "@/lib/career/labels";
+import { staffRoleEffect, staffTierLabel } from "@/lib/manage/staff-labels";
 import { nationalityLabel } from "@/lib/onboarding/options";
 import { humanize } from "@/lib/play/options";
 
 type Member = {
   role: string;
   name: string;
-  age: number;
   nationality: string;
   personality: string;
   quality: number;
@@ -36,15 +36,19 @@ export function StaffView({ id }: { id: string }) {
       ) : (
         <ul className="divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border">
           {roster.map((member) => (
-            <li key={member.role} className="flex items-center justify-between gap-4 px-5 py-4">
-              <div className="flex min-w-0 flex-col gap-1">
+            <li key={member.role} className="flex items-start justify-between gap-4 px-5 py-4">
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 <span className="flex items-center gap-2">
                   <span className="truncate font-medium">{member.name}</span>
                   <StarRating quality={member.quality} />
                 </span>
                 <span className="text-muted-foreground text-sm">
-                  {humanize(member.role)} · Age {member.age} · {nationalityLabel(member.nationality)} ·{" "}
+                  {humanize(member.role)} · {nationalityLabel(member.nationality)} ·{" "}
                   <span className="font-mono tabular-nums">{formatMoney(member.seasonalSalary)}</span>/yr
+                </span>
+                <span className="text-muted-foreground text-sm">{staffRoleEffect(member.role)}</span>
+                <span className="text-subtle-foreground text-xs">
+                  {staffTierLabel(staffTier(member.quality))} · {humanize(member.personality)}
                 </span>
               </div>
               <Button
@@ -53,6 +57,7 @@ export function StaffView({ id }: { id: string }) {
                 onClick={() => release.mutate(member.role)}
                 disabled={release.isPending}
                 aria-label={`Release ${member.name}`}
+                className="shrink-0"
               >
                 Release
               </Button>

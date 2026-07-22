@@ -9,13 +9,13 @@ import { StarRating } from "@/components/manage/star-rating";
 import { useHireStaff, usePendingStaff } from "@/lib/api/manage";
 import { usePlayerProfile } from "@/lib/api/queries";
 import { formatMoney } from "@/lib/career/labels";
+import { staffRoleEffect } from "@/lib/manage/staff-labels";
 import { nationalityLabel } from "@/lib/onboarding/options";
 import { humanize } from "@/lib/play/options";
 
 type Candidate = {
   role: string;
   name: string;
-  age: number;
   nationality: string;
   personality: string;
   quality: number;
@@ -82,9 +82,10 @@ function CandidateCard({
         <StarRating quality={candidate.quality} />
       </div>
 
+      <p className="text-muted-foreground text-sm">{staffRoleEffect(candidate.role)}</p>
+
       <p className="text-subtle-foreground text-sm">
-        Age {candidate.age} · {nationalityLabel(candidate.nationality)} ·{" "}
-        {humanize(candidate.personality)}
+        {nationalityLabel(candidate.nationality)} · {humanize(candidate.personality)}
       </p>
 
       <dl className="mt-auto grid grid-cols-2 gap-2">
