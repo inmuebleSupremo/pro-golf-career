@@ -101,15 +101,19 @@ public final class SupportTeam {
         double recovery = 0;
         double mental = 0;
         double strategic = 0;
+        double conditioning = 0;
         for (StaffMember m : current.values()) {
             switch (m.role()) {
                 case COACH -> development += StaffConstants.COACH_DEVELOPMENT_PER_QUALITY * m.quality();
-                case FITNESS_COACH -> recovery += StaffConstants.FITNESS_RECOVERY_PER_QUALITY * m.quality();
+                case FITNESS_COACH -> {
+                    recovery += StaffConstants.FITNESS_RECOVERY_PER_QUALITY * m.quality();
+                    conditioning += StaffConstants.FITNESS_CONDITIONING_PER_QUALITY * m.quality();
+                }
                 case PHYSIOTHERAPIST -> recovery += StaffConstants.PHYSIO_RECOVERY_PER_QUALITY * m.quality();
                 case SPORTS_PSYCHOLOGIST -> mental += StaffConstants.PSYCH_MENTAL_PER_QUALITY * m.quality();
                 case CADDIE -> strategic += StaffConstants.CADDIE_STRATEGIC_PER_QUALITY * m.quality();
             }
         }
-        return new StaffEffects(development, recovery, mental, strategic);
+        return new StaffEffects(development, recovery, mental, strategic, conditioning);
     }
 }

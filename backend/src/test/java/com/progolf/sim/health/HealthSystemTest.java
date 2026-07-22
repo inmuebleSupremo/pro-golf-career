@@ -23,6 +23,40 @@ class HealthSystemTest {
     }
 
     @Test
+    void fitnessDriftsUpwardForAYoungGolferTowardTheAgeTarget() {
+        // A young golfer seeded well below the prime target builds condition each season.
+        PhysicalState start = PhysicalState.healthy(0.45);
+        PhysicalState afterOne = HealthSystem.evolveFitness(start, 22, 0.0);
+        assertThat(afterOne.fitness()).isGreaterThan(start.fitness());
+        assertThat(afterOne.fitness()).isLessThanOrEqualTo(HealthConstants.FITNESS_AGE_PEAK);
+
+        // Fatigue and injury are untouched by conditioning.
+        assertThat(afterOne.fatigue()).isEqualTo(start.fatigue());
+        assertThat(afterOne.injury()).isEqualTo(start.injury());
+    }
+
+    @Test
+    void fitnessDeclinesForAVeteranAndAFitnessCoachRaisesTheTarget() {
+        PhysicalState peak = PhysicalState.healthy(HealthConstants.FITNESS_AGE_PEAK);
+        // Well past the prime, condition erodes toward a lower target.
+        assertThat(HealthSystem.evolveFitness(peak, 42, 0.0).fitness()).isLessThan(peak.fitness());
+
+        // A fitness coach lifts the target, so the same golfer holds more condition than without one.
+        PhysicalState start = PhysicalState.healthy(0.50);
+        double withoutCoach = HealthSystem.evolveFitness(start, 26, 0.0).fitness();
+        double withCoach = HealthSystem.evolveFitness(start, 26, HealthConstants.FITNESS_CONDITIONING_CAP).fitness();
+        assertThat(withCoach).isGreaterThan(withoutCoach);
+    }
+
+    @Test
+    void fitnessEvolutionIsDeterministicAndStaysInRange() {
+        PhysicalState a = HealthSystem.evolveFitness(PhysicalState.healthy(0.30), 45, 0.0);
+        PhysicalState b = HealthSystem.evolveFitness(PhysicalState.healthy(0.30), 45, 0.0);
+        assertThat(a).isEqualTo(b);
+        assertThat(a.fitness()).isBetween(HealthConstants.FITNESS_MIN, HealthConstants.FITNESS_MAX);
+    }
+
+    @Test
     void participationRaisesFatigue() {
         PhysicalState after = HealthSystem.afterParticipation(PhysicalState.healthy(0.6), 25, rng(2L));
         assertThat(after.fatigue()).isGreaterThan(0.0);
