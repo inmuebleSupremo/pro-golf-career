@@ -354,7 +354,6 @@ export const PendingStaffDocument = graphql(`
     pendingStaff(id: $id) {
       role
       name
-      age
       nationality
       personality
       quality
@@ -370,7 +369,6 @@ export const PlayerStaffDocument = graphql(`
     playerStaff(id: $id) {
       role
       name
-      age
       nationality
       personality
       quality

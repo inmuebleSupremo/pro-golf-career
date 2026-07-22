@@ -16,7 +16,6 @@ import {
   Target,
   Trophy,
   User,
-  UserPlus,
   Users,
   Wallet,
   Wrench,
@@ -70,8 +69,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { label: "Development", icon: Dumbbell, path: "/manage" },
       { label: "Equipment", icon: Wrench, path: "/equipment" },
-      { label: "Hire Staff", icon: UserPlus, path: "/hire-staff" },
-      { label: "Manage Staff", icon: Handshake, path: "/staff" },
+      { label: "Staff", icon: Handshake, path: "/staff" },
       { label: "Finances", icon: Wallet, path: "/finances" },
       { label: "Fitness", icon: Activity, path: "/fitness" },
     ],
