@@ -154,6 +154,28 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void staffOffersCarryProfileFieldsAndTheRosterIsQueryable() {
+        WorldSession session = worldService.create(OWNER, 909L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Sam", "Rookie", Nationality.USA, 20, Archetype.ALL_ROUNDER);
+        worldService.advanceSeason(OWNER, session.id()); // surfaces this season's staff offers
+
+        graphQlTester.document("""
+                        query($id: ID!){
+                          playerStaff(id: $id){ role name }
+                          pendingStaff(id: $id){ role name age nationality personality quality hiringCost seasonalSalary }
+                        }
+                        """)
+                .variable("id", session.id()).execute()
+                .path("playerStaff").entityList(Object.class).hasSize(0) // nothing hired yet
+                .path("pendingStaff").entityList(Object.class).satisfies(rows ->
+                        org.assertj.core.api.Assertions.assertThat(rows).isNotEmpty())
+                .path("pendingStaff[0].name").entity(String.class).satisfies(n ->
+                        org.assertj.core.api.Assertions.assertThat(n).contains(" ")) // a real name, not a serial
+                .path("pendingStaff[0].age").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive)
+                .path("pendingStaff[0].personality").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank);
+    }
+
+    @Test
     void careerGoalsReportLiveProgressForAnAssignedPlayer() {
         WorldSession session = worldService.create(OWNER, 404L, SMALL);
         worldService.createPlayer(OWNER, session.id(), "Test", "Golfer", Nationality.USA, 20, Archetype.ALL_ROUNDER);

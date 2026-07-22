@@ -16,6 +16,14 @@ public final class StaffConstants {
      */
     public static final long STAFF_SALT = 333_333_331L;
 
+    // --- Candidate demographics (descriptive; no gameplay effect) ---
+    public static final int STAFF_MIN_AGE = 34;
+    public static final int STAFF_MAX_AGE = 64;
+
+    // --- Hire pool (spec: support-team) ---
+    public static final int POOL_PER_ROLE = 10;   // profiles generated per role → ~50 across the world
+    public static final int OFFERS_PER_SEASON = 6; // candidates surfaced to the player each season
+
     // --- Quality (seeded per candidate) ---
     public static final double QUALITY_MEAN = 0.60;
     public static final double QUALITY_SPREAD = 0.18;

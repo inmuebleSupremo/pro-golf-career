@@ -51,6 +51,7 @@ import com.progolf.sim.player.AttributeChange;
 import com.progolf.sim.staff.HiringPolicy;
 import com.progolf.sim.staff.StaffConstants;
 import com.progolf.sim.staff.StaffMarket;
+import com.progolf.sim.staff.StaffPool;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
 import com.progolf.sim.staff.SupportTeam;
@@ -95,6 +96,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.EnumSet;
 import java.util.Set;
 
 /**
@@ -123,6 +125,7 @@ public final class World {
     private final List<HealthEvent> healthHistory = new ArrayList<>();
     private final Map<String, SupportTeam> supportTeams = new LinkedHashMap<>();
     private final StaffMarket staffMarket = new StaffMarket();
+    private StaffPool staffPool; // the player's persistent hire pool; generated on create, restored on load
     private final Map<String, EquipmentInventory> equipment = new LinkedHashMap<>();
     private final Map<String, TournamentLoadout> loadouts = new LinkedHashMap<>();
     private MediaSystem media = new MediaSystem();
@@ -228,13 +231,15 @@ public final class World {
                 new LinkedHashSet<>(announcedProspects),
                 playerControl == null ? null : playerControl.snapshot(),
                 new ArrayList<>(playerPendingOffers), new ArrayList<>(playerPendingStaff),
-                new ArrayList<>(playerPendingEquipment), new LinkedHashSet<>(achievedGoals));
+                new ArrayList<>(playerPendingEquipment), new LinkedHashSet<>(achievedGoals),
+                staffPool.available());
     }
 
     /** Rebuilds an identical world from a snapshot, regenerating the seed-derived parts (spec: world-snapshot). */
     public static World restore(long masterSeed, WorldConfig config, WorldSnapshot s) {
         World w = new World(masterSeed, config);
         w.generateCoursePool();
+        w.staffPool = StaffPool.restore(s.staffPool()); // hires mutate it, so restore rather than regenerate
         w.calendar.restoreTo(s.season(), s.week());
         w.nextTournamentId = s.nextTournamentId();
         w.replenishCounter = s.replenishCounter();
@@ -289,6 +294,8 @@ public final class World {
 
     private void bootstrap() {
         generateCoursePool();
+        staffPool = StaffPool.generate(
+                Seeds.deriveSeed(masterSeed, StaffConstants.STAFF_SALT), staffMarket, StaffConstants.POOL_PER_ROLE);
 
         // Population, distributed across tiers by initial skill (strongest to the top tiers).
         List<ProfessionalGolfer> population =
@@ -925,14 +932,20 @@ public final class World {
                 Seeds.deriveSeed(masterSeed, StaffConstants.STAFF_SALT), season), id.hashCode()), role.ordinal()));
     }
 
-    /** Generates a candidate for each of the player's unfilled roles, held as pending staff offers. */
+    /**
+     * Surfaces this season's staff offers: a rotating, variety-weighted subset of the persistent hire pool,
+     * limited to roles the player has not already filled (a role holds one member at a time). Drawn from the
+     * pool so a passed-over candidate can reappear next season, and a hired one is gone for good.
+     */
     private void offerPlayerStaff(String id, int season, SupportTeam team) {
         playerPendingStaff.clear();
-        for (StaffRole role : StaffRole.values()) {
-            if (!team.has(role)) {
-                playerPendingStaff.add(staffMarket.generate(role, staffRng(id, season, role)));
-            }
+        Set<StaffRole> unfilled = EnumSet.allOf(StaffRole.class);
+        for (StaffMember m : team.members()) {
+            unfilled.remove(m.role());
         }
+        Rng rng = new SplitMix64Rng(Seeds.deriveSeed(
+                Seeds.deriveSeed(masterSeed, StaffConstants.STAFF_SALT), season));
+        playerPendingStaff.addAll(staffPool.offer(unfilled, StaffConstants.OFFERS_PER_SEASON, rng));
     }
 
     /**
@@ -1479,6 +1492,7 @@ public final class World {
                         calendar.currentDate(), "Hire: " + candidate.role())) {
             supportTeams.get(id).hire(candidate, calendar.currentSeason());
             playerPendingStaff.remove(index);
+            staffPool.remove(candidate); // a hired member leaves the pool for good
         }
     }
 

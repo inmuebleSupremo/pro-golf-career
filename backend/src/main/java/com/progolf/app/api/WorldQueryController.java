@@ -137,6 +137,15 @@ public class WorldQueryController {
     }
 
     @QueryMapping
+    public List<StaffMemberDto> playerStaff(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return List.of();
+        }
+        return ApiMapper.mapList(worldService.playerStaff(owner, id), ApiMapper::staff);
+    }
+
+    @QueryMapping
     public List<EquipmentItemDto> pendingEquipment(@Argument String id) {
         return ApiMapper.mapList(worldService.pendingEquipmentOffers(AuthenticatedUser.requireId(), id),
                 ApiMapper::equipment);

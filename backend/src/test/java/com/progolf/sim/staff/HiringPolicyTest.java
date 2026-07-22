@@ -9,7 +9,8 @@ import org.junit.jupiter.api.Test;
 class HiringPolicyTest {
 
     private static StaffMember member(StaffRole role, double salary) {
-        return new StaffMember(role, role.name(), 0.6, salary * 0.5, salary);
+        return new StaffMember(role, role.name(), 45, "USA",
+                StaffPersonality.ANALYST, 0.6, salary * 0.5, salary);
     }
 
     @Test
