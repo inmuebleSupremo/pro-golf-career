@@ -68,6 +68,22 @@ public final class HealthSystem {
         return next;
     }
 
+    /**
+     * A golfer's fitness after one season of conditioning (spec: physical-state). Fitness drifts toward an
+     * age-based target — a plateau in the physical prime that declines with age — lifted by a fitness coach's
+     * conditioning support (capped). Gradual and deterministic (no RNG), and independent of fatigue, which
+     * recovers weekly. This is what makes the long-term Condition value move across a career.
+     */
+    public static PhysicalState evolveFitness(PhysicalState state, int age, double conditioningSupport) {
+        double target = clamp(
+                HealthConstants.FITNESS_AGE_PEAK
+                        - HealthConstants.FITNESS_DECLINE_PER_YEAR * Math.max(0, age - HealthConstants.FITNESS_PRIME_AGE)
+                        + Math.min(HealthConstants.FITNESS_CONDITIONING_CAP, Math.max(0, conditioningSupport)),
+                HealthConstants.FITNESS_MIN, HealthConstants.FITNESS_MAX);
+        double drifted = state.fitness() + (target - state.fitness()) * HealthConstants.FITNESS_DRIFT_PER_SEASON;
+        return state.withFitness(clamp(drifted, HealthConstants.FITNESS_MIN, HealthConstants.FITNESS_MAX));
+    }
+
     private static Injury rollInjury(Rng rng) {
         double sevRoll = rng.nextDouble();
         InjurySeverity severity = sevRoll < HealthConstants.SEVERITY_MINOR_CEILING

@@ -30,6 +30,7 @@ public final class StaffConstants {
     // --- Influence (per unit of quality, per employed member of the role) ---
     public static final double COACH_DEVELOPMENT_PER_QUALITY = 0.25;   // scales awarded Development Points
     public static final double FITNESS_RECOVERY_PER_QUALITY = 0.04;    // extra weekly fatigue recovery
+    public static final double FITNESS_CONDITIONING_PER_QUALITY = 0.12; // lifts the seasonal fitness target
     public static final double PHYSIO_RECOVERY_PER_QUALITY = 0.05;
     public static final double PSYCH_MENTAL_PER_QUALITY = 0.20;        // mental support: softens fatigue in shots
     public static final double CADDIE_STRATEGIC_PER_QUALITY = 0.20;    // strategic support: reduces mishits

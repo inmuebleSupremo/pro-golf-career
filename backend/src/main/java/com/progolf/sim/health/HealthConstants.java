@@ -17,11 +17,20 @@ public final class HealthConstants {
      */
     public static final long HEALTH_SALT = 777_777_773L;
 
-    // --- Fitness (seeded per golfer, long-term preparedness) ---
+    // --- Fitness (seeded per golfer, then evolving over a career) ---
     public static final double FITNESS_MEAN = 0.62;
     public static final double FITNESS_SPREAD = 0.15;
     public static final double FITNESS_MIN = 0.25;
     public static final double FITNESS_MAX = 1.0;
+
+    // --- Fitness evolution (per season): drifts toward an age-based target, lifted by a fitness coach.
+    // The peak sits near the seeded mean so the population's overall conditioning is roughly unchanged;
+    // young golfers build up to it, veterans decline from it. Gradual and deterministic (no RNG).
+    public static final int FITNESS_PRIME_AGE = 30;             // physical peak; decline begins beyond it
+    public static final double FITNESS_AGE_PEAK = 0.66;         // natural conditioning target in the prime
+    public static final double FITNESS_DECLINE_PER_YEAR = 0.02; // target lost per year past the prime
+    public static final double FITNESS_DRIFT_PER_SEASON = 0.30; // fraction of the gap to target closed a season
+    public static final double FITNESS_CONDITIONING_CAP = 0.14; // most a fitness coach can raise the target
 
     // --- Fatigue accrual (per event) ---
     /**

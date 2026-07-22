@@ -60,6 +60,10 @@ public record PhysicalState(double fitness, double fatigue, Optional<Injury> inj
         return canPlayThroughInjury() ? injury.get().severity().impairment() : 0.0;
     }
 
+    public PhysicalState withFitness(double newFitness) {
+        return new PhysicalState(newFitness, fatigue, injury);
+    }
+
     public PhysicalState withFatigue(double newFatigue) {
         return new PhysicalState(fitness, newFatigue, injury);
     }

@@ -746,6 +746,11 @@ public final class World {
                 media.publish(NewsFactory.retirement(season, id, nameOf(id), career.statistics().wins()));
             } else {
                 evolveGolfer(golfers.get(id), career.age(), season);
+                // Fitness drifts toward its age-based target each season, lifted by a fitness coach — so the
+                // long-term Condition value evolves over a career rather than staying at its seeded value.
+                double conditioning = supportTeams.get(id).effects().conditioningBonus();
+                physicalStates.put(id,
+                        HealthSystem.evolveFitness(physicalStates.get(id), career.age(), conditioning));
             }
         }
 
