@@ -33,13 +33,6 @@ export function StaffSection({ id, onUnauthorized }: { id: string; onUnauthorize
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-bold tracking-[-0.01em]">Staff</h2>
-        <p className="text-muted-foreground text-sm">
-          Hire coaches and support staff to develop your golfer.
-        </p>
-      </div>
-
       {isPending ? (
         <SectionSkeleton />
       ) : isError ? (
