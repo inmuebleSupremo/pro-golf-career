@@ -480,6 +480,29 @@ public final class World {
                 .thenComparing(java.util.Comparator.naturalOrder());
     }
 
+    /**
+     * Caps an eligible, priority-sorted list to the field size — but guarantees the entered player a slot on
+     * their own tour even when they rank below the cut (spec: player-control / competitive-entry). The
+     * schedule is the player's decision surface, so an event they chose to enter must actually be played: a
+     * created golfer on a large lower tour no longer sits out whole seasons until development lifts them above
+     * a full field's cut. If the player is below the cut they take the last in-field slot (displacing the
+     * weakest AI, who would sit that week regardless). Autonomous worlds (no player) are unaffected — the list
+     * is simply truncated, byte-identical to before.
+     */
+    private List<String> capFieldGuaranteeingPlayer(List<String> eligible, ScheduledTournament event) {
+        int cap = config.fieldSize();
+        if (playerControl == null || !isPlayerEntered(event)) {
+            return eligible.stream().limit(cap).toList();
+        }
+        int index = eligible.indexOf(playerControl.golferId());
+        if (index < 0 || index < cap) {
+            return eligible.stream().limit(cap).toList(); // not in this field, or already within the cut
+        }
+        List<String> capped = new ArrayList<>(eligible.subList(0, Math.max(0, cap - 1)));
+        capped.add(playerControl.golferId());
+        return capped;
+    }
+
     /** A golfer's overall attribute-based ability — the merit signal for field entry when standings are tied. */
     private double abilityOf(String golferId) {
         Attributes attrs = golfers.get(golferId).player().attributes();
@@ -502,17 +525,21 @@ public final class World {
 
         // A major draws the strongest field across all tiers (cross-tour); regular/signature events draw
         // from their own tour's standings (spec: event-prestige).
-        List<ProfessionalGolfer> field = event.prestige().isMajor()
-                ? majorField(date, event)
-                : tours.standings(event.tier()).stream()
-                        .filter(activeGolfers::contains)
-                        .filter(this::canEnterField) // availability gates entry; the player may play through (REQ-221)
-                        .filter(id -> !committedThisWeek.contains(id)) // one event per week (spec: event-prestige)
-                        .filter(id -> !(isPlayer(id) && playerSitsOut(event))) // player skipped/rested (player-control)
-                        .sorted(fieldPriority()) // ability breaks equal-standings ties so new golfers can enter
-                        .limit(config.fieldSize())
-                        .map(golfers::get)
-                        .toList();
+        List<ProfessionalGolfer> field;
+        if (event.prestige().isMajor()) {
+            field = majorField(date, event);
+        } else {
+            List<String> eligible = tours.standings(event.tier()).stream()
+                    .filter(activeGolfers::contains)
+                    .filter(this::canEnterField) // availability gates entry; the player may play through (REQ-221)
+                    .filter(id -> !committedThisWeek.contains(id)) // one event per week (spec: event-prestige)
+                    .filter(id -> !(isPlayer(id) && playerSitsOut(event))) // player skipped/rested (player-control)
+                    .sorted(fieldPriority()) // ability breaks equal-standings ties so new golfers can enter
+                    .toList();
+            field = capFieldGuaranteeingPlayer(eligible, event).stream()
+                    .map(golfers::get)
+                    .toList();
+        }
         if (field.isEmpty()) {
             return null; // no eligible field this week
         }
