@@ -12,6 +12,8 @@ import {
   PendingSponsorshipsDocument,
   PendingStaffDocument,
   PlayerScheduleDocument,
+  PlayerStaffDocument,
+  ReleaseStaffDocument,
   SelectLoadoutItemDocument,
   SetDevelopmentFocusDocument,
   SetRestingDocument,
@@ -119,7 +121,7 @@ export function useSelectLoadoutItem(id: string) {
   });
 }
 
-/** The player's pending staff candidates awaiting a hire decision. */
+/** The player's pending staff candidates awaiting a hire decision (Hire Staff page). */
 export function usePendingStaff(id: string) {
   return useQuery({
     queryKey: ["staff", id],
@@ -129,16 +131,41 @@ export function usePendingStaff(id: string) {
   });
 }
 
-export function useHireStaff(id: string) {
+/** The player's current support-team roster (Manage Staff page). */
+export function usePlayerStaff(id: string) {
+  return useQuery({
+    queryKey: ["roster", id],
+    queryFn: () => gqlRequest(PlayerStaffDocument, { id }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+function useInvalidateStaff(id: string) {
   const queryClient = useQueryClient();
+  return () => {
+    // Hiring/releasing changes the roster, the pending offers, and (for a hire) available funds.
+    queryClient.invalidateQueries({ queryKey: ["staff", id] });
+    queryClient.invalidateQueries({ queryKey: ["roster", id] });
+    queryClient.invalidateQueries({ queryKey: ["profile", id] });
+  };
+}
+
+export function useHireStaff(id: string) {
+  const invalidate = useInvalidateStaff(id);
   return useMutation({
     mutationFn: (index: number) => gqlRequest(HireStaffDocument, { id, index }),
     networkMode: "always",
-    onSuccess: () => {
-      // The hired candidate leaves the pending list and the hiring cost debits funds.
-      queryClient.invalidateQueries({ queryKey: ["staff", id] });
-      queryClient.invalidateQueries({ queryKey: ["profile", id] });
-    },
+    onSuccess: invalidate,
+  });
+}
+
+export function useReleaseStaff(id: string) {
+  const invalidate = useInvalidateStaff(id);
+  return useMutation({
+    mutationFn: (role: string) => gqlRequest(ReleaseStaffDocument, { id, role }),
+    networkMode: "always",
+    onSuccess: invalidate,
   });
 }
 

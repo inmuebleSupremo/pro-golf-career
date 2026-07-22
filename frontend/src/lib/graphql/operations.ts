@@ -354,8 +354,26 @@ export const PendingStaffDocument = graphql(`
     pendingStaff(id: $id) {
       role
       name
+      age
+      nationality
+      personality
       quality
       hiringCost
+      seasonalSalary
+    }
+  }
+`);
+
+/** The player's current support-team roster, for the Manage Staff page. */
+export const PlayerStaffDocument = graphql(`
+  query PlayerStaff($id: ID!) {
+    playerStaff(id: $id) {
+      role
+      name
+      age
+      nationality
+      personality
+      quality
       seasonalSalary
     }
   }
@@ -365,6 +383,13 @@ export const PendingStaffDocument = graphql(`
 export const HireStaffDocument = graphql(`
   mutation HireStaff($id: ID!, $index: Int!) {
     hireStaff(id: $id, index: $index)
+  }
+`);
+
+/** Releases a current staff member by role (a StaffRole enum name). */
+export const ReleaseStaffDocument = graphql(`
+  mutation ReleaseStaff($id: ID!, $role: String!) {
+    releaseStaff(id: $id, role: $role)
   }
 `);
 
