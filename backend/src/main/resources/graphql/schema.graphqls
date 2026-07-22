@@ -46,6 +46,9 @@ type Query {
     "The player's pending staff candidates awaiting a hire decision."
     pendingStaff(id: ID!): [StaffMember!]!
 
+    "The player's current support-team roster (empty when no player is assigned)."
+    playerStaff(id: ID!): [StaffMember!]!
+
     "The player's pending equipment upgrade offers awaiting a purchase decision."
     pendingEquipment(id: ID!): [EquipmentItem!]!
 
@@ -323,6 +326,11 @@ type SponsorshipOffer {
 type StaffMember {
     role: String!
     name: String!
+    age: Int!
+    "Nationality enum name (e.g. USA, ESP)."
+    nationality: String!
+    "Descriptive personality enum name (e.g. MOTIVATOR); no gameplay effect."
+    personality: String!
     quality: Float!
     hiringCost: Float!
     seasonalSalary: Float!

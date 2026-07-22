@@ -11,14 +11,22 @@ public final class StaffMarket {
 
     /** A candidate for the given role. */
     public StaffMember generate(StaffRole role, Rng rng) {
+        // Quality is drawn first so a candidate's ability, salary, and hiring cost are unchanged by the
+        // descriptive fields that follow (name, age, nationality, personality).
         double quality = clamp(
                 StaffConstants.QUALITY_MEAN + rng.nextGaussian() * StaffConstants.QUALITY_SPREAD,
                 StaffConstants.QUALITY_MIN, StaffConstants.QUALITY_MAX);
         double salary = role.baseSalary()
                 * (StaffConstants.SALARY_QUALITY_FLOOR + quality * StaffConstants.SALARY_QUALITY_SPAN);
         double hiringCost = salary * StaffConstants.HIRING_COST_FRACTION;
-        String name = role.name() + "-" + Integer.toString((int) (rng.nextDouble() * 100_000));
-        return new StaffMember(role, name, quality, hiringCost, salary);
+
+        String name = StaffNames.first(rng) + " " + StaffNames.last(rng);
+        int age = StaffConstants.STAFF_MIN_AGE
+                + (int) (rng.nextDouble() * (StaffConstants.STAFF_MAX_AGE - StaffConstants.STAFF_MIN_AGE + 1));
+        String nationality = StaffNames.nationality(rng);
+        StaffPersonality personality =
+                StaffPersonality.values()[(int) (rng.nextDouble() * StaffPersonality.values().length)];
+        return new StaffMember(role, name, age, nationality, personality, quality, hiringCost, salary);
     }
 
     private static double clamp(double v, double lo, double hi) {

@@ -67,7 +67,8 @@ public record WorldSnapshot(
         List<SponsorshipOffer> playerPendingOffers,
         List<StaffMember> playerPendingStaff,
         List<EquipmentItem> playerPendingEquipment,
-        Set<CareerGoal> achievedGoals) {
+        Set<CareerGoal> achievedGoals,
+        List<StaffMember> staffPool) {
 
     /** An archived season captured by id (its schedule is immutable; its results re-link on restore). */
     public record ArchiveSnapshot(int season, List<ScheduledTournament> schedule,

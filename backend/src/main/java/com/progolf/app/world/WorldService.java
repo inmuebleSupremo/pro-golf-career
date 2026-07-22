@@ -387,6 +387,12 @@ public class WorldService {
         return required(ownerId, sessionId).world().pendingStaffOffers();
     }
 
+    /** The player's current support-team roster (spec: support-team). Requires a player (callers guard). */
+    public List<StaffMember> playerStaff(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        return world.supportTeamOf(requirePlayerId(world)).members();
+    }
+
     /** Hires a pending staff candidate by index (if affordable). */
     public void hireStaff(String ownerId, String sessionId, int index) {
         required(ownerId, sessionId).world().hireStaff(index);

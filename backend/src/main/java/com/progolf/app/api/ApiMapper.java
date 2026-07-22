@@ -75,7 +75,8 @@ public final class ApiMapper {
     }
 
     public static StaffMemberDto staff(StaffMember s) {
-        return new StaffMemberDto(s.role().name(), s.name(), s.quality(), s.hiringCost(), s.seasonalSalary());
+        return new StaffMemberDto(s.role().name(), s.name(), s.age(), s.nationality(),
+                s.personality().name(), s.quality(), s.hiringCost(), s.seasonalSalary());
     }
 
     public static EquipmentItemDto equipment(EquipmentItem i) {
