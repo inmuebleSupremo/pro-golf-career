@@ -1,6 +1,7 @@
 package com.progolf.app.api;
 
 import com.progolf.app.api.dto.CareerGoalDto;
+import com.progolf.app.api.dto.DevelopmentDeltaDto;
 import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.PlayerFitnessDto;
@@ -90,6 +91,24 @@ public class WorldQueryController {
             return List.of();
         }
         return ApiMapper.mapList(worldService.playerSeasonStats(owner, id), ApiMapper::seasonStat);
+    }
+
+    @QueryMapping
+    public List<String> playerDevelopmentFocus(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return List.of();
+        }
+        return worldService.playerDevelopmentFocus(owner, id);
+    }
+
+    @QueryMapping
+    public List<DevelopmentDeltaDto> developmentReport(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return List.of();
+        }
+        return worldService.developmentReport(owner, id);
     }
 
     @QueryMapping

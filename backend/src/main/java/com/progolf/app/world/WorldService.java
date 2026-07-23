@@ -2,6 +2,7 @@ package com.progolf.app.world;
 
 import com.progolf.app.api.dto.AttributeValueDto;
 import com.progolf.app.api.dto.CalendarEntryDto;
+import com.progolf.app.api.dto.DevelopmentDeltaDto;
 import com.progolf.app.api.dto.EventResultDto;
 import com.progolf.app.api.dto.FinisherDto;
 import com.progolf.app.api.dto.HallOfFameDto;
@@ -255,6 +256,7 @@ public class WorldService {
         Career career = world.careerOf(id);
         Identity identity = career.player().identity();
         Attributes attrs = career.player().attributes();
+        Attributes potential = career.player().potential();
         StatLine stats = world.careerStatisticsOf(id);
         FinancialAccount.Snapshot finances = world.financialAccountOf(id).snapshot();
         Integer worldRanking = world.currentRanking().positionOf(id).orElse(null);
@@ -262,7 +264,7 @@ public class WorldService {
 
         List<AttributeValueDto> attributes = new java.util.ArrayList<>();
         for (Attribute a : Attribute.values()) {
-            attributes.add(new AttributeValueDto(a.name(), attrs.get(a)));
+            attributes.add(new AttributeValueDto(a.name(), attrs.get(a), potential.get(a)));
         }
 
         return new PlayerProfileDto(id, identity.firstName(), identity.lastName(),
@@ -391,6 +393,19 @@ public class WorldService {
     public List<StaffMember> playerStaff(String ownerId, String sessionId) {
         World world = required(ownerId, sessionId).world();
         return world.supportTeamOf(requirePlayerId(world)).members();
+    }
+
+    /** The player's current development focus as attribute enum names (empty when unset). */
+    public List<String> playerDevelopmentFocus(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().playerDevelopmentFocus().stream()
+                .map(Attribute::name).toList();
+    }
+
+    /** The player's golfer's development gains from its most recently developed season (for the report). */
+    public List<DevelopmentDeltaDto> developmentReport(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().playerDevelopmentReport().stream()
+                .map(c -> new DevelopmentDeltaDto(c.attribute().name(), c.delta(), c.season()))
+                .toList();
     }
 
     /** Hires a pending staff candidate by index (if affordable). */

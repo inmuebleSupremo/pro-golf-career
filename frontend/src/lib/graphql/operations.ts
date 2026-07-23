@@ -200,7 +200,26 @@ export const PlayerProfileDocument = graphql(`
       attributes {
         attribute
         value
+        potential
       }
+    }
+  }
+`);
+
+/** The player's current development focus (attribute enum names being prioritised). */
+export const PlayerDevelopmentFocusDocument = graphql(`
+  query PlayerDevelopmentFocus($id: ID!) {
+    playerDevelopmentFocus(id: $id)
+  }
+`);
+
+/** The player's attribute gains from their most recently developed season (end-of-season report). */
+export const DevelopmentReportDocument = graphql(`
+  query DevelopmentReport($id: ID!) {
+    developmentReport(id: $id) {
+      attribute
+      delta
+      season
     }
   }
 `);

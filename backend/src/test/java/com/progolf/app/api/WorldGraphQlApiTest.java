@@ -4,6 +4,7 @@ import com.progolf.app.world.WorldService;
 import com.progolf.app.world.WorldSession;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.control.GoalType;
+import com.progolf.sim.core.Attribute;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.world.WorldConfig;
@@ -173,6 +174,36 @@ class WorldGraphQlApiTest {
                         org.assertj.core.api.Assertions.assertThat(n).contains(" ")) // a real name, not a serial
                 .path("pendingStaff[0].age").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive)
                 .path("pendingStaff[0].personality").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank);
+    }
+
+    @Test
+    void developmentReadsExposePotentialFocusAndReport() {
+        WorldSession session = worldService.create(OWNER, 550L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Dev", "Prospect", Nationality.USA, 19, Archetype.ALL_ROUNDER);
+        worldService.setDevelopmentFocus(OWNER, session.id(),
+                List.of(Attribute.PUTTING_ACCURACY, Attribute.WEDGES));
+        worldService.advanceSeason(OWNER, session.id());
+        worldService.advanceSeason(OWNER, session.id());
+
+        graphQlTester.document("""
+                        query($id: ID!){
+                          playerProfile(id: $id){ attributes { attribute value potential } }
+                          playerDevelopmentFocus(id: $id)
+                          developmentReport(id: $id){ attribute delta season }
+                        }
+                        """)
+                .variable("id", session.id()).execute()
+                // Potential is exposed and is a real ceiling (>= current).
+                .path("playerProfile.attributes[0].potential").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive)
+                .path("playerProfile.attributes").entityList(Object.class).satisfies(rows ->
+                        org.assertj.core.api.Assertions.assertThat(rows).hasSize(Attribute.values().length))
+                // The write-only focus now reads back.
+                .path("playerDevelopmentFocus").entityList(String.class).satisfies(focus ->
+                        org.assertj.core.api.Assertions.assertThat(focus).contains("PUTTING_ACCURACY", "WEDGES"))
+                // The report lists that season's gains, each a positive delta.
+                .path("developmentReport").entityList(Object.class).satisfies(rows ->
+                        org.assertj.core.api.Assertions.assertThat(rows).isNotEmpty())
+                .path("developmentReport[0].delta").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive);
     }
 
     @Test

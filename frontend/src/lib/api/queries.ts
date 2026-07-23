@@ -5,9 +5,11 @@ import { useQuery } from "@tanstack/react-query";
 import { gqlRequest } from "@/lib/api/graphql-client";
 import {
   CareerOverviewDocument,
+  DevelopmentReportDocument,
   HallOfFameDocument,
   ListSavesDocument,
   PlayerCalendarDocument,
+  PlayerDevelopmentFocusDocument,
   PlayerFitnessDocument,
   PlayerProfileDocument,
   RecordsDocument,
@@ -69,6 +71,26 @@ export function useRecords(id: string) {
   return useQuery({
     queryKey: ["records", id],
     queryFn: () => gqlRequest(RecordsDocument, { id }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The player's current development focus (attribute enum names), for read-back on the Development page. */
+export function usePlayerDevelopmentFocus(id: string) {
+  return useQuery({
+    queryKey: ["focus", id],
+    queryFn: () => gqlRequest(PlayerDevelopmentFocusDocument, { id }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The player's attribute gains from their most recently developed season (end-of-season report). */
+export function useDevelopmentReport(id: string) {
+  return useQuery({
+    queryKey: ["development-report", id],
+    queryFn: () => gqlRequest(DevelopmentReportDocument, { id }),
     networkMode: "always",
     retry: false,
   });

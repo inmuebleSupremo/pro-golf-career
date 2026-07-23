@@ -25,6 +25,12 @@ type Query {
     "The player's per-season statistics, one row per season competed (empty when no player is assigned)."
     playerSeasonStats(id: ID!): [SeasonStat!]!
 
+    "The player's current development focus — the attribute enum names being prioritised (empty when unset)."
+    playerDevelopmentFocus(id: ID!): [String!]!
+
+    "The player's attribute gains from their most recently developed season (the end-of-season report)."
+    developmentReport(id: ID!): [DevelopmentDelta!]!
+
     "The world's Hall-of-Fame inductions so far."
     hallOfFame(id: ID!): [HallOfFameInduction!]!
 
@@ -240,6 +246,15 @@ type PlayerProfile {
 type AttributeValue {
     attribute: String!
     value: Int!
+    "The ceiling this attribute can develop toward."
+    potential: Int!
+}
+
+type DevelopmentDelta {
+    attribute: String!
+    "Points gained this season."
+    delta: Int!
+    season: Int!
 }
 
 type SeasonStat {
