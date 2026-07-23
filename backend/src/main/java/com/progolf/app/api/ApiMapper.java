@@ -1,5 +1,6 @@
 package com.progolf.app.api;
 
+import com.progolf.app.api.dto.AttributeRaiseInput;
 import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.CareerGoalInput;
 import com.progolf.app.api.dto.EquipmentItemDto;
@@ -141,6 +142,17 @@ public final class ApiMapper {
 
     public static List<Attribute> attributes(List<String> names) {
         return names.stream().map(ApiMapper::attribute).toList();
+    }
+
+    /** Parses spend inputs into an attribute→levels map, summing duplicates and dropping non-positive raises. */
+    public static java.util.Map<Attribute, Integer> raises(List<AttributeRaiseInput> inputs) {
+        java.util.Map<Attribute, Integer> map = new java.util.EnumMap<>(Attribute.class);
+        for (AttributeRaiseInput in : inputs) {
+            if (in.points() > 0) {
+                map.merge(attribute(in.attribute()), in.points(), Integer::sum);
+            }
+        }
+        return map;
     }
 
     public static Club club(String name) {

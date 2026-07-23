@@ -9,6 +9,7 @@ import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.world.WorldConfig;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.graphql.tester.AutoConfigureGraphQlTester;
@@ -177,30 +178,40 @@ class WorldGraphQlApiTest {
     }
 
     @Test
-    void developmentReadsExposePotentialFocusAndReport() {
+    void developmentPointsAreEarnedSpendableAndReported() {
         WorldSession session = worldService.create(OWNER, 550L, SMALL);
         worldService.createPlayer(OWNER, session.id(), "Dev", "Prospect", Nationality.USA, 19, Archetype.ALL_ROUNDER);
-        worldService.setDevelopmentFocus(OWNER, session.id(),
-                List.of(Attribute.PUTTING_ACCURACY, Attribute.WEDGES));
-        worldService.advanceSeason(OWNER, session.id());
-        worldService.advanceSeason(OWNER, session.id());
+        worldService.advanceSeason(OWNER, session.id()); // earns Development Points from the season's play
 
+        // Potential is exposed, and the season's play banked spendable Development Points (with cost curve).
         graphQlTester.document("""
                         query($id: ID!){
                           playerProfile(id: $id){ attributes { attribute value potential } }
-                          playerDevelopmentFocus(id: $id)
-                          developmentReport(id: $id){ attribute delta season }
+                          playerDevelopment(id: $id){ points pointsPerRating costReference }
                         }
                         """)
                 .variable("id", session.id()).execute()
-                // Potential is exposed and is a real ceiling (>= current).
                 .path("playerProfile.attributes[0].potential").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive)
                 .path("playerProfile.attributes").entityList(Object.class).satisfies(rows ->
                         org.assertj.core.api.Assertions.assertThat(rows).hasSize(Attribute.values().length))
-                // The write-only focus now reads back.
-                .path("playerDevelopmentFocus").entityList(String.class).satisfies(focus ->
-                        org.assertj.core.api.Assertions.assertThat(focus).contains("PUTTING_ACCURACY", "WEDGES"))
-                // The report lists that season's gains, each a positive delta.
+                .path("playerDevelopment.points").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive)
+                .path("playerDevelopment.costReference").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive);
+
+        // Spend points to raise an attribute; the mutation returns the remaining balance.
+        graphQlTester.document("""
+                        mutation($id: ID!, $raises: [AttributeRaiseInput!]!){
+                          spendDevelopmentPoints(id: $id, raises: $raises)
+                        }
+                        """)
+                .variable("id", session.id())
+                .variable("raises", List.of(Map.of("attribute", "PUTTING_ACCURACY", "points", 2)))
+                .execute()
+                .path("spendDevelopmentPoints").entity(Integer.class).satisfies(balance ->
+                        org.assertj.core.api.Assertions.assertThat(balance).isGreaterThanOrEqualTo(0));
+
+        // The spend records as development gains for the report.
+        graphQlTester.document("query($id: ID!){ developmentReport(id: $id){ attribute delta } }")
+                .variable("id", session.id()).execute()
                 .path("developmentReport").entityList(Object.class).satisfies(rows ->
                         org.assertj.core.api.Assertions.assertThat(rows).isNotEmpty())
                 .path("developmentReport[0].delta").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive);

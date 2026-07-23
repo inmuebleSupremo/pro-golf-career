@@ -1,5 +1,6 @@
 package com.progolf.app.api;
 
+import com.progolf.app.api.dto.AttributeRaiseInput;
 import com.progolf.app.api.dto.CareerGoalInput;
 import com.progolf.app.auth.AuthenticatedUser;
 import com.progolf.app.world.WorldService;
@@ -41,6 +42,11 @@ public class PlayerMutationController {
     public boolean setDevelopmentFocus(@Argument String id, @Argument List<String> focus) {
         worldService.setDevelopmentFocus(AuthenticatedUser.requireId(), id, ApiMapper.attributes(focus));
         return true;
+    }
+
+    @MutationMapping
+    public int spendDevelopmentPoints(@Argument String id, @Argument List<AttributeRaiseInput> raises) {
+        return worldService.spendDevelopmentPoints(AuthenticatedUser.requireId(), id, ApiMapper.raises(raises));
     }
 
     @MutationMapping

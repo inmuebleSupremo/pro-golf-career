@@ -1316,6 +1316,27 @@ public final class World {
         return playerControl == null ? List.of() : playerControl.developmentFocus();
     }
 
+    /** The player's banked Development Points (0 when no player is assigned). */
+    public int playerDevelopmentPoints() {
+        return playerControl == null ? 0 : playerControl.developmentPoints();
+    }
+
+    /**
+     * Spends banked Development Points to raise the player's attributes (spec: player-development): each raise
+     * is clamped to its potential ceiling and priced on the cost curve, and an unaffordable request is
+     * rejected before anything changes. The gains record as DEVELOPMENT changes for the report.
+     */
+    public void spendDevelopmentPoints(Map<Attribute, Integer> raises) {
+        requirePlayer();
+        ProfessionalGolfer golfer = golfers.get(playerControl.golferId());
+        Attributes current = golfer.player().attributes();
+        Attributes potential = golfer.player().potential();
+        int cost = ProgressionEngine.costOf(current, potential, raises);
+        playerControl.spendDevelopmentPoints(cost); // validates affordability first (throws if too few)
+        Attributes developed = ProgressionEngine.applyRaises(current, potential, raises);
+        golfer.player().evolveAttributes(developed, AttributeChange.Reason.DEVELOPMENT, calendar.currentSeason());
+    }
+
     /**
      * The player's golfer's development gains from its most recently developed season (spec:
      * player-development): the DEVELOPMENT attribute changes of the latest season any occurred, for the
@@ -1693,16 +1714,15 @@ public final class World {
         // increments a season where an AI realises one, so a well-played career reaches elite level during
         // its prime instead of long after it (spec: player-development). Each increment is a normal capped,
         // cost-curved, ceiling-bounded step — talent is realised faster, never past its potential.
-        boolean isPlayer = isPlayer(golfer.player().id());
-        int increments = isPlayer ? ProgressionConstants.PLAYER_TALENT_INCREMENTS : 1;
-        List<Attribute> focus = isPlayer ? playerControl.developmentFocus() : List.of();
-        Attributes developed = golfer.player().attributes();
-        for (int i = 0; i < increments; i++) {
-            developed = focus.isEmpty()
-                    ? ProgressionEngine.develop(developed, potential, age, developmentFactor)
-                    : ProgressionEngine.develop(developed, potential, age, developmentFactor, focus);
+        if (isPlayer(golfer.player().id())) {
+            // The player earns Development Points from the season's play (scaled by coach and performance) into
+            // a bank they spend themselves (spec: player-development) — development is a deliberate choice, not
+            // an automatic allocation. Their aging still applies below.
+            playerControl.addDevelopmentPoints(ProgressionEngine.playerSeasonAward(age, developmentFactor));
+        } else {
+            Attributes developed = ProgressionEngine.develop(golfer.player().attributes(), potential, age, developmentFactor);
+            golfer.player().evolveAttributes(developed, AttributeChange.Reason.DEVELOPMENT, season);
         }
-        golfer.player().evolveAttributes(developed, AttributeChange.Reason.DEVELOPMENT, season);
         Attributes aged = ProgressionEngine.age(golfer.player().attributes(), age);
         golfer.player().evolveAttributes(aged, AttributeChange.Reason.AGING, season);
     }

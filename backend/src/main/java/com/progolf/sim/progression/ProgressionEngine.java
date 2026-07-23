@@ -111,6 +111,47 @@ public final class ProgressionEngine {
         return result;
     }
 
+    /**
+     * The Development Points the PLAYER banks for a completed season (spec: player-development): the base
+     * player award scaled by career stage and a support/performance factor. The player spends these
+     * themselves — they are not auto-allocated.
+     */
+    public static int playerSeasonAward(int age, double supportFactor) {
+        return (int) Math.round(ProgressionConstants.PLAYER_DP_PER_SEASON
+                * CareerStage.of(age).developmentMultiplier() * Math.max(0.0, supportFactor));
+    }
+
+    /**
+     * The Development-Point cost of a set of attribute raises (each +1 costs more at higher ratings), clamped
+     * so raises never exceed an attribute's ceiling — headroom past the ceiling costs nothing.
+     */
+    public static int costOf(Attributes current, Attributes potential, Map<Attribute, Integer> raises) {
+        int total = 0;
+        for (Map.Entry<Attribute, Integer> e : raises.entrySet()) {
+            int rating = current.get(e.getKey());
+            int ceiling = ceilingFor(potential, e.getKey());
+            int steps = Math.max(0, e.getValue());
+            for (int i = 0; i < steps && rating < ceiling; i++) {
+                total += DevelopmentPoints.costToRaise(rating);
+                rating++;
+            }
+        }
+        return total;
+    }
+
+    /** Applies a set of attribute raises, each clamped to its ceiling (matches {@link #costOf}'s clamping). */
+    public static Attributes applyRaises(Attributes current, Attributes potential, Map<Attribute, Integer> raises) {
+        Attributes result = current;
+        for (Map.Entry<Attribute, Integer> e : raises.entrySet()) {
+            int rating = result.get(e.getKey());
+            int target = Math.min(ceilingFor(potential, e.getKey()), rating + Math.max(0, e.getValue()));
+            if (target != rating) {
+                result = result.with(e.getKey(), target);
+            }
+        }
+        return result;
+    }
+
     /** An attribute's development ceiling: its potential, never above the numerical maximum. */
     private static int ceilingFor(Attributes potential, Attribute a) {
         return Math.min(potential.get(a), Attributes.MAX);

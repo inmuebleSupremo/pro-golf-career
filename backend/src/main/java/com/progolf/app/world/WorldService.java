@@ -3,6 +3,7 @@ package com.progolf.app.world;
 import com.progolf.app.api.dto.AttributeValueDto;
 import com.progolf.app.api.dto.CalendarEntryDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
+import com.progolf.app.api.dto.PlayerDevelopmentDto;
 import com.progolf.app.api.dto.EventResultDto;
 import com.progolf.app.api.dto.FinisherDto;
 import com.progolf.app.api.dto.HallOfFameDto;
@@ -31,6 +32,7 @@ import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Identity;
 import com.progolf.sim.player.Nationality;
+import com.progolf.sim.progression.ProgressionConstants;
 import com.progolf.sim.ranking.RankingStanding;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
@@ -49,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -406,6 +409,20 @@ public class WorldService {
         return required(ownerId, sessionId).world().playerDevelopmentReport().stream()
                 .map(c -> new DevelopmentDeltaDto(c.attribute().name(), c.delta(), c.season()))
                 .toList();
+    }
+
+    /** The player's banked Development Points plus the cost-curve constants for client-side previews. */
+    public PlayerDevelopmentDto playerDevelopment(String ownerId, String sessionId) {
+        int points = required(ownerId, sessionId).world().playerDevelopmentPoints();
+        return new PlayerDevelopmentDto(points, ProgressionConstants.POINTS_PER_RATING,
+                ProgressionConstants.COST_GROWTH, ProgressionConstants.COST_REFERENCE);
+    }
+
+    /** Spends banked Development Points to raise the player's attributes; returns the new balance. */
+    public int spendDevelopmentPoints(String ownerId, String sessionId, Map<Attribute, Integer> raises) {
+        World world = required(ownerId, sessionId).world();
+        world.spendDevelopmentPoints(raises);
+        return world.playerDevelopmentPoints();
     }
 
     /** Hires a pending staff candidate by index (if affordable). */

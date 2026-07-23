@@ -37,9 +37,29 @@ public final class PlayerControl {
     private RiskApproach riskApproach;
     private final Set<Long> skippedEvents = new LinkedHashSet<>();
     private List<CareerGoal> careerGoals = List.of();
+    private int developmentPoints; // banked Development Points the player spends to raise attributes
 
     public PlayerControl(String golferId) {
         this.golferId = Objects.requireNonNull(golferId, "golferId");
+    }
+
+    /** The player's banked Development Points, earned from play and spent to raise attributes. */
+    public int developmentPoints() {
+        return developmentPoints;
+    }
+
+    /** Credits Development Points earned from a season's play. */
+    public void addDevelopmentPoints(int amount) {
+        developmentPoints += Math.max(0, amount);
+    }
+
+    /** Debits Development Points spent on attribute raises; rejects spending more than are banked. */
+    public void spendDevelopmentPoints(int amount) {
+        if (amount < 0 || amount > developmentPoints) {
+            throw new IllegalArgumentException("Cannot spend " + amount + " Development Points (have "
+                    + developmentPoints + ")");
+        }
+        developmentPoints -= amount;
     }
 
     /** The designated player-controlled golfer. */
@@ -116,7 +136,7 @@ public final class PlayerControl {
     /** An immutable capture of the player's control state (spec: world-snapshot). */
     public record Snapshot(String golferId, List<Attribute> developmentFocus, boolean resting,
                            boolean playingThroughInjury, RiskApproach riskApproach, Set<Long> skippedEvents,
-                           List<CareerGoal> careerGoals) {
+                           List<CareerGoal> careerGoals, int developmentPoints) {
         public Snapshot {
             developmentFocus = List.copyOf(developmentFocus);
             skippedEvents = new LinkedHashSet<>(skippedEvents); // preserve order
@@ -126,7 +146,7 @@ public final class PlayerControl {
 
     public Snapshot snapshot() {
         return new Snapshot(golferId, developmentFocus, resting, playingThroughInjury, riskApproach,
-                skippedEvents, careerGoals);
+                skippedEvents, careerGoals, developmentPoints);
     }
 
     /** Rebuilds a player control from a snapshot via the existing setters (no new mutation surface). */
@@ -138,6 +158,7 @@ public final class PlayerControl {
         c.setRiskApproach(s.riskApproach());
         s.skippedEvents().forEach(c::skipEvent);
         c.setCareerGoals(s.careerGoals());
+        c.addDevelopmentPoints(s.developmentPoints());
         return c;
     }
 }

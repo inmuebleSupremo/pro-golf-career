@@ -224,6 +224,25 @@ export const DevelopmentReportDocument = graphql(`
   }
 `);
 
+/** The player's banked Development Points and the cost-curve constants (for previewing spend costs). */
+export const PlayerDevelopmentDocument = graphql(`
+  query PlayerDevelopment($id: ID!) {
+    playerDevelopment(id: $id) {
+      points
+      pointsPerRating
+      costGrowth
+      costReference
+    }
+  }
+`);
+
+/** Spends banked Development Points to raise attributes; returns the new balance. */
+export const SpendDevelopmentPointsDocument = graphql(`
+  mutation SpendDevelopmentPoints($id: ID!, $raises: [AttributeRaiseInput!]!) {
+    spendDevelopmentPoints(id: $id, raises: $raises)
+  }
+`);
+
 /** Sets the player's self-chosen career goals (replaces the current set). */
 export const SetCareerGoalsDocument = graphql(`
   mutation SetCareerGoals($id: ID!, $goals: [CareerGoalInput!]!) {
