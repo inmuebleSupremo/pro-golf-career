@@ -9,6 +9,7 @@ import {
   HallOfFameDocument,
   ListSavesDocument,
   PlayerCalendarDocument,
+  PlayerDevelopmentDocument,
   PlayerDevelopmentFocusDocument,
   PlayerFitnessDocument,
   PlayerProfileDocument,
@@ -81,6 +82,16 @@ export function usePlayerDevelopmentFocus(id: string) {
   return useQuery({
     queryKey: ["focus", id],
     queryFn: () => gqlRequest(PlayerDevelopmentFocusDocument, { id }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The player's banked Development Points and cost-curve constants (for the spend screen). */
+export function usePlayerDevelopment(id: string) {
+  return useQuery({
+    queryKey: ["development", id],
+    queryFn: () => gqlRequest(PlayerDevelopmentDocument, { id }),
     networkMode: "always",
     retry: false,
   });

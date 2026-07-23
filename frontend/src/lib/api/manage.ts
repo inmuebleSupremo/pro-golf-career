@@ -18,6 +18,7 @@ import {
   SetDevelopmentFocusDocument,
   SetRestingDocument,
   SkipEventDocument,
+  SpendDevelopmentPointsDocument,
 } from "@/lib/graphql/operations";
 
 /** The player's reviewable schedule — the manage view's editable source of truth. */
@@ -82,6 +83,21 @@ export function useSetDevelopmentFocus(id: string) {
     mutationFn: (focus: string[]) => gqlRequest(SetDevelopmentFocusDocument, { id, focus }),
     networkMode: "always",
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["focus", id] }),
+  });
+}
+
+/** Spends banked Development Points to raise attributes; refreshes the balance, profile, and report. */
+export function useSpendDevelopmentPoints(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (raises: { attribute: string; points: number }[]) =>
+      gqlRequest(SpendDevelopmentPointsDocument, { id, raises }),
+    networkMode: "always",
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["development", id] });
+      queryClient.invalidateQueries({ queryKey: ["profile", id] });
+      queryClient.invalidateQueries({ queryKey: ["development-report", id] });
+    },
   });
 }
 
