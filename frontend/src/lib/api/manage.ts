@@ -77,9 +77,11 @@ export function useSetResting(id: string) {
  * query to invalidate; callers track the chosen order locally.
  */
 export function useSetDevelopmentFocus(id: string) {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (focus: string[]) => gqlRequest(SetDevelopmentFocusDocument, { id, focus }),
     networkMode: "always",
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["focus", id] }),
   });
 }
 

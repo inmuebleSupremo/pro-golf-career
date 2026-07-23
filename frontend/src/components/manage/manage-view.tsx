@@ -18,7 +18,7 @@ export function ManageView({ id }: { id: string }) {
   }, [router]);
 
   return (
-    <SpokeShell title="Development" description="Prioritise the attributes to develop next.">
+    <SpokeShell title="Development" description="Focus this season’s training and review last season’s gains.">
       <TrainingSection id={id} onUnauthorized={onUnauthorized} />
     </SpokeShell>
   );

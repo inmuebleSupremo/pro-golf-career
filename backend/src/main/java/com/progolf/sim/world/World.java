@@ -1311,6 +1311,30 @@ public final class World {
         requirePlayer().setDevelopmentFocus(focus);
     }
 
+    /** The player's current development focus (empty when unset or no player is assigned). */
+    public List<Attribute> playerDevelopmentFocus() {
+        return playerControl == null ? List.of() : playerControl.developmentFocus();
+    }
+
+    /**
+     * The player's golfer's development gains from its most recently developed season (spec:
+     * player-development): the DEVELOPMENT attribute changes of the latest season any occurred, for the
+     * end-of-season report. Empty when no player is assigned or nothing has developed yet.
+     */
+    public List<AttributeChange> playerDevelopmentReport() {
+        if (playerControl == null) {
+            return List.of();
+        }
+        List<AttributeChange> changes = careers.get(playerControl.golferId()).player().attributeChanges();
+        int latest = changes.stream()
+                .filter(c -> c.reason() == AttributeChange.Reason.DEVELOPMENT)
+                .mapToInt(AttributeChange::season)
+                .max().orElse(Integer.MIN_VALUE);
+        return changes.stream()
+                .filter(c -> c.reason() == AttributeChange.Reason.DEVELOPMENT && c.season() == latest)
+                .toList();
+    }
+
     /** Sets whether the player's golfer is resting (a blanket sit-out of all events to recover). */
     public void setResting(boolean resting) {
         requirePlayer().setResting(resting);
