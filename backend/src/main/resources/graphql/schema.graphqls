@@ -31,6 +31,9 @@ type Query {
     "The player's attribute gains from their most recently developed season (the end-of-season report)."
     developmentReport(id: ID!): [DevelopmentDelta!]!
 
+    "The player's banked Development Points and the cost-curve constants (for previewing spend costs)."
+    playerDevelopment(id: ID!): PlayerDevelopment!
+
     "The world's Hall-of-Fame inductions so far."
     hallOfFame(id: ID!): [HallOfFameInduction!]!
 
@@ -102,6 +105,9 @@ type Mutation {
 
     "Sets the player's development focus (an ordered list of Attribute enum names)."
     setDevelopmentFocus(id: ID!, focus: [String!]!): Boolean!
+
+    "Spends banked Development Points to raise attributes; returns the new balance. Rejects an unaffordable request."
+    spendDevelopmentPoints(id: ID!, raises: [AttributeRaiseInput!]!): Int!
 
     "Sets whether the player's golfer is resting (a blanket sit-out)."
     setResting(id: ID!, resting: Boolean!): Boolean!
@@ -255,6 +261,22 @@ type DevelopmentDelta {
     "Points gained this season."
     delta: Int!
     season: Int!
+}
+
+type PlayerDevelopment {
+    "Banked Development Points available to spend."
+    points: Int!
+    "Cost of the next point ≈ pointsPerRating * (1 + max(0, rating - costReference) * costGrowth)."
+    pointsPerRating: Float!
+    costGrowth: Float!
+    costReference: Int!
+}
+
+input AttributeRaiseInput {
+    "An Attribute enum name."
+    attribute: String!
+    "Levels to raise it by."
+    points: Int!
 }
 
 type SeasonStat {

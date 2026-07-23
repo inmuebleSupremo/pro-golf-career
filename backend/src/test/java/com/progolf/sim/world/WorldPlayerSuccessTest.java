@@ -6,7 +6,10 @@ import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
+import com.progolf.sim.progression.DevelopmentPoints;
 import com.progolf.sim.tour.TourTier;
+import java.util.EnumMap;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -21,6 +24,41 @@ import org.junit.jupiter.api.Test;
  */
 class WorldPlayerSuccessTest {
 
+    /** Spends the player's whole Development-Point bank on the cheapest raises (weakest attribute first). */
+    private static void reinvest(World world, String id) {
+        int budget = world.playerDevelopmentPoints();
+        Attributes attrs = world.careerOf(id).player().attributes();
+        Attributes potential = world.careerOf(id).player().potential();
+        Map<Attribute, Integer> live = new EnumMap<>(Attribute.class);
+        Map<Attribute, Integer> raises = new EnumMap<>(Attribute.class);
+        for (Attribute a : Attribute.values()) {
+            live.put(a, attrs.get(a));
+        }
+        while (true) {
+            Attribute cheapest = null;
+            int cheapestCost = Integer.MAX_VALUE;
+            for (Attribute a : Attribute.values()) {
+                if (live.get(a) >= potential.get(a)) {
+                    continue;
+                }
+                int cost = DevelopmentPoints.costToRaise(live.get(a));
+                if (cost < cheapestCost) {
+                    cheapestCost = cost;
+                    cheapest = a;
+                }
+            }
+            if (cheapest == null || cheapestCost > budget) {
+                break;
+            }
+            budget -= cheapestCost;
+            live.merge(cheapest, 1, Integer::sum);
+            raises.merge(cheapest, 1, Integer::sum);
+        }
+        if (!raises.isEmpty()) {
+            world.spendDevelopmentPoints(raises);
+        }
+    }
+
     @Test
     void aDevelopedCareerReachesTheTopTourAndWins() {
         World world = World.create(42L);
@@ -32,6 +70,7 @@ class WorldPlayerSuccessTest {
             if (world.careerOf(id).isRetired()) {
                 break;
             }
+            reinvest(world, id); // an engaged player spends the season's earned Development Points
             var tier = world.tourOf(id);
             if (tier.isPresent() && tier.get().rank() > best.rank()) {
                 best = tier.get();

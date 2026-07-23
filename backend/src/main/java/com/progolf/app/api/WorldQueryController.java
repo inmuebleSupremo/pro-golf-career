@@ -2,6 +2,7 @@ package com.progolf.app.api;
 
 import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
+import com.progolf.app.api.dto.PlayerDevelopmentDto;
 import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.PlayerFitnessDto;
@@ -109,6 +110,12 @@ public class WorldQueryController {
             return List.of();
         }
         return worldService.developmentReport(owner, id);
+    }
+
+    @QueryMapping
+    public PlayerDevelopmentDto playerDevelopment(@Argument String id) {
+        // Returns 0 points (with the cost constants) when no player is assigned — no guard needed.
+        return worldService.playerDevelopment(AuthenticatedUser.requireId(), id);
     }
 
     @QueryMapping

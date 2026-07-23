@@ -13,6 +13,14 @@ public final class ProgressionConstants {
     // --- Development Points ---
     /** Base Development Points awarded per completed season. */
     public static final int DP_PER_SEASON = 150;
+
+    /**
+     * Development Points the player (the generational-talent protagonist) BANKS per season, before the career-
+     * stage and performance multipliers. They spend these themselves to raise attributes, so this sets the
+     * pace of a hands-on career: sized so an engaged player who reinvests each season reaches their potential
+     * during their prime. Separate from {@link #DP_PER_SEASON} (the AI's auto-allocated award).
+     */
+    public static final int PLAYER_DP_PER_SEASON = 450;
     /** Development Points needed to raise an attribute by one rating point at low ratings. */
     public static final double POINTS_PER_RATING = 8.0;
     /** Extra cost factor per rating point above the reference (diminishing returns). */
