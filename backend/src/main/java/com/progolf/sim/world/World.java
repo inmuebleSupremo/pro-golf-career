@@ -240,7 +240,8 @@ public final class World {
                 playerControl == null ? null : playerControl.snapshot(),
                 new ArrayList<>(playerPendingOffers), new ArrayList<>(playerPendingStaff),
                 new ArrayList<>(playerPendingEquipment), new LinkedHashSet<>(achievedGoals),
-                staffPool.available());
+                staffPool.available(),
+                playerActiveEquipmentDeal, new ArrayList<>(playerPendingEquipmentDeals));
     }
 
     /** Rebuilds an identical world from a snapshot, regenerating the seed-derived parts (spec: world-snapshot). */
@@ -295,6 +296,8 @@ public final class World {
         w.playerPendingStaff.addAll(s.playerPendingStaff());
         w.playerPendingEquipment.addAll(s.playerPendingEquipment());
         w.achievedGoals.addAll(s.achievedGoals());
+        w.playerActiveEquipmentDeal = s.playerActiveEquipmentDeal();
+        w.playerPendingEquipmentDeals.addAll(s.playerPendingEquipmentDeals());
         return w;
     }
 
