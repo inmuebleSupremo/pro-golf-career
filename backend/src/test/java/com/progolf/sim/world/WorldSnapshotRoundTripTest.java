@@ -98,6 +98,29 @@ class WorldSnapshotRoundTripTest {
     }
 
     @Test
+    void anActiveEquipmentDealSurvivesSnapshotAndKeepsPaying() {
+        World original = World.create(9L, small());
+        String id = original.activeGolferIds().get(0);
+        original.assignPlayer(id);
+        original.advanceSeason(); // free agent → brand-deal offers
+        assertThat(original.pendingEquipmentDeals()).isNotEmpty();
+        original.acceptEquipmentDeal(0); // sign: active deal + brand gear
+        assertThat(original.activeEquipmentDeal()).isNotNull();
+
+        WorldSnapshot snap = original.snapshot();
+        World restored = World.restore(9L, small(), snap);
+
+        // The active deal (and its granted gear) round-trips exactly...
+        assertThat(restored.snapshot()).isEqualTo(snap);
+        assertThat(restored.activeEquipmentDeal()).isEqualTo(original.activeEquipmentDeal());
+
+        // ...and the restored world still honours it: advancing both stays identical (retainer, lock-in, expiry).
+        original.advanceSeason();
+        restored.advanceSeason();
+        assertThat(restored.snapshot()).as("active deal keeps paying after restore").isEqualTo(original.snapshot());
+    }
+
+    @Test
     void anAutonomousSnapshotRestoresWithoutPlayerControl() {
         World world = World.create(4L, small());
         world.advanceSeason();

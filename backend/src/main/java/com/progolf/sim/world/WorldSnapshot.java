@@ -6,6 +6,7 @@ import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.control.PlayerControl;
 import com.progolf.sim.economy.FinancialAccount;
 import com.progolf.sim.economy.SponsorshipOffer;
+import com.progolf.sim.equipment.EquipmentDeal;
 import com.progolf.sim.equipment.EquipmentInventory;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.equipment.TournamentLoadout;
@@ -68,7 +69,9 @@ public record WorldSnapshot(
         List<StaffMember> playerPendingStaff,
         List<EquipmentItem> playerPendingEquipment,
         Set<CareerGoal> achievedGoals,
-        List<StaffMember> staffPool) {
+        List<StaffMember> staffPool,
+        EquipmentDeal playerActiveEquipmentDeal,
+        List<EquipmentDeal> playerPendingEquipmentDeals) {
 
     /** An archived season captured by id (its schedule is immutable; its results re-link on restore). */
     public record ArchiveSnapshot(int season, List<ScheduledTournament> schedule,

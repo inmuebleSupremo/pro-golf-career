@@ -69,6 +69,23 @@ class WorldPersistenceTest {
     }
 
     @Test
+    void anActiveEquipmentDealSurvivesTheDisk() {
+        WorldSession session = service.create(OWNER, 9L, SMALL);
+        String golferId = session.world().activeGolferIds().get(0);
+        service.assignPlayer(OWNER, session.id(), golferId);
+        service.advanceSeason(OWNER, session.id()); // free agent → brand-deal offers
+        assertThat(session.world().pendingEquipmentDeals()).isNotEmpty();
+        service.acceptEquipmentDeal(OWNER, session.id(), 0); // sign a deal (active + gear)
+        service.save(OWNER, session.id(), "deal-slot");
+
+        WorldSession loaded = service.load(OWNER, "deal-slot");
+        assertThat(loaded.world().activeEquipmentDeal())
+                .as("the active brand deal survives save/load")
+                .isEqualTo(session.world().activeEquipmentDeal());
+        assertThat(loaded.world().snapshot()).isEqualTo(session.world().snapshot());
+    }
+
+    @Test
     void savesAreIndependentAndDeletable() {
         WorldSession a = service.create(OWNER, 1L, SMALL);
         WorldSession b = service.create(OWNER, 2L, SMALL);
