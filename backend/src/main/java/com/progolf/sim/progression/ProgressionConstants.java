@@ -20,7 +20,7 @@ public final class ProgressionConstants {
      * pace of a hands-on career: sized so an engaged player who reinvests each season reaches their potential
      * during their prime. Separate from {@link #DP_PER_SEASON} (the AI's auto-allocated award).
      */
-    public static final int PLAYER_DP_PER_SEASON = 450;
+    public static final int PLAYER_DP_PER_SEASON = 380;
     /** Development Points needed to raise an attribute by one rating point at low ratings. */
     public static final double POINTS_PER_RATING = 8.0;
     /** Extra cost factor per rating point above the reference (diminishing returns). */

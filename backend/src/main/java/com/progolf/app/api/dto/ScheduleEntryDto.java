@@ -6,5 +6,5 @@ package com.progolf.app.api.dto;
  * entered. Projects {@code sim.world.PlayerScheduleEntry}; enum-valued fields are surfaced as their names.
  */
 public record ScheduleEntryDto(long tournamentId, int week, String tier, String prestige, boolean entered,
-                               String name) {
+                               String name, String location) {
 }

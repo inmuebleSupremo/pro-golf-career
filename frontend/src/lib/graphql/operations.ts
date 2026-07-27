@@ -103,6 +103,7 @@ export const CareerOverviewDocument = graphql(`
       prestige
       entered
       name
+      location
     }
     newsFeed(id: $id, limit: 12) {
       season
@@ -119,6 +120,43 @@ export const CareerOverviewDocument = graphql(`
       cuts
       bestFinish
       earnings
+    }
+  }
+`);
+
+/**
+ * A completed season's off-season review — the end-of-season moment. `season` omitted reviews the most
+ * recently completed season; null when none has completed yet. The headlines include the player's own
+ * milestones (split from the wider tour's by `playerGolferId`).
+ */
+export const SeasonReviewDocument = graphql(`
+  query SeasonReview($id: ID!, $season: Int) {
+    seasonReview(id: $id, season: $season) {
+      season
+      rankStart
+      rankEnd
+      playerGolferId
+      stats {
+        season
+        events
+        wins
+        topTens
+        cuts
+        bestFinish
+        earnings
+      }
+      development {
+        attribute
+        delta
+        season
+      }
+      headlines {
+        season
+        type
+        headline
+        prominence
+        subjectGolferId
+      }
     }
   }
 `);
@@ -262,6 +300,7 @@ export const PlayerScheduleDocument = graphql(`
       prestige
       entered
       name
+      location
     }
   }
 `);
@@ -276,6 +315,7 @@ export const PlayerCalendarDocument = graphql(`
       prestige
       entered
       name
+      location
       played
       result {
         winner {
@@ -507,6 +547,7 @@ export const PlayStateDocument = graphql(`
       roundsPlayed
     }
     playerMadeCut(id: $id)
+    playerPressure(id: $id)
     playerScorecard(id: $id) {
       roundNumber
       currentHole

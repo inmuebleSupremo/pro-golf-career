@@ -154,6 +154,20 @@ public final class PlayableEvent {
         return phase == Phase.PLAYOFF;
     }
 
+    /**
+     * The situational pressure in [0,1] the player currently feels — the identical value the shot model
+     * consumes this round (specs: shot-resolution pressure): computed from the pre-round standings for the
+     * round in progress, peak during a sudden-death playoff, and zero once the event is done. Exposed so the
+     * play surface can show the player WHY the closing rounds bite and that COMPOSURE resists it.
+     */
+    public double currentPressure() {
+        return switch (phase) {
+            case ROUND -> tournament.pressureFor(playerFieldIndex, currentRoundNo);
+            case PLAYOFF -> tournament.playoffPressure();
+            case DONE -> 0.0;
+        };
+    }
+
     /** Whether the player made the cut (valid once the second round and cut have been played). */
     public boolean playerMadeCut() {
         return tournament.interactiveCompetitorMadeCut();

@@ -218,6 +218,44 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void seasonReviewSummarisesTheJustCompletedSeason() {
+        WorldSession session = worldService.create(OWNER, 550L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Rev", "Player", Nationality.USA, 20, Archetype.ALL_ROUNDER);
+        worldService.advanceSeason(OWNER, session.id()); // completes season 1; the world is now in season 2
+
+        // Default (no season arg) reviews the most recently completed season (1). rankStart is null — there is
+        // no season-0 snapshot to move from — and the season produced world news to headline.
+        graphQlTester.document("""
+                        query($id: ID!){
+                          seasonReview(id: $id){
+                            season rankStart rankEnd playerGolferId
+                            stats { season events wins }
+                            development { attribute delta season }
+                            headlines { season type headline prominence subjectGolferId }
+                          }
+                        }
+                        """)
+                .variable("id", session.id()).execute()
+                .path("seasonReview.season").entity(Integer.class).isEqualTo(1)
+                .path("seasonReview.rankStart").valueIsNull()
+                .path("seasonReview.stats.season").entity(Integer.class).isEqualTo(1)
+                .path("seasonReview.playerGolferId").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank)
+                .path("seasonReview.headlines").entityList(Object.class).satisfies(rows ->
+                        org.assertj.core.api.Assertions.assertThat(rows).isNotEmpty())
+                .path("seasonReview.headlines[0].season").entity(Integer.class).isEqualTo(1);
+    }
+
+    @Test
+    void seasonReviewIsNullBeforeAnySeasonHasCompleted() {
+        WorldSession session = worldService.create(OWNER, 551L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Fresh", "Start", Nationality.USA, 20, Archetype.ALL_ROUNDER);
+
+        graphQlTester.document("query($id: ID!){ seasonReview(id: $id){ season } }")
+                .variable("id", session.id()).execute()
+                .path("seasonReview").valueIsNull();
+    }
+
+    @Test
     void careerGoalsReportLiveProgressForAnAssignedPlayer() {
         WorldSession session = worldService.create(OWNER, 404L, SMALL);
         worldService.createPlayer(OWNER, session.id(), "Test", "Golfer", Nationality.USA, 20, Archetype.ALL_ROUNDER);
@@ -252,12 +290,14 @@ class WorldGraphQlApiTest {
                           currentSituation(id: $id){ holeNumber }
                           eventLeaderboard(id: $id){ position }
                           playerMadeCut(id: $id)
+                          playerPressure(id: $id)
                         }
                         """)
                 .variable("id", id).execute()
                 .path("currentSituation").valueIsNull()
                 .path("eventLeaderboard").entityList(Object.class).hasSize(0)
-                .path("playerMadeCut").valueIsNull();
+                .path("playerMadeCut").valueIsNull()
+                .path("playerPressure").valueIsNull();
     }
 
     // --- Error classification ---

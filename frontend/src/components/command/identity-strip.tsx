@@ -89,6 +89,7 @@ function TopStat({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
 function NextAction({ id, hasPendingEvent }: { id: string; hasPendingEvent: boolean }) {
   const router = useRouter();
   const advance = useAdvanceWeek(id);
+  const seasonBefore = useCareerOverview(id).data?.world?.season ?? null;
 
   if (hasPendingEvent) {
     return (
@@ -103,6 +104,12 @@ function NextAction({ id, hasPendingEvent }: { id: string; hasPendingEvent: bool
 
   async function onAdvance() {
     const result = await advance.mutateAsync();
+    // Crossing the season boundary is the off-season moment — the review takes priority over any
+    // week-1 event pending in the new season (that event is still there once they begin the season).
+    if (seasonBefore != null && result.advanceWeek.season > seasonBefore) {
+      router.push(`/career/${id}/offseason`);
+      return;
+    }
     if (result.advanceWeek.hasPendingEvent) router.push(`/career/${id}/play`);
   }
 
@@ -123,8 +130,16 @@ function NextAction({ id, hasPendingEvent }: { id: string; hasPendingEvent: bool
  * (the engine cannot advance past one) — NextAction only renders it in that branch.
  */
 function SimSeasonControl({ id }: { id: string }) {
+  const router = useRouter();
   const advanceSeason = useAdvanceSeason(id);
   const [confirming, setConfirming] = useState(false);
+
+  // Simming the season always crosses the boundary, so it lands on the off-season review.
+  function onConfirm() {
+    advanceSeason.mutate(undefined, {
+      onSuccess: () => router.push(`/career/${id}/offseason`),
+    });
+  }
 
   if (!confirming) {
     return (
@@ -139,7 +154,7 @@ function SimSeasonControl({ id }: { id: string }) {
       <span className="text-muted-foreground hidden text-sm sm:inline">Sim remaining events?</span>
       <Button
         variant="secondary"
-        onClick={() => advanceSeason.mutate()}
+        onClick={onConfirm}
         disabled={advanceSeason.isPending}
       >
         {advanceSeason.isPending ? "Simming…" : "Confirm"}

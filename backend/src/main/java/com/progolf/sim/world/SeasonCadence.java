@@ -20,8 +20,15 @@ final class SeasonCadence {
     private SeasonCadence() {
     }
 
-    /** Target events per tier per season (the "moderate" density). */
-    static final int TARGET_EVENTS_PER_TIER = 14;
+    /**
+     * Target events per tier per season. Set to a realistic tour density — a top professional plays roughly
+     * twenty events a year — which is also what gives a career enough chances to win. Measured 2026-07-23 at
+     * 14 / 18 / 20 (3 seeds × 12 seasons, engaged player): career wins 2.0 → 3.3 → 4.0 while mean field size
+     * (110.9 → 109.0), mean field ability (83.20 → 83.03) and mean winning score (−12.2 → −11.5) all held
+     * essentially flat. Density is safe here because a tier never plays twice in one week, so extra events
+     * consume idle weeks rather than splitting the population into thinner concurrent fields.
+     */
+    static final int TARGET_EVENTS_PER_TIER = 20;
     /** Pro-tour major "chapter" weeks that divide the season. */
     static final int[] MAJOR_WEEKS = {7, 14, 21, 27};
     static final int PRO_CHAMPIONSHIP_WEEK = 30;

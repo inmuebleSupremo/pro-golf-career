@@ -21,6 +21,7 @@ export type CalendarEntry = {
   prestige: string;
   entered: boolean;
   name: string;
+  location: string;
   played: boolean;
   result: EventResult | null;
 };
@@ -258,7 +259,10 @@ function EventChip({
           ) : (
             <Plus className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
           )}
-          <span className={nameClass}>{entry.name}</span>
+          <span className="flex min-w-0 flex-col">
+            <span className={nameClass}>{entry.name}</span>
+            <span className="text-subtle-foreground truncate text-[0.7rem] leading-tight">{entry.location}</span>
+          </span>
         </span>
         <span className="text-xs font-medium">
           {eventPrestigeLabel(entry.prestige)} · {entry.entered ? "Entered" : "Skipped"}
@@ -277,7 +281,10 @@ function EventChip({
     >
       <span className="flex items-center gap-1.5">
         {won ? <Trophy className="text-gold size-3.5 shrink-0" aria-hidden="true" /> : null}
-        <span className={nameClass}>{entry.name}</span>
+        <span className="flex min-w-0 flex-col">
+          <span className={nameClass}>{entry.name}</span>
+          <span className="text-subtle-foreground truncate text-[0.7rem] leading-tight">{entry.location}</span>
+        </span>
       </span>
       <div className="flex flex-1 items-center justify-center">
         <ResultDisplay entry={entry} />

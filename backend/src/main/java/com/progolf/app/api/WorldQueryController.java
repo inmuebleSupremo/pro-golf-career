@@ -12,6 +12,7 @@ import com.progolf.app.api.dto.LeaderboardRowDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
 import com.progolf.app.api.dto.SaveDto;
 import com.progolf.app.api.dto.ScheduleEntryDto;
+import com.progolf.app.api.dto.SeasonReviewDto;
 import com.progolf.app.api.dto.NewsItemDto;
 import com.progolf.app.api.dto.CalendarEntryDto;
 import com.progolf.app.api.dto.RoundScorecardDto;
@@ -92,6 +93,15 @@ public class WorldQueryController {
             return List.of();
         }
         return ApiMapper.mapList(worldService.playerSeasonStats(owner, id), ApiMapper::seasonStat);
+    }
+
+    @QueryMapping
+    public SeasonReviewDto seasonReview(@Argument String id, @Argument Integer season) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return null;
+        }
+        return worldService.seasonReview(owner, id, season);
     }
 
     @QueryMapping
@@ -234,6 +244,12 @@ public class WorldQueryController {
             return null;
         }
         return worldService.playerMadeCut(owner, id);
+    }
+
+    @QueryMapping
+    public Double playerPressure(@Argument String id) {
+        // Null off-event; WorldService also guards internally on a pending event.
+        return worldService.playerPressure(AuthenticatedUser.requireId(), id);
     }
 
     @QueryMapping

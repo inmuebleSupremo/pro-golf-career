@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Check, Flame } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -103,6 +103,7 @@ export function PlayEvent({ id }: { id: string }) {
   const situation = data.currentSituation as Situation | null;
   const leaderboard = (data.eventLeaderboard as LeaderboardRow[]) ?? [];
   const scorecard = (data.playerScorecard as Scorecard | null) ?? null;
+  const pressure = (data.playerPressure as number | null) ?? null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -122,6 +123,7 @@ export function PlayEvent({ id }: { id: string }) {
       {situation ? (
         <div className="flex flex-col gap-6">
           {scorecard ? <RoundProgress scorecard={scorecard} /> : null}
+          <PressureBanner pressure={pressure} round={scorecard?.roundNumber ?? null} />
           <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
             <div className="flex flex-col gap-6">
               {scorecard && scorecard.holes.length > 0 ? (
@@ -146,6 +148,37 @@ export function PlayEvent({ id }: { id: string }) {
           madeCut={data.playerMadeCut ?? null}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Situational-pressure indicator. The pressure model only bites on the closing rounds when the golfer is
+ * in contention (0 otherwise), so this appears exactly when the round gets hard — teaching the player that
+ * the difficulty is Sunday nerves, and that COMPOSURE (and a sports psychologist) is the counter. Escalates
+ * amber → red with intensity; renders nothing when there's no pressure to feel.
+ */
+function PressureBanner({ pressure, round }: { pressure: number | null; round: number | null }) {
+  if (pressure == null || pressure <= 0) return null;
+
+  const intense = pressure >= 0.6;
+  const label = intense ? "Intense pressure" : pressure >= 0.3 ? "High pressure" : "Pressure building";
+  const roundContext = round === 4 ? "Final round" : round === 3 ? "Moving day" : "In contention";
+  const tone = intense
+    ? "border-destructive/30 bg-destructive/[0.08] text-destructive"
+    : "border-warning/30 bg-warning/[0.08] text-warning";
+
+  return (
+    <div className={`flex items-center gap-3 rounded-lg border px-4 py-3 ${tone}`}>
+      <Flame className="size-5 shrink-0" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="text-foreground text-sm font-semibold">
+          {label} <span className="text-muted-foreground font-normal">· {roundContext}, in the hunt</span>
+        </p>
+        <p className="text-muted-foreground mt-0.5 text-xs">
+          Nerves widen every shot now — Composure steadies your hands, and a sports psychologist blunts it.
+        </p>
+      </div>
     </div>
   );
 }

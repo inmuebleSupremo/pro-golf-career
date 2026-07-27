@@ -25,6 +25,9 @@ type Query {
     "The player's per-season statistics, one row per season competed (empty when no player is assigned)."
     playerSeasonStats(id: ID!): [SeasonStat!]!
 
+    "A completed season's off-season review (the end-of-season moment). `season` defaults to the most recently completed one; null when no season has completed yet or no player is assigned."
+    seasonReview(id: ID!, season: Int): SeasonReview
+
     "The player's current development focus — the attribute enum names being prioritised (empty when unset)."
     playerDevelopmentFocus(id: ID!): [String!]!
 
@@ -78,6 +81,9 @@ type Query {
 
     "Whether the player made the cut in the pending event; null when no event is pending or the cut is not yet decided."
     playerMadeCut(id: ID!): Boolean
+
+    "The situational pressure [0,1] the player currently feels in their event (0 outside contention/closing rounds, peak in a playoff); null when no event is pending."
+    playerPressure(id: ID!): Float
 
     "Every stored saved game's metadata, newest first."
     listSaves: [Save!]!
@@ -189,6 +195,8 @@ type ScheduleEntry {
     entered: Boolean!
     "The event's realistic display name."
     name: String!
+    "The event's place — a major's hinting location, or the host course's region."
+    location: String!
 }
 
 type CalendarEntry {
@@ -198,6 +206,8 @@ type CalendarEntry {
     prestige: String!
     entered: Boolean!
     name: String!
+    "The event's place — a major's hinting location, or the host course's region."
+    location: String!
     "Whether the event has been played (its result is available)."
     played: Boolean!
     "The event's result once played; null while it is upcoming."
@@ -288,6 +298,23 @@ type SeasonStat {
     "Best (lowest) finishing position across the season's counted events."
     bestFinish: Int!
     earnings: Float!
+}
+
+type SeasonReview {
+    "The completed season this review covers."
+    season: Int!
+    "The player's world-ranking position at the previous season's end; null before they were ranked."
+    rankStart: Int
+    "The player's world-ranking position at this season's end; null if unranked."
+    rankEnd: Int
+    "The player's competitive stat line for the season."
+    stats: SeasonStat!
+    "The season's attribute development gains."
+    development: [DevelopmentDelta!]!
+    "The season's news, most prominent first — includes the player's own milestones (see playerGolferId)."
+    headlines: [NewsItem!]!
+    "The player golfer's id, so the client can split the golfer's own headlines from the wider tour's."
+    playerGolferId: ID!
 }
 
 type NewsItem {

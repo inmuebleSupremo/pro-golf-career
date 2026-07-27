@@ -1097,7 +1097,36 @@ public final class World {
      */
     public String nameFor(ScheduledTournament event) {
         Course course = coursePool.get(event.courseIndex());
-        return EventNaming.name(event.prestige(), event.tier(), course, majorOrdinal(event));
+        return EventNaming.name(event.prestige(), event.tier(), course, majorOrdinal(event), proEventOrdinal(event));
+    }
+
+    /**
+     * The display location for a scheduled event (spec: world-schedule): a major's or Pro event's fixed place,
+     * or the host course's region (the Development tour). Stable the same way {@link #nameFor} is.
+     */
+    public String locationFor(ScheduledTournament event) {
+        Course course = coursePool.get(event.courseIndex());
+        return EventNaming.location(event.prestige(), event.tier(), course, majorOrdinal(event),
+                proEventOrdinal(event));
+    }
+
+    /**
+     * An event's 0-based position among the Pro tour's non-major, non-championship events (-1 when it is not
+     * one), stable by week then id — the index into the fixed {@link EventNaming#PRO_EVENTS} calendar, so the
+     * top tour's stops read the same name/place every season.
+     */
+    private int proEventOrdinal(ScheduledTournament event) {
+        if (event.tier() != TourTier.PRO || event.prestige().isMajor()
+                || event.prestige() == EventPrestige.TOUR_CHAMPIONSHIP) {
+            return -1;
+        }
+        List<ScheduledTournament> proEvents = schedule.stream()
+                .filter(e -> e.tier() == TourTier.PRO && !e.prestige().isMajor()
+                        && e.prestige() != EventPrestige.TOUR_CHAMPIONSHIP)
+                .sorted(Comparator.comparingInt(ScheduledTournament::week)
+                        .thenComparingLong(ScheduledTournament::tournamentId))
+                .toList();
+        return proEvents.indexOf(event);
     }
 
     /** An event's 0-based position among the season's majors (-1 when it is not a major), stable by week then id. */
@@ -1490,7 +1519,7 @@ public final class World {
                     || tier.map(t -> t == event.tier()).orElse(false);
             if (eligibleByTour) {
                 out.add(new PlayerScheduleEntry(event.tournamentId(), event.week(), event.tier(),
-                        event.prestige(), !playerSitsOut(event), nameFor(event)));
+                        event.prestige(), !playerSitsOut(event), nameFor(event), locationFor(event)));
             }
         }
         return out;

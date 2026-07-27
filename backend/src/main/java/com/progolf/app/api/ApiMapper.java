@@ -62,7 +62,7 @@ public final class ApiMapper {
 
     public static ScheduleEntryDto schedule(PlayerScheduleEntry e) {
         return new ScheduleEntryDto(e.tournamentId(), e.week(), e.tier().name(), e.prestige().name(), e.entered(),
-                e.name());
+                e.name(), e.location());
     }
 
     public static CareerGoalDto careerGoal(CareerGoalProgress p) {

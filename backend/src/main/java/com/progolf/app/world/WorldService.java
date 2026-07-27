@@ -10,8 +10,11 @@ import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.InjuryDto;
 import com.progolf.app.api.dto.PlayerFitnessDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
+import com.progolf.app.api.dto.NewsItemDto;
 import com.progolf.app.api.dto.RankingRowDto;
 import com.progolf.app.api.dto.RecordDto;
+import com.progolf.app.api.dto.SeasonReviewDto;
+import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
@@ -33,6 +36,7 @@ import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Identity;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.progression.ProgressionConstants;
+import com.progolf.sim.ranking.RankingSnapshot;
 import com.progolf.sim.ranking.RankingStanding;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
@@ -206,7 +210,8 @@ public class WorldService {
             Optional<TournamentResult> result = world.resultOf(entry.tournamentId());
             EventResultDto resultDto = result.map(r -> eventResult(r, playerId)).orElse(null);
             calendar.add(new CalendarEntryDto(entry.tournamentId(), entry.week(), entry.tier().name(),
-                    entry.prestige().name(), entry.entered(), entry.name(), result.isPresent(), resultDto));
+                    entry.prestige().name(), entry.entered(), entry.name(), entry.location(),
+                    result.isPresent(), resultDto));
         }
         return calendar;
     }
@@ -375,6 +380,53 @@ public class WorldService {
         return stats;
     }
 
+    /**
+     * The off-season review of a completed season (spec: player-experience — the end-of-season moment): the
+     * player's season stat line, their world-ranking movement across it ({@code rankStart} → {@code rankEnd}),
+     * that season's development gains, and the season's news (prominence-sorted, the player's own milestones
+     * included so the client can split them from the wider tour's). A null {@code season} defaults to the most
+     * recently completed one (current season − 1); returns null when no season has completed yet. Requires a
+     * player (callers guard with {@link #hasPlayer}).
+     */
+    public SeasonReviewDto seasonReview(String ownerId, String sessionId, Integer season) {
+        World world = required(ownerId, sessionId).world();
+        String id = requirePlayerId(world);
+        int reviewed = season != null ? season : world.currentSeason() - 1;
+        if (reviewed < 1) {
+            return null; // no completed season to review yet
+        }
+
+        List<RankingSnapshot> snapshots = world.rankingSnapshots();
+        Integer rankEnd = snapshotPosition(snapshots, reviewed, id);
+        Integer rankStart = snapshotPosition(snapshots, reviewed - 1, id);
+
+        StatLine line = world.seasonStatisticsOf(id, reviewed);
+        SeasonStatDto stats = new SeasonStatDto(reviewed, line.events(), line.wins(), line.topTens(),
+                line.cuts(), line.bestFinish(), line.earnings());
+
+        List<DevelopmentDeltaDto> development = world.playerDevelopmentReport().stream()
+                .filter(c -> c.season() == reviewed)
+                .map(c -> new DevelopmentDeltaDto(c.attribute().name(), c.delta(), c.season()))
+                .toList();
+
+        List<NewsItemDto> headlines = world.newsFeed().stream()
+                .filter(n -> n.season() == reviewed)
+                .sorted(Comparator.comparingInt(NewsEvent::prominence).reversed())
+                .map(n -> new NewsItemDto(n.season(), n.type().name(), n.headline(), n.prominence(),
+                        n.subjectGolferId().orElse(null)))
+                .toList();
+
+        return new SeasonReviewDto(reviewed, rankStart, rankEnd, stats, development, headlines, id);
+    }
+
+    /** The golfer's world-ranking position from a season's end-of-season snapshot (null if none/unranked). */
+    private static Integer snapshotPosition(List<RankingSnapshot> snapshots, int season, String golferId) {
+        if (season < 1 || season > snapshots.size()) {
+            return null;
+        }
+        return snapshots.get(season - 1).positionOf(golferId).orElse(null);
+    }
+
     /** The player's pending sponsorship offers awaiting a decision. */
     public List<SponsorshipOffer> pendingSponsorships(String ownerId, String sessionId) {
         return required(ownerId, sessionId).world().pendingSponsorships();
@@ -538,6 +590,18 @@ public class WorldService {
     /** Whether the player made the cut in their event (valid once the second round and cut are played). */
     public boolean playerMadeCut(String ownerId, String sessionId) {
         return playerEvent(ownerId, sessionId).playerMadeCut();
+    }
+
+    /**
+     * The situational pressure [0,1] the player currently feels in their event (spec: shot-resolution
+     * pressure) — non-zero only on the closing rounds when in contention, peak in a playoff. Null when no
+     * event is pending. The play surface reads it to explain why the final rounds are harder.
+     */
+    public Double playerPressure(String ownerId, String sessionId) {
+        if (!hasPendingEvent(ownerId, sessionId)) {
+            return null;
+        }
+        return playerEvent(ownerId, sessionId).currentPressure();
     }
 
     /** Completes the player's finished event so its result counts and the paused week resumes, then autosaves. */

@@ -133,6 +133,24 @@ class WorldGraphQlMutationsTest {
     }
 
     @Test
+    void playerPressureIsZeroInOpeningRoundsAndReadableDuringAnEvent() {
+        WorldSession session = worldService.create(OWNER, 20L, SMALL);
+        String golferId = session.world().activeGolferIds().get(0);
+        worldService.assignPlayer(OWNER, session.id(), golferId);
+
+        int guard = 0;
+        while (!worldService.hasPendingEvent(OWNER, session.id()) && guard++ < 60) {
+            worldService.advanceWeek(OWNER, session.id());
+        }
+        assertThat(worldService.hasPendingEvent(OWNER, session.id())).isTrue();
+
+        // A freshly-started event is on round 1, which carries no closing pressure by design.
+        graphQlTester.document("query($id: ID!){ playerPressure(id: $id) }")
+                .variable("id", session.id()).execute()
+                .path("playerPressure").entity(Double.class).isEqualTo(0.0);
+    }
+
+    @Test
     void currentSituationIsNullNotAnErrorForAFinishedButPendingEvent() {
         WorldSession session = worldService.create(OWNER, 21L, SMALL);
         String golferId = session.world().activeGolferIds().get(0);

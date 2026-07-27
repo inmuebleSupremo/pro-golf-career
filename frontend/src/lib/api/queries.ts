@@ -14,6 +14,7 @@ import {
   PlayerFitnessDocument,
   PlayerProfileDocument,
   RecordsDocument,
+  SeasonReviewDocument,
   WorldRankingsDocument,
 } from "@/lib/graphql/operations";
 
@@ -42,6 +43,19 @@ export function usePlayerProfile(id: string) {
   return useQuery({
     queryKey: ["profile", id],
     queryFn: () => gqlRequest(PlayerProfileDocument, { id }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/**
+ * A completed season's off-season review (the end-of-season moment). Omit `season` for the most recently
+ * completed one; the query resolves to null when no season has completed yet.
+ */
+export function useSeasonReview(id: string, season?: number) {
+  return useQuery({
+    queryKey: ["seasonReview", id, season ?? null],
+    queryFn: () => gqlRequest(SeasonReviewDocument, { id, season }),
     networkMode: "always",
     retry: false,
   });

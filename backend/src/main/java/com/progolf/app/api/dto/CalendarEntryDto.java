@@ -7,5 +7,5 @@ package com.progolf.app.api.dto;
  * {@code sim.world.PlayerScheduleEntry} with the event's {@code TournamentResult}.
  */
 public record CalendarEntryDto(long tournamentId, int week, String tier, String prestige, boolean entered,
-                               String name, boolean played, EventResultDto result) {
+                               String name, String location, boolean played, EventResultDto result) {
 }

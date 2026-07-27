@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Play, Trophy } from "lucide-react";
+import { Check, MapPin, Play, Trophy } from "lucide-react";
 
 import { Card, CardHeader } from "@/components/command/card";
 import { useCareerOverview, useHallOfFame, usePlayerProfile } from "@/lib/api/queries";
@@ -101,7 +101,13 @@ export function HubDashboard({ id }: { id: string }) {
             <h2 className="text-[1.55rem] leading-[1.08] font-bold tracking-[-0.03em] text-balance">
               {nextEvent ? nextEvent.name : "No upcoming events"}
             </h2>
-            <p className="text-muted-foreground text-[0.8rem]">
+            {nextEvent ? (
+              <p className="text-muted-foreground flex items-center gap-1 text-[0.8rem] font-medium">
+                <MapPin className="size-3.5" aria-hidden="true" />
+                {nextEvent.location}
+              </p>
+            ) : null}
+            <p className="text-subtle-foreground text-[0.8rem]">
               {nextEvent
                 ? `Week ${nextEvent.week} · ${tourTierLabel(nextEvent.tier)}`
                 : "You've played or skipped every event on the calendar."}

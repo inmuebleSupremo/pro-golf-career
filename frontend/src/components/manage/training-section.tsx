@@ -40,7 +40,16 @@ function raiseCost(from: number, points: number, potential: number, c: CostCurve
  * Development: you earn Development Points from your play and spend them here to raise your attributes.
  * Higher ratings cost more (the cost curve), and nothing rises past its potential.
  */
-export function TrainingSection({ id, onUnauthorized }: { id: string; onUnauthorized: () => void }) {
+export function TrainingSection({
+  id,
+  onUnauthorized,
+  showReport = true,
+}: {
+  id: string;
+  onUnauthorized: () => void;
+  // The off-season review already lists the season's gains, so it suppresses the report tile here.
+  showReport?: boolean;
+}) {
   const { data, isPending, isError, error } = usePlayerProfile(id);
   const dev = usePlayerDevelopment(id).data?.playerDevelopment ?? null;
 
@@ -63,7 +72,7 @@ export function TrainingSection({ id, onUnauthorized }: { id: string; onUnauthor
 
   return (
     <div className="flex flex-col gap-6">
-      <DevelopmentReport id={id} />
+      {showReport ? <DevelopmentReport id={id} /> : null}
       <SpendScreen
         id={id}
         attributes={profile.attributes}
