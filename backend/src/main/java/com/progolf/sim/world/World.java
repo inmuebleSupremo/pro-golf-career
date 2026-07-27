@@ -24,7 +24,10 @@ import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.economy.TransactionType;
 import com.progolf.sim.equipment.AcquisitionPolicy;
 import com.progolf.sim.equipment.EquipmentAcquisition;
+import com.progolf.sim.equipment.EquipmentBrand;
 import com.progolf.sim.equipment.EquipmentCatalogue;
+import com.progolf.sim.equipment.EquipmentDeal;
+import com.progolf.sim.equipment.EquipmentDealMarket;
 import com.progolf.sim.equipment.EquipmentCategory;
 import com.progolf.sim.equipment.EquipmentConstants;
 import com.progolf.sim.equipment.EquipmentInventory;
@@ -138,6 +141,11 @@ public final class World {
     // candidates/upgrades each season and holds them as pending offers (spec: player-control).
     private final List<StaffMember> playerPendingStaff = new ArrayList<>();
     private final List<EquipmentItem> playerPendingEquipment = new ArrayList<>();
+    // Equipment brand deals (spec: equipment-influence) — the player's alternative to buying à la carte: a
+    // brand pays a retainer and kits the whole bag, but locks the player in for the term. Offers are held for
+    // a free-agent player to accept; one deal is active at a time (null = free agent, buying their own gear).
+    private final List<EquipmentDeal> playerPendingEquipmentDeals = new ArrayList<>();
+    private EquipmentDeal playerActiveEquipmentDeal;
     private PendingPlayerEvent pendingEvent; // non-null = the week is paused awaiting the player's event
     // Golfers already committed to an event this week — a golfer plays at most one event per week, so a
     // major's cross-tour field excludes them from concurrent tour events (spec: event-prestige).
@@ -954,9 +962,9 @@ public final class World {
      * inventory, and selected into the loadout. Deterministic from an isolated per-golfer/season seed.
      */
     private void runEquipmentSeason(String id, int season, LocalDate date) {
-        // The player decides purchases (upgrades held as pending offers); the AI auto-buys.
+        // The player decides purchases (upgrades held as pending offers) and brand deals; the AI auto-buys.
         if (isPlayer(id)) {
-            offerPlayerEquipment(id, season);
+            runPlayerEquipmentSeason(id, season, date);
             return;
         }
         EquipmentInventory inventory = equipment.get(id);
@@ -973,14 +981,51 @@ public final class World {
         });
     }
 
-    /** Generates one upgrade per category, held as pending equipment offers for the player to buy. */
+    /**
+     * The player's end-of-season equipment cycle (spec: equipment-influence). Under an active brand deal the
+     * brand pays the retainer and the player is locked in (no à-la-carte upgrades, no new deals) until the
+     * term ends; as a free agent the player is offered both à-la-carte upgrades and fresh brand deals for the
+     * upcoming season.
+     */
+    private void runPlayerEquipmentSeason(String id, int season, LocalDate date) {
+        EquipmentDeal active = playerActiveEquipmentDeal;
+        if (active != null && active.isActiveIn(season)) {
+            accounts.get(id).award(TransactionType.SPONSORSHIP_INCOME, active.perSeasonRetainer(), date,
+                    "Equipment deal: " + active.brand().displayName());
+            if (season < active.lastActiveSeason()) {
+                // Still locked in next season: no offers of any kind.
+                playerPendingEquipment.clear();
+                playerPendingEquipmentDeals.clear();
+                return;
+            }
+            playerActiveEquipmentDeal = null; // the deal ends this season → a free agent for the next
+        }
+
+        // Free agent: à-la-carte upgrades AND brand-deal offers for the upcoming season.
+        offerPlayerEquipment(id, season);
+        Rng rng = new SplitMix64Rng(Seeds.deriveSeed(Seeds.deriveSeed(
+                Seeds.deriveSeed(masterSeed, EquipmentConstants.DEAL_SALT), season), id.hashCode()));
+        playerPendingEquipmentDeals.clear();
+        playerPendingEquipmentDeals.addAll(
+                EquipmentDealMarket.generateOffers(competitiveReputation(id, date), season + 1, rng));
+    }
+
+    /**
+     * Generates the player's equipment offers: two candidates per category from two DISTINCT brands, so each
+     * category presents a real trade-off (a power option vs a forgiveness option, etc.) rather than a single
+     * take-it-or-leave-it upgrade. Held as pending offers for the player to buy.
+     */
     private void offerPlayerEquipment(String id, int season) {
         playerPendingEquipment.clear();
+        EquipmentBrand[] brands = EquipmentBrand.UPGRADE_BRANDS;
         for (EquipmentCategory category : EquipmentCategory.values()) {
             Rng rng = new SplitMix64Rng(Seeds.deriveSeed(Seeds.deriveSeed(Seeds.deriveSeed(
                     Seeds.deriveSeed(masterSeed, EquipmentConstants.EQUIPMENT_SALT), season), id.hashCode()),
                     category.ordinal()));
-            playerPendingEquipment.add(EquipmentCatalogue.generateUpgrade(category, rng));
+            int first = (int) Math.floorMod(rng.nextLong(), brands.length);
+            int second = (first + 1 + (int) Math.floorMod(rng.nextLong(), brands.length - 1)) % brands.length;
+            playerPendingEquipment.add(EquipmentCatalogue.generateUpgrade(category, brands[first], rng));
+            playerPendingEquipment.add(EquipmentCatalogue.generateUpgrade(category, brands[second], rng));
         }
     }
 
@@ -1309,6 +1354,8 @@ public final class World {
         this.playerPendingOffers.clear();
         this.playerPendingStaff.clear();
         this.playerPendingEquipment.clear();
+        this.playerPendingEquipmentDeals.clear();
+        this.playerActiveEquipmentDeal = null;
         this.achievedGoals.clear();
     }
 
@@ -1612,6 +1659,49 @@ public final class World {
             throw new IllegalArgumentException("The player does not own " + item.category() + " item " + item.name());
         }
         loadouts.put(id, loadouts.get(id).with(item));
+    }
+
+    // --- Equipment brand deals (spec: equipment-influence) ---
+
+    /** The player's brand-deal offers awaiting an accept decision (empty while under an active deal). */
+    public List<EquipmentDeal> pendingEquipmentDeals() {
+        return List.copyOf(playerPendingEquipmentDeals);
+    }
+
+    /** The player's active equipment brand deal, or null when they are a free agent. */
+    public EquipmentDeal activeEquipmentDeal() {
+        return playerActiveEquipmentDeal;
+    }
+
+    /**
+     * Signs a pending brand deal by index: pays the signing bonus now (the retainer accrues each active
+     * season), kits the player's whole bag with the brand's gear and equips it, and locks the player in for
+     * the term. Throws if the player is already under a deal (only one at a time).
+     */
+    public void acceptEquipmentDeal(int index) {
+        requirePlayer();
+        if (playerActiveEquipmentDeal != null) {
+            throw new IllegalStateException("The player is already under an equipment deal");
+        }
+        if (index < 0 || index >= playerPendingEquipmentDeals.size()) {
+            throw new IndexOutOfBoundsException("No pending equipment deal at index " + index);
+        }
+        EquipmentDeal deal = playerPendingEquipmentDeals.get(index);
+        String id = playerControl.golferId();
+        accounts.get(id).award(TransactionType.SPONSORSHIP_SIGNING, deal.signingBonus(),
+                calendar.currentDate(), "Equipment deal signing: " + deal.brand().displayName());
+
+        EquipmentInventory inventory = equipment.get(id);
+        Map<EquipmentCategory, EquipmentItem> loadout = new java.util.EnumMap<>(EquipmentCategory.class);
+        for (EquipmentItem item : EquipmentCatalogue.dealBag(deal.brand(), deal.gearTier(), deal.startSeason())) {
+            inventory.add(item, calendar.currentSeason(), EquipmentAcquisition.Method.SPONSORSHIP);
+            loadout.put(item.category(), item);
+        }
+        loadouts.put(id, new TournamentLoadout(loadout));
+
+        playerActiveEquipmentDeal = deal;
+        playerPendingEquipmentDeals.clear();
+        playerPendingEquipment.clear(); // à-la-carte offers are withdrawn while under contract
     }
 
     private PlayerControl requirePlayer() {

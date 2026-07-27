@@ -30,8 +30,8 @@ class LoadoutBagTest {
     void aLoadoutWithUnownedEquipmentIsInvalid() {
         EquipmentInventory inv = standardInventory();
         Map<EquipmentCategory, EquipmentItem> selection = new EnumMap<>(TournamentLoadout.bestFrom(inv).selection());
-        selection.put(EquipmentCategory.PUTTER, new EquipmentItem("Unowned Putter", EquipmentCategory.PUTTER, 0.9,
-                EquipmentCharacteristics.uniform(0.9), 40_000)); // not in the inventory
+        selection.put(EquipmentCategory.PUTTER, new EquipmentItem("Unowned Putter", EquipmentCategory.PUTTER,
+                EquipmentBrand.MERIDIAN, 0.9, EquipmentCharacteristics.uniform(0.9), 40_000)); // not in the inventory
         TournamentLoadout invalid = new TournamentLoadout(selection);
         assertThat(invalid.isValid(inv)).isFalse();
     }
@@ -47,8 +47,8 @@ class LoadoutBagTest {
     @Test
     void strongerEquipmentRaisesTheBagBonuses() {
         EquipmentInventory inv = standardInventory();
-        EquipmentItem proDriver = new EquipmentItem("Pro Driver", EquipmentCategory.DRIVER, 0.95,
-                EquipmentCharacteristics.uniform(0.95), 57_000);
+        EquipmentItem proDriver = new EquipmentItem("Pro Driver", EquipmentCategory.DRIVER, EquipmentBrand.MERIDIAN,
+                0.95, EquipmentCharacteristics.uniform(0.95), 57_000);
         inv.add(proDriver, 2, EquipmentAcquisition.Method.PURCHASE);
         GolfBag bag = GolfBag.fromLoadout(TournamentLoadout.bestFrom(inv));
         assertThat(bag.forgivenessBonus()).isGreaterThan(0.0);

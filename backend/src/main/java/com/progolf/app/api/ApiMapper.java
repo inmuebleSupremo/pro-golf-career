@@ -80,12 +80,6 @@ public final class ApiMapper {
                 s.personality().name(), s.quality(), s.hiringCost(), s.seasonalSalary());
     }
 
-    public static EquipmentItemDto equipment(EquipmentItem i) {
-        EquipmentCharacteristics c = i.characteristics();
-        return new EquipmentItemDto(i.name(), i.category().name(), i.quality(), i.cost(),
-                c.forgiveness(), c.power(), c.workability(), c.feel());
-    }
-
     public static LeaderboardRowDto leaderboardRow(LeaderboardEntry e) {
         return new LeaderboardRowDto(e.position(), golfer(e.golfer()), e.score(), e.roundsPlayed());
     }

@@ -98,6 +98,12 @@ public class PlayerMutationController {
     }
 
     @MutationMapping
+    public boolean acceptEquipmentDeal(@Argument String id, @Argument int index) {
+        worldService.acceptEquipmentDeal(AuthenticatedUser.requireId(), id, index);
+        return true;
+    }
+
+    @MutationMapping
     public boolean selectLoadoutItem(@Argument String id, @Argument String category, @Argument String name) {
         worldService.selectLoadoutItem(AuthenticatedUser.requireId(), id, ApiMapper.equipmentCategory(category), name);
         return true;

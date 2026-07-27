@@ -3,6 +3,7 @@ package com.progolf.app.api;
 import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
 import com.progolf.app.api.dto.PlayerDevelopmentDto;
+import com.progolf.app.api.dto.EquipmentDealDto;
 import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.PlayerFitnessDto;
@@ -183,8 +184,12 @@ public class WorldQueryController {
 
     @QueryMapping
     public List<EquipmentItemDto> pendingEquipment(@Argument String id) {
-        return ApiMapper.mapList(worldService.pendingEquipmentOffers(AuthenticatedUser.requireId(), id),
-                ApiMapper::equipment);
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return List.of();
+        }
+        // Fit-scored against the player's build in WorldService (needs the world), so no ApiMapper step.
+        return worldService.pendingEquipmentOffers(owner, id);
     }
 
     @QueryMapping
@@ -193,7 +198,7 @@ public class WorldQueryController {
         if (!worldService.hasPlayer(owner, id)) {
             return List.of();
         }
-        return ApiMapper.mapList(worldService.playerEquipment(owner, id), ApiMapper::equipment);
+        return worldService.playerEquipment(owner, id);
     }
 
     @QueryMapping
@@ -202,7 +207,25 @@ public class WorldQueryController {
         if (!worldService.hasPlayer(owner, id)) {
             return List.of();
         }
-        return ApiMapper.mapList(worldService.playerLoadout(owner, id), ApiMapper::equipment);
+        return worldService.playerLoadout(owner, id);
+    }
+
+    @QueryMapping
+    public List<EquipmentDealDto> pendingEquipmentDeals(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return List.of();
+        }
+        return worldService.pendingEquipmentDeals(owner, id);
+    }
+
+    @QueryMapping
+    public EquipmentDealDto activeEquipmentDeal(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return null;
+        }
+        return worldService.activeEquipmentDeal(owner, id);
     }
 
     @QueryMapping

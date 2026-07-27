@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { gqlRequest } from "@/lib/api/graphql-client";
 import {
+  AcceptEquipmentDealDocument,
   AcceptSponsorshipDocument,
   BuyEquipmentDocument,
   EnterEventDocument,
@@ -124,6 +125,16 @@ export function useBuyEquipment(id: string) {
   const invalidate = useInvalidateEquipment(id);
   return useMutation({
     mutationFn: (index: number) => gqlRequest(BuyEquipmentDocument, { id, index }),
+    networkMode: "always",
+    onSuccess: invalidate,
+  });
+}
+
+/** Sign a brand deal: refreshes equipment (deals/bag/loadout) and the profile (signing bonus credits funds). */
+export function useAcceptEquipmentDeal(id: string) {
+  const invalidate = useInvalidateEquipment(id);
+  return useMutation({
+    mutationFn: (index: number) => gqlRequest(AcceptEquipmentDealDocument, { id, index }),
     networkMode: "always",
     onSuccess: invalidate,
   });
