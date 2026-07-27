@@ -12,7 +12,7 @@ class GolfBagCharacteristicsTest {
     private static GolfBag bagOf(EquipmentCharacteristics characteristics) {
         Map<EquipmentCategory, EquipmentItem> items = new EnumMap<>(EquipmentCategory.class);
         for (EquipmentCategory c : EquipmentCategory.values()) {
-            items.put(c, new EquipmentItem(c + "-item", c, 0.5, characteristics, 0.0));
+            items.put(c, new EquipmentItem(c + "-item", c, EquipmentBrand.MERIDIAN, 0.5, characteristics, 0.0));
         }
         return new GolfBag(items);
     }

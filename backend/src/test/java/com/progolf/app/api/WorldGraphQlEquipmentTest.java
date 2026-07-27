@@ -6,6 +6,7 @@ import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.world.WorldService;
 import com.progolf.app.world.WorldSession;
 import com.progolf.sim.equipment.EquipmentAcquisition;
+import com.progolf.sim.equipment.EquipmentBrand;
 import com.progolf.sim.equipment.EquipmentCategory;
 import com.progolf.sim.equipment.EquipmentCharacteristics;
 import com.progolf.sim.equipment.EquipmentItem;
@@ -34,7 +35,7 @@ class WorldGraphQlEquipmentTest {
 
     private static final WorldConfig SMALL = new WorldConfig(40, 6, 3, 20, 4);
     private static final String LOADOUT_FIELDS =
-            "{ name category quality cost forgiveness power workability feel }";
+            "{ name category brand quality cost forgiveness power workability feel fit }";
 
     @Autowired
     private GraphQlTester graphQlTester;
@@ -85,13 +86,13 @@ class WorldGraphQlEquipmentTest {
                 Archetype.ALL_ROUNDER);
 
         // Arrange a second owned DRIVER (an upgrade) directly on the player's inventory.
-        EquipmentItem upgrade = new EquipmentItem("DRIVER-Pro-777", EquipmentCategory.DRIVER, 0.9,
-                EquipmentCharacteristics.uniform(0.9), 100.0);
+        EquipmentItem upgrade = new EquipmentItem("Apex Driver 777", EquipmentCategory.DRIVER, EquipmentBrand.APEX,
+                0.9, EquipmentCharacteristics.uniform(0.9), 100.0);
         session.world().equipmentInventoryOf(golferId)
                 .add(upgrade, session.world().currentSeason(), EquipmentAcquisition.Method.PURCHASE);
 
         graphQlTester.document("""
-                        mutation($id: ID!){ selectLoadoutItem(id: $id, category: "DRIVER", name: "DRIVER-Pro-777") }
+                        mutation($id: ID!){ selectLoadoutItem(id: $id, category: "DRIVER", name: "Apex Driver 777") }
                         """)
                 .variable("id", session.id()).execute()
                 .path("selectLoadoutItem").entity(Boolean.class).isEqualTo(true);
@@ -104,7 +105,44 @@ class WorldGraphQlEquipmentTest {
                         .filteredOn(i -> i.category().equals("DRIVER"))
                         .singleElement()
                         .extracting(EquipmentItemDto::name)
-                        .isEqualTo("DRIVER-Pro-777"));
+                        .isEqualTo("Apex Driver 777"));
+    }
+
+    @Test
+    void aBrandDealCanBeReadAndSigned() {
+        WorldSession session = worldService.create(OWNER, 2005L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Free", "Agent", Nationality.USA, 20, Archetype.ALL_ROUNDER);
+        worldService.advanceSeason(OWNER, session.id()); // free agent → brand-deal offers appear
+
+        // A free agent is offered brand deals with terms + a fit score, and has no active deal yet.
+        graphQlTester.document("""
+                        query($id: ID!){
+                          pendingEquipmentDeals(id: $id){ brand perSeasonRetainer signingBonus durationSeasons gearTier gearFit }
+                          activeEquipmentDeal(id: $id){ brand }
+                        }
+                        """)
+                .variable("id", session.id()).execute()
+                .path("pendingEquipmentDeals").entityList(Object.class)
+                .satisfies(deals -> assertThat(deals).isNotEmpty())
+                .path("pendingEquipmentDeals[0].brand").entity(String.class).satisfies(b -> assertThat(b).isNotBlank())
+                .path("pendingEquipmentDeals[0].gearTier").entity(Double.class).satisfies(t -> assertThat(t).isGreaterThan(0.6))
+                .path("activeEquipmentDeal").valueIsNull();
+
+        // Sign the first offer; it becomes the active deal and the offers are withdrawn.
+        graphQlTester.document("mutation($id: ID!){ acceptEquipmentDeal(id: $id, index: 0) }")
+                .variable("id", session.id()).execute()
+                .path("acceptEquipmentDeal").entity(Boolean.class).isEqualTo(true);
+
+        graphQlTester.document("""
+                        query($id: ID!){
+                          activeEquipmentDeal(id: $id){ brand seasonsRemaining }
+                          pendingEquipmentDeals(id: $id){ brand }
+                        }
+                        """)
+                .variable("id", session.id()).execute()
+                .path("activeEquipmentDeal.seasonsRemaining").entity(Integer.class)
+                .satisfies(r -> assertThat(r).isPositive())
+                .path("pendingEquipmentDeals").entityList(Object.class).hasSize(0);
     }
 
     @Test

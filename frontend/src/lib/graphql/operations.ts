@@ -380,32 +380,56 @@ export const EquipmentDocument = graphql(`
     playerLoadout(id: $id) {
       name
       category
+      brand
       quality
       cost
       forgiveness
       power
       workability
       feel
+      fit
     }
     playerEquipment(id: $id) {
       name
       category
+      brand
       quality
       cost
       forgiveness
       power
       workability
       feel
+      fit
     }
     pendingEquipment(id: $id) {
       name
       category
+      brand
       quality
       cost
       forgiveness
       power
       workability
       feel
+      fit
+    }
+    activeEquipmentDeal(id: $id) {
+      brand
+      perSeasonRetainer
+      signingBonus
+      durationSeasons
+      gearTier
+      gearFit
+      seasonsRemaining
+    }
+    pendingEquipmentDeals(id: $id) {
+      brand
+      perSeasonRetainer
+      signingBonus
+      durationSeasons
+      gearTier
+      gearFit
+      seasonsRemaining
     }
   }
 `);
@@ -414,6 +438,13 @@ export const EquipmentDocument = graphql(`
 export const BuyEquipmentDocument = graphql(`
   mutation BuyEquipment($id: ID!, $index: Int!) {
     buyEquipment(id: $id, index: $index)
+  }
+`);
+
+/** Signs a pending equipment brand deal by index (pays signing, kits + equips the brand's bag, locks in). */
+export const AcceptEquipmentDealDocument = graphql(`
+  mutation AcceptEquipmentDeal($id: ID!, $index: Int!) {
+    acceptEquipmentDeal(id: $id, index: $index)
   }
 `);
 

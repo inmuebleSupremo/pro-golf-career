@@ -29,8 +29,8 @@ class EquipmentInventoryTest {
     @Test
     void acquisitionAddsItemsAndRecordsHistory() {
         EquipmentInventory inv = standardInventory();
-        EquipmentItem proDriver = new EquipmentItem("Pro Driver", EquipmentCategory.DRIVER, 0.9,
-                EquipmentCharacteristics.uniform(0.9), 55_000);
+        EquipmentItem proDriver = new EquipmentItem("Pro Driver", EquipmentCategory.DRIVER, EquipmentBrand.MERIDIAN,
+                0.9, EquipmentCharacteristics.uniform(0.9), 55_000);
         inv.add(proDriver, 3, EquipmentAcquisition.Method.PURCHASE);
 
         assertThat(inv.owns(proDriver)).isTrue();

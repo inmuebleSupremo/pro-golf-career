@@ -10,6 +10,8 @@ import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.InjuryDto;
 import com.progolf.app.api.dto.PlayerFitnessDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
+import com.progolf.app.api.dto.EquipmentDealDto;
+import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.NewsItemDto;
 import com.progolf.app.api.dto.RankingRowDto;
 import com.progolf.app.api.dto.RecordDto;
@@ -27,6 +29,9 @@ import com.progolf.sim.core.Attributes;
 import com.progolf.sim.economy.FinancialAccount;
 import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentCategory;
+import com.progolf.sim.equipment.EquipmentCharacteristics;
+import com.progolf.sim.equipment.EquipmentDeal;
+import com.progolf.sim.equipment.EquipmentFit;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.media.NewsEvent;
 import com.progolf.sim.play.PlayableEvent;
@@ -487,9 +492,11 @@ public class WorldService {
         required(ownerId, sessionId).world().releaseStaff(role);
     }
 
-    /** The player's equipment upgrade offers awaiting a purchase decision. */
-    public List<EquipmentItem> pendingEquipmentOffers(String ownerId, String sessionId) {
-        return required(ownerId, sessionId).world().pendingEquipmentOffers();
+    /** The player's equipment upgrade offers awaiting a purchase decision, fit-scored to their build. */
+    public List<EquipmentItemDto> pendingEquipmentOffers(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        Attributes build = world.careerOf(requirePlayerId(world)).player().attributes();
+        return world.pendingEquipmentOffers().stream().map(i -> equipmentDto(i, build)).toList();
     }
 
     /** Buys a pending equipment upgrade by index (if affordable). */
@@ -497,21 +504,64 @@ public class WorldService {
         required(ownerId, sessionId).world().buyEquipment(index);
     }
 
+    /** The player's brand-deal offers awaiting a decision, each fit-scored to their build. */
+    public List<EquipmentDealDto> pendingEquipmentDeals(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        Attributes build = world.careerOf(requirePlayerId(world)).player().attributes();
+        return world.pendingEquipmentDeals().stream()
+                .map(d -> dealDto(d, build, d.durationSeasons())).toList();
+    }
+
+    /** The player's active brand deal (with seasons remaining), or null when they are a free agent. */
+    public EquipmentDealDto activeEquipmentDeal(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        EquipmentDeal deal = world.activeEquipmentDeal();
+        if (deal == null) {
+            return null;
+        }
+        Attributes build = world.careerOf(requirePlayerId(world)).player().attributes();
+        return dealDto(deal, build, deal.seasonsRemaining(world.currentSeason()));
+    }
+
+    /** Signs a pending brand deal by index (pays the signing bonus, kits + equips the brand's bag, locks in). */
+    public void acceptEquipmentDeal(String ownerId, String sessionId, int index) {
+        required(ownerId, sessionId).world().acceptEquipmentDeal(index);
+    }
+
+    /** Projects a brand deal to its GraphQL view, scoring the brand's bias against the player's build. */
+    private static EquipmentDealDto dealDto(EquipmentDeal deal, Attributes build, int seasonsRemaining) {
+        double gearFit = EquipmentFit.fit(deal.brand().characteristics(deal.gearTier()), build);
+        return new EquipmentDealDto(deal.brand().displayName(), deal.signingBonus(), deal.perSeasonRetainer(),
+                deal.durationSeasons(), deal.gearTier(), gearFit, seasonsRemaining);
+    }
+
     /** Sets the player's loadout for a category to one of their owned items. */
     public void selectLoadoutItem(String ownerId, String sessionId, EquipmentItem item) {
         required(ownerId, sessionId).world().selectLoadoutItem(item);
     }
 
-    /** Every item the player currently owns, across all equipment categories. */
-    public List<EquipmentItem> playerEquipment(String ownerId, String sessionId) {
+    /** Every item the player currently owns, across all equipment categories, fit-scored to their build. */
+    public List<EquipmentItemDto> playerEquipment(String ownerId, String sessionId) {
         World world = required(ownerId, sessionId).world();
-        return world.equipmentInventoryOf(requirePlayerId(world)).all();
+        String id = requirePlayerId(world);
+        Attributes build = world.careerOf(id).player().attributes();
+        return world.equipmentInventoryOf(id).all().stream().map(i -> equipmentDto(i, build)).toList();
     }
 
-    /** The item the player currently has selected in each equipment category (the tournament loadout). */
-    public List<EquipmentItem> playerLoadout(String ownerId, String sessionId) {
+    /** The item the player currently has selected in each equipment category, fit-scored to their build. */
+    public List<EquipmentItemDto> playerLoadout(String ownerId, String sessionId) {
         World world = required(ownerId, sessionId).world();
-        return List.copyOf(world.tournamentLoadoutOf(requirePlayerId(world)).selection().values());
+        String id = requirePlayerId(world);
+        Attributes build = world.careerOf(id).player().attributes();
+        return world.tournamentLoadoutOf(id).selection().values().stream()
+                .map(i -> equipmentDto(i, build)).toList();
+    }
+
+    /** Projects an equipment item to its GraphQL view, scoring its shape-fit against the player's build. */
+    private static EquipmentItemDto equipmentDto(EquipmentItem i, Attributes build) {
+        EquipmentCharacteristics c = i.characteristics();
+        return new EquipmentItemDto(i.name(), i.category().name(), i.brand().displayName(), i.quality(), i.cost(),
+                c.forgiveness(), c.power(), c.workability(), c.feel(), EquipmentFit.fit(c, build));
     }
 
     /**

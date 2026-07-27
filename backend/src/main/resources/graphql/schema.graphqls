@@ -70,6 +70,12 @@ type Query {
     "The item the player currently has selected in each equipment category (empty when no player is assigned)."
     playerLoadout(id: ID!): [EquipmentItem!]!
 
+    "The player's equipment brand-deal offers awaiting a decision (empty while under an active deal or with no player)."
+    pendingEquipmentDeals(id: ID!): [EquipmentDeal!]!
+
+    "The player's active equipment brand deal, or null when they are a free agent / no player is assigned."
+    activeEquipmentDeal(id: ID!): EquipmentDeal
+
     "The current shot situation in a paused player event; null when no event is pending."
     currentSituation(id: ID!): ShotSituation
 
@@ -138,6 +144,9 @@ type Mutation {
 
     "Buys a pending equipment upgrade by index (if affordable); auto-equips it."
     buyEquipment(id: ID!, index: Int!): Boolean!
+
+    "Signs a pending equipment brand deal by index: pays the signing bonus, kits + equips the brand's bag, locks in for the term."
+    acceptEquipmentDeal(id: ID!, index: Int!): Boolean!
 
     "Switches the tournament loadout to an already-owned item, addressed by its category (an EquipmentCategory enum name) and name."
     selectLoadoutItem(id: ID!, category: String!, name: String!): Boolean!
@@ -403,12 +412,34 @@ type StaffMember {
 type EquipmentItem {
     name: String!
     category: String!
+    "The brand behind the item (its display name); the brand biases the characteristics."
+    brand: String!
+    "Overall quality/tier in [0,1] — the item's budget (its mean characteristic)."
     quality: Float!
     cost: Float!
     forgiveness: Float!
     power: Float!
     workability: Float!
     feel: Float!
+    "How well the item's shape suits the player's build, in [0,1] (0.5 neutral; higher complements weaknesses)."
+    fit: Float!
+}
+
+type EquipmentDeal {
+    "The brand offering the deal (its display name)."
+    brand: String!
+    "One-off signing bonus paid on accepting."
+    signingBonus: Float!
+    "Retainer paid each active season."
+    perSeasonRetainer: Float!
+    "Seasons the deal (and lock-in) runs."
+    durationSeasons: Int!
+    "The overall quality/tier of the bag the deal provides, in [0,1]."
+    gearTier: Float!
+    "How well the brand's characteristic bias suits the player's build, in [0,1] (0.5 neutral)."
+    gearFit: Float!
+    "The full term for a pending offer; the seasons left to run for the active deal."
+    seasonsRemaining: Int!
 }
 
 type LeaderboardRow {
