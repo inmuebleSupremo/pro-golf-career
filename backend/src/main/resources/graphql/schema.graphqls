@@ -55,6 +55,9 @@ type Query {
     "The player's pending sponsorship offers awaiting a decision."
     pendingSponsorships(id: ID!): [SponsorshipOffer!]!
 
+    "The player's sponsorship book — the concurrency cap and currently-active agreements; null when no player is assigned."
+    sponsorshipStatus(id: ID!): SponsorshipStatus
+
     "The player's pending staff candidates awaiting a hire decision."
     pendingStaff(id: ID!): [StaffMember!]!
 
@@ -388,8 +391,25 @@ type WorldRecord {
     season: Int!
 }
 
+type SponsorshipStatus {
+    "The maximum number of sponsorships that can be held at once (the concurrency cap)."
+    maxConcurrent: Int!
+    "The currently-active signed sponsorships."
+    active: [ActiveSponsorship!]!
+}
+
+type ActiveSponsorship {
+    sponsor: String!
+    industry: String!
+    perSeasonPayment: Float!
+    "Seasons this sponsorship still has to run."
+    seasonsRemaining: Int!
+}
+
 type SponsorshipOffer {
     sponsor: String!
+    "The sponsor's industry (e.g. Watches, Automotive, Fashion) — identity flavour; the luxury tier is not exposed."
+    industry: String!
     perSeasonPayment: Float!
     signingBonus: Float!
     durationSeasons: Int!

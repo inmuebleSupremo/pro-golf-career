@@ -1,8 +1,14 @@
 "use client";
 
+import { useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { SpokeShell, SpokeEmpty, useSpokeGate } from "@/components/career/spoke";
-import { useAcceptSponsorship, usePendingSponsorships } from "@/lib/api/manage";
+import {
+  useAcceptSponsorship,
+  usePendingSponsorships,
+  useSponsorshipStatus,
+} from "@/lib/api/manage";
 import { useCareerOverview, usePlayerProfile } from "@/lib/api/queries";
 import { formatMoney } from "@/lib/career/labels";
 
@@ -14,10 +20,17 @@ type SeasonStat = {
 };
 type Offer = {
   sponsor: string;
+  industry: string;
   perSeasonPayment: number;
   signingBonus: number;
   durationSeasons: number;
   grossValue: number;
+};
+type Active = {
+  sponsor: string;
+  industry: string;
+  perSeasonPayment: number;
+  seasonsRemaining: number;
 };
 
 /** Finances spoke: available funds, career earnings, and a per-season earnings ledger. */
@@ -93,51 +106,124 @@ function FigureCard({ label, value, accent }: { label: string; value: string; ac
 
 /** Pending endorsement offers — signing them pays a bonus and per-season income. */
 function Sponsorships({ id }: { id: string }) {
-  const { data, isError } = usePendingSponsorships(id);
+  const offersQuery = usePendingSponsorships(id);
+  const statusQuery = useSponsorshipStatus(id);
   const accept = useAcceptSponsorship(id);
-  const offers: Offer[] = data?.pendingSponsorships ?? [];
+  const [blocked, setBlocked] = useState(false);
 
-  // Secondary to the figures above — stay quiet on error and when there's nothing to sign.
-  if (isError || offers.length === 0) return null;
+  const offers: Offer[] = offersQuery.data?.pendingSponsorships ?? [];
+  const status = statusQuery.data?.sponsorshipStatus ?? null;
+  const active: Active[] = status?.active ?? [];
+  const max = status?.maxConcurrent ?? 0;
+  const full = max > 0 && active.length >= max;
+
+  // Secondary to the figures above — stay quiet on error and when there's nothing to show.
+  if (offersQuery.isError || (active.length === 0 && offers.length === 0)) return null;
+
+  async function onAccept(index: number) {
+    setBlocked(false);
+    const result = await accept.mutateAsync(index);
+    // The backend refuses a sign when the book is full (returns false) rather than doing nothing silently.
+    if (!result.acceptSponsorship) setBlocked(true);
+  }
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-muted-foreground text-[0.6875rem] font-bold tracking-[0.12em] uppercase">
-        Sponsorship offers
-      </h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {offers.map((offer, index) => (
-          <div
-            key={`${offer.sponsor}:${index}`}
-            className="border-border bg-surface flex flex-col gap-3 rounded-lg border px-4 py-3"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="truncate font-medium">{offer.sponsor}</span>
-                <span className="text-muted-foreground text-sm">
-                  {offer.durationSeasons} {offer.durationSeasons === 1 ? "season" : "seasons"} ·{" "}
-                  <span className="text-foreground font-mono tabular-nums">
-                    {formatMoney(offer.grossValue)}
-                  </span>{" "}
-                  total
-                </span>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => accept.mutate(index)}
-                disabled={accept.isPending}
-                className="shrink-0"
-              >
-                Accept
-              </Button>
-            </div>
-            <dl className="grid grid-cols-2 gap-2">
-              <OfferStat label="Signing bonus" value={formatMoney(offer.signingBonus)} />
-              <OfferStat label="Per season" value={formatMoney(offer.perSeasonPayment)} />
-            </dl>
-          </div>
-        ))}
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-muted-foreground text-[0.6875rem] font-bold tracking-[0.12em] uppercase">
+          Sponsorships
+        </h2>
+        {max > 0 ? (
+          <span className="text-subtle-foreground text-xs font-medium tabular-nums">
+            {active.length} of {max}
+          </span>
+        ) : null}
       </div>
+
+      {active.length > 0 ? (
+        <ul className="divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border">
+          {active.map((deal, i) => (
+            <li key={`${deal.sponsor}:${i}`} className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate font-medium">{deal.sponsor}</span>
+                <span className="text-subtle-foreground shrink-0 text-[0.7rem] tracking-[0.04em] uppercase">
+                  {deal.industry}
+                </span>
+              </span>
+              <span className="text-muted-foreground shrink-0 text-sm">
+                <span className="text-foreground font-mono tabular-nums">
+                  {formatMoney(deal.perSeasonPayment)}
+                </span>
+                /yr ·{" "}
+                <span className="tabular-nums">
+                  {deal.seasonsRemaining} {deal.seasonsRemaining === 1 ? "season" : "seasons"} left
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {offers.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="text-subtle-foreground text-[0.6875rem] font-bold tracking-[0.12em] uppercase">
+              Offers
+            </h3>
+            {full ? (
+              <span className="text-warning text-xs font-medium">
+                Book full — a deal must expire to sign another
+              </span>
+            ) : null}
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {offers.map((offer, index) => (
+              <div
+                key={`${offer.sponsor}:${index}`}
+                className={`border-border bg-surface flex flex-col gap-3 rounded-lg border px-4 py-3 ${
+                  full ? "opacity-60" : ""
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 flex-col gap-0.5">
+                    <span className="flex items-center gap-2">
+                      <span className="truncate font-medium">{offer.sponsor}</span>
+                      <span className="text-subtle-foreground shrink-0 text-[0.7rem] tracking-[0.04em] uppercase">
+                        {offer.industry}
+                      </span>
+                    </span>
+                    <span className="text-muted-foreground text-sm">
+                      {offer.durationSeasons} {offer.durationSeasons === 1 ? "season" : "seasons"} ·{" "}
+                      <span className="text-foreground font-mono tabular-nums">
+                        {formatMoney(offer.grossValue)}
+                      </span>{" "}
+                      total
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => onAccept(index)}
+                    disabled={accept.isPending || full}
+                    title={full ? "Your sponsorship book is full" : undefined}
+                    className="shrink-0"
+                  >
+                    {full ? "Full" : "Accept"}
+                  </Button>
+                </div>
+                <dl className="grid grid-cols-2 gap-2">
+                  <OfferStat label="Signing bonus" value={formatMoney(offer.signingBonus)} />
+                  <OfferStat label="Per season" value={formatMoney(offer.perSeasonPayment)} />
+                </dl>
+              </div>
+            ))}
+          </div>
+          {blocked ? (
+            <p role="alert" className="text-warning text-sm">
+              Couldn&apos;t sign — your sponsorship book is full. Wait for a deal to expire.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

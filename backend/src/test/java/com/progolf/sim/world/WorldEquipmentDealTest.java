@@ -53,11 +53,12 @@ class WorldEquipmentDealTest {
         EquipmentDeal deal = world.pendingEquipmentDeals().get(0);
         world.acceptEquipmentDeal(0);
 
-        // Advance through the deal's term: each active season pays the retainer and keeps the player locked.
-        double funds = world.financialAccountOf(id).availableFunds();
+        // Advance through the deal's term: each active season pays the retainer (as commercial income, so this
+        // is immune to the season's competing expenses) and keeps the player locked.
+        double incomeBefore = world.financialAccountOf(id).snapshot().sponsorshipIncome();
         world.advanceSeason();
-        assertThat(world.financialAccountOf(id).availableFunds())
-                .as("retainer paid").isGreaterThanOrEqualTo(funds + deal.perSeasonRetainer());
+        assertThat(world.financialAccountOf(id).snapshot().sponsorshipIncome())
+                .as("retainer paid").isGreaterThanOrEqualTo(incomeBefore + deal.perSeasonRetainer());
         if (world.activeEquipmentDeal() != null) {
             assertThat(world.pendingEquipmentDeals()).as("no new deals while locked in").isEmpty();
         }

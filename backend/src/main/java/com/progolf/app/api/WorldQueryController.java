@@ -20,6 +20,7 @@ import com.progolf.app.api.dto.RoundScorecardDto;
 import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.ShotSituationDto;
 import com.progolf.app.api.dto.SponsorshipOfferDto;
+import com.progolf.app.api.dto.SponsorshipStatusDto;
 import com.progolf.app.api.dto.StaffMemberDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.auth.AuthenticatedUser;
@@ -166,6 +167,15 @@ public class WorldQueryController {
     public List<SponsorshipOfferDto> pendingSponsorships(@Argument String id) {
         return ApiMapper.mapList(worldService.pendingSponsorships(AuthenticatedUser.requireId(), id),
                 ApiMapper::sponsorship);
+    }
+
+    @QueryMapping
+    public SponsorshipStatusDto sponsorshipStatus(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return null;
+        }
+        return worldService.sponsorshipStatus(owner, id);
     }
 
     @QueryMapping

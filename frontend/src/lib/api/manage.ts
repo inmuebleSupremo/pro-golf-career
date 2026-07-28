@@ -15,6 +15,7 @@ import {
   PlayerScheduleDocument,
   PlayerStaffDocument,
   ReleaseStaffDocument,
+  SponsorshipStatusDocument,
   SelectLoadoutItemDocument,
   SetDevelopmentFocusDocument,
   SetRestingDocument,
@@ -208,14 +209,25 @@ export function usePendingSponsorships(id: string) {
   });
 }
 
+/** The player's sponsorship book — the concurrency cap and currently-active signed agreements. */
+export function useSponsorshipStatus(id: string) {
+  return useQuery({
+    queryKey: ["sponsorship-status", id],
+    queryFn: () => gqlRequest(SponsorshipStatusDocument, { id }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
 export function useAcceptSponsorship(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (index: number) => gqlRequest(AcceptSponsorshipDocument, { id, index }),
     networkMode: "always",
     onSuccess: () => {
-      // The accepted offer leaves the pending list and the signing bonus credits funds.
+      // The accepted offer leaves the pending list, the signing bonus credits funds, and the book grows.
       queryClient.invalidateQueries({ queryKey: ["sponsorships", id] });
+      queryClient.invalidateQueries({ queryKey: ["sponsorship-status", id] });
       queryClient.invalidateQueries({ queryKey: ["profile", id] });
     },
   });
