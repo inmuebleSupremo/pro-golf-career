@@ -71,7 +71,7 @@ public final class ApiMapper {
 
     public static SponsorshipOfferDto sponsorship(SponsorshipOffer o) {
         SponsorshipAgreement a = o.agreement();
-        return new SponsorshipOfferDto(a.sponsor(), a.perSeasonPayment(), a.signingBonus(),
+        return new SponsorshipOfferDto(a.sponsor(), a.industry(), a.perSeasonPayment(), a.signingBonus(),
                 a.durationSeasons(), o.grossValue());
     }
 

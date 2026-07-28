@@ -75,8 +75,8 @@ public class PlayerMutationController {
 
     @MutationMapping
     public boolean acceptSponsorship(@Argument String id, @Argument int index) {
-        worldService.acceptSponsorship(AuthenticatedUser.requireId(), id, index);
-        return true;
+        // Returns false when the concurrent-sponsorship cap blocks the sign, so the UI can explain it.
+        return worldService.acceptSponsorship(AuthenticatedUser.requireId(), id, index);
     }
 
     @MutationMapping

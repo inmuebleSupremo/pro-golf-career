@@ -10,8 +10,10 @@ import com.progolf.app.api.dto.HallOfFameDto;
 import com.progolf.app.api.dto.InjuryDto;
 import com.progolf.app.api.dto.PlayerFitnessDto;
 import com.progolf.app.api.dto.PlayerProfileDto;
+import com.progolf.app.api.dto.ActiveSponsorshipDto;
 import com.progolf.app.api.dto.EquipmentDealDto;
 import com.progolf.app.api.dto.EquipmentItemDto;
+import com.progolf.app.api.dto.SponsorshipStatusDto;
 import com.progolf.app.api.dto.NewsItemDto;
 import com.progolf.app.api.dto.RankingRowDto;
 import com.progolf.app.api.dto.RecordDto;
@@ -437,9 +439,20 @@ public class WorldService {
         return required(ownerId, sessionId).world().pendingSponsorships();
     }
 
-    /** Accepts a pending sponsorship offer by index. */
-    public void acceptSponsorship(String ownerId, String sessionId, int index) {
-        required(ownerId, sessionId).world().acceptSponsorship(index);
+    /** Accepts a pending sponsorship offer by index; returns false when the concurrent-agreement cap blocks it. */
+    public boolean acceptSponsorship(String ownerId, String sessionId, int index) {
+        return required(ownerId, sessionId).world().acceptSponsorship(index);
+    }
+
+    /** The player's sponsorship book: the concurrency cap and the currently-active (signed) agreements. */
+    public SponsorshipStatusDto sponsorshipStatus(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        int season = world.currentSeason();
+        List<ActiveSponsorshipDto> active = world.activeSponsorships().stream()
+                .map(a -> new ActiveSponsorshipDto(a.sponsor(), a.industry(), a.perSeasonPayment(),
+                        a.lastActiveSeason() - season + 1))
+                .toList();
+        return new SponsorshipStatusDto(world.maxConcurrentSponsorships(), active);
     }
 
     // --- Player staff & equipment (spec: player-control) ---

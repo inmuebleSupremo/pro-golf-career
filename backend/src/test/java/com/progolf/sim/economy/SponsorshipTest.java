@@ -33,7 +33,7 @@ class SponsorshipTest {
 
     @Test
     void agreementEvaluatePaysMetObjectivesAndReportsRenewal() {
-        SponsorshipAgreement a = new SponsorshipAgreement("Acme", 80_000, 40_000, 1, 3, List.of(
+        SponsorshipAgreement a = new SponsorshipAgreement("Acme", "Watches", 80_000, 40_000, 1, 3, List.of(
                 new SponsorshipObjective(ObjectiveType.PARTICIPATION, 3, 10_000),   // met
                 new SponsorshipObjective(ObjectiveType.WINS, 5, 10_000)));          // not met
         AgreementReview review = a.evaluate(snapshot(4, 1, 3, 2, 20, 1));
@@ -45,7 +45,7 @@ class SponsorshipTest {
 
     @Test
     void agreementActivityWindowIsInclusive() {
-        SponsorshipAgreement a = new SponsorshipAgreement("Acme", 80_000, 0, 2, 3, List.of());
+        SponsorshipAgreement a = new SponsorshipAgreement("Acme", "Watches", 80_000, 0, 2, 3, List.of());
         assertThat(a.lastActiveSeason()).isEqualTo(4);
         assertThat(a.isActiveIn(1)).isFalse();
         assertThat(a.isActiveIn(2)).isTrue();
@@ -56,7 +56,7 @@ class SponsorshipTest {
     @Test
     void agreementsConcludeIntoHistory() {
         FinancialAccount account = new FinancialAccount("g", 50_000, DAY);
-        account.signSponsorship(new SponsorshipAgreement("Acme", 80_000, 0, 1, 2, List.of()), DAY);
+        account.signSponsorship(new SponsorshipAgreement("Acme", "Watches", 80_000, 0, 1, 2, List.of()), DAY);
         assertThat(account.activeAgreements(1)).hasSize(1);
         account.concludeExpiredAgreements(2); // lastActive = 2
         assertThat(account.activeAgreements(3)).isEmpty();

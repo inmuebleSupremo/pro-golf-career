@@ -12,25 +12,45 @@ import java.util.List;
  */
 public final class SponsorshipMarket {
 
-    /** Offers available to a golfer of the given reputation for agreements starting in {@code startSeason}. */
+    /**
+     * Offers available to a golfer of the given reputation for agreements starting in {@code startSeason}.
+     * Each offer is from a distinct non-golf {@link SponsorBrand} matched to the golfer's commercial standing;
+     * the money scales with both the golfer's reputation and the brand's (hidden) luxury tier — so a bigger
+     * star attracts more prestigious brands paying far more.
+     */
     public List<SponsorshipOffer> generateOffers(CommercialReputation reputation, int startSeason, Rng rng) {
         int count = EconomyConstants.OFFER_BASE + (int) (reputation.score() * EconomyConstants.OFFER_REP_SPAN);
+        List<SponsorBrand> brands = shuffled(SponsorBrand.eligibleFor(reputation.tier()), rng);
         List<SponsorshipOffer> offers = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
+            SponsorBrand brand = brands.get(i % brands.size());
             double noise = 1.0 + rng.nextGaussian() * EconomyConstants.OFFER_VALUE_NOISE;
             double payment = Math.max(EconomyConstants.MIN_PAYMENT,
                     EconomyConstants.BASE_PAYMENT
                             * (1.0 + reputation.score() * EconomyConstants.PAYMENT_REP_SCALE)
+                            * brand.luxuryMultiplier()
                             * Math.max(0.25, noise));
             double signing = payment * EconomyConstants.SIGNING_FRACTION;
             int duration = EconomyConstants.MIN_DURATION
                     + (int) (rng.nextDouble() * (EconomyConstants.MAX_DURATION - EconomyConstants.MIN_DURATION + 1));
             List<SponsorshipObjective> objectives = generateObjectives(reputation, payment, rng);
-            SponsorshipAgreement agreement = new SponsorshipAgreement(
-                    "Sponsor-" + startSeason + "-" + i, payment, signing, startSeason, duration, objectives);
+            SponsorshipAgreement agreement = new SponsorshipAgreement(brand.displayName(), brand.industry().label(),
+                    payment, signing, startSeason, duration, objectives);
             offers.add(new SponsorshipOffer(agreement));
         }
         return offers;
+    }
+
+    /** A deterministic shuffle so a season's offers are distinct brands (until the eligible pool is exhausted). */
+    private static List<SponsorBrand> shuffled(List<SponsorBrand> source, Rng rng) {
+        List<SponsorBrand> copy = new ArrayList<>(source);
+        for (int i = copy.size() - 1; i > 0; i--) {
+            int j = (int) Math.floorMod(rng.nextLong(), i + 1);
+            SponsorBrand tmp = copy.get(i);
+            copy.set(i, copy.get(j));
+            copy.set(j, tmp);
+        }
+        return copy;
     }
 
     /** Higher-reputation offers carry more (and tougher) objectives, each rewarding a slice of payment. */

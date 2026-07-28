@@ -13,7 +13,7 @@ class AcceptancePolicyTest {
     private static final LocalDate DAY = LocalDate.of(2000, 1, 1);
 
     private static SponsorshipOffer offer(String name, double payment) {
-        return new SponsorshipOffer(new SponsorshipAgreement(name, payment, 0, 2, 2, List.of()));
+        return new SponsorshipOffer(new SponsorshipAgreement(name, "Watches", payment, 0, 2, 2, List.of()));
     }
 
     private static List<SponsorshipOffer> fiveOffers() {
@@ -53,7 +53,7 @@ class AcceptancePolicyTest {
     void acceptsNothingWhenSlotsAreFull() {
         FinancialAccount account = new FinancialAccount("g", 50_000, DAY);
         for (int i = 0; i < EconomyConstants.MAX_CONCURRENT_AGREEMENTS; i++) {
-            account.signSponsorship(new SponsorshipAgreement("S" + i, 50_000, 0, 2, 3, List.of()), DAY);
+            account.signSponsorship(new SponsorshipAgreement("S" + i, "Watches", 50_000, 0, 2, 3, List.of()), DAY);
         }
         assertThat(AcceptancePolicy.choose(account, fiveOffers(), 2)).isEmpty();
     }

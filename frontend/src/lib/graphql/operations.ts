@@ -507,6 +507,7 @@ export const PendingSponsorshipsDocument = graphql(`
   query PendingSponsorships($id: ID!) {
     pendingSponsorships(id: $id) {
       sponsor
+      industry
       perSeasonPayment
       signingBonus
       durationSeasons
@@ -515,7 +516,22 @@ export const PendingSponsorshipsDocument = graphql(`
   }
 `);
 
-/** Accepts a pending sponsorship offer by index. */
+/** The player's sponsorship book: the concurrency cap and the currently-active signed agreements. */
+export const SponsorshipStatusDocument = graphql(`
+  query SponsorshipStatus($id: ID!) {
+    sponsorshipStatus(id: $id) {
+      maxConcurrent
+      active {
+        sponsor
+        industry
+        perSeasonPayment
+        seasonsRemaining
+      }
+    }
+  }
+`);
+
+/** Accepts a pending sponsorship offer by index; returns false when the concurrency cap blocks it. */
 export const AcceptSponsorshipDocument = graphql(`
   mutation AcceptSponsorship($id: ID!, $index: Int!) {
     acceptSponsorship(id: $id, index: $index)

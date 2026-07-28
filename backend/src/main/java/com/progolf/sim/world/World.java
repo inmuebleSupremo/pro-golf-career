@@ -1581,7 +1581,7 @@ public final class World {
     }
 
     /** Accepts a pending sponsorship offer by index, signing it within the concurrent-agreement limit. */
-    public void acceptSponsorship(int index) {
+    public boolean acceptSponsorship(int index) {
         requirePlayer();
         if (index < 0 || index >= playerPendingOffers.size()) {
             throw new IndexOutOfBoundsException("No pending offer at index " + index);
@@ -1589,10 +1589,24 @@ public final class World {
         SponsorshipOffer offer = playerPendingOffers.get(index);
         FinancialAccount account = accounts.get(playerControl.golferId());
         int startSeason = offer.agreement().startSeason();
-        if (account.activeAgreementCount(startSeason) < EconomyConstants.MAX_CONCURRENT_AGREEMENTS) {
-            account.signSponsorship(offer.agreement(), calendar.currentDate());
-            playerPendingOffers.remove(index);
+        // The concurrent-agreement cap can block a sign (spec: sponsorship); report whether it went through so
+        // the UI can explain a full book rather than silently doing nothing.
+        if (account.activeAgreementCount(startSeason) >= EconomyConstants.MAX_CONCURRENT_AGREEMENTS) {
+            return false;
         }
+        account.signSponsorship(offer.agreement(), calendar.currentDate());
+        playerPendingOffers.remove(index);
+        return true;
+    }
+
+    /** The player's currently-active (signed) sponsorship agreements this season. */
+    public List<SponsorshipAgreement> activeSponsorships() {
+        return accounts.get(requirePlayer().golferId()).activeAgreements(calendar.currentSeason());
+    }
+
+    /** The maximum number of sponsorships a golfer may hold at once (the concurrent-agreement cap). */
+    public int maxConcurrentSponsorships() {
+        return EconomyConstants.MAX_CONCURRENT_AGREEMENTS;
     }
 
     // --- Staff (spec: player-control) ---

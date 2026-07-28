@@ -11,6 +11,7 @@ import java.util.Objects;
  */
 public record SponsorshipAgreement(
         String sponsor,
+        String industry,
         double perSeasonPayment,
         double signingBonus,
         int startSeason,
@@ -19,6 +20,7 @@ public record SponsorshipAgreement(
 
     public SponsorshipAgreement {
         Objects.requireNonNull(sponsor, "sponsor");
+        Objects.requireNonNull(industry, "industry");
         Objects.requireNonNull(objectives, "objectives");
         if (perSeasonPayment < 0 || signingBonus < 0) {
             throw new IllegalArgumentException("payment and signing bonus must be >= 0");

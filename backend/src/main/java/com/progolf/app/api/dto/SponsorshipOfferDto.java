@@ -5,6 +5,6 @@ package com.progolf.app.api.dto;
  * payment, the signing bonus, the duration in seasons, and the offer's gross value (the comparison figure the
  * acceptance policy uses). Projects {@code sim.economy.SponsorshipOffer} / its agreement.
  */
-public record SponsorshipOfferDto(String sponsor, double perSeasonPayment, double signingBonus,
+public record SponsorshipOfferDto(String sponsor, String industry, double perSeasonPayment, double signingBonus,
                                   int durationSeasons, double grossValue) {
 }
