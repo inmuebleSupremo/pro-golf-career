@@ -1,6 +1,7 @@
 package com.progolf.sim.world;
 
 import com.progolf.sim.course.Course;
+import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.tour.TourTier;
 import com.progolf.sim.tournament.EventPrestige;
 
@@ -22,6 +23,17 @@ final class EventNaming {
     private EventNaming() {
     }
 
+    /**
+     * The visual character of a course, used only to pick the play/hub scene backdrop (spec: play-event
+     * imagery). A superset of {@link EnvironmentClassification} — it adds {@code TROPICAL} (a Florida-style
+     * feel that the sim has no separate classification for) and folds WOODLAND into PARKLAND for imagery.
+     * Authored per curated Pro event below; derived from the host course's classification for the (procedural)
+     * Development tour, whose region now matches its classification.
+     */
+    enum Scene {
+        PARKLAND, LINKS, DESERT, TROPICAL, MOUNTAIN, COASTAL
+    }
+
     /** Fixed fictional major names, in season order — evocative of the four real majors without copying them. */
     static final String[] MAJOR_NAMES = {
             "The Grandmaster Invitational", // early-season invitational
@@ -41,11 +53,22 @@ final class EventNaming {
             "Kentucky",  // The Continental Championship → the PGA Championship
     };
 
+    /** Scene backdrops for the majors, parallel to {@link #MAJOR_LOCATIONS} — the seaside major is a links, the rest parkland. */
+    static final Scene[] MAJOR_SCENES = {
+            Scene.PARKLAND, // Georgia (Augusta-style parkland)
+            Scene.PARKLAND, // New York
+            Scene.LINKS,    // Scotland (the seaside/links test)
+            Scene.PARKLAND, // Kentucky
+    };
+
     /** The Pro tour's season-ending Tour Championship location — fixed (a nod to East Lake, Atlanta). */
     static final String PRO_CHAMPIONSHIP_LOCATION = "Georgia";
 
-    /** One fixed Pro-tour event: a stable name + location so the top tour reads the same every season. */
-    record ProEvent(String name, String location) {
+    /** The Pro Tour Championship's scene — parkland (East Lake, Atlanta). */
+    static final Scene PRO_CHAMPIONSHIP_SCENE = Scene.PARKLAND;
+
+    /** One fixed Pro-tour event: a stable name, location, and scene so the top tour reads the same every season. */
+    record ProEvent(String name, String location, Scene scene) {
     }
 
     /**
@@ -58,21 +81,21 @@ final class EventNaming {
      * (modulo) — add or trim entries to keep a clean one-to-one. Edit freely.
      */
     static final ProEvent[] PRO_EVENTS = {
-            new ProEvent("Lone Star Invitational", "Texas"),               // ~ Valero Texas Open
-            new ProEvent("Coastal Heritage Classic", "South Carolina"),    // ~ RBC Heritage
-            new ProEvent("Sunshine State Showdown", "Florida"),            // ~ Florida spring swing
-            new ProEvent("Queen City Championship", "North Carolina"),     // ~ Truist Championship (Quail Hollow)
-            new ProEvent("Irish Links Open", "Ireland"),                   // ~ Irish Open
-            new ProEvent("Great Lakes Classic", "Michigan"),               // ~ Detroit-area events
-            new ProEvent("Canadian National Open", "Ontario"),             // ~ RBC Canadian Open
-            new ProEvent("New England Invitational", "Connecticut"),       // ~ Travelers Championship
-            new ProEvent("Prairie State Open", "Illinois"),                // ~ John Deere Classic
-            new ProEvent("Links of Britain Championship", "Scotland"),     // ~ Scottish Open / Open window
-            new ProEvent("Twin Cities Classic", "Minnesota"),              // ~ 3M Open
-            new ProEvent("Old North State Championship", "North Carolina"), // ~ Wyndham Championship
-            new ProEvent("Mississippi Valley Invitational", "Tennessee"),  // ~ FedEx St. Jude (Memphis)
-            new ProEvent("Blue Ridge Mountain Open", "North Carolina"),    // ~ Asheville-area event
-            new ProEvent("Desert Mountain Challenge", "Utah"),             // ~ Bank of Utah Championship
+            new ProEvent("Lone Star Invitational", "Texas", Scene.PARKLAND),               // ~ Valero Texas Open
+            new ProEvent("Coastal Heritage Classic", "South Carolina", Scene.COASTAL),     // ~ RBC Heritage
+            new ProEvent("Sunshine State Showdown", "Florida", Scene.TROPICAL),            // ~ Florida spring swing
+            new ProEvent("Queen City Championship", "North Carolina", Scene.PARKLAND),     // ~ Truist Championship (Quail Hollow)
+            new ProEvent("Irish Links Open", "Ireland", Scene.LINKS),                      // ~ Irish Open
+            new ProEvent("Great Lakes Classic", "Michigan", Scene.PARKLAND),               // ~ Detroit-area events
+            new ProEvent("Canadian National Open", "Ontario", Scene.PARKLAND),             // ~ RBC Canadian Open
+            new ProEvent("New England Invitational", "Connecticut", Scene.PARKLAND),       // ~ Travelers Championship
+            new ProEvent("Prairie State Open", "Illinois", Scene.PARKLAND),                // ~ John Deere Classic
+            new ProEvent("Links of Britain Championship", "Scotland", Scene.LINKS),        // ~ Scottish Open / Open window
+            new ProEvent("Twin Cities Classic", "Minnesota", Scene.PARKLAND),              // ~ 3M Open
+            new ProEvent("Old North State Championship", "North Carolina", Scene.PARKLAND), // ~ Wyndham Championship
+            new ProEvent("Mississippi Valley Invitational", "Tennessee", Scene.PARKLAND),  // ~ FedEx St. Jude (Memphis)
+            new ProEvent("Blue Ridge Mountain Open", "North Carolina", Scene.MOUNTAIN),    // ~ Asheville-area event
+            new ProEvent("Desert Mountain Challenge", "Utah", Scene.DESERT),               // ~ Bank of Utah Championship
     };
 
     /**
@@ -103,6 +126,38 @@ final class EventNaming {
             case SIGNATURE, REGULAR -> proEventOrdinal >= 0
                     ? PRO_EVENTS[Math.floorMod(proEventOrdinal, PRO_EVENTS.length)].location()
                     : course.identity().region();
+        };
+    }
+
+    /**
+     * The scene backdrop token for an event (spec: play-event imagery). Curated Pro events carry an authored
+     * scene so their place, name, and imagery always agree (a Scotland major is a links, a Florida stop is
+     * tropical) regardless of the host course's generated classification; the Development tour derives the
+     * scene from its host course's classification, which its region already matches. Returned as the enum
+     * name, e.g. {@code "LINKS"}.
+     */
+    static String courseType(EventPrestige prestige, TourTier tier, Course course, int majorOrdinal,
+                             int proEventOrdinal) {
+        return switch (prestige) {
+            case MAJOR -> MAJOR_SCENES[Math.floorMod(majorOrdinal, MAJOR_SCENES.length)].name();
+            case TOUR_CHAMPIONSHIP -> tier == TourTier.PRO
+                    ? PRO_CHAMPIONSHIP_SCENE.name()
+                    : sceneFor(course).name();
+            case SIGNATURE, REGULAR -> proEventOrdinal >= 0
+                    ? PRO_EVENTS[Math.floorMod(proEventOrdinal, PRO_EVENTS.length)].scene().name()
+                    : sceneFor(course).name();
+        };
+    }
+
+    /** The scene for a procedurally-generated course, from its environment (WOODLAND reads as parkland imagery). */
+    private static Scene sceneFor(Course course) {
+        EnvironmentClassification classification = course.identity().classification();
+        return switch (classification) {
+            case LINKS -> Scene.LINKS;
+            case DESERT -> Scene.DESERT;
+            case MOUNTAIN -> Scene.MOUNTAIN;
+            case COASTAL -> Scene.COASTAL;
+            case PARKLAND, WOODLAND -> Scene.PARKLAND;
         };
     }
 

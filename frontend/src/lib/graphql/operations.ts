@@ -104,6 +104,7 @@ export const CareerOverviewDocument = graphql(`
       entered
       name
       location
+      courseType
     }
     newsFeed(id: $id, limit: 12) {
       season
@@ -301,6 +302,7 @@ export const PlayerScheduleDocument = graphql(`
       entered
       name
       location
+      courseType
     }
   }
 `);
@@ -583,6 +585,11 @@ export const PlayStateDocument = graphql(`
       pinLateral
       minReach
       maxReach
+    }
+    currentEvent(id: $id) {
+      name
+      location
+      courseType
     }
     eventLeaderboard(id: $id) {
       position

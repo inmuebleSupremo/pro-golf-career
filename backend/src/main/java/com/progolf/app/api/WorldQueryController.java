@@ -3,6 +3,7 @@ package com.progolf.app.api;
 import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
 import com.progolf.app.api.dto.PlayerDevelopmentDto;
+import com.progolf.app.api.dto.CurrentEventDto;
 import com.progolf.app.api.dto.EquipmentDealDto;
 import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.HallOfFameDto;
@@ -248,6 +249,15 @@ public class WorldQueryController {
         // the service returns null, which maps to a null situation rather than being mapped as a shot.
         var situation = worldService.currentSituation(owner, id);
         return situation == null ? null : ApiMapper.situation(situation);
+    }
+
+    @QueryMapping
+    public CurrentEventDto currentEvent(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPendingEvent(owner, id)) {
+            return null;
+        }
+        return worldService.currentEvent(owner, id);
     }
 
     @QueryMapping
