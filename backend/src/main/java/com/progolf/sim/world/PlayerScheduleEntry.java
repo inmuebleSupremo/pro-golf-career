@@ -11,12 +11,13 @@ import java.util.Objects;
  * choice, independent of transient health). Immutable.
  */
 public record PlayerScheduleEntry(long tournamentId, int week, TourTier tier, EventPrestige prestige,
-                                  boolean entered, String name, String location) {
+                                  boolean entered, String name, String location, String courseType) {
 
     public PlayerScheduleEntry {
         Objects.requireNonNull(tier, "tier");
         Objects.requireNonNull(prestige, "prestige");
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(location, "location");
+        Objects.requireNonNull(courseType, "courseType");
     }
 }

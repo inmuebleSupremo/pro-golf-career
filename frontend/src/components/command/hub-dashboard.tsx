@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { Check, MapPin, Play, Trophy } from "lucide-react";
 
 import { Card, CardHeader } from "@/components/command/card";
+import { sceneBackdrop } from "@/lib/play/scene";
 import { useCareerOverview, useHallOfFame, usePlayerProfile } from "@/lib/api/queries";
 import {
   attributeShortLabel,
@@ -63,6 +65,7 @@ export function HubDashboard({ id }: { id: string }) {
   const nextEvent = (data.playerSchedule ?? [])
     .filter((e) => e.entered && e.week >= world.week)
     .sort((a, b) => a.week - b.week)[0];
+  const eventBackdrop = nextEvent ? sceneBackdrop(nextEvent.courseType, nextEvent.name) : null;
   const attrs = profile?.attributes ?? [];
   const overall = attrs.length
     ? (attrs.reduce((s, a) => s + a.value, 0) / attrs.length).toFixed(1)
@@ -81,37 +84,55 @@ export function HubDashboard({ id }: { id: string }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Next event — the hero portal */}
         <Card href={`/career/${id}/play`} className="sm:col-span-2">
-          <div className="-m-5 mb-0 flex flex-col gap-3 rounded-t-xl border-b border-[var(--border)] bg-[radial-gradient(130%_170%_at_88%_0%,color-mix(in_oklch,var(--gold),transparent_86%),transparent_52%)] p-5">
-            <div className="flex flex-wrap items-center gap-2">
-              {nextEvent && nextEvent.prestige === "MAJOR" ? (
-                <span className="gold-metal gold-shine inline-flex rounded-md px-2 py-1 text-[0.65rem] font-bold tracking-wide uppercase">
-                  ◆ Major
-                </span>
-              ) : nextEvent ? (
-                <span className="border-info/30 bg-info/10 text-info inline-flex rounded-md border px-2 py-1 text-[0.65rem] font-bold tracking-wide uppercase">
-                  {eventPrestigeLabel(nextEvent.prestige)}
-                </span>
+          <div className="relative isolate -m-5 mb-0 overflow-hidden rounded-t-xl border-b border-[var(--border)] p-5">
+            {nextEvent && eventBackdrop ? (
+              <>
+                {/* The event's course scene, matched to its style/place — the same imagery the play screen uses. */}
+                <Image
+                  src={eventBackdrop.src}
+                  alt=""
+                  fill
+                  sizes="(min-width: 640px) 50vw, 100vw"
+                  className="object-cover object-center"
+                />
+                <div className="from-surface-elevated via-surface-elevated/80 absolute inset-0 bg-gradient-to-t to-transparent" />
+                <div className="from-surface-elevated/70 absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent" />
+              </>
+            ) : (
+              <div className="absolute inset-0 bg-[radial-gradient(130%_170%_at_88%_0%,color-mix(in_oklch,var(--gold),transparent_86%),transparent_52%)]" />
+            )}
+            <div className="relative flex min-h-[8.5rem] flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {nextEvent && nextEvent.prestige === "MAJOR" ? (
+                  <span className="gold-metal gold-shine inline-flex rounded-md px-2 py-1 text-[0.65rem] font-bold tracking-wide uppercase">
+                    ◆ Major
+                  </span>
+                ) : nextEvent ? (
+                  <span className="border-info/30 bg-info/10 text-info inline-flex rounded-md border px-2 py-1 text-[0.65rem] font-bold tracking-wide uppercase backdrop-blur-sm">
+                    {eventPrestigeLabel(nextEvent.prestige)}
+                  </span>
+                ) : null}
+                {nextEvent && (
+                  <span className="border-info/30 bg-info/10 text-info inline-flex rounded-md border px-2 py-1 text-[0.65rem] font-bold tracking-wide uppercase backdrop-blur-sm">
+                    {tourTierLabel(nextEvent.tier)}
+                  </span>
+                )}
+              </div>
+              <h2 className="text-[1.55rem] leading-[1.08] font-bold tracking-[-0.03em] text-balance">
+                {nextEvent ? nextEvent.name : "No upcoming events"}
+              </h2>
+              {nextEvent ? (
+                <p className="text-muted-foreground flex items-center gap-1 text-[0.8rem] font-medium">
+                  <MapPin className="size-3.5" aria-hidden="true" />
+                  {nextEvent.location}
+                </p>
               ) : null}
-              {nextEvent && (
-                <span className="border-info/30 bg-info/10 text-info inline-flex rounded-md border px-2 py-1 text-[0.65rem] font-bold tracking-wide uppercase">
-                  {tourTierLabel(nextEvent.tier)}
-                </span>
-              )}
-            </div>
-            <h2 className="text-[1.55rem] leading-[1.08] font-bold tracking-[-0.03em] text-balance">
-              {nextEvent ? nextEvent.name : "No upcoming events"}
-            </h2>
-            {nextEvent ? (
-              <p className="text-muted-foreground flex items-center gap-1 text-[0.8rem] font-medium">
-                <MapPin className="size-3.5" aria-hidden="true" />
-                {nextEvent.location}
+              <p className="text-subtle-foreground mt-auto text-[0.8rem]">
+                {nextEvent
+                  ? `Week ${nextEvent.week} · ${tourTierLabel(nextEvent.tier)}`
+                  : "You've played or skipped every event on the calendar."}
               </p>
-            ) : null}
-            <p className="text-subtle-foreground text-[0.8rem]">
-              {nextEvent
-                ? `Week ${nextEvent.week} · ${tourTierLabel(nextEvent.tier)}`
-                : "You've played or skipped every event on the calendar."}
-            </p>
+            </div>
           </div>
           <div className="mt-auto flex items-center gap-3 pt-5">
             {world.hasPendingEvent ? (

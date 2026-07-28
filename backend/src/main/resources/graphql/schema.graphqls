@@ -82,6 +82,9 @@ type Query {
     "The current shot situation in a paused player event; null when no event is pending."
     currentSituation(id: ID!): ShotSituation
 
+    "Presentation context for the paused player event — its name, place, and host course type; null when no event is pending."
+    currentEvent(id: ID!): CurrentEvent
+
     "The live leaderboard for a paused player event; empty when no event is pending."
     eventLeaderboard(id: ID!): [LeaderboardRow!]!
 
@@ -209,6 +212,8 @@ type ScheduleEntry {
     name: String!
     "The event's place — a major's hinting location, or the host course's region."
     location: String!
+    "The host course's environment classification (e.g. PARKLAND, LINKS, DESERT) — drives scene imagery."
+    courseType: String!
 }
 
 type CalendarEntry {
@@ -483,6 +488,15 @@ type HoleScore {
     holeNumber: Int!
     par: Int!
     strokes: Int!
+}
+
+type CurrentEvent {
+    "The event's realistic display name."
+    name: String!
+    "The event's place — a major's hinting location, or the host course's region."
+    location: String!
+    "The host course's environment classification (e.g. PARKLAND, LINKS, DESERT, MOUNTAIN) — drives scene imagery."
+    courseType: String!
 }
 
 type ShotSituation {

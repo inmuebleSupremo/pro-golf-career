@@ -1158,6 +1158,13 @@ public final class World {
                 proEventOrdinal(event));
     }
 
+    /** The scene backdrop token for an event (spec: play-event imagery) — authored for curated Pro events, from the host course's environment for the Development tour. */
+    public String courseTypeFor(ScheduledTournament event) {
+        Course course = coursePool.get(event.courseIndex());
+        return EventNaming.courseType(event.prestige(), event.tier(), course, majorOrdinal(event),
+                proEventOrdinal(event));
+    }
+
     /**
      * An event's 0-based position among the Pro tour's non-major, non-championship events (-1 when it is not
      * one), stable by week then id — the index into the fixed {@link EventNaming#PRO_EVENTS} calendar, so the
@@ -1569,7 +1576,8 @@ public final class World {
                     || tier.map(t -> t == event.tier()).orElse(false);
             if (eligibleByTour) {
                 out.add(new PlayerScheduleEntry(event.tournamentId(), event.week(), event.tier(),
-                        event.prestige(), !playerSitsOut(event), nameFor(event), locationFor(event)));
+                        event.prestige(), !playerSitsOut(event), nameFor(event), locationFor(event),
+                        courseTypeFor(event)));
             }
         }
         return out;
@@ -1793,6 +1801,23 @@ public final class World {
             throw new IllegalStateException("No player event is pending");
         }
         return pendingEvent.event();
+    }
+
+    /**
+     * Presentation context for the player's pending interactive event (spec: playable-event) — its display
+     * name and place (the same deterministic name/location the schedule shows) and its scene-backdrop token,
+     * which the play screen uses to pick a scene backdrop. Empty when no event is pending.
+     */
+    public Optional<PendingEventScene> currentEventScene() {
+        if (pendingEvent == null) {
+            return Optional.empty();
+        }
+        ScheduledTournament event = pendingEvent.built().event();
+        return Optional.of(new PendingEventScene(nameFor(event), locationFor(event), courseTypeFor(event)));
+    }
+
+    /** Descriptive context for a pending interactive event: display name, place, and course-type name. */
+    public record PendingEventScene(String name, String location, String courseType) {
     }
 
     /** The event built for the player, plus the paused week's position, held while the event is in progress. */

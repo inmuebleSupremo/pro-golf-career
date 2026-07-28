@@ -2,6 +2,7 @@ package com.progolf.app.world;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.progolf.app.api.dto.CurrentEventDto;
 import com.progolf.app.persistence.FilesystemSaveGameStore;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
@@ -51,6 +52,14 @@ class WorldServiceFinishedEventReadTest {
             assertThat(service.eventLeaderboard(OWNER, id))
                     .as("event #%d final leaderboard is still readable", played + 1)
                     .isNotEmpty();
+
+            // The play surface reads currentEvent for its scene backdrop; a pending event always exposes a
+            // name, place, and host course type (the last drives the imagery).
+            CurrentEventDto currentEvent = service.currentEvent(OWNER, id);
+            assertThat(currentEvent).as("event #%d exposes presentation context", played + 1).isNotNull();
+            assertThat(currentEvent.name()).isNotBlank();
+            assertThat(currentEvent.location()).isNotBlank();
+            assertThat(currentEvent.courseType()).isNotBlank();
 
             service.completeEvent(OWNER, id); // "Finish event" — resumes the week, autosaves.
             played++;

@@ -2,6 +2,7 @@ package com.progolf.app.world;
 
 import com.progolf.app.api.dto.AttributeValueDto;
 import com.progolf.app.api.dto.CalendarEntryDto;
+import com.progolf.app.api.dto.CurrentEventDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
 import com.progolf.app.api.dto.PlayerDevelopmentDto;
 import com.progolf.app.api.dto.EventResultDto;
@@ -613,6 +614,17 @@ public class WorldService {
     public ShotSituation currentSituation(String ownerId, String sessionId) {
         PlayableEvent event = playerEvent(ownerId, sessionId);
         return event.isComplete() ? null : event.situation();
+    }
+
+    /**
+     * Presentation context for the player's pending event — its display name, place, and host course type —
+     * or {@code null} when no event is pending. The play surface reads it to title the screen and choose a
+     * scene backdrop.
+     */
+    public CurrentEventDto currentEvent(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().currentEventScene()
+                .map(s -> new CurrentEventDto(s.name(), s.location(), s.courseType()))
+                .orElse(null);
     }
 
     /** The live field leaderboard for the player's event. */

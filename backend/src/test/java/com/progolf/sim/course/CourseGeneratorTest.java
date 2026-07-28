@@ -41,6 +41,22 @@ class CourseGeneratorTest {
     }
 
     @Test
+    void regionCorrelatesWithClassification() {
+        // A course's place must evoke its environment (the Development tour surfaces this region as the event's
+        // location, so it can't read "Ayrshire" on a desert course). Prove correlation without pinning the exact
+        // pools: the regions a classification produces are disjoint from another's, and stable per classification.
+        java.util.Set<String> desert = new java.util.HashSet<>();
+        java.util.Set<String> links = new java.util.HashSet<>();
+        for (long seed = 0; seed < 60; seed++) {
+            desert.add(generate(seed, EnvironmentClassification.DESERT).identity().region());
+            links.add(generate(seed, EnvironmentClassification.LINKS).identity().region());
+        }
+        assertThat(desert).isNotEmpty();
+        assertThat(links).isNotEmpty();
+        assertThat(desert).doesNotContainAnyElementsOf(links);
+    }
+
+    @Test
     void sameSeedAndVersionReproducesIdenticalCourse() {
         Course a = generate(7, EnvironmentClassification.LINKS);
         Course b = generate(7, EnvironmentClassification.LINKS);
