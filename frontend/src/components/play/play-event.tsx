@@ -150,18 +150,17 @@ export function PlayEvent({ id }: { id: string }) {
         <PressureBanner pressure={pressure} round={scorecard?.roundNumber ?? null} />
         <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
           <div className="flex flex-col gap-6">
-            <HoleStage hole={playingHole} situation={situation} ball={lastShot} backdrop={backdrop} />
+            <HoleStage
+              id={id}
+              hole={playingHole}
+              situation={situation}
+              ball={lastShot}
+              backdrop={backdrop}
+              onShot={setLastShot}
+            />
             {scorecard && scorecard.holes.length > 0 ? (
               <ScorecardStrip scorecard={scorecard} />
             ) : null}
-            <SituationPanel situation={situation} />
-            <ShotDecision
-              key={`${situation.holeNumber}-${situation.shotNumber}`}
-              id={id}
-              situation={situation}
-              onShot={setLastShot}
-            />
-            <SimControls id={id} onShot={setLastShot} />
           </div>
           <Leaderboard rows={leaderboard} playerGolferId={playerGolferId} />
         </div>
@@ -334,49 +333,75 @@ function HoleCell({ hole }: { hole: HoleScore }) {
 }
 
 /**
- * The persistent 2D play surface: the parametric hole schematic (spec: web-hole-visualization) with the reach
- * overlay and shot playback, introduced by the receding scene flyover. Renders nothing until the hole geometry
- * loads — the stat panel and controls below stay usable meanwhile.
+ * The play console (spec: web-hole-visualization): the parametric hole schematic with reach overlay and shot
+ * playback on one side, and the situation + shot/skip controls on the other — so the player acts and watches the
+ * outcome without scrolling. The scene flyover introduces each hole over the hole panel, then recedes. Controls
+ * stay usable while the hole geometry loads (the panel shows a placeholder).
  */
 function HoleStage({
+  id,
   hole,
   situation,
   ball,
   backdrop,
+  onShot,
 }: {
+  id: string;
   hole: HoleGeom | null;
   situation: Situation;
   ball: Outcome | null;
   backdrop: SceneBackdrop;
+  onShot: (outcome: Outcome) => void;
 }) {
-  if (!hole) return null;
   const reach = { distanceToPin: situation.distanceToPin, min: situation.minReach, max: situation.maxReach };
   const shot: ResolvedShot | null = ball
     ? { finalSurface: ball.finalSurface, carry: ball.carry, lateral: ball.lateral, distanceRemaining: ball.distanceRemaining }
     : null;
   return (
-    <section className="border-border bg-surface relative isolate flex justify-center overflow-hidden rounded-lg border">
-      <Hole2d hole={hole} reach={reach} ball={shot} className="block max-h-[30rem] w-auto" />
-      <HoleFlyover holeNumber={hole.holeNumber} par={hole.par} length={hole.length} backdrop={backdrop} />
+    <section className="border-border bg-surface overflow-hidden rounded-lg border">
+      <div className="flex flex-col lg:flex-row">
+        {/* The hole — with the receding scene flyover scoped to this panel so controls stay live */}
+        <div className="border-border bg-background relative isolate flex shrink-0 items-center justify-center border-b p-3 lg:w-72 lg:border-r lg:border-b-0">
+          {hole ? (
+            <Hole2d hole={hole} reach={reach} ball={shot} className="block max-h-[26rem] w-auto" />
+          ) : (
+            <div className="bg-surface-2 aspect-[1/2] w-40 animate-pulse rounded-md" />
+          )}
+          {hole ? (
+            <HoleFlyover holeNumber={hole.holeNumber} par={hole.par} length={hole.length} backdrop={backdrop} />
+          ) : null}
+        </div>
+        {/* The controls — filling the space beside the hole */}
+        <div className="flex min-w-0 flex-1 flex-col gap-5 p-6">
+          <SituationSummary situation={situation} />
+          <ShotDecision
+            key={`${situation.holeNumber}-${situation.shotNumber}`}
+            id={id}
+            situation={situation}
+            onShot={onShot}
+          />
+          <div className="border-border border-t pt-5">
+            <SimControls id={id} onShot={onShot} />
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
 
-function SituationPanel({ situation }: { situation: Situation }) {
+function SituationSummary({ situation }: { situation: Situation }) {
   return (
-    <section className="border-border bg-surface rounded-lg border p-6">
+    <div className="flex flex-col gap-4">
       <div className="flex items-baseline justify-between">
-        <h1 className="font-serif text-3xl font-medium tracking-[-0.01em]">
-          Hole {situation.holeNumber}
-        </h1>
-        <span className="text-muted-foreground">Par {situation.par}</span>
+        <h2 className="font-serif text-2xl font-medium tracking-[-0.01em]">Hole {situation.holeNumber}</h2>
+        <span className="text-muted-foreground text-sm">Par {situation.par}</span>
       </div>
-      <div className="mt-5 grid grid-cols-3 gap-4">
-        <Stat label="Distance to pin" value={String(Math.round(situation.distanceToPin))} />
+      <div className="grid grid-cols-3 gap-4">
+        <Stat label="To pin" value={String(Math.round(situation.distanceToPin))} />
         <Stat label="Lie" value={humanize(situation.lie)} />
         <Stat label="Shot" value={`#${situation.shotNumber}`} />
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -431,7 +456,7 @@ function ShotDecision({
   }
 
   return (
-    <section className="border-border bg-surface flex flex-col gap-5 rounded-lg border p-6">
+    <div className="flex flex-col gap-5">
       <h2 className="font-serif text-xl font-medium">Your shot</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="club" label="Club">
@@ -472,7 +497,7 @@ function ShotDecision({
         {play.isPending ? "Playing…" : "Play shot"}
       </Button>
       {outcome ? <OutcomeNote outcome={outcome} /> : null}
-    </section>
+    </div>
   );
 }
 
@@ -519,7 +544,7 @@ function SimControls({ id, onShot }: { id: string; onShot: (outcome: Outcome) =>
   }
 
   return (
-    <section className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <span className="text-muted-foreground text-sm">Skip ahead</span>
       <Button variant="secondary" size="sm" disabled={busy} onClick={onSimShot}>
         Sim shot
@@ -533,7 +558,7 @@ function SimControls({ id, onShot }: { id: string; onShot: (outcome: Outcome) =>
       <Button variant="secondary" size="sm" disabled={busy} onClick={() => simEvent.mutate()}>
         Sim to end
       </Button>
-    </section>
+    </div>
   );
 }
 
