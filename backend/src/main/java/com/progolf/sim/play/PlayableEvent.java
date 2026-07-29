@@ -3,6 +3,9 @@ package com.progolf.sim.play;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.course.Course;
 import com.progolf.sim.course.CourseSetup;
+import com.progolf.sim.course.EnvironmentClassification;
+import com.progolf.sim.course.GeneratedHole;
+import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.player.DecisionPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.shot.Environment;
@@ -83,6 +86,41 @@ public final class PlayableEvent {
     public ShotSituation situation() {
         requireActive();
         return phase == Phase.PLAYOFF ? currentPlayoffHole.situation() : currentRound.situation();
+    }
+
+    // --- Presentation geometry (spec: web-hole-visualization): the hole being played, for rendering ---
+
+    /** The generated geometry of the hole the player is currently on. */
+    public GeneratedHole currentHole() {
+        return holeGeometry(situation().holeNumber());
+    }
+
+    /**
+     * The active pin for the hole the player is currently on, under this event's setup — the exact pin the
+     * played {@link com.progolf.sim.shot.HoleModel} carries, so a rendered flag matches the resolved shot.
+     */
+    public PinPosition currentPin() {
+        return pinAt(situation().holeNumber());
+    }
+
+    /** The generated geometry of hole {@code holeNumber} (1..18) on this event's course. */
+    public GeneratedHole holeGeometry(int holeNumber) {
+        return course.holes().get(holeNumber - 1);
+    }
+
+    /** The active pin for hole {@code holeNumber} in the round currently in progress, under this event's setup. */
+    public PinPosition pinAt(int holeNumber) {
+        return holeGeometry(holeNumber).pinFor(currentPinRound(), setup);
+    }
+
+    /** The host course's environment classification (biome), for presentation styling. */
+    public EnvironmentClassification classification() {
+        return course.identity().classification();
+    }
+
+    /** The round whose pin is live — the playoff round during a playoff, otherwise the round in play. */
+    private int currentPinRound() {
+        return phase == Phase.PLAYOFF ? (int) tournament.playoffRound() : currentRoundNo;
     }
 
     /** Plays the current shot with the human's decision. */

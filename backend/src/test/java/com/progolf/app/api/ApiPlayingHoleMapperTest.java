@@ -1,0 +1,108 @@
+package com.progolf.app.api;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.progolf.app.api.dto.PlayingHoleDto;
+import com.progolf.app.api.dto.ShotSituationDto;
+import com.progolf.sim.core.SeedCoordinate;
+import com.progolf.sim.course.Course;
+import com.progolf.sim.course.CourseGenerator;
+import com.progolf.sim.course.EnvironmentClassification;
+import com.progolf.sim.course.GeneratedHole;
+import com.progolf.sim.course.PinPosition;
+import com.progolf.sim.play.ShotSituation;
+import com.progolf.sim.shot.HoleModel;
+import com.progolf.sim.spatial.ShotZoneProfile;
+import com.progolf.sim.spatial.Surface;
+import org.junit.jupiter.api.Test;
+
+/**
+ * graphql-api / web-hole-visualization: {@link ApiMapper} projects a hole's geometry and the active round's pin
+ * to {@link PlayingHoleDto}, and the shot situation's reachable surface profile to bands — faithfully mirroring
+ * the engine records the resolver uses, with no engine type on the schema (guarded separately by ApiBoundaryTest).
+ */
+class ApiPlayingHoleMapperTest {
+
+    private static final EnvironmentClassification CLASSIFICATION = EnvironmentClassification.PARKLAND;
+
+    private static Course course(long seed) {
+        return CourseGenerator.generate(new SeedCoordinate(seed, 0, 0, 0, 0, 0, 0), CLASSIFICATION);
+    }
+
+    @Test
+    void playingHoleCarriesGeometryPinAndStableSeed() {
+        GeneratedHole hole = course(1234L).holes().get(0);
+        PinPosition pin = hole.pinFor(1);
+
+        PlayingHoleDto dto = ApiMapper.playingHole(hole, pin, CLASSIFICATION);
+
+        assertThat(dto.holeNumber()).isEqualTo(hole.number());
+        assertThat(dto.par()).isEqualTo(hole.par());
+        assertThat(dto.length()).isEqualTo(hole.length());
+        assertThat(dto.fairwayHalfWidth()).isEqualTo(hole.fairwayHalfWidth());
+        assertThat(dto.greenHalfWidth()).isEqualTo(hole.greenHalfWidth());
+        assertThat(dto.greenDepth()).isEqualTo(hole.greenDepth());
+        assertThat(dto.elevationDelta()).isEqualTo(hole.elevationDelta());
+        assertThat(dto.hasGreensideBunker()).isEqualTo(hole.hasGreensideBunker());
+        assertThat(dto.hasWater()).isEqualTo(hole.hasWater());
+        assertThat(dto.hasTrees()).isEqualTo(hole.hasTrees());
+        assertThat(dto.pinLateral()).isEqualTo(pin.lateralOffset());
+        assertThat(dto.pinDepth()).isEqualTo(pin.depthOffset());
+        assertThat(dto.courseType()).isEqualTo(CLASSIFICATION.name());
+        assertThat(dto.layoutSeed()).isEqualTo(Long.toString(hole.holeSeed()));
+    }
+
+    @Test
+    void pinReflectsTheActiveRoundWhileGeometryIsConstant() {
+        GeneratedHole hole = course(1234L).holes().get(3);
+
+        PlayingHoleDto round1 = ApiMapper.playingHole(hole, hole.pinFor(1), CLASSIFICATION);
+        PlayingHoleDto round2 = ApiMapper.playingHole(hole, hole.pinFor(2), CLASSIFICATION);
+
+        // Dimensions and hazard flags are identical across rounds...
+        assertThat(round2.length()).isEqualTo(round1.length());
+        assertThat(round2.greenHalfWidth()).isEqualTo(round1.greenHalfWidth());
+        assertThat(round2.greenDepth()).isEqualTo(round1.greenDepth());
+        assertThat(round2.hasWater()).isEqualTo(round1.hasWater());
+        // ...while each DTO carries its own round's pin.
+        assertThat(round1.pinLateral()).isEqualTo(hole.pinFor(1).lateralOffset());
+        assertThat(round2.pinLateral()).isEqualTo(hole.pinFor(2).lateralOffset());
+    }
+
+    @Test
+    void layoutSeedIsStableAcrossSessions() {
+        // Same world seed -> same generated course -> same hole seed -> same layout seed.
+        GeneratedHole first = course(777L).holes().get(5);
+        GeneratedHole second = course(777L).holes().get(5);
+
+        assertThat(ApiMapper.playingHole(second, second.pinFor(1), CLASSIFICATION).layoutSeed())
+                .isEqualTo(ApiMapper.playingHole(first, first.pinFor(1), CLASSIFICATION).layoutSeed());
+    }
+
+    @Test
+    void reachableSurfacesMirrorTheResolverProfile() {
+        GeneratedHole hole = course(2468L).holes().get(0);
+        HoleModel model = hole.forRound(1);
+        double remaining = 150.0;
+        ShotZoneProfile profile = model.zoneProfileFor(remaining);
+        ShotSituation situation = new ShotSituation(hole.number(), hole.par(), 1, 0, remaining,
+                Surface.FAIRWAY, model.pinLateral(), profile);
+
+        ShotSituationDto dto = ApiMapper.situation(situation);
+
+        assertThat(dto.reachable()).hasSameSizeAs(profile.bands());
+        assertThat(dto.reachable().get(0).startDistance()).isEqualTo(profile.minReach());
+        assertThat(dto.reachable().get(dto.reachable().size() - 1).endDistance()).isEqualTo(profile.maxReach());
+        for (int i = 0; i < profile.bands().size(); i++) {
+            var band = profile.bands().get(i);
+            var bandDto = dto.reachable().get(i);
+            assertThat(bandDto.startDistance()).isEqualTo(band.startDistance());
+            assertThat(bandDto.endDistance()).isEqualTo(band.endDistance());
+            assertThat(bandDto.regions()).hasSameSizeAs(band.regions());
+            for (int j = 0; j < band.regions().size(); j++) {
+                assertThat(bandDto.regions().get(j).surface()).isEqualTo(band.regions().get(j).surface().name());
+                assertThat(bandDto.regions().get(j).halfWidth()).isEqualTo(band.regions().get(j).outerHalfWidth());
+            }
+        }
+    }
+}

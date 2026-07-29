@@ -154,6 +154,8 @@ public final class World {
     private final Set<CareerGoal> achievedGoals = new LinkedHashSet<>();
     /** Salt for the retirement draw, keeping it independent of every other seeded stream. */
     private static final long RETIREMENT_SALT = 555_555_557L;
+    /** Salt for marquee permanent-venue derivation, independent of every other seeded stream. */
+    private static final long MARQUEE_VENUE_SALT = 0x4D_41_52_51_55_45_45L; // "MARQUEE"
 
     private TourSystem tours = new TourSystem();
     private WorldRanking ranking = new WorldRanking();
@@ -1090,10 +1092,31 @@ public final class World {
     private List<ScheduledTournament> generateStructuredSchedule() {
         List<ScheduledTournament> generated = new ArrayList<>();
         for (SeasonCadence.Placement p : SeasonCadence.forSeason(config.weeksPerSeason())) {
-            int courseIndex = (int) (nextTournamentId % coursePool.size());
+            // Marquee events keep a permanent venue across seasons (spec: world-schedule permanent venues):
+            // a major keys on its fixed week, a championship on its tour tier. Regular/signature events keep
+            // rotating by the running id (nextTournamentId still advances per event, so their indices are
+            // unchanged). A stable key -> the same course every season.
+            int courseIndex = switch (p.prestige()) {
+                case MAJOR -> marqueeCourseIndex(EventPrestige.MAJOR, p.week());
+                case TOUR_CHAMPIONSHIP -> marqueeCourseIndex(EventPrestige.TOUR_CHAMPIONSHIP, p.tier().ordinal());
+                default -> (int) (nextTournamentId % coursePool.size());
+            };
             generated.add(new ScheduledTournament(p.week(), p.tier(), courseIndex, p.prestige(), nextTournamentId++));
         }
         return generated;
+    }
+
+    /**
+     * The permanent venue (course-pool index) for a marquee event, derived from the world seed and a stable
+     * marquee identity so the same named marquee returns to the same course every season (spec: world-schedule
+     * permanent venues). {@code prestige} namespaces majors from championships; {@code key} is the marquee's
+     * stable identity within that prestige (a major's fixed week, a championship's tour-tier ordinal). Pure and
+     * reproducible from {@code masterSeed}, independent of the running tournament id.
+     */
+    private int marqueeCourseIndex(EventPrestige prestige, int key) {
+        long derived = Seeds.deriveSeed(masterSeed ^ MARQUEE_VENUE_SALT,
+                ((long) prestige.ordinal() << 32) ^ (key & 0xffffffffL));
+        return (int) Math.floorMod(derived, coursePool.size());
     }
 
     /** The proportional fallback for non-standard (e.g. small test) seasons (spec: world-schedule degradation). */
@@ -1115,7 +1138,9 @@ public final class World {
         int majors = config.majorsPerSeason();
         for (int m = 0; m < majors; m++) {
             int week = 1 + (int) ((long) m * config.weeksPerSeason() / Math.max(1, majors));
-            int courseIndex = (int) (nextTournamentId % coursePool.size());
+            // Each major keeps a permanent venue across seasons, keyed by its stable ordinal (spec:
+            // world-schedule permanent venues); the running id still advances so regular indices are unchanged.
+            int courseIndex = marqueeCourseIndex(EventPrestige.MAJOR, m);
             generated.add(new ScheduledTournament(week, TourTier.PRO, courseIndex, EventPrestige.MAJOR,
                     nextTournamentId++));
         }

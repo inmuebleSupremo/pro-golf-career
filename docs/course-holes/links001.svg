@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 400 800"
+   version="1.1"
+   id="svg9"
+   sodipodi:docname="links002.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs9">
+    <pattern
+       inkscape:collect="always"
+       xlink:href="#fescue-texture"
+       id="pattern9"
+       patternTransform="translate(-0.89645361,0.47751688)" />
+    <pattern
+       id="fescue-texture"
+       x="0"
+       y="0"
+       width="30"
+       height="30"
+       patternUnits="userSpaceOnUse">
+      <rect
+         width="30"
+         height="30"
+         fill="#D2B48C"
+         id="rect1-0" />
+      <!-- Sandy/brown base soil -->
+      <!-- Small scattered fescue grass tufts -->
+      <path
+         d="M 5 25 L 7 15 M 7 25 L 11 12 M 9 25 L 14 18"
+         stroke="#8B7355"
+         stroke-width="1.2"
+         fill="none"
+         id="path1-9" />
+      <path
+         d="M 20 12 L 21 5 M 21 12 L 24 3 M 23 12 L 26 7"
+         stroke="#708090"
+         stroke-width="1.2"
+         fill="none"
+         id="path2-4" />
+    </pattern>
+  </defs>
+  <sodipodi:namedview
+     id="namedview9"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.2375"
+     inkscape:cx="211.31313"
+     inkscape:cy="134.9495"
+     inkscape:window-width="1135"
+     inkscape:window-height="1000"
+     inkscape:window-x="2319"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg9" />
+  <!-- Fescue / Sand Background -->
+  <rect
+     width="400"
+     height="800"
+     fill="#E3D5A5"
+     id="rect1" />
+  <!-- Rolling Dune Shadows (Adds terrain texture) -->
+  <path
+     d="M 0 200 C 150 150, 200 300, 400 250 L 400 800 L 0 800 Z"
+     fill="#DBC88F"
+     opacity="0.6"
+     id="path1" />
+  <rect
+     width="400"
+     height="800"
+     fill="url(#fescue-texture)"
+     id="rect5"
+     style="opacity:0.34901961;fill:url(#pattern9)"
+     x="-0.89645362"
+     y="0.47751686" />
+  <path
+     d="m 0.80808081,499.19192 c 199.99999919,-50 249.99999919,100 399.99999919,50 v 250 H 0.80808081 Z"
+     fill="#d0b976"
+     opacity="0.5"
+     id="path2"
+     style="opacity:0.24705882" />
+  <!-- Pale Rough -->
+  <path
+     d="M 130.78996,800 C 86.475604,650 426.15527,596.59222 330.20452,400 228.64654,191.91919 468.12616,53.838384 332.62876,27.373737 199.68572,17.373737 22.428323,145.9596 140.82592,302.42424 229.45462,452.42424 20.004081,550 20.004081,800 Z"
+     fill="#a3b18a"
+     opacity="0.8"
+     id="path3"
+     style="stroke-width:1.48852"
+     sodipodi:nodetypes="cscccc" />
+  <!-- Crinkled Fairway (Using multiple tight Beziers for an unkempt edge) -->
+  <path
+     d="M 99.439077,770.64101 C 89.509113,720.37876 159.18254,621.79833 234.90914,565.87951 276.12388,535.4453 303.32767,580.48783 310.48174,484.71259 317.9889,384.21035 232.8165,375.35314 263.48916,307.90602 294.46867,239.78414 355.91564,143.59309 305.94141,74.62826 226.98615,26.510133 135.00847,131.55719 162.23789,210.03107 189.05942,287.32941 142.07127,354.28096 184.77276,435.367 227.47425,516.45303 80.821497,620.13195 56.48911,699.55189 c -24.332388,79.41993 -2.4847,99.96912 42.949967,71.08912 z"
+     fill="#b5c19b"
+     id="path4"
+     style="stroke-width:1.49504"
+     sodipodi:nodetypes="cssscsssc" />
+  <ellipse
+     cx="185.06551"
+     cy="429.914"
+     fill="#f4e8c1"
+     stroke="#8d6e63"
+     stroke-width="5.05613"
+     id="circle5-2"
+     rx="18.749563"
+     ry="19.961683" />
+  <!-- Pot Bunkers (Small, deep, clustered) -->
+  <!-- Fairway pinch point -->
+  <ellipse
+     cx="184.44444"
+     cy="478.88889"
+     fill="#f4e8c1"
+     stroke="#8d6e63"
+     stroke-width="3.65441"
+     id="circle5"
+     rx="13.389819"
+     ry="14.60194" />
+  <circle
+     cx="258.28284"
+     cy="363.0303"
+     r="8"
+     fill="#f4e8c1"
+     stroke="#8d6e63"
+     stroke-width="4"
+     id="circle6" />
+  <circle
+     cx="270.39395"
+     cy="335.29294"
+     r="8"
+     fill="#f4e8c1"
+     stroke="#8d6e63"
+     stroke-width="4"
+     id="circle6-5" />
+  <!-- Greenside defenses -->
+  <ellipse
+     cx="180.10101"
+     cy="98.838379"
+     fill="#f4e8c1"
+     stroke="#8d6e63"
+     stroke-width="2.89444"
+     id="circle8"
+     rx="12.655831"
+     ry="12.251791" />
+  <circle
+     cx="265.40405"
+     cy="57.979797"
+     r="9"
+     fill="#f4e8c1"
+     stroke="#8d6e63"
+     stroke-width="4"
+     id="circle9" />
+  <ellipse
+     cx="332.12326"
+     cy="95.244469"
+     fill="#f4e8c1"
+     stroke="#8d6e63"
+     stroke-width="3.60886"
+     id="circle8-11"
+     rx="15.934983"
+     ry="15.126904" />
+  <!-- Green (Blends directly into the fairway, barely discernible fringe) -->
+  <path
+     d="m 300.27966,158.88694 c 41.7539,-41.98586 0,-97.966996 -62.63082,-83.97171 -62.63083,13.995287 -41.75387,55.98114 10.43848,76.97407 31.3154,13.99529 31.3154,20.99293 52.19234,6.99764 z"
+     fill="#99a97d"
+     stroke="#8a9a6e"
+     stroke-width="1.70933"
+     id="path9" />
+  <rect
+     x="57.121212"
+     y="774.54547"
+     width="30"
+     height="15"
+     rx="2"
+     fill="#8a9a6e"
+     id="rect9" />
+  <ellipse
+     cx="220.88594"
+     cy="75.355751"
+     fill="#f4e8c1"
+     stroke="#8d6e63"
+     stroke-width="3.90419"
+     id="circle8-1"
+     rx="16.595402"
+     ry="16.999443"
+     transform="rotate(16.973874)" />
+</svg>

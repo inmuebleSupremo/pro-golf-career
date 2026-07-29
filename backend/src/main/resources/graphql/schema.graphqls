@@ -85,6 +85,9 @@ type Query {
     "Presentation context for the paused player event — its name, place, and host course type; null when no event is pending."
     currentEvent(id: ID!): CurrentEvent
 
+    "Geometry of a hole in the paused player event for rendering — the current hole, or an explicit hole (1..18) for pre-fetch; null when no event is pending or it is played to the end."
+    playingHole(id: ID!, hole: Int): PlayingHole
+
     "The live leaderboard for a paused player event; empty when no event is pending."
     eventLeaderboard(id: ID!): [LeaderboardRow!]!
 
@@ -499,6 +502,32 @@ type CurrentEvent {
     courseType: String!
 }
 
+"The geometry of a hole being played, for faithful 2D rendering (spec: web-hole-visualization). Distances in yards."
+type PlayingHole {
+    holeNumber: Int!
+    par: Int!
+    length: Float!
+    "Half the fairway width at the landing corridor."
+    fairwayHalfWidth: Float!
+    "Half the green's width."
+    greenHalfWidth: Float!
+    "The green's front-to-back depth."
+    greenDepth: Float!
+    "Cumulative elevation change over the hole (+ uphill, − downhill)."
+    elevationDelta: Float!
+    hasGreensideBunker: Boolean!
+    hasWater: Boolean!
+    hasTrees: Boolean!
+    "The active round's pin lateral offset from the green centre (the pin's side is load-bearing)."
+    pinLateral: Float!
+    "The active round's pin depth offset (a back pin plays longer)."
+    pinDepth: Float!
+    "The host course's environment classification name, mapped by the client to a biome style."
+    courseType: String!
+    "The hole's stable seed as a string; the client derives reproducible cosmetic placement from it."
+    layoutSeed: String!
+}
+
 type ShotSituation {
     holeNumber: Int!
     par: Int!
@@ -509,6 +538,26 @@ type ShotSituation {
     pinLateral: Float!
     minReach: Float!
     maxReach: Float!
+    "The reachable surface profile — ordered distance bands the shot could find — for a truthful shot-preview overlay."
+    reachable: [SurfaceBand!]!
+}
+
+"One distance band of a shot's reachable surface profile (spec: web-hole-visualization). Distances in yards."
+type SurfaceBand {
+    "Nearest carry covered by this band."
+    startDistance: Float!
+    "Farthest carry covered by this band (exclusive)."
+    endDistance: Float!
+    "Lateral regions from the centre outward; beyond the widest is out of bounds."
+    regions: [SurfaceRegion!]!
+}
+
+"One lateral region within a reachable surface band: a surface out to a cumulative half-width from centre."
+type SurfaceRegion {
+    "The Surface enum name (e.g. FAIRWAY, PRIMARY_ROUGH, BUNKER, WATER)."
+    surface: String!
+    "Cumulative lateral extent from the centre, in yards."
+    halfWidth: Float!
 }
 
 type Save {

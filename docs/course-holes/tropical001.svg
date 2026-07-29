@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 400 800"
+   version="1.1"
+   id="svg18"
+   sodipodi:docname="tropical001.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview18"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.87504465"
+     inkscape:cx="219.41737"
+     inkscape:cy="405.69358"
+     inkscape:window-width="1135"
+     inkscape:window-height="1000"
+     inkscape:window-x="2319"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg18" />
+  <defs
+     id="defs8">
+    <pattern
+       inkscape:collect="always"
+       xlink:href="#mower-stripes"
+       id="pattern20"
+       patternTransform="matrix(2.504035,-0.74396268,0.8329859,1.1573304,-524.51259,-28.825193)" />
+    <pattern
+       inkscape:collect="always"
+       xlink:href="#mower-stripes"
+       id="pattern19"
+       patternTransform="matrix(0.17593115,-0.05539464,0.7453421,1.0149272,-205.28682,-93.019876)" />
+    <pattern
+       id="mower-stripes"
+       width="100%"
+       height="16"
+       patternUnits="userSpaceOnUse">
+      <rect
+         width="100%"
+         height="8"
+         fill="#00E676"
+         id="rect1" />
+      <rect
+         y="8"
+         width="100%"
+         height="8"
+         fill="#00C853"
+         id="rect2" />
+    </pattern>
+    <g
+       id="palm">
+      <circle
+         cx="0"
+         cy="0"
+         r="4"
+         fill="#4E3629"
+         id="circle2" />
+      <path
+         d="M 0 0 C -8 -8, -18 -12, -28 -8 C -18 -4, -8 -2, 0 0"
+         fill="#1B5E20"
+         id="path2" />
+      <path
+         d="M 0 0 C 8 -8, 18 -12, 28 -8 C 18 -4, 8 -2, 0 0"
+         fill="#1B5E20"
+         id="path3" />
+      <path
+         d="M 0 0 C 12 -2, 22 4, 26 14 C 16 10, 8 4, 0 0"
+         fill="#0D5316"
+         id="path4" />
+      <path
+         d="M 0 0 C -12 -2, -22 4, -26 14 C -16 10, -8 4, 0 0"
+         fill="#0D5316"
+         id="path5" />
+      <path
+         d="M 0 0 C 8 8, 12 20, 6 28 C 4 18, 2 8, 0 0"
+         fill="#2E7D32"
+         id="path6" />
+      <path
+         d="M 0 0 C -8 8, -12 20, -6 28 C -4 18, -2 8, 0 0"
+         fill="#2E7D32"
+         id="path7" />
+      <path
+         d="M 0 0 C -2 -12, 2 -24, 10 -28 C 6 -18, 2 -8, 0 0"
+         fill="#1B5E20"
+         id="path8" />
+      <circle
+         cx="0"
+         cy="0"
+         r="2.5"
+         fill="#81C784"
+         id="circle8" />
+    </g>
+    <filter
+       id="coastal-drop"
+       x="0"
+       y="0"
+       width="1"
+       height="1">
+      <feDropShadow
+         dx="2"
+         dy="4"
+         stdDeviation="3"
+         flood-color="#001833"
+         flood-opacity="0.5" />
+    </filter>
+  </defs>
+  <rect
+     width="400"
+     height="800"
+     fill="#0277BD"
+     id="rect8" />
+  <!-- Solid Island Landmass -->
+  <!-- Fairway 1: Rounded ends using Arc caps -->
+  <path
+     d="m 256.62951,701.72292 c -68.12434,-168.42217 95.94045,-206.33863 84.484,-332.75925 -11.8251,-18.381 -61.63204,-22.89238 -111.24978,-10.07675 -49.61773,12.81562 -108.82892,80.38932 -97.01075,98.77212 -17.11354,128.70621 -103.987506,186.02388 -32.63419,296.97386 7.88849,12.25084 41.08975,15.25638 74.1639,6.71373 33.07416,-8.54265 90.11847,-47.36855 82.24682,-59.62371 z"
+     fill="url(#mower-stripes)"
+     stroke="#00c853"
+     stroke-width="3.43844"
+     id="path10"
+     style="fill:url(#pattern19)"
+     sodipodi:nodetypes="ccsccsc" />
+  <!-- Fairway 2: Rounded ends using Arc caps -->
+  <path
+     d="M 282.53709,284.60425 C 290.96848,211.85848 351.39199,132.38324 247.19257,50.95624 233.38185,31.788571 188.56886,26.24164 147.08928,38.565457 105.6097,50.889273 83.164165,76.419094 96.950457,95.59402 c -12.570948,45.87935 3.987223,153.34503 62.296243,234.35815 9.20214,12.78253 39.08177,16.48326 66.73946,8.26602 27.65768,-8.21726 65.74986,-40.83046 56.55093,-53.61394 z"
+     fill="url(#mower-stripes)"
+     stroke="#00c853"
+     stroke-width="3.18644"
+     id="path11"
+     style="fill:url(#pattern20)"
+     sodipodi:nodetypes="ccsccsc" />
+  <use
+     href="#palm"
+     x="130"
+     y="470"
+     transform="matrix(0.67552166,0,0,0.67552166,157.32356,-167.48293)"
+     id="use15-8-9" />
+  <!-- Waste Bunker -->
+  <path
+     d="m 237.13776,406.81324 c -7.78238,34.20168 -74.38878,65.71667 -81.72392,35.76122 -7.33513,-29.95541 39.66328,-62.36597 64.5848,-66.16444 24.9215,-3.79846 18.78505,10.73146 17.13912,30.40322 z"
+     fill="#ffffff"
+     stroke="#e0e0e0"
+     stroke-width="1.39141"
+     id="path12" />
+  <!-- Green Complex -->
+  <ellipse
+     fill="#00c853"
+     stroke="#1b5e20"
+     stroke-width="2.24602"
+     id="ellipse12"
+     transform="matrix(0.9010877,-0.43363689,0.54452548,0.8387443,0,0)"
+     ry="41.288486"
+     rx="65.138153"
+     cy="193.51732"
+     cx="71.878677" />
+  <path
+     d="M 122.848,62.155652 C 148.81685,40.004342 227.59353,38.021351 212.49479,55.008374 195.94511,73.627803 82.81096,111.2149 111.34202,73.160023 Z"
+     fill="#ffffff"
+     stroke="#e0e0e0"
+     stroke-width="2.03893"
+     id="path13"
+     sodipodi:nodetypes="cscc" />
+  <rect
+     x="148.0061"
+     y="739.47827"
+     width="30"
+     height="20"
+     rx="2"
+     fill="#b9f6ca"
+     id="rect13"
+     transform="rotate(-0.55706679)" />
+  <!-- Palm Trees: Safely centralized inside the deep green land coordinates -->
+  <use
+     href="#palm"
+     x="140"
+     y="650"
+     transform="matrix(1.1,0,0,1.1,-55.997144,-44.569155)"
+     id="use13" />
+  <use
+     href="#palm"
+     x="140"
+     y="650"
+     transform="matrix(1.1,0,0,1.1,-50.421867,18.569154)"
+     id="use13-8" />
+  <use
+     href="#palm"
+     x="170"
+     y="580"
+     id="use14"
+     transform="translate(-55.997142,25.712974)" />
+  <use
+     href="#palm"
+     x="130"
+     y="470"
+     transform="matrix(0.9,0,0,0.9,162.27744,-47.426151)"
+     id="use15" />
+  <use
+     href="#palm"
+     x="130"
+     y="470"
+     transform="matrix(0.9,0,0,0.9,47.858021,-132.99898)"
+     id="use15-9" />
+  <use
+     href="#palm"
+     x="130"
+     y="470"
+     transform="matrix(0.9,0,0,0.9,172.28029,-260.99244)"
+     id="use15-8" />
+  <use
+     href="#palm"
+     x="130"
+     y="470"
+     transform="matrix(0.9,0,0,0.9,119.2807,283.55507)"
+     id="use15-5" />
+  <use
+     href="#palm"
+     x="250"
+     y="320"
+     transform="matrix(1.2,0,0,1.2,3.4283964,31.426969)"
+     id="use16" />
+  <use
+     href="#palm"
+     x="260"
+     y="260"
+     id="use17"
+     transform="rotate(11.069616,1037.2279,265.03727)" />
+  <use
+     href="#palm"
+     x="240"
+     y="190"
+     transform="translate(-3.4283976,-117.70828)"
+     id="use18" />
+</svg>

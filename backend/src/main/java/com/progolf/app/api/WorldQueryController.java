@@ -4,6 +4,7 @@ import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
 import com.progolf.app.api.dto.PlayerDevelopmentDto;
 import com.progolf.app.api.dto.CurrentEventDto;
+import com.progolf.app.api.dto.PlayingHoleDto;
 import com.progolf.app.api.dto.EquipmentDealDto;
 import com.progolf.app.api.dto.EquipmentItemDto;
 import com.progolf.app.api.dto.HallOfFameDto;
@@ -258,6 +259,16 @@ public class WorldQueryController {
             return null;
         }
         return worldService.currentEvent(owner, id);
+    }
+
+    @QueryMapping
+    public PlayingHoleDto playingHole(@Argument String id, @Argument Integer hole) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPendingEvent(owner, id)) {
+            return null;
+        }
+        // Null when the pending event has been played to the end (no live hole to render).
+        return worldService.currentPlayingHole(owner, id, hole);
     }
 
     @QueryMapping

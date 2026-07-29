@@ -1,0 +1,269 @@
+"use client";
+
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+
+import { BIOME_KITS, resolveBiome, SYMBOL_SCALE, VEG_SYMBOLS, type SvgPrim } from "@/lib/play/biomes";
+import {
+  ballPosition,
+  centerlinePoint,
+  projectHole,
+  reachStretch,
+  type HoleGeom,
+  type HoleLayout,
+  type Point,
+  type ResolvedShot,
+} from "@/lib/play/hole-geometry";
+
+/** A landing reaction's ring colour per surface effect. */
+const REACTION_COLOR: Record<"splash" | "sand" | "roll", string> = {
+  splash: "#dff1ff",
+  sand: "#efe3bf",
+  roll: "#ffffff",
+};
+
+const FLIGHT_MS = 1000;
+const REACTION_MS = 500;
+
+/** True when the viewer asked for reduced motion — playback then places the ball without animating. */
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduced(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+  return reduced;
+}
+
+/** A gently bowed flight arc from `a` to `b` (the bow suggests height in the top-down view). */
+function arcPath(a: Point, b: Point): string {
+  const mx = (a.x + b.x) / 2;
+  const my = (a.y + b.y) / 2;
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const lift = Math.min(30, len * 0.2);
+  const cx = mx - ((b.y - a.y) / len) * lift * 0.4;
+  const cy = my - lift;
+  return `M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+}
+
+/** The current shot's reachable window, mapped onto the hole as a truthful landing-stretch overlay. */
+export interface ReachHint {
+  readonly distanceToPin: number;
+  readonly min: number;
+  readonly max: number;
+}
+
+export interface Hole2dProps {
+  readonly hole: HoleGeom;
+  readonly reach?: ReachHint | null;
+  /** The last resolved shot, placed on the hole under the fidelity rule (animated by the playback layer). */
+  readonly ball?: ResolvedShot | null;
+  readonly className?: string;
+}
+
+/** One primitive of a ported foliage symbol. */
+function Prim({ p }: { p: SvgPrim }) {
+  if (p.t === "path") return <path d={p.d} fill={p.fill} />;
+  if (p.t === "circle") return <circle r={p.r} fill={p.fill} />;
+  return <path d={p.d} stroke={p.stroke} strokeWidth={p.width} fill="none" strokeLinecap="round" />;
+}
+
+/**
+ * The parametric 2D hole schematic (spec: web-hole-visualization): draws a hole purely from its sim geometry
+ * and biome kit — rough corridor, striped fairway, green, tee, seed-placed hazards and vegetation, and the pin
+ * on its real side — with an optional truthful reach overlay and resolved-ball marker. Illustration colours
+ * come from the biome kit; the surrounding chrome uses the app's tokens.
+ */
+export function Hole2d({ hole, reach, ball, className }: Hole2dProps) {
+  const kit = BIOME_KITS[resolveBiome(hole.courseType)];
+  const layout: HoleLayout = useMemo(() => projectHole(hole, kit), [hole, kit]);
+
+  // Namespace all defs ids so multiple instances never collide (SVG-safe: strip non-alphanumerics).
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const id = (name: string) => `${uid}-${name}`;
+  const url = (name: string) => `url(#${id(name)})`;
+
+  const { width, height, centerline, fairwayWidth, roughWidth, green, pin, water, bunkers, trees } = layout;
+  const roughFill = kit.roughPattern === "fescue" ? url("fescue") : kit.rough;
+  const outFill = kit.roughPattern === "fescue" ? url("fescue") : kit.out;
+
+  const reachPath = useMemo(() => {
+    if (!reach) return null;
+    const { tMin, tMax } = reachStretch(layout, reach.distanceToPin, reach.min, reach.max);
+    if (tMax - tMin < 0.02) return null;
+    const steps = 6;
+    return Array.from({ length: steps + 1 }, (_, i) => {
+      const p = centerlinePoint(layout, tMin + ((tMax - tMin) * i) / steps);
+      return `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
+    }).join(" ");
+  }, [layout, reach]);
+
+  // Playback: when a new resolved shot arrives, animate the ball from its previous rest (or the tee) to the
+  // fidelity-resolved landing. Refs track the last rest and hole so each new shot replays once.
+  const reduced = usePrefersReducedMotion();
+  const lastRest = useRef<Point | null>(null);
+  const lastHole = useRef(hole.holeNumber);
+  const lastBall = useRef<ResolvedShot | null>(null);
+  const seq = useRef(0);
+  const [flight, setFlight] = useState<{ from: Point; to: Point; effect: "splash" | "sand" | "roll"; seq: number } | null>(null);
+  const [animating, setAnimating] = useState(false);
+
+  useEffect(() => {
+    if (lastHole.current !== hole.holeNumber) {
+      lastHole.current = hole.holeNumber;
+      lastRest.current = null;
+      lastBall.current = null;
+      setFlight(null);
+      setAnimating(false);
+    }
+    if (!ball || ball === lastBall.current) return;
+    lastBall.current = ball;
+    const to = ballPosition(layout, ball);
+    const from = lastRest.current ?? layout.tee;
+    lastRest.current = { x: to.x, y: to.y };
+    seq.current += 1;
+    setFlight({ from, to, effect: to.effect, seq: seq.current });
+    if (reduced) return;
+    setAnimating(true);
+    const timer = setTimeout(() => setAnimating(false), FLIGHT_MS + REACTION_MS);
+    return () => clearTimeout(timer);
+  }, [ball, hole.holeNumber, layout, reduced]);
+
+  // The ball at rest — shown once the flight lands (or immediately under reduced motion).
+  const rest = flight && (!animating || reduced) ? flight.to : null;
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className={className}
+      role="img"
+      aria-label={`Hole ${hole.holeNumber}, par ${hole.par}, ${hole.length} yards`}
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <defs>
+        <filter id={id("canopyShadow")} x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="1.4" dy="2.2" stdDeviation="1.6" floodColor="#0e3a11" floodOpacity="0.55" />
+        </filter>
+        <filter id={id("waterShadow")} x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="1.5" stdDeviation="1.4" floodColor="#001833" floodOpacity="0.5" />
+        </filter>
+        {kit.mowStripe && (
+          <pattern id={id("mow")} width="10" height="14" patternUnits="userSpaceOnUse">
+            <rect width="10" height="7" fill={kit.mowStripe[0]} />
+            <rect y="7" width="10" height="7" fill={kit.mowStripe[1]} />
+          </pattern>
+        )}
+        {kit.roughPattern === "fescue" && (
+          <pattern id={id("fescue")} width="16" height="16" patternUnits="userSpaceOnUse">
+            <rect width="16" height="16" fill={kit.rough} />
+            <path d="M3 13 L4 8 M5 13 L7 6 M9 13 L11 8 M12 13 L13 7" stroke="#9c8a52" strokeWidth="0.9" strokeLinecap="round" />
+          </pattern>
+        )}
+        <g id={id("veg")}>
+          {VEG_SYMBOLS[kit.vegetation].map((p, i) => (
+            <Prim key={i} p={p} />
+          ))}
+        </g>
+      </defs>
+
+      {/* Out-of-play surround */}
+      <rect x="4" y="0" width={width - 8} height={height} rx="14" fill={outFill} />
+      {layout.elevation && (
+        <rect
+          x="4"
+          y="0"
+          width={width - 8}
+          height={height}
+          rx="14"
+          fill={layout.elevation.light ? "#ffffff" : "#000000"}
+          opacity={layout.elevation.alpha}
+        />
+      )}
+      {kit.rock && (
+        <>
+          <polygon points="8,20 44,10 66,34 34,46 8,40" fill="#546e7a" />
+          <polygon points="8,20 44,10 52,24 22,32" fill="#78909c" />
+          <polygon points={`${width - 8},26 ${width - 48},14 ${width - 62},40 ${width - 26},50`} fill="#455a64" />
+        </>
+      )}
+
+      {/* Rough corridor, then fairway (+ mower stripes), then any waste flash */}
+      <path d={centerline} stroke={roughFill} strokeWidth={roughWidth} fill="none" strokeLinecap="round" />
+      {kit.waste && (
+        <path d={centerline} stroke="#eef0e4" strokeWidth={fairwayWidth + 8} fill="none" strokeLinecap="round" opacity="0.35" />
+      )}
+      <path d={centerline} stroke={kit.fairway} strokeWidth={fairwayWidth} fill="none" strokeLinecap="round" />
+      {kit.mowStripe && (
+        <path d={centerline} stroke={url("mow")} strokeWidth={fairwayWidth} fill="none" strokeLinecap="round" opacity="0.45" />
+      )}
+
+      {/* Reachable landing stretch (truthful, longitudinal only) */}
+      {reachPath && (
+        <path d={reachPath} stroke="#ffffff" strokeWidth={fairwayWidth * 0.8} fill="none" strokeLinecap="round" opacity="0.16" />
+      )}
+
+      {/* Water hazard */}
+      {water && <path d={water.d} fill={kit.water ?? "#2f7fb5"} filter={url("waterShadow")} />}
+
+      {/* Bunkers */}
+      {bunkers.map((b, i) => (
+        <ellipse key={i} cx={b.cx} cy={b.cy} rx={b.rx} ry={b.ry} fill={kit.sand} stroke={kit.sandStroke} strokeWidth={b.pot ? 2 : 1} />
+      ))}
+
+      {/* Green + fringe */}
+      <ellipse cx={green.cx} cy={green.cy} rx={green.rx + 4} ry={green.ry + 4} fill={kit.fringe} />
+      <ellipse cx={green.cx} cy={green.cy} rx={green.rx} ry={green.ry} fill={kit.green} />
+      <ellipse cx={green.cx} cy={green.cy} rx={green.rx} ry={green.ry} fill="none" stroke="#ffffff" strokeWidth="0.6" opacity="0.25" />
+
+      {/* Vegetation */}
+      {trees.map((t, i) => (
+        <use
+          key={i}
+          href={`#${id("veg")}`}
+          transform={`translate(${t.x.toFixed(1)} ${t.y.toFixed(1)}) scale(${(t.scale * SYMBOL_SCALE[kit.vegetation]).toFixed(3)})`}
+          filter={kit.vegetation === "yucca" ? undefined : url("canopyShadow")}
+        />
+      ))}
+
+      {/* Tee */}
+      <rect x={layout.tee.x - 7} y={layout.tee.y - 3} width="14" height="6" rx="3" fill="#d8d2c0" opacity="0.85" />
+
+      {/* Pin (flag on its real side) */}
+      <circle cx={pin.x} cy={pin.y} r="2" fill="#111111" />
+      <line x1={pin.x} y1={pin.y} x2={pin.x} y2={pin.y - 14} stroke="#111111" strokeWidth="1" />
+      <path d={`M${pin.x} ${pin.y - 14} l7 2.5 -7 2.5 z`} fill="#e23b3b" />
+
+      {/* Shot playback: flight arc + trail + travelling ball + landing reaction (skipped for reduced motion) */}
+      {flight && animating && !reduced && (
+        <g key={flight.seq}>
+          <path id={id(`flight${flight.seq}`)} d={arcPath(flight.from, flight.to)} fill="none" stroke="#ffffff" strokeWidth="1.4" strokeDasharray="3 3" opacity="0">
+            <animate attributeName="stroke-dashoffset" from="140" to="0" dur={`${FLIGHT_MS}ms`} begin="0s" fill="freeze" />
+            <animate attributeName="opacity" from="0" to="0.85" dur="200ms" begin="0s" fill="freeze" />
+          </path>
+          <circle r="3" fill="#ffffff" stroke="#c99" strokeWidth="0.6">
+            <animateMotion dur={`${FLIGHT_MS}ms`} begin="0s" fill="freeze">
+              <mpath href={`#${id(`flight${flight.seq}`)}`} />
+            </animateMotion>
+            <animate attributeName="r" values="3;4.4;3" dur={`${FLIGHT_MS}ms`} begin="0s" fill="freeze" />
+          </circle>
+          <circle cx={flight.to.x} cy={flight.to.y} r="0" fill="none" stroke={REACTION_COLOR[flight.effect]} strokeWidth="1.6" opacity="0">
+            <animate attributeName="r" values="0;10" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
+            <animate attributeName="opacity" values="0.9;0" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
+          </circle>
+        </g>
+      )}
+
+      {/* Ball at rest */}
+      {rest && (
+        <>
+          {flight?.effect === "splash" && (
+            <circle cx={rest.x} cy={rest.y} r="6" fill="none" stroke="#ffffff" strokeWidth="1.4" opacity="0.7" />
+          )}
+          <circle cx={rest.x} cy={rest.y} r="3" fill="#ffffff" stroke="#c99" strokeWidth="0.6" />
+        </>
+      )}
+    </svg>
+  );
+}

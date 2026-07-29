@@ -1,0 +1,94 @@
+Technical Specification: Golf Course Design System
+1. Global Design Constraints (The "No-Go" List)
+These rules apply to all course styles without exception:
+
+Geometry: Strictly prohibit sharp vertices or "pointy" corners in fairways, greens, or island landmasses. All shapes must be constructed using continuous Bezier curves (C or S commands) or Arc commands (A).
+
+Implementation: All paths must use stroke-linejoin="round". For fairway ends (tee and green approach), you must use explicit Arc (A) commands to create a rounded, semi-circular cap.
+
+Vegetation Placement: Under no circumstances shall trees or foliage be placed on water tiles/elements. Trees must always exist on the land layer.
+
+Shape Fidelity: Avoid "perfect circles" or rigid geometric shapes for forests/rough. Foliage and rough patches must be organic, lobed, and randomized.
+
+2. Course Style Guidelines
+A. Classic Parkland
+Fairway: Smooth, continuous curves. Mower-cut stripes are subtle.
+
+Vegetation: Deciduous trees (Oaks, Elms). Use lobed, organic paths for canopy shapes; avoid solid circles.
+
+Bunkers: Standard white sand, rounded edges.
+
+Terrain: Subtle elevation, deep green base colors.
+
+B. Coastal Links
+Fairway: Naturalistic, "weathered" feel. Use irregular, flowing edges.
+
+Rough: High priority on fescue textures. Use a pattern overlay of wind-blown, wispy grass blades (<pattern> definition).
+
+Bunkers: Pot bunkers only. Steep, circular, deep-shadowed.
+
+Terrain: Sandy, undulating base colors (tans, pale greens). No perfect geometry.
+
+C. Heathland
+Fairway: Similar to Parkland, but narrower.
+
+Rough: Incorporate purple/brown heather and gorse patches. Use scattered cluster paths.
+
+Bunkers: Irregular, rugged, and sandy.
+
+Terrain: Darker, brownish-green hues.
+
+D. Desert Course
+Fairway: High contrast. Emerald green fairways against stark, light-tan/white sand waste areas.
+
+Rough: Very limited. The transition from fairway to desert sand should be abrupt but rounded (no sharp angles).
+
+Vegetation: Yucca, cacti, and desert scrub. Keep them sparsely scattered.
+
+E. Tropical/Wetland
+Water: Deep, rich blue (avoid cyan). High contrast with the green land.
+
+Fairway: Feature horizontal mower stripes. Ends must be perfectly rounded arc caps.
+
+Vegetation: Palm trees only.
+
+Constraint: Zero foliage in water. Water surrounds the land; land must be a singular, flowing organic shape.
+
+F. Alpine / Mountain
+Terrain: Dramatic, steep-looking shadows. Darker, rocky textures.
+
+Fairway: Long, sweeping curves that follow the "contour" of the mountain.
+
+Vegetation: Dense, dark coniferous (pine) forests. Canopies should be slightly more triangular/pointed than deciduous, but still organic.
+
+Background: Include elements of rock face/cliffs.
+
+G. Japanese Double-Green
+Primary Constraint: Every hole must have two distinct, non-touching putting surfaces.
+
+Fairway: Must split into two distinct routes near the end, leading to each green.
+
+Vegetation: Aesthetic, manicured trees (pines), stones, and flowing water elements (streams).
+
+Geometry: Extremely meticulous. The "no pointy corners" rule is vital here, especially where the fairway splits. Use Arcs to create the bifurcation.
+
+3. Implementation Checklist for AI Coding
+When generating SVG or code for any of these styles, the AI must verify:
+
+Does the shape contain a sharp vertex? (If yes, abort and re-calculate using A or C pathing).
+
+Is there a tree in the water? (If yes, re-map coordinates to land-only).
+
+Are the fairway ends capped with a semi-circle? (If no, implement the A command).
+
+Is the pattern overly repetitive? (If yes, apply randomized scattering or noise to the pattern definitions).
+
+Is the styling consistent? (Check color palettes: Fescue for Links, Emerald for Desert, Dark Green for Alpine).
+
+
+
+
+----------------------------------------------------------
+
+
+To maintain aesthetic consistency, the SVG rendering engine must map the backend's EnvironmentClassification and generate shapes adhering to strict vector rules.  Game StyleBackend Environment Classification  JAVASVG ThemeBase FillSpecial Vector InstructionClassic ParklandPARKLAND  Lush Greenery#2E7D32Use lobed, organic Bezier paths for background foliage canopy.Coastal LinksLINKS or COASTAL  Sandy/Wind-swept#B5B882Render a custom fescue texture overlay (<pattern>) in the rough.HeathlandWOODLAND  Purple Heather#4A3C5CScatter small, rounded organic clusters of gorse/heather (#8E44AD).Desert CourseDESERT  Arid Waste Area#EED9B3Sharp color contrast between fairway and base. No transition rough.Tropical/WetlandCOASTAL  Azure Island#0277BDWater surrounds the land. Zero pointy corners on the island landmass.Alpine/MountainMOUNTAIN  Evergreen/Rock#1B4F72Triangular but rounded pine trees, rock-face drop shadows.Japanese Double-GreenPARKLAND  Zen / Manicured#1E8449Dual Green Ellipses. Fairway must bifurcate with smooth, filleted arcs.
