@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 400 800"
+   version="1.1"
+   id="svg25"
+   sodipodi:docname="parkland001.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview25"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.2375"
+     inkscape:cx="180.20202"
+     inkscape:cy="235.9596"
+     inkscape:window-width="1135"
+     inkscape:window-height="1000"
+     inkscape:window-x="2319"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg25" />
+  <defs
+     id="defs2">
+    <filter
+       id="forest-shadow"
+       x="0"
+       y="0"
+       width="1"
+       height="1">
+      <feDropShadow
+         dx="3"
+         dy="5"
+         stdDeviation="4"
+         flood-color="#0E3A11"
+         flood-opacity="0.6" />
+    </filter>
+    <g
+       id="deciduous">
+      <path
+         d="M 0 -22 C 15 -27, 28 -12, 22 5 C 32 15, 22 32, 5 28 C -8 38, -25 28, -28 12 C -38 -5, -22 -25, -5 -18 C -5 -28, 0 -28, 0 -22 Z"
+         fill="#1B5E20"
+         stroke-linejoin="round"
+         id="path1" />
+      <path
+         d="M -2 -16 C 8 -20, 18 -8, 14 2 C 22 10, 14 20, 2 18 C -6 25, -16 18, -18 6 C -25 -2, -14 -16, -2 -12 C -2 -20, -2 -20, -2 -16 Z"
+         fill="#2E7D32"
+         stroke-linejoin="round"
+         id="path2" />
+    </g>
+  </defs>
+  <rect
+     width="400"
+     height="800"
+     fill="#1B5E20"
+     id="rect2" />
+  <path
+     d="m 149.61114,791.31313 c -55.305611,0 -96.78481,-81.19085 -96.78481,-182.67942 0,-101.48857 41.479199,-202.97714 41.479199,-304.46571 0,-101.48857 -27.652798,-152.23286 -27.652798,-223.274858 C 66.652731,40.297714 108.13193,20 170.35073,20 c 62.21882,0 131.35082,20.297714 131.35082,60.893142 0,71.041998 41.4792,121.786288 41.4792,223.274858 0,101.48857 -96.78481,202.97714 -96.78481,304.46571 0,101.48857 -41.47921,182.67942 -96.7848,182.67942 z"
+     fill="#388e3c"
+     stroke-linejoin="round"
+     id="path3"
+     style="stroke-width:1.18458"
+     sodipodi:nodetypes="sssssssss" />
+  <path
+     d="m 147.69932,739.32529 c 0,-98.8812 44.81824,-217.53863 44.81824,-296.64359 0,-79.10496 -40.33641,-247.20299 -40.33641,-355.972306 0,-49.440598 53.78188,-49.440598 53.78188,0 0,108.769316 40.33642,276.867346 40.33642,355.972306 0,79.10496 -62.74554,197.76239 -62.74554,296.64359 0,19.77624 -35.85459,19.77624 -35.85459,0 z"
+     fill="#2e7d32"
+     stroke="#2e7d32"
+     stroke-width="18.8291"
+     stroke-linejoin="round"
+     id="path4" />
+  <path
+     d="M 98.167935,753.56735 C 101.81395,653.66828 174.4937,535.86468 177.41051,455.9454 180.32732,376.02616 125.05142,204.33004 129.06203,94.441091 c 1.82301,-49.949529 83.78849,-47.459254 81.96546,2.490273 -4.0106,109.888976 51.26529,281.585086 48.34849,361.504306 -2.9168,79.91927 -102.91839,196.8928 -106.56441,296.79187 -0.7292,19.97981 -55.372829,18.31962 -54.643635,-1.66019 z"
+     fill="#4caf50"
+     stroke="#43a047"
+     stroke-width="2.16628"
+     stroke-linejoin="round"
+     id="path5" />
+  <path
+     d="m 122.88494,371.71884 c 31.05996,-6.72297 91.56748,79.08053 -16.31362,102.43162 -38.074263,8.24122 -22.120158,-14.99218 -17.226095,-45.72164 4.894077,-30.72948 -4.534646,-48.46874 33.539715,-56.70998 z"
+     fill="#eeeeee"
+     stroke="#bdbdbd"
+     stroke-width="3.36107"
+     stroke-linejoin="round"
+     id="path6"
+     sodipodi:nodetypes="ssss" />
+  <path
+     d="m 280.52365,117.53832 c -8.01944,37.81698 -27.08874,46.72091 -39.13579,52.46438 -12.04705,5.74342 -22.38306,5.44409 -14.36364,-32.3729 8.01943,-37.816982 11.33886,-35.01325 20.8815,-47.773282 7.99298,-10.687893 40.63737,-10.135199 32.61793,27.681802 z"
+     fill="#eeeeee"
+     stroke="#bdbdbd"
+     stroke-width="2.02366"
+     stroke-linejoin="round"
+     id="path6-1"
+     sodipodi:nodetypes="sssss" />
+  <path
+     d="M 126.10342,63.259314 C 115.66035,76.582399 93.570563,80.569274 86.333234,73.830825 79.095916,67.092347 91.535921,54.120859 101.97901,40.79775 c 10.44305,-13.323103 28.41581,-15.920554 35.65312,-9.182109 7.23733,6.738486 -1.08564,18.320561 -11.52871,31.643673 z"
+     fill="#eeeeee"
+     stroke="#bdbdbd"
+     stroke-width="1.29148"
+     stroke-linejoin="round"
+     id="path6-1-9"
+     sodipodi:nodetypes="sssss" />
+  <ellipse
+     cx="172.7845"
+     cy="110.19749"
+     rx="54.651333"
+     ry="46.339428"
+     transform="matrix(0.97974326,-0.20025769,0.15038121,0.98862809,0,0)"
+     fill="#4caf50"
+     stroke-linejoin="round"
+     id="ellipse6"
+     style="stroke-width:1.39466" />
+  <ellipse
+     cx="91.549103"
+     cy="171.05746"
+     rx="52.912594"
+     ry="37.212307"
+     transform="matrix(0.8063007,-0.59150586,0.63949598,0.76879444,0,0)"
+     fill="#81c784"
+     stroke="#66bb6a"
+     stroke-width="2.25013"
+     stroke-linejoin="round"
+     id="ellipse7"
+     inkscape:transform-center-x="-5.9877089"
+     inkscape:transform-center-y="-13.903152" />
+  <rect
+     x="135"
+     y="760"
+     width="30"
+     height="20"
+     rx="6"
+     fill="#81C784"
+     id="rect7" />
+  <g
+     filter="url(#forest-shadow)"
+     opacity="0.95"
+     id="g25">
+    <use
+       href="#deciduous"
+       x="30"
+       y="750"
+       transform="scale(1.2)"
+       id="use7" />
+    <use
+       href="#deciduous"
+       x="50"
+       y="680"
+       transform="scale(0.9)"
+       id="use8" />
+    <use
+       href="#deciduous"
+       x="25"
+       y="600"
+       transform="matrix(1.3,0,0,1.3,8.0808081,-21.010101)"
+       id="use9" />
+    <use
+       href="#deciduous"
+       x="45"
+       y="530"
+       id="use10"
+       transform="scale(1)" />
+    <use
+       href="#deciduous"
+       x="20"
+       y="450"
+       transform="matrix(1.1,0,0,1.1,36.363636,-20.20202)"
+       id="use11" />
+    <use
+       href="#deciduous"
+       x="60"
+       y="380"
+       transform="scale(0.85)"
+       id="use12" />
+    <use
+       href="#deciduous"
+       x="30"
+       y="300"
+       transform="scale(1.25)"
+       id="use13" />
+    <use
+       href="#deciduous"
+       x="45"
+       y="220"
+       transform="scale(0.9)"
+       id="use14" />
+    <use
+       href="#deciduous"
+       x="25"
+       y="140"
+       transform="matrix(1.0135521,-0.42744844,0.42744844,1.0135521,-51.892645,8.214816)"
+       id="use15" />
+    <use
+       href="#deciduous"
+       x="40"
+       y="60"
+       id="use16"
+       transform="translate(16.969697,-16.969697)" />
+    <use
+       href="#deciduous"
+       x="250"
+       y="700"
+       transform="scale(1.1)"
+       id="use17" />
+    <use
+       href="#deciduous"
+       x="280"
+       y="660"
+       transform="scale(0.9)"
+       id="use18" />
+    <use
+       href="#deciduous"
+       x="280"
+       y="500"
+       transform="scale(1.3)"
+       id="use19" />
+    <use
+       href="#deciduous"
+       x="305"
+       y="510"
+       id="use20"
+       transform="scale(1)" />
+    <use
+       href="#deciduous"
+       x="230"
+       y="462"
+       transform="scale(1.2)"
+       id="use21" />
+    <use
+       href="#deciduous"
+       x="320"
+       y="380"
+       transform="scale(0.95)"
+       id="use22" />
+    <use
+       href="#deciduous"
+       x="250"
+       y="240"
+       transform="scale(1.2)"
+       id="use23" />
+    <use
+       href="#deciduous"
+       x="350"
+       y="190"
+       transform="matrix(0.8,0,0,0.8,8.0808081,-3.2323232)"
+       id="use24" />
+    <use
+       href="#deciduous"
+       x="250"
+       y="50"
+       transform="scale(1.2)"
+       id="use25" />
+  </g>
+  <path
+     d="m 108.96826,119.44949 c 20.13274,8.59237 21.18921,59.29365 5.78999,67.59961 -15.643439,8.43768 -25.348999,-14.5494 -31.346392,-41.93056 -5.997376,-27.38115 6.115616,-33.96614 25.556402,-25.66905 z"
+     fill="#eeeeee"
+     stroke="#bdbdbd"
+     stroke-width="2.14583"
+     stroke-linejoin="round"
+     id="path6-8"
+     sodipodi:nodetypes="ssss" />
+</svg>

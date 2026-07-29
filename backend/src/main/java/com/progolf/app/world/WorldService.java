@@ -37,6 +37,10 @@ import com.progolf.sim.equipment.EquipmentDeal;
 import com.progolf.sim.equipment.EquipmentFit;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.media.NewsEvent;
+import com.progolf.app.api.ApiMapper;
+import com.progolf.app.api.dto.PlayingHoleDto;
+import com.progolf.sim.course.GeneratedHole;
+import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.play.PlayableEvent;
 import com.progolf.sim.play.RoundScorecard;
 import com.progolf.sim.play.ShotSituation;
@@ -625,6 +629,21 @@ public class WorldService {
         return required(ownerId, sessionId).world().currentEventScene()
                 .map(s -> new CurrentEventDto(s.name(), s.location(), s.courseType()))
                 .orElse(null);
+    }
+
+    /**
+     * The geometry of a hole in the player's pending event for rendering (spec: web-hole-visualization) — the
+     * current hole by default, or an explicit {@code holeNumber} (1..18) for pre-fetch, with the pin reflecting
+     * the round in progress. {@code null} when the event has been played to the end (no live hole to render).
+     */
+    public PlayingHoleDto currentPlayingHole(String ownerId, String sessionId, Integer holeNumber) {
+        PlayableEvent event = playerEvent(ownerId, sessionId);
+        if (event.isComplete()) {
+            return null;
+        }
+        GeneratedHole hole = holeNumber == null ? event.currentHole() : event.holeGeometry(holeNumber);
+        PinPosition pin = holeNumber == null ? event.currentPin() : event.pinAt(holeNumber);
+        return ApiMapper.playingHole(hole, pin, event.classification());
     }
 
     /** The live field leaderboard for the player's event. */

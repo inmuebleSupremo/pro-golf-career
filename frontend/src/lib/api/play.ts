@@ -8,6 +8,7 @@ import {
   AdvanceSeasonDocument,
   AdvanceWeekDocument,
   CompleteEventDocument,
+  PlayingHoleDocument,
   PlayShotDocument,
   PlayStateDocument,
   SimEventDocument,
@@ -26,11 +27,26 @@ export function usePlayState(id: string) {
   });
 }
 
+/**
+ * Geometry of a hole in the pending event, for the 2D render (spec: web-hole-visualization). Defaults to the
+ * current hole; pass an explicit `hole` (1..18) to pre-fetch another. Keyed by hole so it refetches as play
+ * advances to the next hole, and is invalidated alongside the play state after each shot.
+ */
+export function usePlayingHole(id: string, hole?: number) {
+  return useQuery({
+    queryKey: ["playingHole", id, hole ?? "current"],
+    queryFn: () => gqlRequest(PlayingHoleDocument, { id, hole }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
 /** Invalidate the play state and the career overview after a play mutation. */
 function useInvalidatePlay(id: string) {
   const queryClient = useQueryClient();
   return () => {
     queryClient.invalidateQueries({ queryKey: ["play", id] });
+    queryClient.invalidateQueries({ queryKey: ["playingHole", id] });
     queryClient.invalidateQueries({ queryKey: ["career", id] });
   };
 }

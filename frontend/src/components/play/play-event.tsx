@@ -12,10 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { CLUBS, STRATEGIES, humanize } from "@/lib/play/options";
 import { sceneBackdrop, type SceneBackdrop } from "@/lib/play/scene";
+import { Hole2d } from "@/components/play/hole-2d";
+import { HoleFlyover } from "@/components/play/hole-flyover";
+import type { HoleGeom, ResolvedShot } from "@/lib/play/hole-geometry";
 import { usePlayerProfile } from "@/lib/api/queries";
 import { isNotFound, isUnauthorized } from "@/lib/api/graphql-client";
 import {
   useCompleteEvent,
+  usePlayingHole,
   usePlayShot,
   usePlayState,
   useSimEvent,
@@ -55,6 +59,7 @@ const ROUNDS_PER_EVENT = 4;
 type Outcome = {
   finalSurface: string;
   carry: number;
+  lateral: number;
   distanceRemaining: number;
   hazardEntered: boolean;
   penaltyStrokes: number;
@@ -67,6 +72,17 @@ export function PlayEvent({ id }: { id: string }) {
   const playerGolferId = usePlayerProfile(id).data?.playerProfile?.golferId ?? null;
 
   const hasPendingEvent = data?.world?.hasPendingEvent ?? false;
+  const playingHole = (usePlayingHole(id).data?.playingHole ?? null) as HoleGeom | null;
+
+  // The latest resolved shot, lifted here so the 2D hole can play it back; cleared when the hole changes so a
+  // prior hole's outcome never animates on the next hole (render-phase reset, per the React docs pattern).
+  const [lastShot, setLastShot] = useState<Outcome | null>(null);
+  const currentHoleNumber = (data?.currentSituation as Situation | null)?.holeNumber ?? null;
+  const [ballHole, setBallHole] = useState<number | null>(currentHoleNumber);
+  if (currentHoleNumber !== ballHole) {
+    setBallHole(currentHoleNumber);
+    setLastShot(null);
+  }
 
   useEffect(() => {
     if (isError && isUnauthorized(error)) {
@@ -134,6 +150,7 @@ export function PlayEvent({ id }: { id: string }) {
         <PressureBanner pressure={pressure} round={scorecard?.roundNumber ?? null} />
         <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
           <div className="flex flex-col gap-6">
+            <HoleStage hole={playingHole} situation={situation} ball={lastShot} backdrop={backdrop} />
             {scorecard && scorecard.holes.length > 0 ? (
               <ScorecardStrip scorecard={scorecard} />
             ) : null}
@@ -142,8 +159,9 @@ export function PlayEvent({ id }: { id: string }) {
               key={`${situation.holeNumber}-${situation.shotNumber}`}
               id={id}
               situation={situation}
+              onShot={setLastShot}
             />
-            <SimControls id={id} />
+            <SimControls id={id} onShot={setLastShot} />
           </div>
           <Leaderboard rows={leaderboard} playerGolferId={playerGolferId} />
         </div>
@@ -315,6 +333,35 @@ function HoleCell({ hole }: { hole: HoleScore }) {
   );
 }
 
+/**
+ * The persistent 2D play surface: the parametric hole schematic (spec: web-hole-visualization) with the reach
+ * overlay and shot playback, introduced by the receding scene flyover. Renders nothing until the hole geometry
+ * loads — the stat panel and controls below stay usable meanwhile.
+ */
+function HoleStage({
+  hole,
+  situation,
+  ball,
+  backdrop,
+}: {
+  hole: HoleGeom | null;
+  situation: Situation;
+  ball: Outcome | null;
+  backdrop: SceneBackdrop;
+}) {
+  if (!hole) return null;
+  const reach = { distanceToPin: situation.distanceToPin, min: situation.minReach, max: situation.maxReach };
+  const shot: ResolvedShot | null = ball
+    ? { finalSurface: ball.finalSurface, carry: ball.carry, lateral: ball.lateral, distanceRemaining: ball.distanceRemaining }
+    : null;
+  return (
+    <section className="border-border bg-surface relative isolate flex justify-center overflow-hidden rounded-lg border">
+      <Hole2d hole={hole} reach={reach} ball={shot} className="block max-h-[30rem] w-auto" />
+      <HoleFlyover holeNumber={hole.holeNumber} par={hole.par} length={hole.length} backdrop={backdrop} />
+    </section>
+  );
+}
+
 function SituationPanel({ situation }: { situation: Situation }) {
   return (
     <section className="border-border bg-surface rounded-lg border p-6">
@@ -353,7 +400,15 @@ function clampTarget(s: Situation): number {
   return Math.round(Math.min(Math.max(s.distanceToPin, s.minReach), s.maxReach));
 }
 
-function ShotDecision({ id, situation }: { id: string; situation: Situation }) {
+function ShotDecision({
+  id,
+  situation,
+  onShot,
+}: {
+  id: string;
+  situation: Situation;
+  onShot: (outcome: Outcome) => void;
+}) {
   const play = usePlayShot(id);
   const [club, setClub] = useState(() => defaultClub(situation));
   const [strategy, setStrategy] = useState("BALANCED");
@@ -369,6 +424,7 @@ function ShotDecision({ id, situation }: { id: string; situation: Situation }) {
     try {
       const result = await play.mutateAsync({ club, targetDistance: target, strategy });
       setOutcome(result.playShot);
+      onShot(result.playShot);
     } catch {
       setFormError("Couldn't play that shot. Try again.");
     }
@@ -446,17 +502,26 @@ function OutcomeNote({ outcome }: { outcome: Outcome }) {
   );
 }
 
-function SimControls({ id }: { id: string }) {
+function SimControls({ id, onShot }: { id: string; onShot: (outcome: Outcome) => void }) {
   const simShot = useSimShot(id);
   const simHole = useSimHole(id);
   const simRound = useSimRound(id);
   const simEvent = useSimEvent(id);
   const busy = simShot.isPending || simHole.isPending || simRound.isPending || simEvent.isPending;
 
+  // A single simmed shot plays back like a manual one; simming a whole hole/round/event resolves many shots,
+  // so those just advance (the hole change clears any prior playback).
+  function onSimShot() {
+    simShot
+      .mutateAsync()
+      .then((r) => onShot(r.simShot))
+      .catch(() => {});
+  }
+
   return (
     <section className="flex flex-wrap items-center gap-3">
       <span className="text-muted-foreground text-sm">Skip ahead</span>
-      <Button variant="secondary" size="sm" disabled={busy} onClick={() => simShot.mutate()}>
+      <Button variant="secondary" size="sm" disabled={busy} onClick={onSimShot}>
         Sim shot
       </Button>
       <Button variant="secondary" size="sm" disabled={busy} onClick={() => simHole.mutate()}>

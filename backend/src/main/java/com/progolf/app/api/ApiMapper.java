@@ -13,7 +13,10 @@ import com.progolf.app.api.dto.ScheduleEntryDto;
 import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.ShotDecisionInput;
 import com.progolf.app.api.dto.ShotOutcomeDto;
+import com.progolf.app.api.dto.PlayingHoleDto;
 import com.progolf.app.api.dto.ShotSituationDto;
+import com.progolf.app.api.dto.SurfaceBandDto;
+import com.progolf.app.api.dto.SurfaceRegionDto;
 import com.progolf.app.api.dto.SponsorshipOfferDto;
 import com.progolf.app.api.dto.StaffMemberDto;
 import com.progolf.app.api.dto.WorldConfigInput;
@@ -26,8 +29,12 @@ import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentCharacteristics;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.media.NewsEvent;
+import com.progolf.sim.course.EnvironmentClassification;
+import com.progolf.sim.course.GeneratedHole;
+import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.play.RoundScorecard;
 import com.progolf.sim.play.ShotSituation;
+import com.progolf.sim.spatial.ShotZoneProfile;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.player.ProfessionalGolfer;
@@ -87,7 +94,26 @@ public final class ApiMapper {
     public static ShotSituationDto situation(ShotSituation s) {
         return new ShotSituationDto(s.holeNumber(), s.par(), s.shotNumber(), s.strokesThisHole(),
                 s.distanceToPin(), s.lie().name(), s.pinLateral(),
-                s.reachable().minReach(), s.reachable().maxReach());
+                s.reachable().minReach(), s.reachable().maxReach(), reachableBands(s.reachable()));
+    }
+
+    /** Projects the reachable zone profile to ordered surface bands for a truthful shot-preview overlay. */
+    private static List<SurfaceBandDto> reachableBands(ShotZoneProfile profile) {
+        return profile.bands().stream()
+                .map(b -> new SurfaceBandDto(b.startDistance(), b.endDistance(),
+                        b.regions().stream()
+                                .map(r -> new SurfaceRegionDto(r.surface().name(), r.outerHalfWidth()))
+                                .toList()))
+                .toList();
+    }
+
+    /** Projects a hole's geometry and the active round's pin to the client rendering DTO (spec: web-hole-visualization). */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, EnvironmentClassification classification) {
+        return new PlayingHoleDto(hole.number(), hole.par(), hole.length(),
+                hole.fairwayHalfWidth(), hole.greenHalfWidth(), hole.greenDepth(), hole.elevationDelta(),
+                hole.hasGreensideBunker(), hole.hasWater(), hole.hasTrees(),
+                pin.lateralOffset(), pin.depthOffset(),
+                classification.name(), Long.toString(hole.holeSeed()));
     }
 
     public static SeasonStatDto seasonStat(SeasonStatistics s) {

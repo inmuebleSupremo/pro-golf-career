@@ -585,6 +585,14 @@ export const PlayStateDocument = graphql(`
       pinLateral
       minReach
       maxReach
+      reachable {
+        startDistance
+        endDistance
+        regions {
+          surface
+          halfWidth
+        }
+      }
     }
     currentEvent(id: $id) {
       name
@@ -612,6 +620,28 @@ export const PlayStateDocument = graphql(`
         par
         strokes
       }
+    }
+  }
+`);
+
+/** Geometry of a hole in the pending event, for the 2D render: current hole by default, or an explicit hole. */
+export const PlayingHoleDocument = graphql(`
+  query PlayingHole($id: ID!, $hole: Int) {
+    playingHole(id: $id, hole: $hole) {
+      holeNumber
+      par
+      length
+      fairwayHalfWidth
+      greenHalfWidth
+      greenDepth
+      elevationDelta
+      hasGreensideBunker
+      hasWater
+      hasTrees
+      pinLateral
+      pinDepth
+      courseType
+      layoutSeed
     }
   }
 `);

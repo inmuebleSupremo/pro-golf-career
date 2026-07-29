@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 400 800"
+   version="1.1"
+   id="svg11"
+   sodipodi:docname="desert001.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview11"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.87504464"
+     inkscape:cx="231.41677"
+     inkscape:cy="409.12198"
+     inkscape:window-width="1135"
+     inkscape:window-height="1000"
+     inkscape:window-x="2319"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg11" />
+  <defs
+     id="defs5">
+    <radialGradient
+       id="dry-green"
+       cx="160.92802"
+       cy="112.16195"
+       r="38.961519"
+       fx="145.34341"
+       fy="96.577343"
+       gradientTransform="matrix(1.8684049,1.8311675e-8,1.3731123e-8,1.3703739,-124.29385,-86.453775)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         offset="0%"
+         stop-color="#558B2F"
+         id="stop1" />
+      <stop
+         offset="0.77527159"
+         stop-color="#689F38"
+         id="stop2" />
+      <stop
+         offset="100%"
+         stop-color="#C5E1A5"
+         id="stop3" />
+    </radialGradient>
+    <g
+       id="saguaro">
+      <path
+         d="M 0 0 L 0 -30"
+         stroke="#2E7D32"
+         stroke-width="6"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="path3" />
+      <path
+         d="M 0 -15 L -8 -15 L -8 -25"
+         stroke="#2E7D32"
+         stroke-width="4"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         fill="none"
+         id="path4" />
+      <path
+         d="M 0 -20 L 8 -20 L 8 -28"
+         stroke="#2E7D32"
+         stroke-width="4"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         fill="none"
+         id="path5" />
+    </g>
+  </defs>
+  <rect
+     width="400"
+     height="800"
+     fill="#E4CEA1"
+     id="rect5" />
+  <use
+     href="#saguaro"
+     x="350"
+     y="150"
+     transform="matrix(1.1954798,0,0,1.1169589,-378.82981,-37.712753)"
+     id="use8-7" />
+  <use
+     href="#saguaro"
+     x="350"
+     y="150"
+     transform="matrix(1.1954798,0,0,1.1169589,-365.97465,-87.567913)"
+     id="use8-8" />
+  <use
+     href="#saguaro"
+     x="350"
+     y="150"
+     transform="matrix(1.1954798,0,0,1.1169589,-277.84369,-1.144006)"
+     id="use8-5" />
+  <use
+     href="#saguaro"
+     x="350"
+     y="150"
+     transform="matrix(1.1954798,0,0,1.1169589,-191.83838,-109.85188)"
+     id="use8-9" />
+  <path
+     d="M 0,180.85557 C 52.862099,18.861282 200,450 400,400 V 800 H 0 Z"
+     fill="#d7be8a"
+     id="path6"
+     sodipodi:nodetypes="ccccc" />
+  <path
+     d="m 29.891324,735.08819 c 0,-204.64379 163.851516,-244.2497 193.502536,-360.41223 C 253.50764,256.70047 212.43228,271.21872 148.84141,224.57557 107.86459,194.51957 61.685273,126.4833 60.280042,100.69244 54.328609,-8.5369803 242.67933,34.005132 249.46914,102.97804 c 12.88097,130.84862 94.95926,183.96741 94.95926,286.2893 0,153.48285 -192.98221,243.49895 -192.98221,345.82085 0,20.46438 -121.554866,20.46438 -121.554866,0 z"
+     fill="#689f38"
+     stroke="#558b2f"
+     stroke-width="2.03615"
+     stroke-linejoin="round"
+     id="path7"
+     sodipodi:nodetypes="ssssssss" />
+  <path
+     d="m 130.03541,163.40209 c 32.66507,-3.20967 58.17891,30.74349 41.30397,45.32416 -16.87493,14.58066 -40.82178,-8.21928 -52.39317,-23.23543 -11.57144,-15.01614 -7.3527,-18.66131 11.0892,-22.08873 z"
+     fill="#eeeeee"
+     stroke="#bdbdbd"
+     stroke-width="1.54091"
+     stroke-linejoin="round"
+     id="path6-0-2"
+     sodipodi:nodetypes="cscc" />
+  <path
+     d="m 323.15805,386.07414 c -21.53287,-10.124 -43.93382,-68.07254 -32.12537,-89.61574 11.80844,-21.54318 33.77534,12.49309 40.54764,49.54605 6.77232,37.05298 3.82021,42.43878 -8.42227,40.06969 z"
+     fill="#eeeeee"
+     stroke="#bdbdbd"
+     stroke-width="1.81158"
+     stroke-linejoin="round"
+     id="path6-0" />
+  <ellipse
+     cx="176.38484"
+     cy="67.250023"
+     rx="71.213371"
+     ry="51.773914"
+     fill="url(#dry-green)"
+     stroke="#7cb342"
+     stroke-width="3.20025"
+     stroke-linejoin="round"
+     id="ellipse7"
+     style="fill:url(#dry-green)"
+     transform="matrix(0.97330321,0.22952312,-0.23351862,0.97235233,0,0)"
+     inkscape:transform-center-x="-3.624596"
+     inkscape:transform-center-y="7.1036914" />
+  <use
+     href="#saguaro"
+     x="50"
+     y="300"
+     transform="matrix(1.2,0,0,1.2,34.283965,-2.2855977)"
+     id="use7" />
+  <use
+     href="#saguaro"
+     x="350"
+     y="150"
+     transform="matrix(1.1954798,0,0,1.1169589,-158.84369,-80.144006)"
+     id="use8" />
+  <use
+     href="#saguaro"
+     x="80"
+     y="650"
+     transform="matrix(1.1,0,0,1.1,-66.282333,-33.141166)"
+     id="use9" />
+  <use
+     href="#saguaro"
+     x="360"
+     y="550"
+     id="use10-7"
+     transform="translate(-171.5712,174.5716)" />
+  <use
+     href="#saguaro"
+     x="360"
+     y="550"
+     id="use10"
+     transform="translate(-1.1427984,4.5711958)" />
+  <use
+     href="#saguaro"
+     x="360"
+     y="550"
+     id="use10-21"
+     transform="translate(-156.28111,-157.14117)" />
+  <use
+     href="#saguaro"
+     x="360"
+     y="550"
+     id="use10-57"
+     transform="translate(-253.85271,-82.430433)" />
+  <use
+     href="#saguaro"
+     x="360"
+     y="550"
+     id="use10-8"
+     transform="translate(-188.71236,-257.56467)" />
+  <use
+     href="#saguaro"
+     x="360"
+     y="550"
+     id="use10-5"
+     transform="translate(-51.569155,55.998775)" />
+  <use
+     href="#saguaro"
+     x="360"
+     y="550"
+     id="use10-6"
+     transform="translate(9.4312534,-73)" />
+  <use
+     href="#saguaro"
+     x="360"
+     y="550"
+     id="use10-2"
+     transform="translate(8.7152186,-156.28315)" />
+  <use
+     href="#saguaro"
+     x="300"
+     y="700"
+     transform="scale(1.3)"
+     id="use11" />
+  <rect
+     x="70.430847"
+     y="755.42883"
+     width="37.999592"
+     height="24.571196"
+     rx="7.5999184"
+     fill="#689f38"
+     id="rect11"
+     style="stroke-width:1.24746" />
+</svg>
