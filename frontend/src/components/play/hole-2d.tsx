@@ -5,9 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { BIOME_KITS, resolveBiome, SYMBOL_SCALE, VEG_SYMBOLS, type SvgPrim } from "@/lib/play/biomes";
 import {
   ballPosition,
-  centerlinePoint,
   projectHole,
-  reachStretch,
   type HoleGeom,
   type HoleLayout,
   type Point,
@@ -48,16 +46,8 @@ function arcPath(a: Point, b: Point): string {
   return `M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
 }
 
-/** The current shot's reachable window, mapped onto the hole as a truthful landing-stretch overlay. */
-export interface ReachHint {
-  readonly distanceToPin: number;
-  readonly min: number;
-  readonly max: number;
-}
-
 export interface Hole2dProps {
   readonly hole: HoleGeom;
-  readonly reach?: ReachHint | null;
   /** The last resolved shot, placed on the hole under the fidelity rule (animated by the playback layer). */
   readonly ball?: ResolvedShot | null;
   readonly className?: string;
@@ -76,7 +66,7 @@ function Prim({ p }: { p: SvgPrim }) {
  * on its real side — with an optional truthful reach overlay and resolved-ball marker. Illustration colours
  * come from the biome kit; the surrounding chrome uses the app's tokens.
  */
-export function Hole2d({ hole, reach, ball, className }: Hole2dProps) {
+export function Hole2d({ hole, ball, className }: Hole2dProps) {
   const kit = BIOME_KITS[resolveBiome(hole.courseType)];
   const layout: HoleLayout = useMemo(() => projectHole(hole, kit), [hole, kit]);
 
@@ -89,17 +79,6 @@ export function Hole2d({ hole, reach, ball, className }: Hole2dProps) {
   const roughFill = kit.roughPattern === "fescue" ? url("fescue") : kit.rough;
   const outFill = kit.roughPattern === "fescue" ? url("fescue") : kit.out;
 
-  const reachPath = useMemo(() => {
-    if (!reach) return null;
-    const { tMin, tMax } = reachStretch(layout, reach.distanceToPin, reach.min, reach.max);
-    if (tMax - tMin < 0.02) return null;
-    const steps = 6;
-    return Array.from({ length: steps + 1 }, (_, i) => {
-      const p = centerlinePoint(layout, tMin + ((tMax - tMin) * i) / steps);
-      return `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
-    }).join(" ");
-  }, [layout, reach]);
-
   // Playback: when a new resolved shot arrives, animate the ball from its previous rest (or the tee) to the
   // fidelity-resolved landing. Refs track the last rest and hole so each new shot replays once.
   const reduced = usePrefersReducedMotion();
@@ -107,7 +86,7 @@ export function Hole2d({ hole, reach, ball, className }: Hole2dProps) {
   const lastHole = useRef(hole.holeNumber);
   const lastBall = useRef<ResolvedShot | null>(null);
   const seq = useRef(0);
-  const [flight, setFlight] = useState<{ from: Point; to: Point; effect: "splash" | "sand" | "roll"; seq: number } | null>(null);
+  const [flight, setFlight] = useState<{ from: Point; to: Point; effect: "splash" | "sand" | "roll"; holed: boolean; seq: number } | null>(null);
   const [animating, setAnimating] = useState(false);
 
   useEffect(() => {
@@ -124,15 +103,16 @@ export function Hole2d({ hole, reach, ball, className }: Hole2dProps) {
     const from = lastRest.current ?? layout.tee;
     lastRest.current = { x: to.x, y: to.y };
     seq.current += 1;
-    setFlight({ from, to, effect: to.effect, seq: seq.current });
+    setFlight({ from, to, effect: to.effect, holed: to.holed ?? false, seq: seq.current });
     if (reduced) return;
     setAnimating(true);
     const timer = setTimeout(() => setAnimating(false), FLIGHT_MS + REACTION_MS);
     return () => clearTimeout(timer);
   }, [ball, hole.holeNumber, layout, reduced]);
 
-  // The ball at rest — shown once the flight lands (or immediately under reduced motion).
-  const rest = flight && (!animating || reduced) ? flight.to : null;
+  // The ball at rest — shown once the flight lands (or immediately under reduced motion). A holed shot has no
+  // resting ball: it is in the cup.
+  const rest = flight && !flight.holed && (!animating || reduced) ? flight.to : null;
 
   return (
     <svg
@@ -199,11 +179,6 @@ export function Hole2d({ hole, reach, ball, className }: Hole2dProps) {
         <path d={centerline} stroke={url("mow")} strokeWidth={fairwayWidth} fill="none" strokeLinecap="round" opacity="0.45" />
       )}
 
-      {/* Reachable landing stretch (truthful, longitudinal only) */}
-      {reachPath && (
-        <path d={reachPath} stroke="#ffffff" strokeWidth={fairwayWidth * 0.8} fill="none" strokeLinecap="round" opacity="0.16" />
-      )}
-
       {/* Water hazard */}
       {water && <path d={water.d} fill={kit.water ?? "#2f7fb5"} filter={url("waterShadow")} />}
 
@@ -247,11 +222,29 @@ export function Hole2d({ hole, reach, ball, className }: Hole2dProps) {
               <mpath href={`#${id(`flight${flight.seq}`)}`} />
             </animateMotion>
             <animate attributeName="r" values="3;4.4;3" dur={`${FLIGHT_MS}ms`} begin="0s" fill="freeze" />
+            {/* Holed: after landing on the cup, the ball drops in (shrinks to nothing over the pin). */}
+            {flight.holed && (
+              <animate attributeName="r" from="3" to="0" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
+            )}
           </circle>
-          <circle cx={flight.to.x} cy={flight.to.y} r="0" fill="none" stroke={REACTION_COLOR[flight.effect]} strokeWidth="1.6" opacity="0">
-            <animate attributeName="r" values="0;10" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
-            <animate attributeName="opacity" values="0.9;0" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
-          </circle>
+          {flight.holed ? (
+            // Hole-out celebration: two success rings ripple out from the cup as the ball drops.
+            <>
+              <circle cx={flight.to.x} cy={flight.to.y} r="0" fill="none" stroke="#ffffff" strokeWidth="1.6" opacity="0">
+                <animate attributeName="r" values="1;12" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
+                <animate attributeName="opacity" values="0.95;0" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
+              </circle>
+              <circle cx={flight.to.x} cy={flight.to.y} r="0" fill="none" stroke="#ffffff" strokeWidth="1" opacity="0">
+                <animate attributeName="r" values="1;18" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS + 120}ms`} fill="freeze" />
+                <animate attributeName="opacity" values="0.7;0" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS + 120}ms`} fill="freeze" />
+              </circle>
+            </>
+          ) : (
+            <circle cx={flight.to.x} cy={flight.to.y} r="0" fill="none" stroke={REACTION_COLOR[flight.effect]} strokeWidth="1.6" opacity="0">
+              <animate attributeName="r" values="0;10" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
+              <animate attributeName="opacity" values="0.9;0" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
+            </circle>
+          )}
         </g>
       )}
 

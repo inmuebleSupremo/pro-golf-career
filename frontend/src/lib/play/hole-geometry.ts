@@ -96,6 +96,8 @@ export interface BallPlacement {
   readonly x: number;
   readonly y: number;
   readonly effect: "splash" | "sand" | "roll";
+  /** The shot was holed — the ball rests in the cup (on the pin) and the playback should drop it in. */
+  readonly holed?: boolean;
 }
 
 const VIEW_W = 220;
@@ -103,10 +105,18 @@ const VIEW_H = 440;
 const PAD_TOP = 40;
 const PAD_BOT = 30;
 const X_SCALE = 1.6;
-const Y_SCALE_CAP = 0.6;
 const DOGLEG_MAX = 40;
 const ROUGH_EXTRA = 24;
 const TREE_BASE_COUNT = 11;
+
+// Dynamic viewport zoom (spec: fill the stage regardless of hole length). Every hole now fills the tee→green
+// span vertically; a bounded "altitude" zoom then sizes the objects so distance still reads: short holes render
+// as low-altitude close-ups (bigger trees/hazards/green), long holes as high-altitude overviews (smaller ones).
+// `REF_LEN` is the length that renders at neutral zoom (1.0); the sqrt softens the ramp and the clamp keeps
+// laterals from overflowing the frame on very short holes.
+const REF_LEN = 480;
+const ZOOM_MIN = 0.74;
+const ZOOM_MAX = 1.7;
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
@@ -154,8 +164,11 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
   const rng = mulberry32(seedInt(hole.layoutSeed));
   const usable = VIEW_H - PAD_TOP - PAD_BOT;
   const playLen = Math.max(1, hole.length + hole.pinDepth); // tee-to-pin
-  const yScale = Math.min(Y_SCALE_CAP, usable / playLen);
-  const holeLen = playLen * yScale;
+  const yScale = usable / playLen; // always fill the stage vertically, tee to green
+  const holeLen = usable;
+  // Altitude zoom: neutral at REF_LEN, larger (closer) on short holes, smaller (higher) on long ones.
+  const zoom = clamp(Math.sqrt(REF_LEN / playLen), ZOOM_MIN, ZOOM_MAX);
+  const xScale = X_SCALE * zoom; // lateral px per yard, scaled by the zoom
 
   const bx = VIEW_W / 2;
   const teeY = VIEW_H - PAD_BOT;
@@ -164,24 +177,24 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
   const ctrlX = bx + dog;
   const ctrlY = (teeY + grnY) / 2;
   const grnX = bx + dog * 0.55;
-  const frame: Frame = { bx, ctrlX, ctrlY, grnX, grnY, teeY, playLen, yScale, xScale: X_SCALE };
+  const frame: Frame = { bx, ctrlX, ctrlY, grnX, grnY, teeY, playLen, yScale, xScale };
 
   const centerline = `M${bx} ${teeY} Q ${ctrlX} ${ctrlY} ${grnX} ${grnY}`;
-  const fairwayWidth = hole.fairwayHalfWidth * X_SCALE * 2;
-  const roughWidth = fairwayWidth + ROUGH_EXTRA;
+  const fairwayWidth = hole.fairwayHalfWidth * xScale * 2;
+  const roughWidth = fairwayWidth + ROUGH_EXTRA * zoom;
   const flank: -1 | 1 = rng() < 0.5 ? -1 : 1;
 
-  const grx = hole.greenHalfWidth * X_SCALE;
-  const gry = Math.max(10, hole.greenDepth * yScale * 1.9);
+  const grx = hole.greenHalfWidth * xScale;
+  const gry = Math.max(10, hole.greenDepth * xScale * 1.05);
   // The pin sits on its real lateral side (load-bearing); clamped to stay on its own green.
-  const pinX = grnX + clamp(hole.pinLateral, -hole.greenHalfWidth, hole.greenHalfWidth) * X_SCALE;
+  const pinX = grnX + clamp(hole.pinLateral, -hole.greenHalfWidth, hole.greenHalfWidth) * xScale;
   const pinY = grnY - gry * 0.25;
 
   let water: WaterHazard | null = null;
   if (hole.hasWater && kit.water) {
-    const big = kit.biome === "tropical" ? 1.6 : 1;
-    const wx = grnX + flank * (grx + 12);
-    const wy = grnY + 16;
+    const big = (kit.biome === "tropical" ? 1.6 : 1) * zoom;
+    const wx = grnX + flank * (grx + 12 * zoom);
+    const wy = grnY + 16 * zoom;
     water = { d: waterBlob(wx, wy, 13 * big, 36 * big), x: wx, y: wy };
   }
 
@@ -189,10 +202,10 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
   if (hole.hasGreensideBunker) {
     // Greenside bunker on the flank opposite the water, then a fairway bunker on long holes.
     bunkers.push({
-      cx: grnX - flank * (grx + 8),
-      cy: grnY + 7,
-      rx: kit.potBunkers ? 6 : 8,
-      ry: kit.potBunkers ? 6 : 5.4,
+      cx: grnX - flank * (grx + 8 * zoom),
+      cy: grnY + 7 * zoom,
+      rx: (kit.potBunkers ? 6 : 8) * zoom,
+      ry: (kit.potBunkers ? 6 : 5.4) * zoom,
       pot: kit.potBunkers,
     });
     if (hole.par >= 4) {
@@ -201,8 +214,8 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
       bunkers.push({
         cx: p.x + flank * (fairwayWidth / 2 - 1),
         cy: p.y,
-        rx: kit.potBunkers ? 5 : 6.5,
-        ry: kit.potBunkers ? 5 : 4.5,
+        rx: (kit.potBunkers ? 5 : 6.5) * zoom,
+        ry: (kit.potBunkers ? 5 : 4.5) * zoom,
         pot: kit.potBunkers,
       });
     }
@@ -216,9 +229,9 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
       const side = rng() < 0.5 ? -1 : 1;
       const p = bezier(frame, t);
       trees.push({
-        x: p.x + side * (fairwayWidth / 2 + 8 + rng() * 11),
+        x: p.x + side * (fairwayWidth / 2 + (8 + rng() * 11) * zoom),
         y: p.y,
-        scale: 0.85 + rng() * 0.6,
+        scale: (0.85 + rng() * 0.6) * zoom,
       });
     }
   }
@@ -247,14 +260,21 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
 }
 
 /**
- * Resolves where a shot's ball rests on the layout, under the fidelity rule. A resolved hazard surface always
- * wins: WATER snaps into the rendered water, BUNKER into the nearest rendered bunker — the picture can never
- * disagree with the surface, distance, or penalty the sim reported. Non-hazard lies place along the centerline
- * at the fraction implied by the remaining distance, offset by the shot's real signed lateral.
+ * Resolves where a shot's ball rests on the layout, under the fidelity rule. A holed shot rests in the cup; a
+ * resolved hazard surface always wins (WATER snaps into the rendered water, BUNKER into the nearest rendered
+ * bunker); a ball on the GREEN/FRINGE is placed relative to the pin on a green-local scale so short putts read
+ * as short putts; every other lie places along the centerline at the fraction implied by the remaining distance,
+ * offset by the shot's real signed lateral. The picture can never disagree with the surface, distance, or
+ * penalty the sim reported.
  */
 export function ballPosition(layout: HoleLayout, shot: ResolvedShot): BallPlacement {
   const surface = shot.finalSurface.toUpperCase();
   const f = layout.frame;
+
+  // Holed out — the ball is in the cup, on the pin, whatever surface label the sim attached.
+  if (shot.distanceRemaining <= 0) {
+    return { x: layout.pin.x, y: layout.pin.y, effect: "roll", holed: true };
+  }
 
   if (surface === "WATER" && layout.water) {
     return { x: layout.water.x, y: layout.water.y, effect: "splash" };
@@ -271,28 +291,34 @@ export function ballPosition(layout: HoleLayout, shot: ResolvedShot): BallPlacem
     return { x: nearest.cx, y: nearest.cy, effect: "sand" };
   }
 
+  // On (or fringing) the green: placing against the whole hole length would collapse every putt onto the pin —
+  // a 10-yard putt and a 1-yard putt would sit pixels apart. Place relative to the cup on a green-local scale
+  // instead, so the visual distance to the hole tracks the numeric distance to the pin.
+  if (surface.includes("GREEN") || surface.includes("FRINGE")) {
+    return greenBallPosition(layout, shot.distanceRemaining, shot.lateral);
+  }
+
   const x = clamp(along.x + shot.lateral * f.xScale, 6, layout.width - 6);
   return { x, y: along.y, effect: "roll" };
 }
 
-/** A point on the fairway centerline at fraction `t` (0 = tee, 1 = green) — for overlays and playback. */
-export function centerlinePoint(layout: HoleLayout, t: number): Point {
-  return bezier(layout.frame, t);
-}
-
 /**
- * The centerline fractions a shot could carry to, from the current lie: the reachable landing stretch. Maps the
- * shot's carry window (`minReach`..`maxReach`, relative to the ball `distanceToPin` from the pin) to `t` in
- * [0,1] along the hole. Truthful and longitudinal only — it claims no lateral hazard sides.
+ * Places a ball resting on the green relative to the pin: `distanceRemaining` yards short of the cup along the
+ * line of play, at a green-local pixels-per-yard scale, plus the shot's lateral miss. Capped just past the green
+ * edge so an over-long "putt" (a long approach that trickled on) still reads on the putting surface.
  */
-export function reachStretch(
-  layout: HoleLayout,
-  distanceToPin: number,
-  minReach: number,
-  maxReach: number,
-): { readonly tMin: number; readonly tMax: number } {
+function greenBallPosition(layout: HoleLayout, distToPin: number, lateral: number): BallPlacement {
   const f = layout.frame;
-  const fromTee = f.playLen - distanceToPin;
-  const map = (carry: number) => clamp((fromTee + carry) / f.playLen, 0, 1);
-  return { tMin: map(minReach), tMax: map(maxReach) };
+  const pin = layout.pin;
+  // Unit vector from the pin back up the line of play (toward the tee), from the centerline near the green.
+  const back = bezier(f, 0.8);
+  const len = Math.hypot(back.x - pin.x, back.y - pin.y) || 1;
+  const ux = (back.x - pin.x) / len;
+  const uy = (back.y - pin.y) / len;
+  const off = Math.min(distToPin * f.xScale, Math.max(layout.green.rx, layout.green.ry) * 1.1);
+  // Perpendicular for the shot's lateral miss (kept within the remaining distance so it stays plausible).
+  const lat = clamp(lateral, -distToPin, distToPin) * f.xScale;
+  const x = clamp(pin.x + ux * off - uy * lat, 6, layout.width - 6);
+  const y = clamp(pin.y + uy * off + ux * lat, 6, layout.height - 6);
+  return { x, y, effect: "roll" };
 }
