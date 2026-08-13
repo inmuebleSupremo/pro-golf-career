@@ -61,7 +61,7 @@ export function PreHoleOverlay({ holeNumber, par, length }: { holeNumber: number
       <span className="text-subtle-foreground text-[11px] font-medium tracking-[0.16em] uppercase">Hole</span>
       <span className="font-serif text-6xl leading-none font-medium tracking-[-0.02em] tabular-nums">{holeNumber}</span>
       <span className="text-muted-foreground mt-1 font-mono text-sm tabular-nums">
-        Par {par} · {length} yds
+        Par {par} · {Math.round(length)} yds
       </span>
     </OverlayPanel>
   );

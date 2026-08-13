@@ -119,7 +119,7 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
       viewBox={`0 0 ${width} ${height}`}
       className={className}
       role="img"
-      aria-label={`Hole ${hole.holeNumber}, par ${hole.par}, ${hole.length} yards`}
+      aria-label={`Hole ${hole.holeNumber}, par ${hole.par}, ${Math.round(hole.length)} yards`}
       preserveAspectRatio="xMidYMid meet"
     >
       <defs>
