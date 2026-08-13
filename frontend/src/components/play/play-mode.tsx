@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { CLUBS, STRATEGIES, humanize } from "@/lib/play/options";
 import { StageHole } from "@/components/play/hole-transition";
+import { usePlaySequence } from "@/components/play/use-play-sequence";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
 import {
   clampTarget,
@@ -49,8 +50,6 @@ export function PlayMode({
   event,
   situation,
   hole,
-  lastShot,
-  onShot,
   scorecard,
   leaderboard,
   pressure,
@@ -60,8 +59,6 @@ export function PlayMode({
   event: CurrentEvent | null;
   situation: Situation;
   hole: HoleGeom | null;
-  lastShot: Outcome | null;
-  onShot: (outcome: Outcome) => void;
   scorecard: Scorecard | null;
   leaderboard: LeaderboardRow[];
   pressure: number | null;
@@ -69,6 +66,10 @@ export function PlayMode({
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<DrawerTab | null>(null);
+
+  // The client-side sequence: it owns what the stage shows and when the shot controls are locked, so the
+  // between-hole ceremony (hole-out → score → wipe → intro) can play out over the server's instant advance.
+  const seq = usePlaySequence({ situation, hole, scorecard, leaderboard, playerGolferId });
 
   // Lock body scroll while the immersive surface is up; restore on exit.
   useEffect(() => {
@@ -100,7 +101,14 @@ export function PlayMode({
 
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <section className="relative flex min-w-0 flex-1 items-center justify-center overflow-hidden p-4">
-          <StageHole hole={hole} situation={situation} pressure={pressure} lastShot={lastShot} />
+          <StageHole
+            displayHole={seq.displayHole}
+            situation={seq.displaySituation}
+            pressure={pressure}
+            playbackShot={seq.playbackShot}
+            phase={seq.phase}
+            postHole={seq.postHole}
+          />
         </section>
 
         <InfoDrawer
@@ -118,8 +126,10 @@ export function PlayMode({
         key={`${situation.holeNumber}-${situation.shotNumber}`}
         id={id}
         situation={situation}
-        onShot={onShot}
-        lastOutcome={lastShot}
+        onShot={seq.onShotResolved}
+        onSimJump={seq.onSimJump}
+        lastOutcome={seq.lastOutcome}
+        locked={seq.locked}
       />
     </div>
   );
@@ -197,12 +207,17 @@ function ActionDock({
   id,
   situation,
   onShot,
+  onSimJump,
   lastOutcome,
+  locked,
 }: {
   id: string;
   situation: Situation;
   onShot: (outcome: Outcome) => void;
+  onSimJump: () => void;
   lastOutcome: Outcome | null;
+  /** True through every transitional phase — the controls are disabled so the sequence can't be broken. */
+  locked: boolean;
 }) {
   const play = usePlayShot(id);
   const [club, setClub] = useState(() => defaultClub(situation));
@@ -264,8 +279,8 @@ function ActionDock({
           ) : null}
         </div>
 
-        <SimMenu id={id} onShot={onShot} />
-        <Button size="lg" onClick={onPlay} disabled={play.isPending}>
+        <SimMenu id={id} onShot={onShot} onSimJump={onSimJump} disabled={locked} />
+        <Button size="lg" onClick={onPlay} disabled={play.isPending || locked}>
           {play.isPending ? "Playing…" : "Play shot"}
         </Button>
       </div>
@@ -282,20 +297,31 @@ function DockField({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-function SimMenu({ id, onShot }: { id: string; onShot: (outcome: Outcome) => void }) {
+function SimMenu({
+  id,
+  onShot,
+  onSimJump,
+  disabled,
+}: {
+  id: string;
+  onShot: (outcome: Outcome) => void;
+  onSimJump: () => void;
+  disabled?: boolean;
+}) {
   const simShot = useSimShot(id);
   const simHole = useSimHole(id);
   const simRound = useSimRound(id);
   const simEvent = useSimEvent(id);
-  const busy = simShot.isPending || simHole.isPending || simRound.isPending || simEvent.isPending;
+  const busy = simShot.isPending || simHole.isPending || simRound.isPending || simEvent.isPending || (disabled ?? false);
   const [open, setOpen] = useState(false);
 
-  // A single simmed shot plays back like a manual one; simming a hole/round/event resolves many shots at once.
+  // A single simmed shot plays back like a manual one; simming a hole/round/event jumps past whole holes, so it
+  // skips the between-hole ceremony and greets the landed hole with its intro.
   const items: { label: string; run: () => void }[] = [
     { label: "Sim this shot", run: () => simShot.mutateAsync().then((r) => onShot(r.simShot)).catch(() => {}) },
-    { label: "Sim to end of hole", run: () => simHole.mutate() },
-    { label: "Sim to end of round", run: () => simRound.mutate() },
-    { label: "Sim to end of event", run: () => simEvent.mutate() },
+    { label: "Sim to end of hole", run: () => simHole.mutateAsync().then(onSimJump).catch(() => {}) },
+    { label: "Sim to end of round", run: () => simRound.mutateAsync().then(onSimJump).catch(() => {}) },
+    { label: "Sim to end of event", run: () => simEvent.mutateAsync().then(onSimJump).catch(() => {}) },
   ];
 
   return (

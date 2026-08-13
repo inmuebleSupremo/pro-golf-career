@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,7 +16,6 @@ import {
   ordinal,
   type CurrentEvent,
   type LeaderboardRow,
-  type Outcome,
   type Scorecard,
   type Situation,
 } from "@/components/play/play-shared";
@@ -31,16 +30,6 @@ export function PlayEvent({ id }: { id: string }) {
 
   const hasPendingEvent = data?.world?.hasPendingEvent ?? false;
   const playingHole = (usePlayingHole(id).data?.playingHole ?? null) as HoleGeom | null;
-
-  // The latest resolved shot, lifted here so the 2D hole can play it back; cleared when the hole changes so a
-  // prior hole's outcome never animates on the next hole (render-phase reset, per the React docs pattern).
-  const [lastShot, setLastShot] = useState<Outcome | null>(null);
-  const currentHoleNumber = (data?.currentSituation as Situation | null)?.holeNumber ?? null;
-  const [ballHole, setBallHole] = useState<number | null>(currentHoleNumber);
-  if (currentHoleNumber !== ballHole) {
-    setBallHole(currentHoleNumber);
-    setLastShot(null);
-  }
 
   useEffect(() => {
     if (isError && isUnauthorized(error)) {
@@ -104,8 +93,6 @@ export function PlayEvent({ id }: { id: string }) {
       event={event}
       situation={situation}
       hole={playingHole}
-      lastShot={lastShot}
-      onShot={setLastShot}
       scorecard={scorecard}
       leaderboard={leaderboard}
       pressure={pressure}
