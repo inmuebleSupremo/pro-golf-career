@@ -92,7 +92,6 @@ export function StageHole({
 
   const idle = phase === "idle";
   const showChrome = idle || phase === "reveal";
-  const reach = { distanceToPin: situation.distanceToPin, min: situation.minReach, max: situation.maxReach };
   const shot: ResolvedShot | null =
     idle && lastShot
       ? { finalSurface: lastShot.finalSurface, carry: lastShot.carry, lateral: lastShot.lateral, distanceRemaining: lastShot.distanceRemaining }
@@ -109,7 +108,7 @@ export function StageHole({
     <>
       {displayed ? (
         <div className={cn("flex h-full w-full items-center justify-center transition-opacity", holeClass)}>
-          <Hole2d hole={displayed} reach={reach} ball={shot} className="block max-h-full w-auto" />
+          <Hole2d hole={displayed} ball={shot} className="block max-h-full w-auto" />
         </div>
       ) : (
         <div className="bg-surface-3 aspect-[1/2] h-[70%] animate-pulse rounded-lg" />
