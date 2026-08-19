@@ -22,6 +22,8 @@ export interface CreateCareerInput {
 export interface CreatedGolfer extends CreateCareerInput {
   golferId: string;
   saveId: string;
+  /** The live session id for the just-created world — route straight into `/career/[id]`. */
+  sessionId: string;
 }
 
 /** A positive integer world seed rendered as a string (the Long scalar maps to string). */
@@ -55,7 +57,9 @@ export function useCreateCareer() {
       const saveId = `career-${crypto.randomUUID()}`;
       await gqlRequest(SaveGameDocument, { id: worldId, saveId });
 
-      return { ...input, golferId: createPlayer, saveId };
+      // worldId is the live in-memory session (player already assigned), so the caller can
+      // drop straight into the career hub rather than routing back through the saves list.
+      return { ...input, golferId: createPlayer, saveId, sessionId: worldId };
     },
     onSuccess: () => {
       // The new career should show when the player returns to their saves.

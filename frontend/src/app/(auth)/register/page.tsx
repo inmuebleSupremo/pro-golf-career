@@ -6,7 +6,7 @@ export default function RegisterPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2 text-center">
-        <h1 className="font-serif text-3xl font-medium tracking-[-0.01em]">Create your account</h1>
+        <h1 className="text-2xl font-bold tracking-[-0.02em]">Create your account</h1>
         <p className="text-muted-foreground">Start a career you can return to.</p>
       </div>
       <RegisterForm />

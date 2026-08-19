@@ -168,7 +168,7 @@ function CareerCreated({ golfer }: { golfer: CreatedGolfer }) {
         <p className="text-subtle-foreground font-mono text-xs tracking-[0.18em] uppercase">
           Your golfer is ready
         </p>
-        <h2 className="text-foreground font-serif text-4xl font-medium tracking-[-0.02em]">
+        <h2 className="text-foreground text-4xl font-bold tracking-[-0.03em]">
           {golfer.firstName} {golfer.lastName}
         </h2>
       </div>
@@ -183,11 +183,11 @@ function CareerCreated({ golfer }: { golfer: CreatedGolfer }) {
       <Button
         size="lg"
         onClick={() => {
-          router.push("/saves");
+          router.push(`/career/${golfer.sessionId}`);
           router.refresh();
         }}
       >
-        View your saves
+        Start your career
       </Button>
     </motion.div>
   );

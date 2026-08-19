@@ -43,7 +43,7 @@ export function RegisterForm() {
   if (created) {
     return (
       <div className="flex flex-col items-center gap-4 text-center">
-        <p className="text-foreground font-serif text-xl">Account created</p>
+        <p className="text-foreground text-lg font-bold tracking-[-0.02em]">Account created</p>
         <p className="text-muted-foreground text-sm">You can sign in now.</p>
         <Button asChild size="lg" className="w-full">
           <Link href="/login">Sign in</Link>
