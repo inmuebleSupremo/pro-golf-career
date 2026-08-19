@@ -34,7 +34,7 @@ class ApiPlayingHoleMapperTest {
         GeneratedHole hole = course(1234L).holes().get(0);
         PinPosition pin = hole.pinFor(1);
 
-        PlayingHoleDto dto = ApiMapper.playingHole(hole, pin, CLASSIFICATION);
+        PlayingHoleDto dto = ApiMapper.playingHole(hole, pin, CLASSIFICATION.name());
 
         assertThat(dto.holeNumber()).isEqualTo(hole.number());
         assertThat(dto.par()).isEqualTo(hole.par());
@@ -56,8 +56,8 @@ class ApiPlayingHoleMapperTest {
     void pinReflectsTheActiveRoundWhileGeometryIsConstant() {
         GeneratedHole hole = course(1234L).holes().get(3);
 
-        PlayingHoleDto round1 = ApiMapper.playingHole(hole, hole.pinFor(1), CLASSIFICATION);
-        PlayingHoleDto round2 = ApiMapper.playingHole(hole, hole.pinFor(2), CLASSIFICATION);
+        PlayingHoleDto round1 = ApiMapper.playingHole(hole, hole.pinFor(1), CLASSIFICATION.name());
+        PlayingHoleDto round2 = ApiMapper.playingHole(hole, hole.pinFor(2), CLASSIFICATION.name());
 
         // Dimensions and hazard flags are identical across rounds...
         assertThat(round2.length()).isEqualTo(round1.length());
@@ -75,8 +75,8 @@ class ApiPlayingHoleMapperTest {
         GeneratedHole first = course(777L).holes().get(5);
         GeneratedHole second = course(777L).holes().get(5);
 
-        assertThat(ApiMapper.playingHole(second, second.pinFor(1), CLASSIFICATION).layoutSeed())
-                .isEqualTo(ApiMapper.playingHole(first, first.pinFor(1), CLASSIFICATION).layoutSeed());
+        assertThat(ApiMapper.playingHole(second, second.pinFor(1), CLASSIFICATION.name()).layoutSeed())
+                .isEqualTo(ApiMapper.playingHole(first, first.pinFor(1), CLASSIFICATION.name()).layoutSeed());
     }
 
     @Test

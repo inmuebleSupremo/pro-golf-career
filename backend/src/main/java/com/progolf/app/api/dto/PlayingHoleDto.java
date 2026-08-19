@@ -7,8 +7,9 @@ package com.progolf.app.api.dto;
  * API edge.
  *
  * <p>{@code pinLateral} and {@code pinDepth} are the active round's pin offsets (the pin's side is load-bearing;
- * a back pin plays longer). {@code courseType} is the host course's {@code EnvironmentClassification} name (the
- * same token the scene uses), which the client maps to a biome style. {@code layoutSeed} is the hole's stable
+ * a back pin plays longer). {@code courseType} is the event's canonical scene token — the same token the scene
+ * backdrop uses — which the client maps to a biome style, so the hole illustration always agrees with the
+ * event's name, place, and photo. {@code layoutSeed} is the hole's stable
  * seed as a string (to survive JS 64-bit limits), from which the client synthesizes reproducible cosmetic
  * placement (hazard flanks, dogleg, vegetation).
  */

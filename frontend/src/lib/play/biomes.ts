@@ -25,7 +25,7 @@ export interface BiomeKit {
   /** Primary rough band colour (ignored when `roughPattern` is set). */
   readonly rough: string;
   /** When set, the rough is filled with a generated texture instead of a solid colour. */
-  readonly roughPattern: "fescue" | null;
+  readonly roughPattern: "fescue" | "heather" | null;
   readonly fairway: string;
   /** Mower-stripe pair overlaid on the fairway; `null` for biomes that aren't striped (links, desert). */
   readonly mowStripe: readonly [string, string] | null;
@@ -81,11 +81,14 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
     potBunkers: false, water: "#2b6f9e",
     vegetation: "pine", vegetationDensity: 1, waste: false, rock: true, elevationShading: true,
   },
+  // Heathland reads khaki/tan with heather flecks (docs/course-holes/heathland001.svg), NOT a purple field: the
+  // surround is a solid khaki frame and the rough carries a generated heather texture (sparse purple/green over
+  // olive), so the heather is a scattered accent rather than the dominant colour.
   heathland: {
     biome: "heathland",
-    out: "#4a3c5c", rough: "#5a4a63", roughPattern: null,
-    fairway: "#6f9e57", mowStripe: ["#79a860", "#67954f"],
-    green: "#8ec079", fringe: "#5f8a4a", sand: "#d8c79a", sandStroke: "#6e5f3f",
+    out: "#9a9770", rough: "#8a8c5f", roughPattern: "heather",
+    fairway: "#6f9457", mowStripe: ["#78a05f", "#688f50"],
+    green: "#84b06a", fringe: "#5f7f47", sand: "#ddceac", sandStroke: "#8a765a",
     potBunkers: false, water: "#3f6a86",
     vegetation: "deciduous", vegetationDensity: 0.6, waste: false, rock: false, elevationShading: false,
   },
@@ -100,8 +103,11 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
 };
 
 /**
- * Resolves the schematic biome from the host course's environment classification (`courseType`). COASTAL maps
- * to the water-heavy Tropical look (LINKS already covers the seaside); an unknown token falls back to Parkland.
+ * Resolves the schematic biome from the event's canonical scene token (`courseType`) — the same token the scene
+ * backdrop keys on, so the hole illustration always agrees with the event's photo, name, and place. HEATHLAND
+ * (the presentation face of the sim's WOODLAND) gets its khaki-heather look; COASTAL maps to the water-heavy
+ * Tropical look (LINKS already covers the seaside). The legacy WOODLAND token is still accepted as a safety net.
+ * An unknown token falls back to Parkland.
  */
 export function resolveBiome(courseType?: string | null): Biome {
   switch ((courseType ?? "").toUpperCase()) {
@@ -111,6 +117,7 @@ export function resolveBiome(courseType?: string | null): Biome {
       return "desert";
     case "MOUNTAIN":
       return "alpine";
+    case "HEATHLAND":
     case "WOODLAND":
       return "heathland";
     case "COASTAL":

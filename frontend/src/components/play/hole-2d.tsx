@@ -76,7 +76,8 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
   const url = (name: string) => `url(#${id(name)})`;
 
   const { width, height, centerline, fairwayWidth, roughWidth, green, pin, water, bunkers, trees } = layout;
-  const roughFill = kit.roughPattern === "fescue" ? url("fescue") : kit.rough;
+  const roughFill = kit.roughPattern ? url(kit.roughPattern) : kit.rough;
+  // Only links' fescue tiles the whole surround; heathland keeps a solid khaki frame with heather only in the rough.
   const outFill = kit.roughPattern === "fescue" ? url("fescue") : kit.out;
 
   // Playback: when a new resolved shot arrives, animate the ball from its previous rest (or the tee) to the
@@ -139,6 +140,17 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
           <pattern id={id("fescue")} width="16" height="16" patternUnits="userSpaceOnUse">
             <rect width="16" height="16" fill={kit.rough} />
             <path d="M3 13 L4 8 M5 13 L7 6 M9 13 L11 8 M12 13 L13 7" stroke="#9c8a52" strokeWidth="0.9" strokeLinecap="round" />
+          </pattern>
+        )}
+        {kit.roughPattern === "heather" && (
+          // Sparse heather flecks over the olive rough — small purple/green arcs and buds (docs/course-holes/heathland001.svg).
+          <pattern id={id("heather")} width="22" height="22" patternUnits="userSpaceOnUse">
+            <rect width="22" height="22" fill={kit.rough} />
+            <path d="M4 6 Q6 2 8 6" stroke="#6a1b9a" strokeWidth="1.1" fill="none" opacity="0.5" strokeLinecap="round" />
+            <path d="M15 16 Q17 12 19 16" stroke="#4a235a" strokeWidth="1.1" fill="none" opacity="0.4" strokeLinecap="round" />
+            <path d="M9 18 Q11 15 13 18" stroke="#3f6b32" strokeWidth="1.1" fill="none" opacity="0.5" strokeLinecap="round" />
+            <circle cx="5" cy="6" r="0.9" fill="#8e44ad" opacity="0.55" />
+            <circle cx="18" cy="9" r="1" fill="#2e7d32" opacity="0.5" />
           </pattern>
         )}
         <g id={id("veg")}>

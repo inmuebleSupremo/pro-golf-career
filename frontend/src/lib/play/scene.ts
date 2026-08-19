@@ -6,7 +6,7 @@
  * same backdrop.
  */
 
-export type Scene = "parkland" | "links" | "desert" | "tropical" | "mountain" | "coastal";
+export type Scene = "parkland" | "links" | "desert" | "tropical" | "mountain" | "coastal" | "heathland";
 
 /** The photographs available for each scene, relative to /public/scenes. All are square. */
 const SCENE_IMAGES: Record<Scene, readonly string[]> = {
@@ -19,7 +19,8 @@ const SCENE_IMAGES: Record<Scene, readonly string[]> = {
     "parkland-6.jpg",
     "parkland-7.jpg",
   ],
-  links: ["heath-2.jpg", "heath-4.jpg", "heath-5.jpg", "links-1.jpg", "links-2.jpg", "links-3.jpg"],
+  links: ["links-1.jpg", "links-2.jpg", "links-3.jpg"],
+  heathland: ["heath-2.jpg", "heath-4.jpg", "heath-5.jpg"],
   desert: ["desert-1.jpg", "desert-2.jpg", "desert-3.jpg"],
   tropical: ["florida-1.jpg", "florida-2.jpg"],
   mountain: ["mountain-1.jpg", "mountain-2.jpg", "mountain-3.jpg"],
@@ -28,12 +29,16 @@ const SCENE_IMAGES: Record<Scene, readonly string[]> = {
 
 /**
  * The scene for an event, from the backend's authoritative `courseType` token (PARKLAND, LINKS, DESERT,
- * TROPICAL, MOUNTAIN, COASTAL). Defaults to Parkland — the majority case — for anything unrecognised.
+ * TROPICAL, MOUNTAIN, COASTAL, HEATHLAND). The legacy WOODLAND token still resolves to heathland. Defaults to
+ * Parkland — the majority case — for anything unrecognised.
  */
 export function resolveScene(courseType?: string | null): Scene {
   switch ((courseType ?? "").toUpperCase()) {
     case "LINKS":
       return "links";
+    case "HEATHLAND":
+    case "WOODLAND":
+      return "heathland";
     case "DESERT":
       return "desert";
     case "TROPICAL":

@@ -767,7 +767,13 @@ public class WorldService {
         }
         GeneratedHole hole = holeNumber == null ? event.currentHole() : event.holeGeometry(holeNumber);
         PinPosition pin = holeNumber == null ? event.currentPin() : event.pinAt(holeNumber);
-        return ApiMapper.playingHole(hole, pin, event.classification());
+        // The hole's biome keys on the event's canonical scene token — the same token the scene backdrop uses —
+        // so the illustration agrees with the event's name/place/photo (a links major renders as links, whatever
+        // its randomly-assigned host course). Falls back to the raw host classification only if no event is pending.
+        String courseType = required(ownerId, sessionId).world().currentEventScene()
+                .map(World.PendingEventScene::courseType)
+                .orElseGet(() -> event.classification().name());
+        return ApiMapper.playingHole(hole, pin, courseType);
     }
 
     /** The live field leaderboard for the player's event. */

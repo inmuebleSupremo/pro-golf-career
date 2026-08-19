@@ -51,4 +51,14 @@ class EventNamingCourseTypeTest {
         assertThat(EventNaming.courseType(EventPrestige.REGULAR, TourTier.DEVELOPMENT, DESERT_COURSE, -1, -1))
                 .isEqualTo("DESERT");
     }
+
+    @Test
+    void woodlandCoursesPresentAsHeathland() {
+        // The sim's WOODLAND classification carries the presentation HEATHLAND scene (its khaki-heather look),
+        // so name/place/photo/2D-biome all agree — never the old parkland fallback.
+        Course woodland =
+                CourseGenerator.generate(new SeedCoordinate(2L, 2, 2, 0, 0, 0, 0), EnvironmentClassification.WOODLAND);
+        assertThat(EventNaming.courseType(EventPrestige.REGULAR, TourTier.DEVELOPMENT, woodland, -1, -1))
+                .isEqualTo("HEATHLAND");
+    }
 }
