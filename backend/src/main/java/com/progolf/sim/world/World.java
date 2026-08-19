@@ -2,6 +2,8 @@ package com.progolf.sim.world;
 
 import com.progolf.sim.career.Career;
 import com.progolf.sim.career.CareerConstants;
+import com.progolf.sim.career.CareerEventRecord;
+import com.progolf.sim.career.CareerRecordBook;
 import com.progolf.sim.achievement.Achievement;
 import com.progolf.sim.achievement.AchievementDetector;
 import com.progolf.sim.career.CareerStatistics;
@@ -163,6 +165,9 @@ public final class World {
     // Major ordinals (0-3) the player has won in the CURRENT season — the running progress toward a single-season
     // Career Grand Slam. Reset at each season boundary.
     private final Set<Integer> majorsWonThisSeason = new LinkedHashSet<>();
+    // The player's rich per-event records ledger (spec: career-records): captured only for the human player as
+    // each of their events completes, so the career-records surface can show where/when/how of every result.
+    private final CareerRecordBook playerCareerRecords = new CareerRecordBook();
     /** Salt for the retirement draw, keeping it independent of every other seeded stream. */
     private static final long RETIREMENT_SALT = 555_555_557L;
     /** Salt for marquee permanent-venue derivation, independent of every other seeded stream. */
@@ -255,7 +260,8 @@ public final class World {
                 new ArrayList<>(playerPendingEquipment), new LinkedHashSet<>(achievedGoals),
                 staffPool.available(),
                 playerActiveEquipmentDeal, new ArrayList<>(playerPendingEquipmentDeals),
-                new EnumMap<>(unlockedAchievements), new LinkedHashSet<>(majorsWonThisSeason));
+                new EnumMap<>(unlockedAchievements), new LinkedHashSet<>(majorsWonThisSeason),
+                playerCareerRecords.snapshot());
     }
 
     /** Rebuilds an identical world from a snapshot, regenerating the seed-derived parts (spec: world-snapshot). */
@@ -317,6 +323,12 @@ public final class World {
         }
         if (s.majorsWonThisSeason() != null) {
             w.majorsWonThisSeason.addAll(s.majorsWonThisSeason());
+        }
+        // Player career records ledger (absent in pre-career-records saves → an empty ledger).
+        if (s.playerCareerRecords() != null) {
+            for (CareerEventRecord record : s.playerCareerRecords().records()) {
+                w.playerCareerRecords.record(record);
+            }
         }
         return w;
     }
@@ -679,6 +691,10 @@ public final class World {
             careers.get(g.player().id()).recordTournament(result, prestige, tier, date);
         }
 
+        // Career records (spec: career-records): retain the player's rich per-event detail (venue, score,
+        // round card, metrics) so their career-records surface can show the where/when/how of every result.
+        capturePlayerRecord(built, result, prestige, tier, date, season);
+
         // Media: the win (a major victory is the biggest news), any maiden title, and any upset (REQ-241/242).
         String winnerName = winner.player().identity().fullName();
         media.publish(prestige.isMajor()
@@ -740,6 +756,33 @@ public final class World {
         seasonResults.add(result);
         checkCareerGoals(); // a win/major/ranking move may complete a player goal (spec: career-goals)
         checkAchievements(); // ...and may unlock a metric-based achievement (spec: career-achievements)
+    }
+
+    /**
+     * Captures the human player's rich record for a completed event, if they competed in it (spec:
+     * career-records). No-op for an autonomous world, or an event the player skipped. The round-by-round card
+     * is read from the tournament standings so it is retained for both simmed and interactively-played events.
+     */
+    private void capturePlayerRecord(BuiltEvent built, TournamentResult result, EventPrestige prestige,
+                                     Tier tier, LocalDate date, int season) {
+        if (playerControl == null) {
+            return;
+        }
+        String playerId = playerControl.golferId();
+        TournamentResult.Finish finish = result.finishingOrder().stream()
+                .filter(f -> f.golfer().player().id().equals(playerId))
+                .findFirst()
+                .orElse(null);
+        if (finish == null) {
+            return; // the player did not compete in this event
+        }
+        var shots = finish.shotStats();
+        playerCareerRecords.record(new CareerEventRecord(
+                built.def().name(), locationFor(built.event()), prestige.name(), tier.name(),
+                season, date, finish.position(), finish.score(), finish.position() == 1 && !finish.withdrawn(),
+                finish.madeCut(), finish.prize(), shots.fairwaysHit(), shots.fairwaysPossible(),
+                shots.greensInRegulation(), shots.holesPlayed(), shots.putts(),
+                built.tournament().roundScoresOf(playerId)));
     }
 
     /** Per-event entry fee by tour tier (the top tour costs more to enter). */
@@ -1627,6 +1670,15 @@ public final class World {
             out.put(a, unlockedAchievements.get(a)); // null when locked
         }
         return out;
+    }
+
+    /**
+     * The player's rich per-event records ledger (spec: career-records): every event the player has competed
+     * in, in chronological order, with its venue, finishing score, round card, and metrics. Empty for an
+     * autonomous world with no designated player. Read-only; grouping/summarising is left to callers.
+     */
+    public List<CareerEventRecord> playerCareerRecords() {
+        return playerCareerRecords.all();
     }
 
     /**

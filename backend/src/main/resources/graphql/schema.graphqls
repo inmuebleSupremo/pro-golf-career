@@ -52,6 +52,9 @@ type Query {
     "The world Record Book — the current holder of each record (name-enriched)."
     records(id: ID!): [WorldRecord!]!
 
+    "The player's career records — headline totals, scoring bests, and per-event history (their historical dominance of recurring events); null when no player is assigned."
+    careerRecords(id: ID!): CareerRecords
+
     "Recent world news (tournament results, milestones, promotions, retirements…), most recent first."
     newsFeed(id: ID!, limit: Int = 20): [NewsItem!]!
 
@@ -277,6 +280,63 @@ type Achievement {
     unlocked: Boolean!
     "The season this achievement was unlocked; null while still locked."
     seasonUnlocked: Int
+}
+
+"The player's career records — the player-specific counterpart to the world Record Book (spec: career-records)."
+type CareerRecords {
+    summary: CareerRecordsSummary!
+    "One entry per distinct event the player has competed in, most-decorated first."
+    events: [CareerEventHistory!]!
+}
+
+"Headline career totals and scoring bests."
+type CareerRecordsSummary {
+    events: Int!
+    wins: Int!
+    majors: Int!
+    runnerUps: Int!
+    topTens: Int!
+    cutsMade: Int!
+    "Best finishing position across the career; null before any counting result."
+    bestFinish: Int
+    "Lowest single-round score relative to par; null when no round card was retained."
+    lowestRoundToPar: Int
+    "Lowest tournament total relative to par; null before any counting result."
+    lowestTournamentToPar: Int
+    careerEarnings: Float!
+}
+
+"The player's complete history in one event, grouped by its stable name so recurring wins accumulate."
+type CareerEventHistory {
+    eventName: String!
+    location: String!
+    prestige: String!
+    tier: String!
+    appearances: Int!
+    wins: Int!
+    bestPosition: Int!
+    "Every result the player recorded in this event, ordered best-first."
+    results: [CareerEventResult!]!
+}
+
+"One of the player's results in an event — the when/where/how of a single appearance."
+type CareerEventResult {
+    season: Int!
+    "ISO calendar date the event finished."
+    date: String!
+    position: Int!
+    scoreToPar: Int!
+    won: Boolean!
+    madeCut: Boolean!
+    location: String!
+    prize: Float!
+    fairwaysHit: Int!
+    fairwaysPossible: Int!
+    greensInRegulation: Int!
+    holesPlayed: Int!
+    putts: Int!
+    "Each round's score relative to par, in order (empty when not retained)."
+    roundScores: [Int!]!
 }
 
 type PlayerProfile {

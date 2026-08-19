@@ -19,6 +19,7 @@ import com.progolf.app.api.dto.ScheduleEntryDto;
 import com.progolf.app.api.dto.SeasonReviewDto;
 import com.progolf.app.api.dto.NewsItemDto;
 import com.progolf.app.api.dto.CalendarEntryDto;
+import com.progolf.app.api.dto.CareerRecordsDto;
 import com.progolf.app.api.dto.RoundScorecardDto;
 import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.ShotSituationDto;
@@ -173,6 +174,15 @@ public class WorldQueryController {
     public List<RecordDto> records(@Argument String id) {
         // Name-enriched in WorldService; not player-scoped (records exist without a player).
         return worldService.records(AuthenticatedUser.requireId(), id);
+    }
+
+    @QueryMapping
+    public CareerRecordsDto careerRecords(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return null;
+        }
+        return worldService.careerRecords(owner, id);
     }
 
     @QueryMapping

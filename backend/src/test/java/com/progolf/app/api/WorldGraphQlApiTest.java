@@ -156,6 +156,39 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void careerRecordsAreNullWithoutAPlayerAndPopulateAfterThePlayerCompetes() {
+        String id = worldService.create(OWNER, 424L, SMALL).id();
+        // No player assigned → the player-scoped records surface is null.
+        graphQlTester.document("query($id: ID!){ careerRecords(id: $id){ summary { events } } }")
+                .variable("id", id).execute()
+                .path("careerRecords").valueIsNull();
+
+        worldService.createPlayer(OWNER, id, "Rec", "Keeper", Nationality.USA, 20, Archetype.ALL_ROUNDER);
+        worldService.advanceSeason(OWNER, id); // the player competes across a season, filling the ledger
+
+        graphQlTester.document("""
+                        query($id: ID!){
+                          careerRecords(id: $id){
+                            summary { events wins majors runnerUps topTens cutsMade bestFinish careerEarnings }
+                            events {
+                              eventName location prestige tier appearances wins bestPosition
+                              results { season date position scoreToPar won madeCut roundScores }
+                            }
+                          }
+                        }
+                        """)
+                .variable("id", id).execute()
+                .path("careerRecords.summary.events").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive)
+                .path("careerRecords.summary.bestFinish").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive)
+                .path("careerRecords.events").entityList(Object.class).satisfies(rows ->
+                        org.assertj.core.api.Assertions.assertThat(rows).isNotEmpty())
+                .path("careerRecords.events[0].eventName").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank)
+                .path("careerRecords.events[0].appearances").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive)
+                .path("careerRecords.events[0].results[0].date").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank)
+                .path("careerRecords.events[0].results[0].season").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive);
+    }
+
+    @Test
     void staffOffersCarryProfileFieldsAndTheRosterIsQueryable() {
         WorldSession session = worldService.create(OWNER, 909L, SMALL);
         worldService.createPlayer(OWNER, session.id(), "Sam", "Rookie", Nationality.USA, 20, Archetype.ALL_ROUNDER);

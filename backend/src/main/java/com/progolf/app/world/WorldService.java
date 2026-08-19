@@ -3,6 +3,7 @@ package com.progolf.app.world;
 import com.progolf.app.api.dto.AttributeValueDto;
 import com.progolf.sim.achievement.Achievement;
 import com.progolf.app.api.dto.CalendarEntryDto;
+import com.progolf.app.api.dto.CareerRecordsDto;
 import com.progolf.app.api.dto.CurrentEventDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
 import com.progolf.app.api.dto.PlayerDevelopmentDto;
@@ -26,6 +27,8 @@ import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
 import com.progolf.app.persistence.SaveMetadata;
 import com.progolf.sim.career.Career;
+import com.progolf.sim.career.CareerEventRecord;
+import com.progolf.sim.career.CareerStatistics;
 import com.progolf.sim.career.HallOfFameInduction;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.core.Attribute;
@@ -67,6 +70,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -372,6 +376,72 @@ public class WorldService {
                     holder.value(), holder.season()));
         }
         return rows;
+    }
+
+    /**
+     * The player's career records (spec: career-records): headline totals + scoring bests, and their full
+     * per-event history grouped by event so recurring wins accumulate. Requires a player (callers guard with
+     * {@link #hasPlayer}). Counts come from the career statistics; scoring bests come from the rich ledger.
+     */
+    public CareerRecordsDto careerRecords(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        String id = requirePlayerId(world);
+        CareerStatistics cs = world.careerOf(id).statistics();
+        List<CareerEventRecord> ledger = world.playerCareerRecords();
+
+        Integer bestFinish = null;
+        Integer lowestRound = null;
+        Integer lowestTournament = null;
+        for (CareerEventRecord r : ledger) {
+            bestFinish = bestFinish == null ? r.position() : Math.min(bestFinish, r.position());
+            lowestTournament = lowestTournament == null ? r.scoreToPar() : Math.min(lowestTournament, r.scoreToPar());
+            for (int round : r.roundScores()) {
+                lowestRound = lowestRound == null ? round : Math.min(lowestRound, round);
+            }
+        }
+        CareerRecordsDto.Summary summary = new CareerRecordsDto.Summary(
+                cs.eventsPlayed(), cs.wins(), cs.majorsWon(), cs.runnerUps(), cs.topTens(), cs.cutsMade(),
+                bestFinish, lowestRound, lowestTournament, cs.totalEarnings());
+
+        // Group by the event's stable name (recurring events accumulate). Insertion order = chronological.
+        Map<String, List<CareerEventRecord>> byEvent = new LinkedHashMap<>();
+        for (CareerEventRecord r : ledger) {
+            byEvent.computeIfAbsent(r.eventName(), k -> new ArrayList<>()).add(r);
+        }
+        List<CareerRecordsDto.EventHistory> events = new ArrayList<>();
+        byEvent.forEach((name, group) -> events.add(toEventHistory(name, group)));
+        // Most-decorated first: wins, then appearances, then best finish, then name (stable).
+        events.sort(Comparator.comparingInt(CareerRecordsDto.EventHistory::wins).reversed()
+                .thenComparing(Comparator.comparingInt(CareerRecordsDto.EventHistory::appearances).reversed())
+                .thenComparingInt(CareerRecordsDto.EventHistory::bestPosition)
+                .thenComparing(CareerRecordsDto.EventHistory::eventName));
+        return new CareerRecordsDto(summary, events);
+    }
+
+    /** Folds one event's grouped records into an {@link CareerRecordsDto.EventHistory} (results best-first). */
+    private static CareerRecordsDto.EventHistory toEventHistory(String name, List<CareerEventRecord> group) {
+        int wins = 0;
+        int bestPosition = Integer.MAX_VALUE;
+        for (CareerEventRecord r : group) {
+            if (r.won()) {
+                wins++;
+            }
+            bestPosition = Math.min(bestPosition, r.position());
+        }
+        // The most recent appearance supplies the display location/prestige/tier (group is chronological).
+        CareerEventRecord latest = group.get(group.size() - 1);
+        List<CareerRecordsDto.Result> results = new ArrayList<>(group.stream().map(WorldService::toResult).toList());
+        results.sort(Comparator.comparingInt(CareerRecordsDto.Result::position)
+                .thenComparingInt(CareerRecordsDto.Result::scoreToPar));
+        return new CareerRecordsDto.EventHistory(name, latest.location(), latest.prestige(), latest.tier(),
+                group.size(), wins, bestPosition, results);
+    }
+
+    /** Projects one ledger record into its GraphQL result view. */
+    private static CareerRecordsDto.Result toResult(CareerEventRecord r) {
+        return new CareerRecordsDto.Result(r.season(), r.date().toString(), r.position(), r.scoreToPar(),
+                r.won(), r.madeCut(), r.location(), r.prize(), r.fairwaysHit(), r.fairwaysPossible(),
+                r.greensInRegulation(), r.holesPlayed(), r.putts(), r.roundScores());
     }
 
     /** The most recent {@code limit} world news items, most recent first (the between-events feedback feed). */
