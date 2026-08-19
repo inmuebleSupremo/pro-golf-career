@@ -304,8 +304,22 @@ export const CareerRecordsDocument = graphql(`
         topTens
         cutsMade
         bestFinish
-        lowestRoundToPar
-        lowestTournamentToPar
+        lowestRound {
+          scoreToPar
+          eventName
+          location
+          season
+          date
+          round
+        }
+        lowestTournament {
+          scoreToPar
+          eventName
+          location
+          season
+          date
+          round
+        }
         careerEarnings
       }
       events {
@@ -313,6 +327,7 @@ export const CareerRecordsDocument = graphql(`
         location
         prestige
         tier
+        tourTier
         appearances
         wins
         bestPosition
