@@ -90,12 +90,6 @@ export const CareerOverviewDocument = graphql(`
       activePopulation
       hasPendingEvent
     }
-    careerGoals(id: $id) {
-      type
-      target
-      current
-      achieved
-    }
     playerSchedule(id: $id) {
       tournamentId
       week
@@ -282,10 +276,19 @@ export const SpendDevelopmentPointsDocument = graphql(`
   }
 `);
 
-/** Sets the player's self-chosen career goals (replaces the current set). */
-export const SetCareerGoalsDocument = graphql(`
-  mutation SetCareerGoals($id: ID!, $goals: [CareerGoalInput!]!) {
-    setCareerGoals(id: $id, goals: $goals)
+/** The player's achievements: the full catalogue in display order, each with its unlock state. */
+export const AchievementsDocument = graphql(`
+  query Achievements($id: ID!) {
+    achievements(id: $id) {
+      id
+      category
+      categoryLabel
+      title
+      description
+      secret
+      unlocked
+      seasonUnlocked
+    }
   }
 `);
 

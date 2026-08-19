@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { SpokeMessage, useSpokeGate } from "@/components/career/spoke";
 import { TrainingSection } from "@/components/manage/training-section";
 import { HireStaffView } from "@/components/manage/hire-staff-view";
-import { GoalsView } from "@/components/career/views/goals-view";
 import { useCareerOverview, useSeasonReview } from "@/lib/api/queries";
 import { formatMoney, ordinalPosition } from "@/lib/career/labels";
 import { humanize } from "@/lib/play/options";
@@ -42,8 +41,8 @@ type Review = {
 /**
  * The off-season moment (spec: player-experience — the end-of-season beat). Reached when the player
  * crosses a season boundary. It first *reviews* the season just completed — the golfer's own season and
- * the wider tour's — then doubles as the off-season *gateway*: spend the banked Development Points, weigh
- * the fresh staff candidates, and reset the season's goals, before committing to the new season.
+ * the wider tour's — then doubles as the off-season *gateway*: spend the banked Development Points and
+ * weigh the fresh staff candidates, before committing to the new season.
  */
 export function OffSeasonReview({ id }: { id: string }) {
   const router = useRouter();
@@ -67,7 +66,7 @@ export function OffSeasonReview({ id }: { id: string }) {
   const player = review.playerGolferId;
   const yours = review.headlines.filter((h) => h.subjectGolferId === player);
   const tour = review.headlines.filter((h) => h.subjectGolferId !== player);
-  const goals = yours.filter((h) => h.type === "GOAL_ACHIEVED");
+  const achievements = yours.filter((h) => h.type === "ACHIEVEMENT_UNLOCKED");
 
   function begin() {
     router.push(`/career/${id}`);
@@ -79,7 +78,11 @@ export function OffSeasonReview({ id }: { id: string }) {
       <Hero season={review.season} stats={review.stats} onBegin={begin} nextSeason={nextSeason} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <YourSeason review={review} goals={goals} highlights={yours.filter((h) => h.type !== "GOAL_ACHIEVED")} />
+        <YourSeason
+          review={review}
+          achievements={achievements}
+          highlights={yours.filter((h) => h.type !== "ACHIEVEMENT_UNLOCKED")}
+        />
         <AroundTheTour headlines={tour} />
       </div>
 
@@ -136,11 +139,11 @@ function Hero({
 
 function YourSeason({
   review,
-  goals,
+  achievements,
   highlights,
 }: {
   review: Review;
-  goals: Headline[];
+  achievements: Headline[];
   highlights: Headline[];
 }) {
   const s = review.stats;
@@ -159,9 +162,9 @@ function YourSeason({
         <Figure k="Earned" v={formatMoney(s.earnings)} />
       </div>
 
-      {goals.length > 0 ? (
+      {achievements.length > 0 ? (
         <div className="flex flex-col gap-2">
-          {goals.map((g, i) => (
+          {achievements.map((g, i) => (
             <div
               key={i}
               className="gold-metal text-[#3c2f12] flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
@@ -320,10 +323,6 @@ function Gateway({ id }: { id: string }) {
 
       <div className="border-border bg-surface rounded-xl border p-5 sm:p-6">
         <HireStaffView id={id} />
-      </div>
-
-      <div className="border-border bg-surface rounded-xl border p-5 sm:p-6">
-        <GoalsView id={id} />
       </div>
     </section>
   );

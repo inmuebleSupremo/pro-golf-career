@@ -1,19 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { Check, MapPin, Play, Trophy } from "lucide-react";
+import { MapPin, Play, Trophy } from "lucide-react";
 
 import { Card, CardHeader } from "@/components/command/card";
 import { sceneBackdrop } from "@/lib/play/scene";
-import { useCareerOverview, useHallOfFame, usePlayerProfile } from "@/lib/api/queries";
+import { useAchievements, useCareerOverview, useHallOfFame, usePlayerProfile } from "@/lib/api/queries";
 import {
   attributeShortLabel,
   eventPrestigeLabel,
   formatMoney,
-  goalLabel,
-  goalProgressRatio,
-  goalProgressText,
-  isBooleanGoal,
   ordinalPosition,
   tourTierLabel,
 } from "@/lib/career/labels";
@@ -27,6 +23,8 @@ function newsTone(type: string): { tone: NewsTone; label: string } {
       return { tone: "gold", label: "Major" };
     case "GOAL_ACHIEVED":
       return { tone: "gold", label: "Goal" };
+    case "ACHIEVEMENT_UNLOCKED":
+      return { tone: "gold", label: "Feat" };
     case "WORLD_NUMBER_ONE":
       return { tone: "info", label: "No. 1" };
     case "PROMOTION":
@@ -46,6 +44,7 @@ export function HubDashboard({ id }: { id: string }) {
   const { data, isPending, isError } = useCareerOverview(id);
   const profile = usePlayerProfile(id).data?.playerProfile ?? null;
   const inductions = useHallOfFame(id).data?.hallOfFame ?? [];
+  const achievements = useAchievements(id).data?.achievements ?? [];
 
   if (isPending) return <HubSkeleton />;
   if (isError || !data?.world) {
@@ -57,7 +56,9 @@ export function HubDashboard({ id }: { id: string }) {
   }
 
   const world = data.world;
-  const goals = data.careerGoals ?? [];
+  const unlockedAchievements = achievements
+    .filter((a) => a.unlocked)
+    .sort((a, b) => (b.seasonUnlocked ?? 0) - (a.seasonUnlocked ?? 0));
   // The card only has five slots — show the most newsworthy of the recent items (a stable sort
   // keeps recency order among equal prominence, since the feed arrives most-recent-first).
   const news = [...(data.newsFeed ?? [])].sort((a, b) => b.prominence - a.prominence).slice(0, 5);
@@ -171,15 +172,36 @@ export function HubDashboard({ id }: { id: string }) {
           </p>
         </Card>
 
-        {/* Career goals */}
-        <Card href={`/career/${id}/goals`} className="sm:col-span-2">
-          <CardHeader title="Career Goals" portal />
-          {goals.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No goals set yet — choose your ambitions.</p>
+        {/* Achievements */}
+        <Card href={`/career/${id}/achievements`} className="sm:col-span-2">
+          <CardHeader
+            title="Achievements"
+            portal
+            right={
+              achievements.length > 0 ? (
+                <span className="text-subtle-foreground text-xs tabular-nums">
+                  <span className="text-gold font-semibold">{unlockedAchievements.length}</span> /{" "}
+                  {achievements.length}
+                </span>
+              ) : undefined
+            }
+          />
+          {unlockedAchievements.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              None unlocked yet — silverware, majors, and feats will land here.
+            </p>
           ) : (
-            <div className="flex flex-col">
-              {goals.map((g) => (
-                <GoalRow key={g.type} goal={g} />
+            <div className="flex flex-col gap-2">
+              {unlockedAchievements.slice(0, 4).map((a) => (
+                <div key={a.id} className="flex items-center gap-2.5 text-sm">
+                  <Trophy className="text-gold size-4 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate font-medium">{a.title}</span>
+                  {a.seasonUnlocked != null ? (
+                    <span className="text-subtle-foreground shrink-0 font-mono text-[0.7rem] tabular-nums">
+                      S{a.seasonUnlocked}
+                    </span>
+                  ) : null}
+                </div>
               ))}
             </div>
           )}
@@ -268,35 +290,6 @@ export function HubDashboard({ id }: { id: string }) {
             </>
           )}
         </Card>
-      </div>
-    </div>
-  );
-}
-
-function GoalRow({ goal }: { goal: { type: string; target: string; current: string; achieved: boolean } }) {
-  const boolean = isBooleanGoal(goal.type);
-  const ratio = boolean ? (goal.achieved ? 1 : 0) : goalProgressRatio(goal.current, goal.target);
-  return (
-    <div className="border-border flex items-center gap-3 border-t py-3 first:border-t-0 first:pt-0.5">
-      <span
-        className={`grid size-7 shrink-0 place-items-center rounded-lg ${
-          goal.achieved ? "bg-primary/15 text-primary" : "bg-surface-3 text-muted-foreground"
-        }`}
-      >
-        <Check className="size-3.5" aria-hidden="true" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex justify-between gap-3 text-[0.8rem] font-medium">
-          <span>{goalLabel(goal.type)}</span>
-          <span className={goal.achieved ? "text-primary font-semibold" : "text-muted-foreground font-semibold"}>
-            {goal.achieved ? "Achieved" : boolean ? "In progress" : goalProgressText(goal.type, goal.current, goal.target)}
-          </span>
-        </div>
-        {!goal.achieved && !boolean && (
-          <div className="bg-surface-3 mt-1.5 h-[5px] overflow-hidden rounded-full">
-            <div className="bg-info h-full rounded-full" style={{ width: `${ratio * 100}%` }} />
-          </div>
-        )}
       </div>
     </div>
   );
