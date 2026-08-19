@@ -66,6 +66,7 @@ import com.progolf.sim.world.CareerGoalProgress;
 import com.progolf.sim.world.PlayerScheduleEntry;
 import com.progolf.sim.world.World;
 import com.progolf.sim.world.WorldConfig;
+import com.progolf.sim.world.WorldConstants;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -390,18 +391,32 @@ public class WorldService {
         List<CareerEventRecord> ledger = world.playerCareerRecords();
 
         Integer bestFinish = null;
-        Integer lowestRound = null;
-        Integer lowestTournament = null;
+        CareerEventRecord lowestRoundEvent = null; // the event holding the single best round
+        int lowestRoundToPar = Integer.MAX_VALUE;
+        int lowestRoundNo = 0;
+        CareerEventRecord lowestTournamentEvent = null; // best full (made-cut) tournament total
+        int lowestTournamentToPar = Integer.MAX_VALUE;
         for (CareerEventRecord r : ledger) {
             bestFinish = bestFinish == null ? r.position() : Math.min(bestFinish, r.position());
-            lowestTournament = lowestTournament == null ? r.scoreToPar() : Math.min(lowestTournament, r.scoreToPar());
-            for (int round : r.roundScores()) {
-                lowestRound = lowestRound == null ? round : Math.min(lowestRound, round);
+            if (r.madeCut() && r.scoreToPar() < lowestTournamentToPar) {
+                lowestTournamentToPar = r.scoreToPar();
+                lowestTournamentEvent = r;
+            }
+            List<Integer> rounds = r.roundScores();
+            for (int i = 0; i < rounds.size(); i++) {
+                if (rounds.get(i) < lowestRoundToPar) {
+                    lowestRoundToPar = rounds.get(i);
+                    lowestRoundEvent = r;
+                    lowestRoundNo = i + 1;
+                }
             }
         }
         CareerRecordsDto.Summary summary = new CareerRecordsDto.Summary(
                 cs.eventsPlayed(), cs.wins(), cs.majorsWon(), cs.runnerUps(), cs.topTens(), cs.cutsMade(),
-                bestFinish, lowestRound, lowestTournament, cs.totalEarnings());
+                bestFinish,
+                lowestRoundEvent == null ? null : highlight(lowestRoundEvent, lowestRoundToPar, lowestRoundNo),
+                lowestTournamentEvent == null ? null : highlight(lowestTournamentEvent, lowestTournamentToPar, null),
+                cs.totalEarnings());
 
         // Group by the event's stable name (recurring events accumulate). Insertion order = chronological.
         Map<String, List<CareerEventRecord>> byEvent = new LinkedHashMap<>();
@@ -410,12 +425,29 @@ public class WorldService {
         }
         List<CareerRecordsDto.EventHistory> events = new ArrayList<>();
         byEvent.forEach((name, group) -> events.add(toEventHistory(name, group)));
-        // Most-decorated first: wins, then appearances, then best finish, then name (stable).
-        events.sort(Comparator.comparingInt(CareerRecordsDto.EventHistory::wins).reversed()
-                .thenComparing(Comparator.comparingInt(CareerRecordsDto.EventHistory::appearances).reversed())
+        // Prestige first (majors → championships → signatures → regular), then most-decorated within a band:
+        // wins, then best finish, then name (stable). The UI splits by tour, preserving this order per section.
+        events.sort(Comparator.comparingInt((CareerRecordsDto.EventHistory e) -> prestigeRank(e.prestige()))
+                .thenComparing(Comparator.comparingInt(CareerRecordsDto.EventHistory::wins).reversed())
                 .thenComparingInt(CareerRecordsDto.EventHistory::bestPosition)
                 .thenComparing(CareerRecordsDto.EventHistory::eventName));
         return new CareerRecordsDto(summary, events);
+    }
+
+    /** Sort rank for an event prestige — majors first, regular last (spec: event-prestige). */
+    private static int prestigeRank(String prestige) {
+        return switch (prestige) {
+            case "MAJOR" -> 0;
+            case "TOUR_CHAMPIONSHIP" -> 1;
+            case "SIGNATURE" -> 2;
+            default -> 3; // REGULAR (and anything unmapped)
+        };
+    }
+
+    /** Builds a scoring highlight from the event it was set in, with a realistic calendar date. */
+    private static CareerRecordsDto.ScoringHighlight highlight(CareerEventRecord r, int scoreToPar, Integer round) {
+        return new CareerRecordsDto.ScoringHighlight(scoreToPar, r.eventName(), r.location(), r.season(),
+                displayDate(r.season(), r.week()), round);
     }
 
     /** Folds one event's grouped records into an {@link CareerRecordsDto.EventHistory} (results best-first). */
@@ -434,14 +466,27 @@ public class WorldService {
         results.sort(Comparator.comparingInt(CareerRecordsDto.Result::position)
                 .thenComparingInt(CareerRecordsDto.Result::scoreToPar));
         return new CareerRecordsDto.EventHistory(name, latest.location(), latest.prestige(), latest.tier(),
-                group.size(), wins, bestPosition, results);
+                latest.tourTier(), group.size(), wins, bestPosition, results);
     }
 
-    /** Projects one ledger record into its GraphQL result view. */
+    /** Projects one ledger record into its GraphQL result view (with a realistic calendar date). */
     private static CareerRecordsDto.Result toResult(CareerEventRecord r) {
-        return new CareerRecordsDto.Result(r.season(), r.date().toString(), r.position(), r.scoreToPar(),
-                r.won(), r.madeCut(), r.location(), r.prize(), r.fairwaysHit(), r.fairwaysPossible(),
-                r.greensInRegulation(), r.holesPlayed(), r.putts(), r.roundScores());
+        return new CareerRecordsDto.Result(r.season(), displayDate(r.season(), r.week()), r.position(),
+                r.scoreToPar(), r.won(), r.madeCut(), r.location(), r.prize(), r.fairwaysHit(),
+                r.fairwaysPossible(), r.greensInRegulation(), r.holesPlayed(), r.putts(), r.roundScores());
+    }
+
+    /**
+     * A realistic golf-calendar date for a (season, week) turn (spec: career-records realism): each season is
+     * a calendar year from {@link WorldConstants#BASE_YEAR}, and week 1 is the first Thursday of April — the
+     * same nominal Apr–Oct window the season calendar renders — so records read like real tour dates rather
+     * than the engine's continuous week clock. Returned as an ISO date string.
+     */
+    private static String displayDate(int season, int week) {
+        int year = WorldConstants.BASE_YEAR + Math.max(0, season - 1);
+        java.time.LocalDate seasonStart = java.time.LocalDate.of(year, 4, 1)
+                .with(java.time.temporal.TemporalAdjusters.firstInMonth(java.time.DayOfWeek.THURSDAY));
+        return seasonStart.plusWeeks(Math.max(0, week - 1)).toString();
     }
 
     /** The most recent {@code limit} world news items, most recent first (the between-events feedback feed). */

@@ -9,17 +9,33 @@ import java.util.List;
  * player's historical dominance of recurring tournaments.
  *
  * @param summary headline career totals and scoring records
- * @param events  one entry per distinct event the player has competed in, most-decorated first
+ * @param events  one entry per distinct event the player has competed in (prestige-then-result ordered)
  */
 public record CareerRecordsDto(Summary summary, List<EventHistory> events) {
 
     /**
-     * Headline career records. Counts come from the career statistics; the scoring bests and best finish come
-     * from the per-event ledger (null when the player has no counting result yet).
+     * Headline career records. Counts come from the career statistics; the scoring bests come from the
+     * per-event ledger and carry their full context (which round/tournament, and when) so the UI can reveal
+     * it — null when the player has no qualifying result yet.
      */
     public record Summary(int events, int wins, int majors, int runnerUps, int topTens, int cutsMade,
-                          Integer bestFinish, Integer lowestRoundToPar, Integer lowestTournamentToPar,
+                          Integer bestFinish, ScoringHighlight lowestRound, ScoringHighlight lowestTournament,
                           double careerEarnings) {
+    }
+
+    /**
+     * A standout scoring mark with the context that makes it a story: the score, where and when it happened,
+     * and (for a single-round record) which round.
+     *
+     * @param scoreToPar the score relative to par
+     * @param eventName  the event it was set in
+     * @param location   where it was played
+     * @param season     the season it was set
+     * @param date       ISO calendar date the event finished
+     * @param round      the round number (1-based) for a single-round mark; null for a tournament total
+     */
+    public record ScoringHighlight(int scoreToPar, String eventName, String location, int season, String date,
+                                   Integer round) {
     }
 
     /**
@@ -31,12 +47,13 @@ public record CareerRecordsDto(Summary summary, List<EventHistory> events) {
      * @param location     the event's most recent display location
      * @param prestige     the event prestige label
      * @param tier         the event tier label
+     * @param tourTier     the tour the event belongs to (PRO or DEVELOPMENT) — the section it groups under
      * @param appearances  how many times the player competed in this event
      * @param wins         how many times the player won it
      * @param bestPosition the best finishing position achieved here
      * @param results      every result, ordered best-first (position, then score)
      */
-    public record EventHistory(String eventName, String location, String prestige, String tier,
+    public record EventHistory(String eventName, String location, String prestige, String tier, String tourTier,
                                int appearances, int wins, int bestPosition, List<Result> results) {
     }
 

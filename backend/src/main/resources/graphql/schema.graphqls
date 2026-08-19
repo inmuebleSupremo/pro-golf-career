@@ -299,11 +299,24 @@ type CareerRecordsSummary {
     cutsMade: Int!
     "Best finishing position across the career; null before any counting result."
     bestFinish: Int
-    "Lowest single-round score relative to par; null when no round card was retained."
-    lowestRoundToPar: Int
-    "Lowest tournament total relative to par; null before any counting result."
-    lowestTournamentToPar: Int
+    "Lowest single round, with the round/tournament/when it was set; null when no round card was retained."
+    lowestRound: ScoringHighlight
+    "Lowest made-cut tournament total, with where and when; null before any made-cut result."
+    lowestTournament: ScoringHighlight
     careerEarnings: Float!
+}
+
+"A standout scoring mark with the context that makes it a story."
+type ScoringHighlight {
+    "The score relative to par."
+    scoreToPar: Int!
+    eventName: String!
+    location: String!
+    season: Int!
+    "ISO calendar date the event finished."
+    date: String!
+    "Round number (1-based) for a single-round mark; null for a tournament total."
+    round: Int
 }
 
 "The player's complete history in one event, grouped by its stable name so recurring wins accumulate."
@@ -312,6 +325,8 @@ type CareerEventHistory {
     location: String!
     prestige: String!
     tier: String!
+    "The tour the event belongs to (PRO or DEVELOPMENT) — the section it groups under."
+    tourTier: String!
     appearances: Int!
     wins: Int!
     bestPosition: Int!

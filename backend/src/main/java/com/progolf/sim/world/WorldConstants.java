@@ -15,7 +15,9 @@ public final class WorldConstants {
     public static final int FIELD_SIZE = 120;    // realistic tour-event field (spec: add-world-scale)
     public static final int INITIAL_POPULATION = 640;
     public static final int COURSE_POOL_SIZE = 12;
-    public static final int BASE_YEAR = 2000;
+    // The world opens in this calendar year. Must equal the population's reference year, since a seeded
+    // golfer's age is measured as BASE_YEAR - dateOfBirth (population DOBs are set against that same year).
+    public static final int BASE_YEAR = com.progolf.sim.population.PopulationConstants.REFERENCE_YEAR;
 
     // Event prestige (spec: event-prestige).
     /** Cross-tour majors per season — the marquee events (like the four real-world majors). */

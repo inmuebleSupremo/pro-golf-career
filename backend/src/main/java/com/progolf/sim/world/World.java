@@ -693,7 +693,7 @@ public final class World {
 
         // Career records (spec: career-records): retain the player's rich per-event detail (venue, score,
         // round card, metrics) so their career-records surface can show the where/when/how of every result.
-        capturePlayerRecord(built, result, prestige, tier, date, season);
+        capturePlayerRecord(built, result, prestige, tier, season);
 
         // Media: the win (a major victory is the biggest news), any maiden title, and any upset (REQ-241/242).
         String winnerName = winner.player().identity().fullName();
@@ -764,7 +764,7 @@ public final class World {
      * is read from the tournament standings so it is retained for both simmed and interactively-played events.
      */
     private void capturePlayerRecord(BuiltEvent built, TournamentResult result, EventPrestige prestige,
-                                     Tier tier, LocalDate date, int season) {
+                                     Tier tier, int season) {
         if (playerControl == null) {
             return;
         }
@@ -779,10 +779,10 @@ public final class World {
         var shots = finish.shotStats();
         playerCareerRecords.record(new CareerEventRecord(
                 built.def().name(), locationFor(built.event()), prestige.name(), tier.name(),
-                season, date, finish.position(), finish.score(), finish.position() == 1 && !finish.withdrawn(),
-                finish.madeCut(), finish.prize(), shots.fairwaysHit(), shots.fairwaysPossible(),
-                shots.greensInRegulation(), shots.holesPlayed(), shots.putts(),
-                built.tournament().roundScoresOf(playerId)));
+                built.event().tier().name(), season, built.event().week(), finish.position(), finish.score(),
+                finish.position() == 1 && !finish.withdrawn(), finish.madeCut(), finish.prize(),
+                shots.fairwaysHit(), shots.fairwaysPossible(), shots.greensInRegulation(), shots.holesPlayed(),
+                shots.putts(), built.tournament().roundScoresOf(playerId)));
     }
 
     /** Per-event entry fee by tour tier (the top tour costs more to enter). */

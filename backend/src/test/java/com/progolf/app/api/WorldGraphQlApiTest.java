@@ -169,9 +169,13 @@ class WorldGraphQlApiTest {
         graphQlTester.document("""
                         query($id: ID!){
                           careerRecords(id: $id){
-                            summary { events wins majors runnerUps topTens cutsMade bestFinish careerEarnings }
+                            summary {
+                              events wins majors runnerUps topTens cutsMade bestFinish careerEarnings
+                              lowestRound { scoreToPar eventName location season date round }
+                              lowestTournament { scoreToPar eventName location season date round }
+                            }
                             events {
-                              eventName location prestige tier appearances wins bestPosition
+                              eventName location prestige tier tourTier appearances wins bestPosition
                               results { season date position scoreToPar won madeCut roundScores }
                             }
                           }
@@ -180,9 +184,14 @@ class WorldGraphQlApiTest {
                 .variable("id", id).execute()
                 .path("careerRecords.summary.events").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive)
                 .path("careerRecords.summary.bestFinish").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive)
+                // A single-round mark carries its round number; the event finished on a realistic golf date (Apr–Oct 2026+).
+                .path("careerRecords.summary.lowestRound.round").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive)
+                .path("careerRecords.summary.lowestRound.date").entity(String.class).satisfies(d ->
+                        org.assertj.core.api.Assertions.assertThat(d).startsWith("20"))
                 .path("careerRecords.events").entityList(Object.class).satisfies(rows ->
                         org.assertj.core.api.Assertions.assertThat(rows).isNotEmpty())
                 .path("careerRecords.events[0].eventName").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank)
+                .path("careerRecords.events[0].tourTier").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank)
                 .path("careerRecords.events[0].appearances").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive)
                 .path("careerRecords.events[0].results[0].date").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank)
                 .path("careerRecords.events[0].results[0].season").entity(Integer.class).satisfies(WorldGraphQlApiTest::assertPositive);
