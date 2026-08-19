@@ -32,7 +32,7 @@ public final class PopulationConstants {
     public static final double STRATEGY_APPETITE_THRESHOLD = 0.10;
 
     /** Reference year used to derive dates of birth from starting age. */
-    public static final int REFERENCE_YEAR = 2000;
+    public static final int REFERENCE_YEAR = 2026;
 
     // --- Seeded-world age structure ---
     /**

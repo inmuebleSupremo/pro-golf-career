@@ -665,6 +665,20 @@ public final class Tournament {
         return result;
     }
 
+    /**
+     * A competitor's per-round scores relative to par, in order (spec: career-records). Used to retain the
+     * player's round-by-round card once an event completes. Empty for a competitor who played no rounds;
+     * throws if the golfer was not in this tournament's field.
+     */
+    public List<Integer> roundScoresOf(String golferId) {
+        for (CompetitorStanding s : standings) {
+            if (s.golfer().player().id().equals(golferId)) {
+                return s.roundScores();
+            }
+        }
+        throw new IllegalArgumentException("Golfer is not in this tournament: " + golferId);
+    }
+
     // --- Helpers ---
 
     private List<CompetitorStanding> activeStandings() {

@@ -62,6 +62,11 @@ final class CompetitorStanding {
         return roundScores.size();
     }
 
+    /** This competitor's per-round scores relative to par, in order (an immutable copy). */
+    List<Integer> roundScores() {
+        return List.copyOf(roundScores);
+    }
+
     boolean hasMadeCut() {
         return madeCut;
     }

@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Medal,
   Newspaper,
+  ScrollText,
   Trophy,
   User,
   Users,
@@ -60,6 +61,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { label: "Profile", icon: User, path: "/profile" },
       { label: "Season Stats", icon: BarChart3, path: "/seasons" },
+      { label: "Career Records", icon: ScrollText, path: "/career-records" },
       { label: "Achievements", icon: Medal, path: "/achievements" },
       { label: "Hall of Fame", icon: Trophy, path: "/hall-of-fame" },
     ],

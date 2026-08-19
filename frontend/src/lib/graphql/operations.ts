@@ -292,6 +292,66 @@ export const AchievementsDocument = graphql(`
   }
 `);
 
+/** The player's career records — headline totals, scoring bests, and per-event history. */
+export const CareerRecordsDocument = graphql(`
+  query CareerRecords($id: ID!) {
+    careerRecords(id: $id) {
+      summary {
+        events
+        wins
+        majors
+        runnerUps
+        topTens
+        cutsMade
+        bestFinish
+        lowestRound {
+          scoreToPar
+          eventName
+          location
+          season
+          date
+          round
+        }
+        lowestTournament {
+          scoreToPar
+          eventName
+          location
+          season
+          date
+          round
+        }
+        careerEarnings
+      }
+      events {
+        eventName
+        location
+        prestige
+        tier
+        tourTier
+        appearances
+        wins
+        bestPosition
+        results {
+          season
+          date
+          position
+          scoreToPar
+          won
+          madeCut
+          location
+          prize
+          fairwaysHit
+          fairwaysPossible
+          greensInRegulation
+          holesPlayed
+          putts
+          roundScores
+        }
+      }
+    }
+  }
+`);
+
 /* --- Manage: schedule & availability (skip/enter events, rest the golfer). --- */
 
 /** The player's full reviewable schedule — the manage view's source of truth for entered state. */

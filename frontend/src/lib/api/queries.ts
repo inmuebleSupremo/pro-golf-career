@@ -6,6 +6,7 @@ import { gqlRequest } from "@/lib/api/graphql-client";
 import {
   AchievementsDocument,
   CareerOverviewDocument,
+  CareerRecordsDocument,
   DevelopmentReportDocument,
   HallOfFameDocument,
   ListSavesDocument,
@@ -97,6 +98,16 @@ export function useRecords(id: string) {
   return useQuery({
     queryKey: ["records", id],
     queryFn: () => gqlRequest(RecordsDocument, { id }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The player's career records — headline totals, scoring bests, and per-event history. */
+export function useCareerRecords(id: string) {
+  return useQuery({
+    queryKey: ["careerRecords", id],
+    queryFn: () => gqlRequest(CareerRecordsDocument, { id }),
     networkMode: "always",
     retry: false,
   });
