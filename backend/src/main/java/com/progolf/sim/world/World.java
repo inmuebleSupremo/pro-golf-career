@@ -2,6 +2,8 @@ package com.progolf.sim.world;
 
 import com.progolf.sim.career.Career;
 import com.progolf.sim.career.CareerConstants;
+import com.progolf.sim.achievement.Achievement;
+import com.progolf.sim.achievement.AchievementDetector;
 import com.progolf.sim.career.CareerStatistics;
 import com.progolf.sim.career.HallOfFame;
 import com.progolf.sim.career.HallOfFameCredentials;
@@ -64,6 +66,8 @@ import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.play.PlayableEvent;
+import com.progolf.sim.play.PlayedHole;
+import com.progolf.sim.play.PlayerRoundRecord;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.population.GolferFactory;
@@ -94,6 +98,7 @@ import com.progolf.sim.weather.WeatherSystem;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -152,6 +157,12 @@ public final class World {
     private final Set<String> committedThisWeek = new LinkedHashSet<>();
     // Career goals the player has already been congratulated for, so each is announced once (spec: career-goals).
     private final Set<CareerGoal> achievedGoals = new LinkedHashSet<>();
+    // Achievements the player has unlocked, each mapped to the season it was earned (spec: career-achievements).
+    // Announced once, then remembered for the career; iteration is in catalogue (enum) order for stable display.
+    private final Map<Achievement, Integer> unlockedAchievements = new EnumMap<>(Achievement.class);
+    // Major ordinals (0-3) the player has won in the CURRENT season — the running progress toward a single-season
+    // Career Grand Slam. Reset at each season boundary.
+    private final Set<Integer> majorsWonThisSeason = new LinkedHashSet<>();
     /** Salt for the retirement draw, keeping it independent of every other seeded stream. */
     private static final long RETIREMENT_SALT = 555_555_557L;
     /** Salt for marquee permanent-venue derivation, independent of every other seeded stream. */
@@ -243,7 +254,8 @@ public final class World {
                 new ArrayList<>(playerPendingOffers), new ArrayList<>(playerPendingStaff),
                 new ArrayList<>(playerPendingEquipment), new LinkedHashSet<>(achievedGoals),
                 staffPool.available(),
-                playerActiveEquipmentDeal, new ArrayList<>(playerPendingEquipmentDeals));
+                playerActiveEquipmentDeal, new ArrayList<>(playerPendingEquipmentDeals),
+                new EnumMap<>(unlockedAchievements), new LinkedHashSet<>(majorsWonThisSeason));
     }
 
     /** Rebuilds an identical world from a snapshot, regenerating the seed-derived parts (spec: world-snapshot). */
@@ -300,6 +312,12 @@ public final class World {
         w.achievedGoals.addAll(s.achievedGoals());
         w.playerActiveEquipmentDeal = s.playerActiveEquipmentDeal();
         w.playerPendingEquipmentDeals.addAll(s.playerPendingEquipmentDeals());
+        if (s.unlockedAchievements() != null) {
+            w.unlockedAchievements.putAll(s.unlockedAchievements());
+        }
+        if (s.majorsWonThisSeason() != null) {
+            w.majorsWonThisSeason.addAll(s.majorsWonThisSeason());
+        }
         return w;
     }
 
@@ -432,6 +450,7 @@ public final class World {
             throw new IllegalStateException("The player's event is not finished");
         }
         feedConsumers(pendingEvent.built(), playable.result());
+        detectPlayerEventAchievements(playable, pendingEvent.built()); // on-course / clutch feats from the play
         List<ScheduledTournament> weekEvents = pendingEvent.weekEvents();
         int next = pendingEvent.cursor() + 1;
         pendingEvent = null;
@@ -720,6 +739,7 @@ public final class World {
 
         seasonResults.add(result);
         checkCareerGoals(); // a win/major/ranking move may complete a player goal (spec: career-goals)
+        checkAchievements(); // ...and may unlock a metric-based achievement (spec: career-achievements)
     }
 
     /** Per-event entry fee by tour tier (the top tour costs more to enter). */
@@ -812,10 +832,13 @@ public final class World {
 
         // 5. Announce any player goal reached this season (tour promotion, year-end #1, longevity/HoF).
         checkCareerGoals();
+        checkAchievements(); // year-end metric achievements (world number one, Hall of Fame induction, etc.)
 
         // 6. Archive the completed season and generate the next season's schedule.
         archives.add(new SeasonArchive(season, schedule, seasonResults));
         seasonResults = new ArrayList<>();
+        majorsWonThisSeason.clear(); // the single-season Grand Slam progress resets each year
+
         schedule = generateSchedule(season + 1);
     }
 
@@ -1392,6 +1415,8 @@ public final class World {
         this.playerPendingEquipmentDeals.clear();
         this.playerActiveEquipmentDeal = null;
         this.achievedGoals.clear();
+        this.unlockedAchievements.clear();
+        this.majorsWonThisSeason.clear();
     }
 
     /**
@@ -1584,6 +1609,112 @@ public final class World {
             case CAREER_EARNINGS -> "surpassed " + goal.target() + " in career earnings";
             case HALL_OF_FAME -> "reached Hall-of-Fame standard";
         };
+    }
+
+    // --- Achievements (spec: career-achievements) ---
+
+    /**
+     * The player's achievements: every one in the catalogue with, for those unlocked, the season it was
+     * earned (a {@code null} season means still locked). Iteration is in catalogue order, so callers can
+     * group by category for display. Empty for an autonomous world with no designated player.
+     */
+    public Map<Achievement, Integer> playerAchievements() {
+        Map<Achievement, Integer> out = new EnumMap<>(Achievement.class);
+        if (playerControl == null) {
+            return out;
+        }
+        for (Achievement a : Achievement.values()) {
+            out.put(a, unlockedAchievements.get(a)); // null when locked
+        }
+        return out;
+    }
+
+    /**
+     * Unlocks (once) every metric-based achievement whose condition the player's live career now meets:
+     * the career milestones, peak development, and a first sponsorship. The play-based feats are detected
+     * separately as an event completes ({@link #detectPlayerEventAchievements}).
+     */
+    private void checkAchievements() {
+        if (playerControl == null) {
+            return;
+        }
+        String id = playerControl.golferId();
+        int season = calendar.currentSeason();
+        CareerStatistics stats = careers.get(id).statistics();
+        if (tours.membershipOf(id).map(t -> t == TourTier.PRO).orElse(false)) {
+            unlockAchievement(Achievement.PRO_CARD, season);
+        }
+        if (stats.wins() >= 1) {
+            unlockAchievement(Achievement.FIRST_SILVERWARE, season);
+        }
+        if (stats.majorsWon() >= 1) {
+            unlockAchievement(Achievement.MAJOR_MOMENT, season);
+        }
+        if (ranking.rankingAsOf(calendar.currentDate()).positionOf(id).map(p -> p == 1).orElse(false)) {
+            unlockAchievement(Achievement.TOP_OF_THE_WORLD, season);
+        }
+        if (hallOfFameMembers.contains(id)) {
+            unlockAchievement(Achievement.HALL_OF_FAMER, season);
+        }
+        if (allAttributesMaxed(id)) {
+            unlockAchievement(Achievement.PEAK_CONDITION, season);
+        }
+        if (!accounts.get(id).sponsorshipHistory().isEmpty()) {
+            unlockAchievement(Achievement.FRESH_KICKS_AND_STICKS, season);
+        }
+    }
+
+    /**
+     * Detects the play-based achievements from a completed player event (spec: career-achievements): the
+     * on-course feats and round feats read off the shot record, the clutch drama read off the standings, and
+     * the single-season Career Grand Slam tracked across the season's majors.
+     */
+    private void detectPlayerEventAchievements(PlayableEvent event, BuiltEvent built) {
+        int season = built.season();
+        Set<Achievement> earned = new LinkedHashSet<>();
+        for (PlayerRoundRecord round : event.playerRounds()) {
+            AchievementDetector.detectRoundFeats(round, earned);
+            for (PlayedHole hole : round.holes()) {
+                AchievementDetector.detectHoleFeats(hole, earned);
+            }
+        }
+        String playerId = playerControl.golferId();
+        boolean playerWon = event.result().winner().player().id().equals(playerId);
+        AchievementDetector.detectEventFeats(event.playerRounds(), playerWon, earned);
+        if (event.wonViaPlayoff()) {
+            earned.add(Achievement.ICE_IN_THE_VEINS);
+        }
+        // Career Grand Slam: accumulate the season's player major wins; unlock when all four are in.
+        if (playerWon && built.event().prestige().isMajor()) {
+            majorsWonThisSeason.add(majorOrdinal(built.event()));
+            if (majorsWonThisSeason.size() >= EventNaming.MAJOR_NAMES.length) {
+                earned.add(Achievement.CAREER_GRAND_SLAM);
+            }
+        }
+        for (Achievement a : earned) {
+            unlockAchievement(a, season);
+        }
+    }
+
+    /** Whether all nine of the player's development attributes are at their maximum. */
+    private boolean allAttributesMaxed(String id) {
+        Attributes attrs = golfers.get(id).player().attributes();
+        for (Attribute a : Attribute.values()) {
+            if (attrs.get(a) < Attributes.MAX) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Records an achievement as unlocked (once) in the given season and announces it into the narrative. */
+    private void unlockAchievement(Achievement achievement, int season) {
+        if (unlockedAchievements.containsKey(achievement)) {
+            return;
+        }
+        unlockedAchievements.put(achievement, season);
+        String id = playerControl.golferId();
+        media.publish(NewsFactory.achievementUnlocked(season, id, nameOf(id), achievement.title()));
     }
 
     /**

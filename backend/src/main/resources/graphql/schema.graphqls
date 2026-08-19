@@ -16,6 +16,9 @@ type Query {
     "The player's career goals with live progress (empty when none chosen)."
     careerGoals(id: ID!): [CareerGoal!]!
 
+    "The player's achievements: the full catalogue in display order, each with this player's unlock state (empty when no player is assigned)."
+    achievements(id: ID!): [Achievement!]!
+
     "The player's season calendar: each eligible event with its name and entry status, marked played once resolved, with the result once played (empty when no player is assigned)."
     playerCalendar(id: ID!): [CalendarEntry!]!
 
@@ -256,6 +259,24 @@ type CareerGoal {
     target: Long!
     current: Long!
     achieved: Boolean!
+}
+
+"A career achievement from the fixed catalogue, with this player's unlock state."
+type Achievement {
+    "Stable catalogue id (the enum name), e.g. ACE_IN_THE_HOLE."
+    id: String!
+    "Category grouping (enum name): MILESTONE, ON_COURSE, CLUTCH, PROGRESSION, QUIRKY."
+    category: String!
+    "Human-facing category heading, e.g. \"On-Course Feats\"."
+    categoryLabel: String!
+    title: String!
+    "One-line description; null for a still-locked secret achievement (hidden until earned)."
+    description: String
+    "Whether this is a secret achievement (its description is withheld until it is unlocked)."
+    secret: Boolean!
+    unlocked: Boolean!
+    "The season this achievement was unlocked; null while still locked."
+    seasonUnlocked: Int
 }
 
 type PlayerProfile {

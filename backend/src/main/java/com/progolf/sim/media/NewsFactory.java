@@ -22,6 +22,11 @@ public final class NewsFactory {
                 golferName + " achieves a career goal: " + description, MediaConstants.PROMINENCE_GOAL_ACHIEVED);
     }
 
+    public static NewsEvent achievementUnlocked(int season, String golferId, String golferName, String title) {
+        return of(season, NewsType.ACHIEVEMENT_UNLOCKED, golferId,
+                golferName + " unlocks an achievement: " + title, MediaConstants.PROMINENCE_ACHIEVEMENT_UNLOCKED);
+    }
+
     public static NewsEvent majorVictory(int season, String golferId, String golferName, String tournamentName) {
         return of(season, NewsType.MAJOR_VICTORY, golferId,
                 golferName + " wins the " + tournamentName + " — a major championship",
