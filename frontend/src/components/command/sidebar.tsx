@@ -12,8 +12,8 @@ import {
   Globe,
   Handshake,
   LayoutDashboard,
+  Medal,
   Newspaper,
-  Target,
   Trophy,
   User,
   Users,
@@ -60,7 +60,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { label: "Profile", icon: User, path: "/profile" },
       { label: "Season Stats", icon: BarChart3, path: "/seasons" },
-      { label: "Goals", icon: Target, path: "/goals" },
+      { label: "Achievements", icon: Medal, path: "/achievements" },
       { label: "Hall of Fame", icon: Trophy, path: "/hall-of-fame" },
     ],
   },

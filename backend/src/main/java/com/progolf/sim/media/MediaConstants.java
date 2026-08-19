@@ -16,6 +16,7 @@ public final class MediaConstants {
     public static final int PROMINENCE_MAJOR_VICTORY = 98; // a major win is the biggest news in the world
     public static final int PROMINENCE_WORLD_NUMBER_ONE = 95;
     public static final int PROMINENCE_GOAL_ACHIEVED = 80; // a self-chosen career goal reached (discoverable)
+    public static final int PROMINENCE_ACHIEVEMENT_UNLOCKED = 78; // a catalogue achievement unlocked
     public static final int PROMINENCE_MAJOR_UPSET = 85;
     public static final int PROMINENCE_CAREER_MILESTONE = 70;
     public static final int PROMINENCE_SEVERE_WEATHER = 65;

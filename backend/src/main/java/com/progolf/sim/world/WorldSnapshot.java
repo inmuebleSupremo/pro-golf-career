@@ -1,5 +1,6 @@
 package com.progolf.sim.world;
 
+import com.progolf.sim.achievement.Achievement;
 import com.progolf.sim.career.Career;
 import com.progolf.sim.career.HallOfFameInduction;
 import com.progolf.sim.control.CareerGoal;
@@ -71,7 +72,9 @@ public record WorldSnapshot(
         Set<CareerGoal> achievedGoals,
         List<StaffMember> staffPool,
         EquipmentDeal playerActiveEquipmentDeal,
-        List<EquipmentDeal> playerPendingEquipmentDeals) {
+        List<EquipmentDeal> playerPendingEquipmentDeals,
+        Map<Achievement, Integer> unlockedAchievements,
+        Set<Integer> majorsWonThisSeason) {
 
     /** An archived season captured by id (its schedule is immutable; its results re-link on restore). */
     public record ArchiveSnapshot(int season, List<ScheduledTournament> schedule,

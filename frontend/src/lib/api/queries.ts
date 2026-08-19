@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { gqlRequest } from "@/lib/api/graphql-client";
 import {
+  AchievementsDocument,
   CareerOverviewDocument,
   DevelopmentReportDocument,
   HallOfFameDocument,
@@ -56,6 +57,16 @@ export function useSeasonReview(id: string, season?: number) {
   return useQuery({
     queryKey: ["seasonReview", id, season ?? null],
     queryFn: () => gqlRequest(SeasonReviewDocument, { id, season }),
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The player's achievements: the full catalogue with each one's unlock state. */
+export function useAchievements(id: string) {
+  return useQuery({
+    queryKey: ["achievements", id],
+    queryFn: () => gqlRequest(AchievementsDocument, { id }),
     networkMode: "always",
     retry: false,
   });

@@ -54,6 +54,8 @@ public final class PlayableEvent {
     private int currentRoundNo;
     private PlayableRound currentRound;
     private PlayableHole currentPlayoffHole;
+    private final List<PlayerRoundRecord> playerRounds = new ArrayList<>();
+    private boolean hadPlayoff;
 
     /**
      * Creates an interactive event over a confirmed Tournament in which the player has been designated the
@@ -273,6 +275,7 @@ public final class PlayableEvent {
         tournament.submitInteractiveRoundScore(roundNo, currentRound.scoreVsPar());
         tournament.addInteractiveRoundStats(currentRound.shotStats()); // capture the player's shot stats too
         tournament.advance(); // plays this round for the AI field, using the submitted player score
+        capturePlayerRound(roundNo); // retain the player's round + standings for achievement detection
         switch (roundNo) {
             case 1 -> beginRound(2);
             case 2 -> {
@@ -292,10 +295,46 @@ public final class PlayableEvent {
         }
     }
 
+    /**
+     * Records the just-finished round for achievement detection (spec: career-achievements): its shot detail,
+     * its conditions, and the player's standing once the whole field has played the round. Called after the
+     * field advance for the round, while {@link #currentRound} still holds the finished round.
+     */
+    private void capturePlayerRound(int roundNo) {
+        String playerId = player.player().id();
+        int position = 0;
+        int playerScore = 0;
+        int leaderScore = Integer.MAX_VALUE;
+        for (LeaderboardEntry e : tournament.leaderboard()) {
+            leaderScore = Math.min(leaderScore, e.score());
+            if (e.golfer().player().id().equals(playerId)) {
+                position = e.position();
+                playerScore = e.score();
+            }
+        }
+        int behind = position == 0 ? 0 : playerScore - leaderScore;
+        playerRounds.add(new PlayerRoundRecord(roundNo, currentRound.playedHoles(),
+                weather.conditionsForRound(roundNo), position, behind));
+    }
+
+    // --- Achievement inputs (spec: career-achievements): the player's captured play, read once complete ---
+
+    /** The player's completed rounds with shot detail, conditions, and standings (in round order). */
+    public List<PlayerRoundRecord> playerRounds() {
+        return List.copyOf(playerRounds);
+    }
+
+    /** Whether the player won this event in a sudden-death playoff (a playoff occurred and the player won it). */
+    public boolean wonViaPlayoff() {
+        return hadPlayoff && phase == Phase.DONE
+                && result().winner().player().id().equals(player.player().id());
+    }
+
     /** After the final round: either the event is done, or the player is drawn into an interactive playoff. */
     private void finishFieldPlayOrPlayoff() {
         tournament.advance(); // ROUND_4 -> PLAYOFF or COMPLETED
         if (tournament.isPlayoff()) {
+            hadPlayoff = true; // the event was decided in sudden death (spec: career-achievements)
             tournament.beginInteractivePlayoff();
             setupPlayoffHoleOrFinish();
         } else {

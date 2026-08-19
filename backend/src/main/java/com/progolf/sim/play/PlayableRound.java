@@ -47,6 +47,7 @@ public final class PlayableRound {
     private Surface lie = Surface.TEE_BOX;
     private final List<Integer> holeScores = new ArrayList<>();
     private final List<ShotOutcome> currentHoleShots = new ArrayList<>();
+    private final List<PlayedHole> playedHoles = new ArrayList<>();
     private ShotStatLine shotStats = ShotStatLine.empty();
 
     public PlayableRound(Attributes attributes, GolferState state, List<HoleToPlay> holes,
@@ -151,7 +152,9 @@ public final class PlayableRound {
 
     private void completeHole() {
         holeScores.add(strokesThisHole);
-        shotStats = shotStats.plus(HoleStats.of(currentHoleShots, holes.get(holeIndex).par()));
+        int par = holes.get(holeIndex).par();
+        shotStats = shotStats.plus(HoleStats.of(currentHoleShots, par));
+        playedHoles.add(new PlayedHole(holeIndex + 1, par, currentHoleShots));
         currentHoleShots.clear();
         holeIndex++;
         if (!isComplete()) {
@@ -175,6 +178,11 @@ public final class PlayableRound {
     /** The score on each completed hole, in order. */
     public List<Integer> holeScores() {
         return List.copyOf(holeScores);
+    }
+
+    /** The completed holes with their full shot-by-shot detail, in order (spec: career-achievements). */
+    public List<PlayedHole> playedHoles() {
+        return List.copyOf(playedHoles);
     }
 
     /** The completed holes of this round as (hole number, par, strokes), in order. */

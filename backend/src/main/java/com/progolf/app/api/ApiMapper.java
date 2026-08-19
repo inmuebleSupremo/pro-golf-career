@@ -1,6 +1,7 @@
 package com.progolf.app.api;
 
 import com.progolf.app.api.dto.AttributeRaiseInput;
+import com.progolf.app.api.dto.AchievementDto;
 import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.CareerGoalInput;
 import com.progolf.app.api.dto.EquipmentItemDto;
@@ -21,6 +22,7 @@ import com.progolf.app.api.dto.SponsorshipOfferDto;
 import com.progolf.app.api.dto.StaffMemberDto;
 import com.progolf.app.api.dto.WorldConfigInput;
 import com.progolf.app.persistence.SaveMetadata;
+import com.progolf.sim.achievement.Achievement;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.control.GoalType;
 import com.progolf.sim.core.Attribute;
@@ -74,6 +76,15 @@ public final class ApiMapper {
 
     public static CareerGoalDto careerGoal(CareerGoalProgress p) {
         return new CareerGoalDto(p.goal().type().name(), p.target(), p.current(), p.achieved());
+    }
+
+    /** Projects one catalogue achievement + its unlock season ({@code null} = locked) to its GraphQL DTO. */
+    public static AchievementDto achievement(Achievement a, Integer seasonUnlocked) {
+        boolean unlocked = seasonUnlocked != null;
+        // A secret achievement withholds its description until it is earned.
+        String description = (a.secret() && !unlocked) ? null : a.description();
+        return new AchievementDto(a.name(), a.category().name(), a.category().label(), a.title(),
+                description, a.secret(), unlocked, seasonUnlocked);
     }
 
     public static SponsorshipOfferDto sponsorship(SponsorshipOffer o) {

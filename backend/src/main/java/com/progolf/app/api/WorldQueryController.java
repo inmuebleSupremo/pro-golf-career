@@ -1,5 +1,6 @@
 package com.progolf.app.api;
 
+import com.progolf.app.api.dto.AchievementDto;
 import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
 import com.progolf.app.api.dto.PlayerDevelopmentDto;
@@ -27,7 +28,10 @@ import com.progolf.app.api.dto.StaffMemberDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.auth.AuthenticatedUser;
 import com.progolf.app.world.WorldService;
+import com.progolf.sim.achievement.Achievement;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
@@ -79,6 +83,18 @@ public class WorldQueryController {
             return List.of();
         }
         return ApiMapper.mapList(worldService.careerGoals(owner, id), ApiMapper::careerGoal);
+    }
+
+    @QueryMapping
+    public List<AchievementDto> achievements(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        if (!worldService.hasPlayer(owner, id)) {
+            return List.of();
+        }
+        Map<Achievement, Integer> catalogue = worldService.playerAchievements(owner, id);
+        List<AchievementDto> out = new ArrayList<>(catalogue.size());
+        catalogue.forEach((achievement, season) -> out.add(ApiMapper.achievement(achievement, season)));
+        return out;
     }
 
     @QueryMapping

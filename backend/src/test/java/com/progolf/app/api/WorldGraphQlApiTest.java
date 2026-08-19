@@ -269,6 +269,41 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void achievementsReturnTheFullCatalogueLockedForANewPlayer() {
+        WorldSession session = worldService.create(OWNER, 606L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Test", "Golfer", Nationality.USA, 20, Archetype.ALL_ROUNDER);
+
+        graphQlTester.document("""
+                        query($id: ID!){
+                          achievements(id: $id){ id category categoryLabel title description secret unlocked seasonUnlocked }
+                        }""")
+                .variable("id", session.id()).execute()
+                .path("achievements").entityList(Object.class).hasSize(18)
+                .path("achievements[0].id").entity(String.class).isEqualTo("PRO_CARD")
+                .path("achievements[0].category").entity(String.class).isEqualTo("MILESTONE")
+                .path("achievements[0].unlocked").entity(Boolean.class).isEqualTo(false)
+                // A secret achievement withholds its description while still locked.
+                .path("achievements").entityList(AchievementRow.class).satisfies(rows -> {
+                    AchievementRow snowman = rows.stream().filter(r -> r.id().equals("THE_SNOWMAN"))
+                            .findFirst().orElseThrow();
+                    org.assertj.core.api.Assertions.assertThat(snowman.secret()).isTrue();
+                    org.assertj.core.api.Assertions.assertThat(snowman.description()).isNull();
+                });
+    }
+
+    /** A projection of the Achievement GraphQL type for assertions. */
+    record AchievementRow(String id, boolean secret, String description) {
+    }
+
+    @Test
+    void achievementsAreEmptyForAWorldWithoutAPlayer() {
+        String id = worldService.create(OWNER, 607L, SMALL).id();
+        graphQlTester.document("query($id: ID!){ achievements(id: $id){ id } }")
+                .variable("id", id).execute()
+                .path("achievements").entityList(Object.class).hasSize(0);
+    }
+
+    @Test
     void listSavesReturnsMetadata() {
         // advanceSeason autosaves; after it the reserved autosave should be listable.
         String id = worldService.create(OWNER, 505L, SMALL).id();

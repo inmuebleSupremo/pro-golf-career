@@ -1,6 +1,7 @@
 package com.progolf.app.world;
 
 import com.progolf.app.api.dto.AttributeValueDto;
+import com.progolf.sim.achievement.Achievement;
 import com.progolf.app.api.dto.CalendarEntryDto;
 import com.progolf.app.api.dto.CurrentEventDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
@@ -263,6 +264,14 @@ public class WorldService {
     /** The player's career goals with live progress toward each. */
     public List<CareerGoalProgress> careerGoals(String ownerId, String sessionId) {
         return required(ownerId, sessionId).world().careerGoals();
+    }
+
+    /**
+     * The player's achievements: the full catalogue in display order, each mapped to the season it was
+     * unlocked ({@code null} when still locked). Requires a player (callers guard with {@link #hasPlayer}).
+     */
+    public Map<Achievement, Integer> playerAchievements(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().playerAchievements();
     }
 
     /**
