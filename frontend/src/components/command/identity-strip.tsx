@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, Play } from "lucide-react";
+import { ArrowRight, Check, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useCareerOverview, usePlayerProfile } from "@/lib/api/queries";
-import { useAdvanceSeason, useAdvanceWeek } from "@/lib/api/play";
+import { useAdvanceSeason, useAdvanceWeek, useCompleteEvent } from "@/lib/api/play";
 import { formatMoney, ordinalPosition, tourTierLabel } from "@/lib/career/labels";
 
 /*
@@ -65,7 +65,11 @@ export function IdentityStrip({ id }: { id: string }) {
       </div>
 
       <div className="ml-auto flex items-center gap-2.5">
-        <NextAction id={id} hasPendingEvent={Boolean(world?.hasPendingEvent)} />
+        <NextAction
+          id={id}
+          hasPendingEvent={Boolean(world?.hasPendingEvent)}
+          pendingEventFinished={Boolean(world?.pendingEventFinished)}
+        />
       </div>
     </header>
   );
@@ -86,10 +90,40 @@ function TopStat({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   );
 }
 
-function NextAction({ id, hasPendingEvent }: { id: string; hasPendingEvent: boolean }) {
+function NextAction({
+  id,
+  hasPendingEvent,
+  pendingEventFinished,
+}: {
+  id: string;
+  hasPendingEvent: boolean;
+  pendingEventFinished: boolean;
+}) {
   const router = useRouter();
   const advance = useAdvanceWeek(id);
+  const complete = useCompleteEvent(id);
   const seasonBefore = useCareerOverview(id).data?.world?.season ?? null;
+
+  // The pending event has been played to its end (the completion screen): the primary action is to finish
+  // it — bank the result and resume the week — exactly like the "Finish event" button on that screen, not
+  // to re-open a finished event. Crossing the season boundary lands on the off-season review (see play-event).
+  if (hasPendingEvent && pendingEventFinished) {
+    async function onFinish() {
+      const result = await complete.mutateAsync();
+      if (seasonBefore != null && result.completeEvent.season > seasonBefore) {
+        router.push(`/career/${id}/offseason`);
+      } else {
+        router.push(`/career/${id}`);
+      }
+      router.refresh();
+    }
+    return (
+      <Button onClick={onFinish} disabled={complete.isPending}>
+        <Check className="size-4" aria-hidden="true" />
+        {complete.isPending ? "Finishing…" : "Finish event"}
+      </Button>
+    );
+  }
 
   if (hasPendingEvent) {
     return (

@@ -2003,6 +2003,14 @@ public final class World {
         return pendingEvent != null;
     }
 
+    /**
+     * Whether the pending event has been played to its end but not yet completed (spec: playable-event) — the
+     * "finish event" window. In this state the primary next action is to complete the event, not to play it.
+     */
+    public boolean playerEventAwaitingCompletion() {
+        return pendingEvent != null && pendingEvent.event().isComplete();
+    }
+
     /** The player's pending interactive event handle (play or sim it, then {@link #completePlayerEvent}). */
     public PlayableEvent playerEvent() {
         if (pendingEvent == null) {

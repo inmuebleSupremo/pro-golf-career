@@ -89,6 +89,7 @@ export const CareerOverviewDocument = graphql(`
       week
       activePopulation
       hasPendingEvent
+      pendingEventFinished
     }
     playerSchedule(id: $id) {
       tournamentId
