@@ -139,6 +139,16 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+/** The point on the fairway centerline at fraction `t` (0 = tee, 1 = green) — for drawing/placement layers. */
+export function pointAt(layout: HoleLayout, t: number): Point {
+  return bezier(layout.frame, t);
+}
+
+/** A deterministic PRNG seeded from a hole's layout seed (+ optional salt), for reproducible cosmetic drawing. */
+export function seededRng(layoutSeed: string, salt = ""): () => number {
+  return mulberry32(seedInt(layoutSeed + salt));
+}
+
 /** The point on the fairway centerline (a cubic bezier) at fraction `t` of the tee→green line. */
 function bezier(f: Frame, t: number): Point {
   const u = 1 - t;

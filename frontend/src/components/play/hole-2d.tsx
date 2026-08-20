@@ -3,9 +3,12 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { BIOME_KITS, resolveBiome, SYMBOL_SCALE, VEG_SYMBOLS, type SvgPrim } from "@/lib/play/biomes";
+import { blobPath, ribbonPath } from "@/lib/play/hole-draw";
 import {
   ballPosition,
+  pointAt,
   projectHole,
+  seededRng,
   type HoleGeom,
   type HoleLayout,
   type Point,
@@ -75,10 +78,16 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
   const id = (name: string) => `${uid}-${name}`;
   const url = (name: string) => `url(#${id(name)})`;
 
-  const { width, height, centerline, fairwayWidth, roughWidth, green, pin, water, bunkers, trees } = layout;
+  const { width, height, fairwayWidth, roughWidth, green, pin, water, bunkers, trees } = layout;
   const roughFill = kit.roughPattern ? url(kit.roughPattern) : kit.rough;
   // Only links' fescue tiles the whole surround; heathland keeps a solid khaki frame with heather only in the rough.
   const outFill = kit.roughPattern === "fescue" ? url("fescue") : kit.out;
+
+  // Samples the cubic fairway spine for the organic ribbon/scatter layers. A fresh seeded RNG per shape keeps
+  // each hole's cosmetic edges reproducible.
+  const sample = (t: number) => pointAt(layout, t);
+  const seed = hole.layoutSeed;
+  const crinkle = kit.roughPattern === "fescue"; // links reads the crinkliest
 
   // Playback: when a new resolved shot arrives, animate the ball from its previous rest (or the tee) to the
   // fidelity-resolved landing. Refs track the last rest and hole so each new shot replays once.
@@ -181,28 +190,40 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
         </>
       )}
 
-      {/* Rough corridor, then fairway (+ mower stripes), then any waste flash */}
-      <path d={centerline} stroke={roughFill} strokeWidth={roughWidth} fill="none" strokeLinecap="round" />
+      {/* Organic rough corridor + its apron around the green (a concentric green complex — the rough wraps the
+          whole thing, so the green is never a bare head), then the striped fairway + its own apron. `holdTop`
+          keeps the fairway full width into the green so it flows around it rather than pinching to a lollipop. */}
+      <path d={ribbonPath(sample, roughWidth / 2, crinkle ? 7 : 4, seededRng(seed, "r"), { holdTop: true })} fill={roughFill} />
+      <path d={blobPath(green.cx, green.cy, green.rx + 20, green.ry + 20, seededRng(seed, "rap"), 12, 0.1)} fill={roughFill} />
       {kit.waste && (
-        <path d={centerline} stroke="#eef0e4" strokeWidth={fairwayWidth + 8} fill="none" strokeLinecap="round" opacity="0.35" />
+        <path d={ribbonPath(sample, fairwayWidth / 2 + 5, 3, seededRng(seed, "waste"), { holdTop: true })} fill="#eef0e4" opacity="0.35" />
       )}
-      <path d={centerline} stroke={kit.fairway} strokeWidth={fairwayWidth} fill="none" strokeLinecap="round" />
+      <path d={ribbonPath(sample, fairwayWidth / 2, crinkle ? 6 : 3.2, seededRng(seed, "f"), { holdTop: true })} fill={kit.fairway} />
       {kit.mowStripe && (
-        <path d={centerline} stroke={url("mow")} strokeWidth={fairwayWidth} fill="none" strokeLinecap="round" opacity="0.45" />
+        <path d={ribbonPath(sample, fairwayWidth / 2, crinkle ? 6 : 3.2, seededRng(seed, "f"), { holdTop: true })} fill={url("mow")} opacity="0.45" />
+      )}
+      <path d={blobPath(green.cx, green.cy, green.rx + 9, green.ry + 9, seededRng(seed, "ap"), 12, 0.1)} fill={kit.fairway} />
+      {kit.mowStripe && (
+        <path d={blobPath(green.cx, green.cy, green.rx + 9, green.ry + 9, seededRng(seed, "ap"), 12, 0.1)} fill={url("mow")} opacity="0.45" />
       )}
 
       {/* Water hazard */}
       {water && <path d={water.d} fill={kit.water ?? "#2f7fb5"} filter={url("waterShadow")} />}
 
-      {/* Bunkers */}
-      {bunkers.map((b, i) => (
-        <ellipse key={i} cx={b.cx} cy={b.cy} rx={b.rx} ry={b.ry} fill={kit.sand} stroke={kit.sandStroke} strokeWidth={b.pot ? 2 : 1} />
-      ))}
-
-      {/* Green + fringe */}
-      <ellipse cx={green.cx} cy={green.cy} rx={green.rx + 4} ry={green.ry + 4} fill={kit.fringe} />
-      <ellipse cx={green.cx} cy={green.cy} rx={green.rx} ry={green.ry} fill={kit.green} />
-      <ellipse cx={green.cx} cy={green.cy} rx={green.rx} ry={green.ry} fill="none" stroke="#ffffff" strokeWidth="0.6" opacity="0.25" />
+      {/* Bunkers — organic sand blobs; pot bunkers stay small and ringed */}
+      {bunkers.map((b, i) =>
+        b.pot ? (
+          <ellipse key={i} cx={b.cx} cy={b.cy} rx={b.rx} ry={b.ry} fill={kit.sand} stroke={kit.sandStroke} strokeWidth="2" />
+        ) : (
+          <path
+            key={i}
+            d={blobPath(b.cx, b.cy, b.rx, b.ry, seededRng(seed, `b${i}`), 9, 0.24)}
+            fill={kit.sand}
+            stroke={kit.sandStroke}
+            strokeWidth="0.9"
+          />
+        ),
+      )}
 
       {/* Vegetation */}
       {trees.map((t, i) => (
@@ -213,6 +234,11 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
           filter={kit.vegetation === "yucca" ? undefined : url("canopyShadow")}
         />
       ))}
+
+      {/* Green complex — drawn after vegetation so trees never sit on the putting surface. Two organic layers
+          (subtle fringe + green) that blend into the fairway apron: no dark ring, no sand collar. */}
+      <path d={blobPath(green.cx, green.cy, green.rx + 3.2, green.ry + 3.2, seededRng(seed, "gf"), 12, 0.08)} fill={kit.fringe} />
+      <path d={blobPath(green.cx, green.cy, green.rx, green.ry, seededRng(seed, "g2"), 12, 0.12)} fill={kit.green} />
 
       {/* Tee */}
       <rect x={layout.tee.x - 7} y={layout.tee.y - 3} width="14" height="6" rx="3" fill="#d8d2c0" opacity="0.85" />
