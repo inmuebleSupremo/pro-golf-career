@@ -179,7 +179,7 @@ public class WorldService {
         WorldSession session = required(ownerId, id);
         World world = session.world();
         return new WorldStatusDto(session.id(), world.currentSeason(), world.currentWeek(),
-                world.activePopulationSize(), world.hasPendingPlayerEvent());
+                world.activePopulationSize(), world.hasPendingPlayerEvent(), world.playerEventAwaitingCompletion());
     }
 
     // --- Player control (spec: player-control): the human guides one designated golfer ---

@@ -204,6 +204,8 @@ type WorldStatus {
     week: Int!
     activePopulation: Int!
     hasPendingEvent: Boolean!
+    "True when the pending event has been played to its end and only awaits completion (the finish-event window)."
+    pendingEventFinished: Boolean!
 }
 
 type Golfer {
