@@ -8,7 +8,7 @@
  * flavor. No rendering here (kept JSX-free); the component in the play layer draws from this data.
  */
 
-import type { BiomeKit, Vegetation } from "@/lib/play/biomes";
+import type { Biome, BiomeKit, Vegetation } from "@/lib/play/biomes";
 
 /** The hole geometry the layout needs — structurally the `playingHole` query result. */
 export interface HoleGeom {
@@ -62,6 +62,19 @@ export interface Bunker {
   readonly pot: boolean;
 }
 
+/** A land stretch of the corridor between water carries, as a spine fraction range. `capEnd` rounds the far shore. */
+export interface LandSegment {
+  readonly t0: number;
+  readonly t1: number;
+  readonly capEnd: boolean;
+}
+
+/** A forced-carry water gap across the corridor, as a spine fraction range (tropical only). */
+export interface Carry {
+  readonly t0: number;
+  readonly t1: number;
+}
+
 /** The parametric frame — a cubic fairway spine (tee → green), enough to re-derive any point for ball placement. */
 interface Frame {
   readonly p0: Point;
@@ -84,6 +97,10 @@ export interface HoleLayout {
   readonly water: WaterHazard | null;
   readonly bunkers: readonly Bunker[];
   readonly scatter: readonly PlacedScatter[];
+  /** Forced-carry water gaps across the corridor (tropical); empty on holes with a continuous corridor. */
+  readonly carries: readonly Carry[];
+  /** The land stretches to draw between the carries — a single full-length segment when there are no carries. */
+  readonly landSegments: readonly LandSegment[];
   readonly flank: -1 | 1;
   readonly elevation: { readonly light: boolean; readonly alpha: number } | null;
   readonly walls: WallParams | null;
@@ -206,6 +223,105 @@ function waterBlob(x: number, y: number, rw: number, rh: number): string {
   );
 }
 
+/** Per-biome championship bunkering: greenside/fairway count ranges, base radius, and size variance (px @ zoom 1). */
+const BUNKER_TUNING: Record<Biome, { gs: [number, number]; fw: [number, number]; size: number; sizeVar: number }> = {
+  parkland: { gs: [2, 3], fw: [1, 2], size: 8, sizeVar: 2.4 },
+  links: { gs: [2, 3], fw: [2, 4], size: 6, sizeVar: 1.6 }, // pot bunkers — heavily bunkered, small and deep
+  desert: { gs: [1, 2], fw: [1, 2], size: 11, sizeVar: 4.5 }, // fewer, but large sprawling waste
+  alpine: { gs: [2, 3], fw: [1, 2], size: 8, sizeVar: 3 },
+  heathland: { gs: [2, 3], fw: [1, 2], size: 8, sizeVar: 2.6 },
+  tropical: { gs: [2, 3], fw: [0, 1], size: 8, sizeVar: 2 }, // water does most of the guarding here
+};
+
+interface BunkerCtx {
+  readonly hole: HoleGeom;
+  readonly kit: BiomeKit;
+  readonly frame: Frame;
+  readonly grnX: number;
+  readonly grnY: number;
+  readonly grx: number;
+  readonly gry: number;
+  readonly fairwayWidth: number;
+  readonly flank: -1 | 1;
+  readonly dir: -1 | 0 | 1;
+  readonly zoom: number;
+  readonly water: WaterHazard | null;
+  readonly carries: readonly Carry[];
+}
+
+/**
+ * Championship-style bunkering, tuned per biome: 2–3 greenside guards (front/side, biased off the water flank) plus
+ * fairway bunkers on par-4s and -5s (landing-zone guards, biased to the inside of the dogleg). Sizes and shapes vary
+ * (small flashed → large sprawling waste; pots stay small and round); nothing overlaps another bunker, the greenside
+ * water, or a carry gap. Deterministic from its own seed stream, so it never shifts the main layout RNG.
+ */
+function planBunkers(ctx: BunkerCtx): Bunker[] {
+  const { hole, kit, frame, grnX, grnY, grx, gry, fairwayWidth, flank, dir, zoom, water, carries } = ctx;
+  const bunkers: Bunker[] = [];
+  // Links greens are always potted, so a links hole is never left bunkerless even when the sim flags no greenside
+  // bunker (placement is cosmetic — a resolved BUNKER lie still snaps to the nearest rendered bunker). Every other
+  // biome keys off the sim signal: no flag, no bunkers.
+  const alwaysBunkered = kit.biome === "links";
+  if (!hole.hasGreensideBunker && !alwaysBunkered) return bunkers;
+
+  const br = mulberry32(seedInt(hole.layoutSeed + "bunker"));
+  const tune = BUNKER_TUNING[kit.biome];
+  const pot = kit.potBunkers;
+  const pick = ([lo, hi]: [number, number]) => lo + Math.floor(br() * (hi - lo + 1));
+
+  const overlaps = (cx: number, cy: number, rr: number) =>
+    bunkers.some((b) => Math.hypot(cx - b.cx, cy - b.cy) < Math.max(b.rx, b.ry) + rr + 2);
+  const inWater = (cx: number, cy: number, rr: number) =>
+    water !== null && Math.hypot(cx - water.x, cy - water.y) < 30 * zoom + rr;
+  const inCarry = (t: number) => carries.some((c) => t >= c.t0 - 0.02 && t <= c.t1 + 0.02);
+  const sizeOf = () => {
+    const base = (tune.size + (br() * 2 - 1) * tune.sizeVar) * zoom;
+    const rx = Math.max(3, base);
+    const ry = pot ? rx : rx * (0.5 + br() * 0.35); // pots stay round; flashed bunkers flatten
+    return { rx, ry };
+  };
+
+  // Greenside guards — placed around the front/side arc of the green ellipse (never straight behind), off the flank
+  // the water sits on. y grows toward the tee, so sin(θ) > 0 is the front of the green.
+  const gsN = pick(tune.gs);
+  for (let i = 0; i < gsN; i++) {
+    let placed = false;
+    for (let a = 0; a < 14 && !placed; a++) {
+      const theta = -0.12 * Math.PI + br() * 1.24 * Math.PI; // lower arc: both sides + front, sparing the back
+      const { rx, ry } = sizeOf();
+      const gap = (5 + br() * 4) * zoom + Math.max(rx, ry) * 0.4;
+      const cx = grnX + Math.cos(theta) * (grx + gap);
+      const cy = grnY + Math.sin(theta) * (gry + gap);
+      // Bias off the water flank: reject a candidate on the water side unless we're struggling to place.
+      if (a < 8 && water && Math.sign(cx - grnX) === flank) continue;
+      if (overlaps(cx, cy, rx) || inWater(cx, cy, rx)) continue;
+      bunkers.push({ cx, cy, rx, ry, pot });
+      placed = true;
+    }
+  }
+
+  // Fairway guards on the longer holes — landing-zone bunkers just off the fairway edge, biased inside the dogleg.
+  if (hole.par >= 4) {
+    const fwN = pick(tune.fw);
+    for (let i = 0; i < fwN; i++) {
+      let placed = false;
+      for (let a = 0; a < 12 && !placed; a++) {
+        const t = 0.42 + br() * 0.26;
+        if (inCarry(t)) continue;
+        const p = bezier(frame, t);
+        const side = dir !== 0 ? dir : br() < 0.5 ? -1 : 1;
+        const { rx, ry } = sizeOf();
+        const cx = p.x + side * (fairwayWidth / 2 + (2 + br() * 3) * zoom);
+        const cy = p.y;
+        if (overlaps(cx, cy, rx) || inWater(cx, cy, rx)) continue;
+        bunkers.push({ cx, cy, rx, ry, pot });
+        placed = true;
+      }
+    }
+  }
+  return bunkers;
+}
+
 /** Projects a hole's geometry + biome into a complete render-ready layout. Deterministic from the layout seed. */
 export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
   const rng = mulberry32(seedInt(hole.layoutSeed));
@@ -256,28 +372,26 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
     water = { d: waterBlob(wx, wy, 13 * big, 36 * big), x: wx, y: wy };
   }
 
-  const bunkers: Bunker[] = [];
-  if (hole.hasGreensideBunker) {
-    // Greenside bunker on the flank opposite the water, then a fairway bunker on long holes.
-    bunkers.push({
-      cx: grnX - flank * (grx + 8 * zoom),
-      cy: grnY + 7 * zoom,
-      rx: (kit.potBunkers ? 6 : 8) * zoom,
-      ry: (kit.potBunkers ? 6 : 5.4) * zoom,
-      pot: kit.potBunkers,
-    });
-    if (hole.par >= 4) {
-      const t = 0.55;
-      const p = bezier(frame, t);
-      bunkers.push({
-        cx: p.x + flank * (fairwayWidth / 2 - 1),
-        cy: p.y,
-        rx: (kit.potBunkers ? 5 : 6.5) * zoom,
-        ry: (kit.potBunkers ? 5 : 4.5) * zoom,
-        pot: kit.potBunkers,
-      });
-    }
+  // Tropical forced carries — one open-water gap across the corridor on water holes, sited between the tee shot and
+  // the green. The land is drawn as the stretches around each gap; every other biome keeps one continuous segment.
+  const carries: Carry[] = [];
+  if (kit.island && hole.hasWater) {
+    const cr = mulberry32(seedInt(hole.layoutSeed + "carry"));
+    const center = 0.34 + cr() * 0.28;
+    const half = 0.05 + cr() * 0.03;
+    carries.push({ t0: center - half, t1: center + half });
   }
+  const landSegments: LandSegment[] = [];
+  let cursor = 0;
+  for (const c of carries) {
+    if (c.t0 > cursor) landSegments.push({ t0: cursor, t1: c.t0, capEnd: true });
+    cursor = c.t1;
+  }
+  landSegments.push({ t0: cursor, t1: 1, capEnd: false });
+
+  const bunkers = planBunkers({
+    hole, kit, frame, grnX, grnY, grx, gry, fairwayWidth, flank, dir, zoom, water, carries,
+  });
 
   // Biome scatter — the cohesive plant/rock family, placed deterministically and NEVER overlapping each other,
   // the corridor, the green complex, the water, or a bunker. `forest` fills the surround densely, `scatter` fills
@@ -311,6 +425,38 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
     const inWater = (x: number, y: number) => (water ? Math.hypot(x - water.x, y - water.y) < 26 * zoom : false);
     const inBunker = (x: number, y: number) =>
       bunkers.some((b) => Math.hypot(x - b.cx, y - b.cy) < Math.max(b.rx, b.ry) + 1);
+    // At a carry gap the corridor land is absent, so a palm placed at the nominal shoulder would float in open
+    // water. Exclude the whole longitudinal band the gap spans (plus a margin) from scatter.
+    const carryBands = carries.map((c) => {
+      const a = bezier(frame, c.t0).y;
+      const b = bezier(frame, c.t1).y;
+      return [Math.min(a, b) - 12 * zoom, Math.max(a, b) + 12 * zoom] as const;
+    });
+    const inCarryBand = (y: number) => carryBands.some(([lo, hi]) => y >= lo && y <= hi);
+    // The corridor ribbon tapers to a point at the tee and rounds at every carry shoreline, so the ACTUAL land is
+    // much narrower there than the nominal half-width. For tropical islands (where off-land is open ocean) a palm
+    // must sit inside the real, tapered land — otherwise it floats in the water at the tee end or a carry edge.
+    const nearestT = (x: number, y: number) => {
+      let bt = 0;
+      let m = Infinity;
+      for (let i = 0; i <= 40; i++) {
+        const t = i / 40;
+        const p = bezier(frame, t);
+        const dd = Math.hypot(p.x - x, p.y - y);
+        if (dd < m) {
+          m = dd;
+          bt = t;
+        }
+      }
+      return bt;
+    };
+    const segAt = (t: number) => landSegments.find((s) => t >= s.t0 && t <= s.t1);
+    const roughHalfAt = (t: number, s: LandSegment) => {
+      const local = (t - s.t0) / (s.t1 - s.t0 || 1);
+      const startRamp = Math.pow(clamp(local / 0.16, 0, 1), 0.6);
+      const endRamp = s.capEnd ? Math.pow(clamp((1 - local) / 0.16, 0, 1), 0.6) : 1;
+      return roughHalf * (0.3 + 0.7 * (startRamp * endRamp));
+    };
     const totalWeight = kit.scatter.reduce((s, k) => s + k.weight, 0);
     const pickKind = (): Vegetation => {
       let r = sr() * totalWeight;
@@ -325,12 +471,20 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
         if (sr() < kit.scatterCull) continue;
         if (walls && (x < wallEdgeX(walls, -1, y) + 2 || x > wallEdgeX(walls, 1, y) - 2)) continue; // off the cliffs
         if (onSea(x, y)) continue; // never in the sea
+        if (inCarryBand(y)) continue; // never in a forced-carry gap
         const d = nearCL(x, y);
         if (kit.scatterMode === "edge") {
-          // On tropical islands, keep palms on the green shoulder (well inside the beach/shallow rim, never water);
-          // elsewhere (links gorse) allow just off the corridor in the dune surround.
-          const outer = kit.island ? roughHalf - 2 : roughHalf + 18;
-          if (d < fairHalf + 3 || d > outer) continue;
+          if (kit.island) {
+            // Keep palms on the green shoulder of the ACTUAL (tapered) land — inside the beach/shallow rim, never
+            // over open ocean at the tee end or a carry shoreline.
+            const nt = nearestT(x, y);
+            const seg = segAt(nt);
+            if (!seg) continue; // over a carry gap
+            if (d < fairHalf + 3 || d > roughHalfAt(nt, seg) - 5) continue;
+          } else {
+            // Links gorse — just off the corridor in the dune surround.
+            if (d < fairHalf + 3 || d > roughHalf + 18) continue;
+          }
         } else if (d < roughHalf + 3) {
           continue; // out in the surround, clear of the corridor
         }
@@ -370,6 +524,8 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
     water,
     bunkers,
     scatter,
+    carries,
+    landSegments,
     walls,
     coast,
     flank,

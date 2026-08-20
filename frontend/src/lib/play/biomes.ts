@@ -79,6 +79,8 @@ export interface BiomeKit {
   readonly coastal?: boolean; // links sea margins
   readonly island?: boolean; // tropical island fairways
   readonly ocean?: boolean; // tropical ocean surround
+  /** Faint topographic contour lines in the surround (undulating dunes/heath); the stroke colour, or absent. */
+  readonly contour?: string;
 }
 
 export const BIOME_KITS: Record<Biome, BiomeKit> = {
@@ -91,14 +93,18 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
     vegetation: "deciduous", vegetationDensity: 1, waste: false, rock: false, elevationShading: false,
     tee: "#eef0f2", scatterMode: "forest", scatterCull: 0.16, scatter: [{ kind: "deciduous", weight: 1 }], mowKind: "horizontal",
   },
+  // Links keeps its dusty seaside identity in the SURROUND and rough (khaki fescue), but the playing surfaces are
+  // lifted to an irrigated green — the world's best links are watered, so the fairway/green read lush against the
+  // wild dusty fescue (the same lush-turf-vs-dry-surround contrast that makes desert & parkland pop).
   links: {
     biome: "links",
-    out: "#cdbb84", rough: "#cdbb84", roughPattern: "fescue",
-    fairway: "#b7c48d", mowStripe: null,
-    green: "#aebf86", fringe: "#94a06e", sand: "#efe6c4", sandStroke: "#7a6a3f",
+    out: "#c6bd80", rough: "#c6bd80", roughPattern: "fescue",
+    fairway: "#93bd66", mowStripe: null,
+    green: "#88b860", fringe: "#6c974e", sand: "#efe6c4", sandStroke: "#7a6a3f",
     potBunkers: true, water: "#5a86a0",
     vegetation: "deciduous", vegetationDensity: 0.35, waste: false, rock: false, elevationShading: false,
     tee: "#d4af37", scatterMode: "edge", scatterCull: 0.5, scatter: [{ kind: "gorse", weight: 1 }], mowKind: null, coastal: true,
+    contour: "#b09b6a",
   },
   desert: {
     biome: "desert",
@@ -125,12 +131,12 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
   // olive), so the heather is a scattered accent rather than the dominant colour.
   heathland: {
     biome: "heathland",
-    out: "#9a9770", rough: "#8a8c5f", roughPattern: "heather",
-    fairway: "#6f9457", mowStripe: ["#78a05f", "#688f50"],
-    green: "#84b06a", fringe: "#5f7f47", sand: "#ddceac", sandStroke: "#8a765a",
+    out: "#949a68", rough: "#828f56", roughPattern: "heather",
+    fairway: "#68a850", mowStripe: ["#72b25a", "#61984c"],
+    green: "#83bb63", fringe: "#58893f", sand: "#ddceac", sandStroke: "#8a765a",
     potBunkers: false, water: "#3f6a86",
     vegetation: "deciduous", vegetationDensity: 0.6, waste: false, rock: false, elevationShading: false,
-    tee: "#8f7268", scatterMode: "scatter", scatterCull: 0.42, mowKind: "premium",
+    tee: "#8f7268", scatterMode: "scatter", scatterCull: 0.42, mowKind: "premium", contour: "#5f6b3c",
     scatter: [{ kind: "heather", weight: 0.52 }, { kind: "gorse", weight: 0.4 }, { kind: "pine", weight: 0.08 }],
   },
   tropical: {

@@ -32,11 +32,15 @@ export interface RibbonOpts {
   readonly t0?: number;
   readonly t1?: number;
   readonly samples?: number;
+  /** Round the segment's far (t1) end to a point instead of holding width — used at a carry gap's shoreline. */
+  readonly capEnd?: boolean;
 }
 
 /**
  * An organic filled corridor of half-width `half` around the fairway spine, offset along the local normal (so it
- * tracks doglegs) with a little edge `jitter`. Tapers to rounded ends unless `holdTop` keeps full width at the green.
+ * tracks doglegs) with a little edge `jitter`. With `holdTop` the tee end rounds and the far end holds full width
+ * (continuous flow into the green); set `capEnd` to also round the far end — so a carry-split segment ends in an
+ * island shoreline rather than a blunt edge.
  */
 export function ribbonPath(
   sample: (t: number) => Point,
@@ -45,7 +49,7 @@ export function ribbonPath(
   rng: () => number,
   opts: RibbonOpts = {},
 ): string {
-  const { holdTop = false, t0 = 0, t1 = 1, samples = 24 } = opts;
+  const { holdTop = false, t0 = 0, t1 = 1, samples = 24, capEnd = false } = opts;
   const left: Point[] = [];
   const right: Point[] = [];
   for (let i = 0; i <= samples; i++) {
@@ -59,14 +63,49 @@ export function ribbonPath(
     const nx = -dy / len;
     const ny = dx / len;
     const local = (t - t0) / (t1 - t0);
+    const endRamp = capEnd ? Math.pow(clamp((1 - local) / 0.16, 0, 1), 0.6) : 1;
     const taper = holdTop
-      ? Math.pow(clamp(local / 0.16, 0, 1), 0.6)
+      ? Math.pow(clamp(local / 0.16, 0, 1), 0.6) * endRamp
       : Math.pow(Math.sin(Math.PI * clamp(local, 0, 1)), 0.55);
     const hh = half * (0.3 + 0.7 * taper) + (rng() * 2 - 1) * jitter * taper;
     left.push({ x: p.x + nx * hh, y: p.y + ny * hh });
     right.push({ x: p.x - nx * hh, y: p.y - ny * hh });
   }
   return smoothClosed(left.concat(right.reverse()));
+}
+
+/**
+ * The deck + two rail path strings for a sleek modern bridge spanning a carry, following the fairway spine from
+ * `t0` to `t1` (extended slightly onto each shore). The component strokes the deck pale and wide, the rails thin.
+ */
+export function bridgePaths(
+  sample: (t: number) => Point,
+  t0: number,
+  t1: number,
+  railHalf: number,
+): { deck: string; railL: string; railR: string } {
+  const a = Math.max(0, t0 - 0.03);
+  const b = Math.min(1, t1 + 0.03);
+  const mid: Point[] = [];
+  const left: Point[] = [];
+  const right: Point[] = [];
+  const steps = 8;
+  for (let i = 0; i <= steps; i++) {
+    const t = a + (b - a) * (i / steps);
+    const p = sample(t);
+    const pa = sample(Math.max(0, t - 0.01));
+    const pb = sample(Math.min(1, t + 0.01));
+    const dx = pb.x - pa.x;
+    const dy = pb.y - pa.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len;
+    const ny = dx / len;
+    mid.push(p);
+    left.push({ x: p.x + nx * railHalf, y: p.y + ny * railHalf });
+    right.push({ x: p.x - nx * railHalf, y: p.y - ny * railHalf });
+  }
+  const poly = (pts: readonly Point[]) => "M" + pts.map((p) => `${f1(p.x)} ${f1(p.y)}`).join(" L ");
+  return { deck: poly(mid), railL: poly(left), railR: poly(right) };
 }
 
 /** An organic blob (green, bunker, water, apron) — a lobed closed curve around a centre. */

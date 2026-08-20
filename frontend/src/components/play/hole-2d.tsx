@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { BIOME_KITS, resolveBiome, SYMBOL_SCALE, VEG_SYMBOLS, type SvgPrim, type Vegetation } from "@/lib/play/biomes";
-import { blobPath, ribbonPath } from "@/lib/play/hole-draw";
+import { blobPath, bridgePaths, ribbonPath } from "@/lib/play/hole-draw";
 import { planFlight, STEP_MS, TRAVEL_R, type LandEffect } from "@/lib/play/shot-flight";
 import type { ShotPhysicsProfile } from "@/lib/play/shot-router";
 import {
@@ -94,6 +94,25 @@ export function Hole2d({ hole, ball, profile, className }: Hole2dProps) {
   const sample = (t: number) => pointAt(layout, t);
   const seed = hole.layoutSeed;
   const crinkle = kit.roughPattern === "fescue"; // links reads the crinkliest
+
+  // A corridor ribbon layer, drawn once per land segment so a tropical hole's carry gaps split the land into
+  // islands. With a single segment (every non-tropical hole) this is byte-identical to one full-length ribbon:
+  // the salt is left un-suffixed so the edge jitter is unchanged.
+  const segments = layout.landSegments;
+  const ribbonSegs = (half: number, jitter: number, salt: string, fill: string, opacity?: number) =>
+    segments.map((s, i) => (
+      <path
+        key={i}
+        d={ribbonPath(sample, half, jitter, seededRng(seed, segments.length > 1 ? `${salt}${i}` : salt), {
+          holdTop: true,
+          t0: s.t0,
+          t1: s.t1,
+          capEnd: s.capEnd,
+        })}
+        fill={fill}
+        opacity={opacity}
+      />
+    ));
 
   // Playback: when a new resolved shot arrives, run the three-phase physics loop from the ball's previous rest
   // (or the tee) to the fidelity-resolved landing, shaped by the routed profile. The travelling ball, its shadow,
@@ -275,11 +294,11 @@ export function Hole2d({ hole, ball, profile, className }: Hole2dProps) {
           // Sparse heather flecks over the olive rough — small purple/green arcs and buds (docs/course-holes/heathland001.svg).
           <pattern id={id("heather")} width="22" height="22" patternUnits="userSpaceOnUse">
             <rect width="22" height="22" fill={kit.rough} />
-            <path d="M4 6 Q6 2 8 6" stroke="#6a1b9a" strokeWidth="1.1" fill="none" opacity="0.5" strokeLinecap="round" />
-            <path d="M15 16 Q17 12 19 16" stroke="#4a235a" strokeWidth="1.1" fill="none" opacity="0.4" strokeLinecap="round" />
-            <path d="M9 18 Q11 15 13 18" stroke="#3f6b32" strokeWidth="1.1" fill="none" opacity="0.5" strokeLinecap="round" />
-            <circle cx="5" cy="6" r="0.9" fill="#8e44ad" opacity="0.55" />
-            <circle cx="18" cy="9" r="1" fill="#2e7d32" opacity="0.5" />
+            <path d="M4 6 Q6 2 8 6" stroke="#6a1b9a" strokeWidth="1.1" fill="none" opacity="0.34" strokeLinecap="round" />
+            <path d="M15 16 Q17 12 19 16" stroke="#4a235a" strokeWidth="1.1" fill="none" opacity="0.26" strokeLinecap="round" />
+            <path d="M9 18 Q11 15 13 18" stroke="#3f6b32" strokeWidth="1.1" fill="none" opacity="0.55" strokeLinecap="round" />
+            <circle cx="5" cy="6" r="0.9" fill="#8e44ad" opacity="0.36" />
+            <circle cx="18" cy="9" r="1" fill="#2e7d32" opacity="0.55" />
           </pattern>
         )}
         {scatterKinds.map((k) => (
@@ -423,31 +442,78 @@ export function Hole2d({ hole, ball, profile, className }: Hole2dProps) {
           );
         })()}
 
+      {/* Contour lines — faint nested topographic rings in the surround, so links/heathland read as undulating
+          dunes/heath outside the corridor (kept off the fairway/rough and, for links, off the sea). */}
+      {kit.contour &&
+        (() => {
+          const cr = seededRng(seed, "contour");
+          const near = (x: number, y: number) => {
+            let m = Infinity;
+            for (let i = 0; i <= 20; i++) {
+              const p = sample(i / 20);
+              m = Math.min(m, Math.hypot(p.x - x, p.y - y));
+            }
+            return m;
+          };
+          const onSea = (x: number, y: number) =>
+            layout.coast !== 0 && (layout.coast > 0 ? x > coastShoreX(layout.coast, y) : x < coastShoreX(layout.coast, y));
+          const mounds: { x: number; y: number; r: number }[] = [];
+          for (let a = 0; a < 80 && mounds.length < 8; a++) {
+            const x = 12 + cr() * (width - 24);
+            const y = 24 + cr() * (height - 48);
+            const r = 9 + cr() * 9;
+            if (near(x, y) < roughWidth / 2 + 14) continue; // clear of the corridor
+            if (onSea(x, y)) continue;
+            if (mounds.some((m) => Math.hypot(m.x - x, m.y - y) < m.r + r * 0.5 + 6)) continue;
+            mounds.push({ x, y, r });
+          }
+          return (
+            <g fill="none" stroke={kit.contour} strokeWidth="0.7" opacity="0.55">
+              {mounds.map((m, i) =>
+                [1, 0.64, 0.32].map((k, j) => (
+                  <path key={`${i}-${j}`} d={blobPath(m.x, m.y, m.r * k, m.r * k * 0.72, seededRng(seed, `ct${i}-${j}`), 10, 0.14)} />
+                )),
+              )}
+            </g>
+          );
+        })()}
+
       {/* Organic rough corridor + its apron around the green (a concentric green complex — the rough wraps the
           whole thing, so the green is never a bare head), then the striped fairway + its own apron. `holdTop`
           keeps the fairway full width into the green so it flows around it rather than pinching to a lollipop. */}
-      {/* Tropical island rims — turquoise shallows then a white beach ring the land (corridor + green complex) */}
+      {/* Tropical island rims — turquoise shallows then a white beach ring each land segment (they round at a carry
+          shoreline) plus the green complex. */}
       {kit.island && (
         <>
-          <path d={ribbonPath(sample, roughWidth / 2 + 10, 2, seededRng(seed, "sh"), { holdTop: true })} fill={SHALLOW} />
-          <path d={ribbonPath(sample, roughWidth / 2 + 5, 2, seededRng(seed, "be"), { holdTop: true })} fill={BEACH} />
+          {ribbonSegs(roughWidth / 2 + 10, 2, "sh", SHALLOW)}
+          {ribbonSegs(roughWidth / 2 + 5, 2, "be", BEACH)}
           <path d={blobPath(green.cx, green.cy, green.rx + 30, green.ry + 30, seededRng(seed, "shg"), 12, 0.1)} fill={SHALLOW} />
           <path d={blobPath(green.cx, green.cy, green.rx + 25, green.ry + 25, seededRng(seed, "beg"), 12, 0.1)} fill={BEACH} />
         </>
       )}
-      <path d={ribbonPath(sample, roughWidth / 2, crinkle ? 7 : 4, seededRng(seed, "r"), { holdTop: true })} fill={roughFill} />
+      {ribbonSegs(roughWidth / 2, crinkle ? 7 : 4, "r", roughFill)}
       <path d={blobPath(green.cx, green.cy, green.rx + 20, green.ry + 20, seededRng(seed, "rap"), 12, 0.1)} fill={roughFill} />
-      {kit.waste && (
-        <path d={ribbonPath(sample, fairwayWidth / 2 + 5, 3, seededRng(seed, "waste"), { holdTop: true })} fill="#eef0e4" opacity="0.35" />
-      )}
-      <path d={ribbonPath(sample, fairwayWidth / 2, crinkle ? 6 : 3.2, seededRng(seed, "f"), { holdTop: true })} fill={kit.fairway} />
-      {kit.mowKind && (
-        <path d={ribbonPath(sample, fairwayWidth / 2, crinkle ? 6 : 3.2, seededRng(seed, "f"), { holdTop: true })} fill={url("mow")} opacity="0.45" />
-      )}
+      {kit.waste && ribbonSegs(fairwayWidth / 2 + 5, 3, "waste", "#eef0e4", 0.35)}
+      {ribbonSegs(fairwayWidth / 2, crinkle ? 6 : 3.2, "f", kit.fairway)}
+      {kit.mowKind && ribbonSegs(fairwayWidth / 2, crinkle ? 6 : 3.2, "f", url("mow"), 0.45)}
       <path d={blobPath(green.cx, green.cy, green.rx + 9, green.ry + 9, seededRng(seed, "ap"), 12, 0.1)} fill={kit.fairway} />
       {kit.mowKind && (
         <path d={blobPath(green.cx, green.cy, green.rx + 9, green.ry + 9, seededRng(seed, "ap"), 12, 0.1)} fill={url("mow")} opacity="0.45" />
       )}
+
+      {/* Bridges spanning the forced carries — a sleek pale deck with two thin rails, extended onto each shore. */}
+      {layout.carries.map((c, i) => {
+        const deckW = Math.max(9, fairwayWidth * 0.44);
+        const { deck, railL, railR } = bridgePaths(sample, c.t0, c.t1, deckW / 2);
+        return (
+          <g key={i}>
+            <path d={deck} fill="none" stroke="#cec7b6" strokeWidth={deckW + 2.5} strokeLinecap="round" />
+            <path d={deck} fill="none" stroke="#efeade" strokeWidth={deckW} strokeLinecap="round" />
+            <path d={railL} fill="none" stroke="#b0a488" strokeWidth="1.1" strokeLinecap="round" opacity="0.85" />
+            <path d={railR} fill="none" stroke="#b0a488" strokeWidth="1.1" strokeLinecap="round" opacity="0.85" />
+          </g>
+        );
+      })}
 
       {/* Water hazard */}
       {water && <path d={water.d} fill={kit.water ?? "#2f7fb5"} filter={url("waterShadow")} />}
