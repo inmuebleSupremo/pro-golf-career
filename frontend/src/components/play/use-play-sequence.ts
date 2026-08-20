@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { HoleGeom, ResolvedShot } from "@/lib/play/hole-geometry";
+import { shotRouterFromCarry, shotRouterFromGameInputs, type ShotPhysicsProfile } from "@/lib/play/shot-router";
 import type { LeaderboardRow, Outcome, Scorecard, Situation } from "@/components/play/play-shared";
+
+/** The player's raw shot inputs, present for a played shot and absent for a simmed one. */
+export interface ShotInputs {
+  readonly club: string;
+  readonly strategy: string;
+  readonly targetDistance: number;
+}
 
 /**
  * The Play Mode sequence controller (spec: web-hole-visualization, Play Event polish step 4).
@@ -38,14 +46,16 @@ export interface PlaySequence {
   readonly displaySituation: Situation;
   /** The shot to play back on the displayed hole, or null for a clean hole. */
   readonly playbackShot: ResolvedShot | null;
+  /** The physics profile that shapes the playback flight, resolved by the shot router; null for a clean hole. */
+  readonly playbackProfile: ShotPhysicsProfile | null;
   /** The post-hole summary, present only during the `score` phase. */
   readonly postHole: PostHoleSummary | null;
   /** The last shot's outcome for the hole being played, for the dock's note; cleared as a new hole comes in. */
   readonly lastOutcome: Outcome | null;
   /** True whenever the shot controls must be disabled (any phase but free play, and during a shot's flight). */
   readonly locked: boolean;
-  /** Called by the shot controls the instant a single shot (played or simmed) resolves. */
-  readonly onShotResolved: (outcome: Outcome) => void;
+  /** Called by the shot controls the instant a single shot resolves; `inputs` is present for a played shot, absent for a simmed one. */
+  readonly onShotResolved: (outcome: Outcome, inputs?: ShotInputs) => void;
   /** Called when a multi-hole sim (hole/round/event) jumps the state past one or more holes. */
   readonly onSimJump: () => void;
 }
@@ -88,6 +98,7 @@ export function usePlaySequence({
 
   const [phase, setPhase] = useState<SeqPhase>("intro");
   const [playbackShot, setPlaybackShot] = useState<ResolvedShot | null>(null);
+  const [playbackProfile, setPlaybackProfile] = useState<ShotPhysicsProfile | null>(null);
   const [lastOutcome, setLastOutcome] = useState<Outcome | null>(null);
   const [shotAnimating, setShotAnimating] = useState(false);
   // The finishing hole, snapshotted while the ceremony holds over the server's advance.
@@ -106,8 +117,15 @@ export function usePlaySequence({
 
   // A single resolved shot (played or simmed). A holed shot opens the between-hole ceremony, snapshotting the
   // hole it finished; any other shot just plays back while the controls stay locked for the flight.
-  const onShotResolved = useCallback((outcome: Outcome) => {
+  const onShotResolved = useCallback((outcome: Outcome, inputs?: ShotInputs) => {
     setPlaybackShot(toResolved(outcome));
+    // Route the shot to a physics profile: from the player's real inputs when they played it, otherwise inferred
+    // from the carry when the server simmed it.
+    setPlaybackProfile(
+      inputs
+        ? shotRouterFromGameInputs(inputs.club, inputs.targetDistance, inputs.strategy)
+        : shotRouterFromCarry(outcome.carry),
+    );
     setLastOutcome(outcome);
     if (outcome.distanceRemaining <= 0) {
       setFrozenHole(holeRef.current);
@@ -123,6 +141,7 @@ export function usePlaySequence({
   // landed hole with its intro.
   const onSimJump = useCallback(() => {
     setPlaybackShot(null);
+    setPlaybackProfile(null);
     setLastOutcome(null);
     setShotAnimating(false);
     setFrozen(false);
@@ -149,6 +168,7 @@ export function usePlaySequence({
       const swap = setTimeout(() => {
         setFrozen(false);
         setPlaybackShot(null);
+        setPlaybackProfile(null);
         setLastOutcome(null);
       }, Math.max(1, D.wipe / 2));
       const done = setTimeout(() => setPhase("intro"), D.wipe);
@@ -195,6 +215,7 @@ export function usePlaySequence({
     displayHole,
     displaySituation,
     playbackShot,
+    playbackProfile,
     postHole,
     lastOutcome,
     locked,

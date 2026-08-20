@@ -4,6 +4,8 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { BIOME_KITS, resolveBiome, SYMBOL_SCALE, VEG_SYMBOLS, type SvgPrim, type Vegetation } from "@/lib/play/biomes";
 import { blobPath, ribbonPath } from "@/lib/play/hole-draw";
+import { planFlight, STEP_MS, TRAVEL_R, type LandEffect } from "@/lib/play/shot-flight";
+import type { ShotPhysicsProfile } from "@/lib/play/shot-router";
 import {
   ballPosition,
   coastShoreX,
@@ -24,7 +26,6 @@ const REACTION_COLOR: Record<"splash" | "sand" | "roll", string> = {
   roll: "#ffffff",
 };
 
-const FLIGHT_MS = 1000;
 const REACTION_MS = 500;
 
 /** Tropical island rim colours (beach sand + turquoise shallows). */
@@ -44,23 +45,17 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-/** A gently bowed flight arc from `a` to `b` (the bow suggests height in the top-down view). */
-function arcPath(a: Point, b: Point): string {
-  const mx = (a.x + b.x) / 2;
-  const my = (a.y + b.y) / 2;
-  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
-  const lift = Math.min(30, len * 0.2);
-  const cx = mx - ((b.y - a.y) / len) * lift * 0.4;
-  const cy = my - lift;
-  return `M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
-}
-
 export interface Hole2dProps {
   readonly hole: HoleGeom;
   /** The last resolved shot, placed on the hole under the fidelity rule (animated by the playback layer). */
   readonly ball?: ResolvedShot | null;
+  /** The shot router's physics profile shaping the playback flight; a default iron stands in when absent. */
+  readonly profile?: ShotPhysicsProfile | null;
   readonly className?: string;
 }
+
+/** A neutral stand-in profile when none was routed (defensive — the sequence always supplies one). */
+const FALLBACK_PROFILE: ShotPhysicsProfile = { vz: 7.5, curve: 0, rest: 0.2, bite: 0.4, fric: 0.04 };
 
 /** One primitive of a ported foliage symbol. */
 function Prim({ p }: { p: SvgPrim }) {
@@ -79,7 +74,7 @@ const CANOPY = new Set<Vegetation>(["deciduous", "pine", "palm", "birch", "sagua
  * on its real side — with an optional truthful reach overlay and resolved-ball marker. Illustration colours
  * come from the biome kit; the surrounding chrome uses the app's tokens.
  */
-export function Hole2d({ hole, ball, className }: Hole2dProps) {
+export function Hole2d({ hole, ball, profile, className }: Hole2dProps) {
   const kit = BIOME_KITS[resolveBiome(hole.courseType)];
   const layout: HoleLayout = useMemo(() => projectHole(hole, kit), [hole, kit]);
 
@@ -100,40 +95,142 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
   const seed = hole.layoutSeed;
   const crinkle = kit.roughPattern === "fescue"; // links reads the crinkliest
 
-  // Playback: when a new resolved shot arrives, animate the ball from its previous rest (or the tee) to the
-  // fidelity-resolved landing. Refs track the last rest and hole so each new shot replays once.
+  // Playback: when a new resolved shot arrives, run the three-phase physics loop from the ball's previous rest
+  // (or the tee) to the fidelity-resolved landing, shaped by the routed profile. The travelling ball, its shadow,
+  // and the tracer are driven imperatively for a smooth, per-frame flight; the reaction and resting ball are state.
   const reduced = usePrefersReducedMotion();
   const lastRest = useRef<Point | null>(null);
   const lastHole = useRef(hole.holeNumber);
   const lastBall = useRef<ResolvedShot | null>(null);
   const seq = useRef(0);
-  const [flight, setFlight] = useState<{ from: Point; to: Point; effect: "splash" | "sand" | "roll"; holed: boolean; seq: number } | null>(null);
-  const [animating, setAnimating] = useState(false);
+  const ballRef = useRef<SVGCircleElement>(null);
+  const shadowRef = useRef<SVGEllipseElement>(null);
+  const tracerRef = useRef<SVGPathElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The landing reaction (splash/sand ring, or the hole-out celebration), mounted the moment the flight settles.
+  const [reaction, setReaction] = useState<{ at: Point; effect: LandEffect; holed: boolean; seq: number } | null>(null);
+  // The ball at rest — placed when the flight settles (non-holed), or immediately under reduced motion.
+  const [rest, setRest] = useState<{ pt: Point; effect: LandEffect } | null>(null);
 
   useEffect(() => {
+    const cancel = () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      if (settleTimer.current != null) clearTimeout(settleTimer.current);
+      rafRef.current = null;
+      settleTimer.current = null;
+    };
+
     if (lastHole.current !== hole.holeNumber) {
       lastHole.current = hole.holeNumber;
       lastRest.current = null;
       lastBall.current = null;
-      setFlight(null);
-      setAnimating(false);
+      cancel();
+      setReaction(null);
+      setRest(null);
     }
     if (!ball || ball === lastBall.current) return;
     lastBall.current = ball;
+
     const to = ballPosition(layout, ball);
     const from = lastRest.current ?? layout.tee;
     lastRest.current = { x: to.x, y: to.y };
-    seq.current += 1;
-    setFlight({ from, to, effect: to.effect, holed: to.holed ?? false, seq: seq.current });
-    if (reduced) return;
-    setAnimating(true);
-    const timer = setTimeout(() => setAnimating(false), FLIGHT_MS + REACTION_MS);
-    return () => clearTimeout(timer);
-  }, [ball, hole.holeNumber, layout, reduced]);
+    const shotSeq = (seq.current += 1);
+    const effect = to.effect;
+    const holed = to.holed ?? false;
+    const toPt: Point = { x: to.x, y: to.y };
 
-  // The ball at rest — shown once the flight lands (or immediately under reduced motion). A holed shot has no
-  // resting ball: it is in the cup.
-  const rest = flight && !flight.holed && (!animating || reduced) ? flight.to : null;
+    // Reduced motion: place the ball at rest without animating (a holed shot has no resting ball — it's in the cup).
+    if (reduced) {
+      rafRef.current = requestAnimationFrame(() => {
+        setReaction(null);
+        setRest(holed ? null : { pt: toPt, effect });
+      });
+      return cancel;
+    }
+
+    // Place the travelling ball at the start (coincident with the previous resting ball) before the loop runs, so a
+    // ball is on screen from frame 0 and the hand-off from the resting ball is seamless — no flicker at launch.
+    const startBall = ballRef.current;
+    if (startBall) {
+      startBall.setAttribute("cx", from.x.toFixed(2));
+      startBall.setAttribute("cy", from.y.toFixed(2));
+      startBall.setAttribute("r", TRAVEL_R.toFixed(2));
+      startBall.setAttribute("opacity", "1");
+    }
+
+    const { step } = planFlight(from, toPt, profile ?? FALLBACK_PROFILE);
+    let trail = `M ${from.x.toFixed(2)} ${from.y.toFixed(2)}`;
+    let acc = 0;
+    let last = performance.now();
+    let cleared = false;
+
+    const finish = () => {
+      shadowRef.current?.setAttribute("opacity", "0");
+      if (holed) {
+        // A holed putt drops into the cup — the only time the ball leaves the screen.
+        ballRef.current?.setAttribute("opacity", "0");
+      } else {
+        // Reveal the resting ball at the landing right away (it coincides with the parked travelling ball), then
+        // hide the travelling ball on the next frame once the resting ball has painted — a ball shows every frame,
+        // so it never disappears between shots (it stays put until it is holed).
+        setRest({ pt: toPt, effect });
+        rafRef.current = requestAnimationFrame(() => ballRef.current?.setAttribute("opacity", "0"));
+      }
+      setReaction({ at: toPt, effect, holed, seq: shotSeq });
+      settleTimer.current = setTimeout(() => {
+        tracerRef.current?.setAttribute("d", "");
+        setReaction(null);
+      }, REACTION_MS);
+    };
+
+    const frameLoop = (t: number) => {
+      // Clear the previous shot's resting ball / reaction on the first frame — it coincides with the new ball's
+      // start point, so the swap is invisible while keeping this setState out of the effect body (lint-clean).
+      if (!cleared) {
+        cleared = true;
+        setRest(null);
+        setReaction(null);
+      }
+      acc += t - last;
+      last = t;
+      let out: ReturnType<typeof step> | null = null;
+      let guard = 0;
+      // Fixed-timestep catch-up (bounded), so flight speed is independent of the display's refresh rate.
+      while (acc >= STEP_MS && (out === null || !out.settled) && guard < 6) {
+        out = step();
+        acc -= STEP_MS;
+        guard += 1;
+        trail += ` L ${out.x.toFixed(2)} ${out.y.toFixed(2)}`;
+      }
+      if (out) {
+        const ballEl = ballRef.current;
+        const shEl = shadowRef.current;
+        const trEl = tracerRef.current;
+        if (ballEl) {
+          ballEl.setAttribute("cx", out.x.toFixed(2));
+          ballEl.setAttribute("cy", out.y.toFixed(2));
+          ballEl.setAttribute("r", (TRAVEL_R * out.scale).toFixed(2));
+          ballEl.setAttribute("opacity", "1");
+        }
+        if (shEl) {
+          shEl.setAttribute("cx", (out.x + out.shadowDx).toFixed(2));
+          shEl.setAttribute("cy", (out.y + out.shadowDy).toFixed(2));
+          // The shadow softens as the ball climbs; a pure roll (no loft) keeps a firm shadow.
+          shEl.setAttribute("opacity", out.airborne ? "0.26" : "0.5");
+        }
+        if (trEl) trEl.setAttribute("d", trail);
+        if (out.settled) {
+          finish();
+          return;
+        }
+      }
+      rafRef.current = requestAnimationFrame(frameLoop);
+    };
+    rafRef.current = requestAnimationFrame(frameLoop);
+
+    return cancel;
+  }, [ball, hole.holeNumber, layout, reduced, profile]);
 
   return (
     <svg
@@ -415,39 +512,31 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
       <line x1={pin.x} y1={pin.y} x2={pin.x} y2={pin.y - 14} stroke="#111111" strokeWidth="1" />
       <path d={`M${pin.x} ${pin.y - 14} l7 2.5 -7 2.5 z`} fill="#e23b3b" />
 
-      {/* Shot playback: flight arc + trail + travelling ball + landing reaction (skipped for reduced motion) */}
-      {flight && animating && !reduced && (
-        <g key={flight.seq}>
-          <path id={id(`flight${flight.seq}`)} d={arcPath(flight.from, flight.to)} fill="none" stroke="#ffffff" strokeWidth="1.4" strokeDasharray="3 3" opacity="0">
-            <animate attributeName="stroke-dashoffset" from="140" to="0" dur={`${FLIGHT_MS}ms`} begin="0s" fill="freeze" />
-            <animate attributeName="opacity" from="0" to="0.85" dur="200ms" begin="0s" fill="freeze" />
-          </path>
-          <circle r="3" fill="#ffffff" stroke="#c99" strokeWidth="0.6">
-            <animateMotion dur={`${FLIGHT_MS}ms`} begin="0s" fill="freeze">
-              <mpath href={`#${id(`flight${flight.seq}`)}`} />
-            </animateMotion>
-            <animate attributeName="r" values="3;4.4;3" dur={`${FLIGHT_MS}ms`} begin="0s" fill="freeze" />
-            {/* Holed: after landing on the cup, the ball drops in (shrinks to nothing over the pin). */}
-            {flight.holed && (
-              <animate attributeName="r" from="3" to="0" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
-            )}
-          </circle>
-          {flight.holed ? (
-            // Hole-out celebration: two success rings ripple out from the cup as the ball drops.
+      {/* Shot playback: tracer trail + travelling ball + shadow, driven imperatively by the physics loop. Always
+          mounted (hidden when idle) so the loop can update them each frame without re-rendering the whole hole. */}
+      <path ref={tracerRef} d="" fill="none" stroke="#ffffff" strokeWidth="1.2" strokeDasharray="3 3" opacity="0.8" />
+      <ellipse ref={shadowRef} rx="2.4" ry="1.5" fill="#000000" opacity="0" />
+      <circle ref={ballRef} r={TRAVEL_R} fill="#ffffff" stroke="#c99" strokeWidth="0.6" opacity="0" />
+
+      {/* Landing reaction — a splash/sand ring, or the hole-out celebration; mounted the moment the flight settles. */}
+      {reaction && (
+        <g key={reaction.seq}>
+          {reaction.holed ? (
+            // Hole-out celebration: two success rings ripple out from the cup.
             <>
-              <circle cx={flight.to.x} cy={flight.to.y} r="0" fill="none" stroke="#ffffff" strokeWidth="1.6" opacity="0">
-                <animate attributeName="r" values="1;12" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
-                <animate attributeName="opacity" values="0.95;0" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
+              <circle cx={reaction.at.x} cy={reaction.at.y} r="0" fill="none" stroke="#ffffff" strokeWidth="1.6" opacity="0">
+                <animate attributeName="r" values="1;12" dur={`${REACTION_MS}ms`} begin="0s" fill="freeze" />
+                <animate attributeName="opacity" values="0.95;0" dur={`${REACTION_MS}ms`} begin="0s" fill="freeze" />
               </circle>
-              <circle cx={flight.to.x} cy={flight.to.y} r="0" fill="none" stroke="#ffffff" strokeWidth="1" opacity="0">
-                <animate attributeName="r" values="1;18" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS + 120}ms`} fill="freeze" />
-                <animate attributeName="opacity" values="0.7;0" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS + 120}ms`} fill="freeze" />
+              <circle cx={reaction.at.x} cy={reaction.at.y} r="0" fill="none" stroke="#ffffff" strokeWidth="1" opacity="0">
+                <animate attributeName="r" values="1;18" dur={`${REACTION_MS}ms`} begin="120ms" fill="freeze" />
+                <animate attributeName="opacity" values="0.7;0" dur={`${REACTION_MS}ms`} begin="120ms" fill="freeze" />
               </circle>
             </>
           ) : (
-            <circle cx={flight.to.x} cy={flight.to.y} r="0" fill="none" stroke={REACTION_COLOR[flight.effect]} strokeWidth="1.6" opacity="0">
-              <animate attributeName="r" values="0;10" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
-              <animate attributeName="opacity" values="0.9;0" dur={`${REACTION_MS}ms`} begin={`${FLIGHT_MS}ms`} fill="freeze" />
+            <circle cx={reaction.at.x} cy={reaction.at.y} r="0" fill="none" stroke={REACTION_COLOR[reaction.effect]} strokeWidth="1.6" opacity="0">
+              <animate attributeName="r" values="0;10" dur={`${REACTION_MS}ms`} begin="0s" fill="freeze" />
+              <animate attributeName="opacity" values="0.9;0" dur={`${REACTION_MS}ms`} begin="0s" fill="freeze" />
             </circle>
           )}
         </g>
@@ -456,10 +545,10 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
       {/* Ball at rest */}
       {rest && (
         <>
-          {flight?.effect === "splash" && (
-            <circle cx={rest.x} cy={rest.y} r="6" fill="none" stroke="#ffffff" strokeWidth="1.4" opacity="0.7" />
+          {rest.effect === "splash" && (
+            <circle cx={rest.pt.x} cy={rest.pt.y} r="6" fill="none" stroke="#ffffff" strokeWidth="1.4" opacity="0.7" />
           )}
-          <circle cx={rest.x} cy={rest.y} r="3" fill="#ffffff" stroke="#c99" strokeWidth="0.6" />
+          <circle cx={rest.pt.x} cy={rest.pt.y} r="3" fill="#ffffff" stroke="#c99" strokeWidth="0.6" />
         </>
       )}
     </svg>
