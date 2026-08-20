@@ -8,7 +8,7 @@
  * flavor. No rendering here (kept JSX-free); the component in the play layer draws from this data.
  */
 
-import type { BiomeKit } from "@/lib/play/biomes";
+import type { BiomeKit, Vegetation } from "@/lib/play/biomes";
 
 /** The hole geometry the layout needs — structurally the `playingHole` query result. */
 export interface HoleGeom {
@@ -41,10 +41,11 @@ export interface Point {
   readonly y: number;
 }
 
-export interface PlacedTree {
+export interface PlacedScatter {
   readonly x: number;
   readonly y: number;
   readonly scale: number;
+  readonly kind: Vegetation;
 }
 
 export interface WaterHazard {
@@ -82,7 +83,7 @@ export interface HoleLayout {
   readonly pin: Point;
   readonly water: WaterHazard | null;
   readonly bunkers: readonly Bunker[];
-  readonly trees: readonly PlacedTree[];
+  readonly scatter: readonly PlacedScatter[];
   readonly flank: -1 | 1;
   readonly elevation: { readonly light: boolean; readonly alpha: number } | null;
   readonly frame: Frame;
@@ -105,7 +106,21 @@ const X_SCALE = 1.6;
 const DOGLEG_MIN_AMP = 70; // lateral pull of the elbow for the gentlest dogleg…
 const DOGLEG_AMP_SPAN = 58; // …up to DOGLEG_MIN_AMP + this for the sharpest (blind) ones
 const ROUGH_EXTRA = 24;
-const TREE_BASE_COUNT = 11;
+/** Approx rendered footprint radius (px, at scale 1) per scatter kind — for non-overlap spacing. */
+const SCATTER_BASE_R: Record<Vegetation, number> = {
+  deciduous: 7,
+  pine: 6,
+  palm: 8,
+  yucca: 6,
+  saguaro: 7,
+  barrel: 5,
+  scrub: 4,
+  rock: 6,
+  heather: 7,
+  gorse: 4,
+  birch: 7,
+};
+const scatterRadius = (kind: Vegetation, scale: number) => SCATTER_BASE_R[kind] * scale;
 
 // Dynamic viewport zoom (spec: fill the stage regardless of hole length). Every hole now fills the tee→green
 // span vertically; a bounded "altitude" zoom then sizes the objects so distance still reads: short holes render
@@ -240,18 +255,63 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
     }
   }
 
-  const trees: PlacedTree[] = [];
-  if (hole.hasTrees || kit.vegetation === "yucca") {
-    const count = Math.round(kit.vegetationDensity * TREE_BASE_COUNT);
-    for (let i = 0; i < count; i++) {
-      const t = 0.1 + rng() * 0.82;
-      const side = rng() < 0.5 ? -1 : 1;
-      const p = bezier(frame, t);
-      trees.push({
-        x: p.x + side * (fairwayWidth / 2 + (8 + rng() * 11) * zoom),
-        y: p.y,
-        scale: (0.85 + rng() * 0.6) * zoom,
-      });
+  // Biome scatter — the cohesive plant/rock family, placed deterministically and NEVER overlapping each other,
+  // the corridor, the green complex, the water, or a bunker. `forest` fills the surround densely, `scatter` fills
+  // it at medium density, `edge` lines the corridor shoulders sparsely. Drawn over bunkers / under the green.
+  const scatter: PlacedScatter[] = [];
+  if (kit.scatterMode !== "none" && kit.scatter.length > 0) {
+    const sr = mulberry32(seedInt(hole.layoutSeed + "scatter"));
+    const fairHalf = fairwayWidth / 2;
+    const roughHalf = roughWidth / 2;
+    const nearCL = (x: number, y: number) => {
+      let m = Infinity;
+      for (let i = 0; i <= 26; i++) {
+        const p = bezier(frame, i / 26);
+        const d = Math.hypot(p.x - x, p.y - y);
+        if (d < m) m = d;
+      }
+      return m;
+    };
+    const complexClear = Math.max(grx, gry) * 0.4 + 22;
+    const inGreen = (x: number, y: number) =>
+      ((x - grnX) / (grx + complexClear)) ** 2 + ((y - grnY) / (gry + complexClear)) ** 2 < 1;
+    const inWater = (x: number, y: number) => (water ? Math.hypot(x - water.x, y - water.y) < 26 * zoom : false);
+    const inBunker = (x: number, y: number) =>
+      bunkers.some((b) => Math.hypot(x - b.cx, y - b.cy) < Math.max(b.rx, b.ry) + 1);
+    const totalWeight = kit.scatter.reduce((s, k) => s + k.weight, 0);
+    const pickKind = (): Vegetation => {
+      let r = sr() * totalWeight;
+      for (const k of kit.scatter) if ((r -= k.weight) <= 0) return k.kind;
+      return kit.scatter[0].kind;
+    };
+    const step = kit.scatterMode === "forest" ? 17 : kit.scatterMode === "edge" ? 13 : 19;
+    for (let gy = 4; gy <= VIEW_H - 4; gy += step) {
+      for (let gx = 4; gx <= VIEW_W - 4; gx += step) {
+        const x = gx + (sr() * 2 - 1) * 7;
+        const y = gy + (sr() * 2 - 1) * 7;
+        if (sr() < kit.scatterCull) continue;
+        const d = nearCL(x, y);
+        if (kit.scatterMode === "edge") {
+          if (d < fairHalf + 3 || d > roughHalf + 18) continue; // just off the corridor
+        } else if (d < roughHalf + 3) {
+          continue; // out in the surround, clear of the corridor
+        }
+        if (inGreen(x, y) || inWater(x, y) || inBunker(x, y)) continue;
+        const kind = pickKind();
+        const scale =
+          kit.scatterMode === "forest"
+            ? (0.7 + sr() * 0.7) * zoom
+            : (kind === "pine" || kind === "birch" ? 0.5 + sr() * 0.28 : 0.82 + sr() * 0.5) * zoom;
+        const r = scatterRadius(kind, scale);
+        let ok = true;
+        for (const p of scatter) {
+          if (Math.hypot(x - p.x, y - p.y) < r + scatterRadius(p.kind, p.scale) + 1.5) {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) scatter.push({ x, y, scale, kind });
+      }
     }
   }
 
@@ -271,7 +331,7 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
     pin: { x: pinX, y: pinY },
     water,
     bunkers,
-    trees,
+    scatter,
     flank,
     elevation,
     frame,

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { BIOME_KITS, resolveBiome, SYMBOL_SCALE, VEG_SYMBOLS, type SvgPrim } from "@/lib/play/biomes";
+import { BIOME_KITS, resolveBiome, SYMBOL_SCALE, VEG_SYMBOLS, type SvgPrim, type Vegetation } from "@/lib/play/biomes";
 import { blobPath, ribbonPath } from "@/lib/play/hole-draw";
 import {
   ballPosition,
@@ -58,10 +58,14 @@ export interface Hole2dProps {
 
 /** One primitive of a ported foliage symbol. */
 function Prim({ p }: { p: SvgPrim }) {
-  if (p.t === "path") return <path d={p.d} fill={p.fill} />;
-  if (p.t === "circle") return <circle r={p.r} fill={p.fill} />;
+  if (p.t === "path") return <path d={p.d} fill={p.fill} opacity={p.opacity} />;
+  if (p.t === "circle") return <circle cx={p.cx ?? 0} cy={p.cy ?? 0} r={p.r} fill={p.fill} opacity={p.opacity} />;
+  if (p.t === "ellipse") return <ellipse cx={p.cx ?? 0} cy={p.cy ?? 0} rx={p.rx} ry={p.ry} fill={p.fill} opacity={p.opacity} />;
   return <path d={p.d} stroke={p.stroke} strokeWidth={p.width} fill="none" strokeLinecap="round" />;
 }
+
+/** Scatter kinds that stand tall enough to cast a canopy shadow (vs. low brush/rock). */
+const CANOPY = new Set<Vegetation>(["deciduous", "pine", "palm", "birch", "saguaro"]);
 
 /**
  * The parametric 2D hole schematic (spec: web-hole-visualization): draws a hole purely from its sim geometry
@@ -78,7 +82,8 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
   const id = (name: string) => `${uid}-${name}`;
   const url = (name: string) => `url(#${id(name)})`;
 
-  const { width, height, fairwayWidth, roughWidth, green, pin, water, bunkers, trees } = layout;
+  const { width, height, fairwayWidth, roughWidth, green, pin, water, bunkers, scatter } = layout;
+  const scatterKinds = Array.from(new Set(kit.scatter.map((s) => s.kind)));
   const roughFill = kit.roughPattern ? url(kit.roughPattern) : kit.rough;
   // Only links' fescue tiles the whole surround; heathland keeps a solid khaki frame with heather only in the rough.
   const outFill = kit.roughPattern === "fescue" ? url("fescue") : kit.out;
@@ -139,10 +144,22 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
         <filter id={id("waterShadow")} x="-30%" y="-30%" width="160%" height="160%">
           <feDropShadow dx="0" dy="1.5" stdDeviation="1.4" floodColor="#001833" floodOpacity="0.5" />
         </filter>
-        {kit.mowStripe && (
+        {kit.mowKind === "horizontal" && (
           <pattern id={id("mow")} width="10" height="14" patternUnits="userSpaceOnUse">
-            <rect width="10" height="7" fill={kit.mowStripe[0]} />
-            <rect y="7" width="10" height="7" fill={kit.mowStripe[1]} />
+            <rect width="10" height="7" fill="rgba(255,255,255,0.10)" />
+            <rect y="7" width="10" height="7" fill="rgba(0,0,0,0.06)" />
+          </pattern>
+        )}
+        {kit.mowKind === "diagonal" && (
+          <pattern id={id("mow")} width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(34)">
+            <rect width="14" height="7" fill="rgba(255,255,255,0.12)" />
+            <rect y="7" width="14" height="7" fill="rgba(0,0,0,0.07)" />
+          </pattern>
+        )}
+        {kit.mowKind === "premium" && (
+          <pattern id={id("mow")} width="14" height="18" patternUnits="userSpaceOnUse">
+            <rect width="14" height="9" fill="rgba(255,255,255,0.14)" />
+            <rect y="9" width="14" height="9" fill="rgba(0,0,0,0.08)" />
           </pattern>
         )}
         {kit.roughPattern === "fescue" && (
@@ -162,11 +179,13 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
             <circle cx="18" cy="9" r="1" fill="#2e7d32" opacity="0.5" />
           </pattern>
         )}
-        <g id={id("veg")}>
-          {VEG_SYMBOLS[kit.vegetation].map((p, i) => (
-            <Prim key={i} p={p} />
-          ))}
-        </g>
+        {scatterKinds.map((k) => (
+          <g key={k} id={id(`sym-${k}`)}>
+            {VEG_SYMBOLS[k].map((p, i) => (
+              <Prim key={i} p={p} />
+            ))}
+          </g>
+        ))}
       </defs>
 
       {/* Out-of-play surround */}
@@ -199,11 +218,11 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
         <path d={ribbonPath(sample, fairwayWidth / 2 + 5, 3, seededRng(seed, "waste"), { holdTop: true })} fill="#eef0e4" opacity="0.35" />
       )}
       <path d={ribbonPath(sample, fairwayWidth / 2, crinkle ? 6 : 3.2, seededRng(seed, "f"), { holdTop: true })} fill={kit.fairway} />
-      {kit.mowStripe && (
+      {kit.mowKind && (
         <path d={ribbonPath(sample, fairwayWidth / 2, crinkle ? 6 : 3.2, seededRng(seed, "f"), { holdTop: true })} fill={url("mow")} opacity="0.45" />
       )}
       <path d={blobPath(green.cx, green.cy, green.rx + 9, green.ry + 9, seededRng(seed, "ap"), 12, 0.1)} fill={kit.fairway} />
-      {kit.mowStripe && (
+      {kit.mowKind && (
         <path d={blobPath(green.cx, green.cy, green.rx + 9, green.ry + 9, seededRng(seed, "ap"), 12, 0.1)} fill={url("mow")} opacity="0.45" />
       )}
 
@@ -225,13 +244,13 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
         ),
       )}
 
-      {/* Vegetation */}
-      {trees.map((t, i) => (
+      {/* Scatter — biome plant/rock family, over the bunkers and under the green (drawn next) */}
+      {scatter.map((t, i) => (
         <use
           key={i}
-          href={`#${id("veg")}`}
-          transform={`translate(${t.x.toFixed(1)} ${t.y.toFixed(1)}) scale(${(t.scale * SYMBOL_SCALE[kit.vegetation]).toFixed(3)})`}
-          filter={kit.vegetation === "yucca" ? undefined : url("canopyShadow")}
+          href={`#${id(`sym-${t.kind}`)}`}
+          transform={`translate(${t.x.toFixed(1)} ${t.y.toFixed(1)}) scale(${(t.scale * SYMBOL_SCALE[t.kind]).toFixed(3)})`}
+          filter={CANOPY.has(t.kind) ? url("canopyShadow") : undefined}
         />
       ))}
 
@@ -240,8 +259,10 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
       <path d={blobPath(green.cx, green.cy, green.rx + 3.2, green.ry + 3.2, seededRng(seed, "gf"), 12, 0.08)} fill={kit.fringe} />
       <path d={blobPath(green.cx, green.cy, green.rx, green.ry, seededRng(seed, "g2"), 12, 0.12)} fill={kit.green} />
 
-      {/* Tee */}
-      <rect x={layout.tee.x - 7} y={layout.tee.y - 3} width="14" height="6" rx="3" fill="#d8d2c0" opacity="0.85" />
+      {/* Tee — a turf pad with a pair of markers in this course's signature colour */}
+      <rect x={layout.tee.x - 8} y={layout.tee.y - 4} width="16" height="8" rx="2.5" fill="#3f5730" opacity="0.9" />
+      <rect x={layout.tee.x - 6} y={layout.tee.y - 2.4} width="5" height="4.8" rx="1.6" fill={kit.tee} stroke="#0d2010" strokeWidth="0.4" />
+      <rect x={layout.tee.x + 1} y={layout.tee.y - 2.4} width="5" height="4.8" rx="1.6" fill={kit.tee} stroke="#0d2010" strokeWidth="0.4" />
 
       {/* Pin (flag on its real side) */}
       <circle cx={pin.x} cy={pin.y} r="2" fill="#111111" />
