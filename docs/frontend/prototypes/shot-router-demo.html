@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Shot Router → Physics Engine (Bridge Demo)</title>
+    <style>
+        body { background-color: #111; display: flex; justify-content: center; padding: 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        svg { max-height: 90vh; box-shadow: 0 10px 40px rgba(0,0,0,0.8); background-color: #1B5E20; border-radius: 4px; }
+        #ui-panel { position: absolute; top: 20px; left: 20px; color: white; background: rgba(0,0,0,0.85); padding: 15px 22px; border-radius: 8px; border: 1px solid #444; min-width: 260px; }
+        #ui-shot-name { font-size: 20px; font-weight: bold; color: #4caf50; margin: 0 0 10px; }
+        .ui-stat { font-size: 14px; margin: 4px 0; color: #ddd; }
+        .ui-highlight { color: #fff; font-weight: bold; }
+        .ctrl { display: flex; align-items: center; justify-content: space-between; margin: 8px 0; font-size: 13px; color: #bbb; }
+        .ctrl select, .ctrl input[type=range] { accent-color: #4caf50; }
+        .ctrl select { background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 3px 6px; }
+        #hit { width: 100%; margin-top: 10px; padding: 9px; font-size: 15px; font-weight: bold; color: #111; background: #4caf50; border: none; border-radius: 6px; cursor: pointer; }
+        #hit:hover { background: #66bb6a; }
+        #profile-line { margin-top: 12px; padding-top: 10px; border-top: 1px solid #444; font-family: monospace; font-size: 12px; color: #9ccc9c; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+
+<div id="ui-panel">
+    <h2 id="ui-shot-name">Shot Router Demo</h2>
+    <div class="ctrl"><label for="in-club">Club</label>
+        <select id="in-club">
+            <option>Driver</option><option>Woods</option><option selected>Irons</option><option>Wedges</option><option>Putter</option>
+        </select>
+    </div>
+    <div class="ctrl"><label for="in-strat">Strategy</label>
+        <select id="in-strat">
+            <option selected>Normal</option><option>Aggressive</option><option>Conservative</option>
+        </select>
+    </div>
+    <div class="ctrl"><label for="in-dist">Distance</label>
+        <span><input type="range" id="in-dist" min="5" max="320" value="165"><span id="dist-val" class="ui-highlight"> 165y</span></span>
+    </div>
+    <button id="hit">Hit Shot ▸</button>
+    <div class="ui-stat" style="margin-top:12px; font-style:italic; color:#aaa;" id="ui-desc">Selects a profile, then runs the untouched physics loop.</div>
+    <div id="profile-line">profile → –</div>
+</div>
+
+<svg viewBox="0 0 400 800" version="1.1" id="svg25" xmlns="http://www.w3.org/2000/svg">
+  <defs id="defs2">
+    <filter id="forest-shadow" x="0" y="0" width="1" height="1">
+      <feDropShadow dx="3" dy="5" stdDeviation="4" flood-color="#0E3A11" flood-opacity="0.6" />
+    </filter>
+    <g id="deciduous">
+      <path d="M 0 -22 C 15 -27, 28 -12, 22 5 C 32 15, 22 32, 5 28 C -8 38, -25 28, -28 12 C -38 -5, -22 -25, -5 -18 C -5 -28, 0 -28, 0 -22 Z" fill="#1B5E20" stroke-linejoin="round" />
+      <path d="M -2 -16 C 8 -20, 18 -8, 14 2 C 22 10, 14 20, 2 18 C -6 25, -16 18, -18 6 C -25 -2, -14 -16, -2 -12 C -2 -20, -2 -20, -2 -16 Z" fill="#2E7D32" stroke-linejoin="round" />
+    </g>
+  </defs>
+
+  <rect width="400" height="800" fill="#1B5E20" />
+  <path d="m 149.61114,791.31313 c -55.305611,0 -96.78481,-81.19085 -96.78481,-182.67942 0,-101.48857 41.479199,-202.97714 41.479199,-304.46571 0,-101.48857 -27.652798,-152.23286 -27.652798,-223.274858 C 66.652731,40.297714 108.13193,20 170.35073,20 c 62.21882,0 131.35082,20.297714 131.35082,60.893142 0,71.041998 41.4792,121.786288 41.4792,223.274858 0,101.48857 -96.78481,202.97714 -96.78481,304.46571 0,101.48857 -41.47921,182.67942 -96.7848,182.67942 z" fill="#388e3c" />
+  <path d="m 147.69932,739.32529 c 0,-98.8812 44.81824,-217.53863 44.81824,-296.64359 0,-79.10496 -40.33641,-247.20299 -40.33641,-355.972306 0,-49.440598 53.78188,-49.440598 53.78188,0 0,108.769316 40.33642,276.867346 40.33642,355.972306 0,79.10496 -62.74554,197.76239 -62.74554,296.64359 0,19.77624 -35.85459,19.77624 -35.85459,0 z" fill="#2e7d32" stroke="#2e7d32" stroke-width="18.82" />
+  <path d="M 98.167935,753.56735 C 101.81395,653.66828 174.4937,535.86468 177.41051,455.9454 180.32732,376.02616 125.05142,204.33004 129.06203,94.441091 c 1.82301,-49.949529 83.78849,-47.459254 81.96546,2.490273 -4.0106,109.888976 51.26529,281.585086 48.34849,361.504306 -2.9168,79.91927 -102.91839,196.8928 -106.56441,296.79187 -0.7292,19.97981 -55.372829,18.31962 -54.643635,-1.66019 z" fill="#4caf50" stroke="#43a047" stroke-width="2.16" />
+
+  <ellipse cx="172.7845" cy="110.19749" rx="54.65" ry="46.33" transform="matrix(0.97974326,-0.20025769,0.15038121,0.98862809,0,0)" fill="#4caf50" />
+  <ellipse cx="118.5" cy="120.0" rx="42.9" ry="37.2" fill="#81c784" stroke="#66bb6a" stroke-width="2.25" />
+  <path d="M 126.1 63.2 C 115.6 76.5 93.5 80.5 86.3 73.8 C 79.0 67.0 91.5 54.1 101.9 40.7 C 112.4 27.4 130.4 24.8 137.6 31.5 C 144.8 38.3 136.5 49.9 126.1 63.2 Z" fill="#e0e0e0" />
+
+  <rect x="135" y="760" width="30" height="20" rx="6" fill="#81C784" />
+  <circle cx="118" cy="115" r="3" fill="black" />
+  <line x1="118" y1="115" x2="118" y2="100" stroke="white" stroke-width="2" />
+  <polygon points="118,100 128,103 118,106" fill="red" />
+
+  <g filter="url(#forest-shadow)" opacity="0.95">
+    <use href="#deciduous" x="30" y="750" transform="scale(1.2)" />
+    <use href="#deciduous" x="250" y="700" transform="scale(1.1)" />
+    <use href="#deciduous" x="320" y="380" transform="scale(0.95)" />
+    <use href="#deciduous" x="40" y="320" transform="scale(1.05)" />
+    <use href="#deciduous" x="25" y="140" transform="matrix(1.01,-0.42,0.42,1.01,-51.8,8.2)" />
+  </g>
+
+  <path id="tracer" fill="none" stroke="rgba(255, 255, 255, 0.8)" stroke-width="2" stroke-dasharray="4 4" />
+  <ellipse id="ball-shadow" rx="2.5" ry="1.5" fill="rgba(0,0,0,0.6)" />
+  <circle id="ball" r="2.5" fill="#ffffff" stroke="#aaaaaa" stroke-width="0.5" />
+</svg>
+
+<script>
+    /* ─────────────────────────────────────────────────────────────────────
+     * SHOT ROUTER — vanilla-JS mirror of src/lib/play/shot-router.ts.
+     * Values are transcribed verbatim from the prototype's shotProfiles array;
+     * keep this table in sync with the TypeScript module (single source of
+     * truth for the game lives there — this copy is only for the standalone
+     * browser demo, which has no build step).
+     * ───────────────────────────────────────────────────────────────────── */
+    const PROFILES = {
+        DRIVE_STRAIGHT: { name: "Drive (Straight)", vz: 8.5, curve: 0,   rest: 0.35, bite: 0.3,  fric: 0.035 },
+        DRIVE_DRAW:     { name: "Drive (Draw)",     vz: 8.0, curve: 25,  rest: 0.35, bite: 0.2,  fric: 0.03  },
+        DRIVE_FADE:     { name: "Drive (Fade)",     vz: 9.0, curve: -25, rest: 0.3,  bite: 0.4,  fric: 0.04  },
+        STANDARD_IRON:  { name: "Standard Iron",    vz: 7.5, curve: 0,   rest: 0.2,  bite: 0.4,  fric: 0.04  },
+        STINGER:        { name: "Stinger",          vz: 3.5, curve: 0,   rest: 0.4,  bite: 0.1,  fric: 0.035 },
+        FULL_WEDGE:     { name: "Full Wedge",       vz: 9.5, curve: 0,   rest: 0.15, bite: 0.6,  fric: 0.05  },
+        FLOP_SHOT:      { name: "Flop Shot",        vz: 11.5,curve: 0,   rest: 0.05, bite: 0.8,  fric: 0.1   },
+        CHIP_AND_CHECK: { name: "Chip & Check",     vz: 4.5, curve: 0,   rest: 0.35, bite: 0.7,  fric: 0.04  },
+        BUMP_AND_RUN:   { name: "Bump & Run",       vz: 2.0, curve: 0,   rest: 0.4,  bite: 0.05, fric: 0.03  },
+        STANDARD_PUTT:  { name: "Standard Putt",    vz: 0,   curve: 0,   rest: 0,    bite: 0,    fric: 0.015 }
+    };
+
+    const GREENSIDE_MAX_YARDS = 30;
+
+    function shotRouter(clubCategory, targetDistance, playerStrategy) {
+        if (clubCategory === "Putter") return PROFILES.STANDARD_PUTT;
+        const category = clubCategory === "Woods" ? "Driver" : clubCategory;
+        switch (category) {
+            case "Driver":
+                if (playerStrategy === "Aggressive") return PROFILES.DRIVE_DRAW;
+                if (playerStrategy === "Conservative") return PROFILES.DRIVE_FADE;
+                return PROFILES.DRIVE_STRAIGHT;
+            case "Irons":
+                if (playerStrategy === "Conservative") return PROFILES.STINGER;
+                return PROFILES.STANDARD_IRON;
+            case "Wedges":
+                if (playerStrategy === "Aggressive") return PROFILES.FLOP_SHOT;
+                if (playerStrategy === "Conservative") return PROFILES.BUMP_AND_RUN;
+                return targetDistance <= GREENSIDE_MAX_YARDS ? PROFILES.CHIP_AND_CHECK : PROFILES.FULL_WEDGE;
+            default:
+                return PROFILES.STANDARD_IRON;
+        }
+    }
+
+    /* ─────────────────────────────────────────────────────────────────────
+     * PHYSICS ENGINE — the prototype's 3-phase loop and SVG renderer, kept
+     * verbatim. The only bridge change: initShot() reads its profile from the
+     * router and derives sx/sy/tx/ty from the live target distance, instead of
+     * cycling a hardcoded playlist.
+     * ───────────────────────────────────────────────────────────────────── */
+    const ball = document.getElementById('ball');
+    const shadow = document.getElementById('ball-shadow');
+    const tracer = document.getElementById('tracer');
+    const uiName = document.getElementById('ui-shot-name');
+    const uiDesc = document.getElementById('ui-desc');
+    const profileLine = document.getElementById('profile-line');
+
+    const inClub = document.getElementById('in-club');
+    const inStrat = document.getElementById('in-strat');
+    const inDist = document.getElementById('in-dist');
+    const distVal = document.getElementById('dist-val');
+    const hitBtn = document.getElementById('hit');
+
+    const baseRadius = 2.5;
+    const gravity = 0.2;
+
+    // Tee at bottom-centre; the ball travels straight up the fairway, its
+    // pixel carry scaled from the requested yardage (clamped onto the canvas).
+    const TEE_X = 200, TEE_Y = 770, PX_PER_YARD = 2.2, MIN_Y = 40;
+
+    let profile, pos, vel, bounceCount, isRolling, tracerPath, animationActive, totalAirSteps, currentAirStep;
+
+    function initShot() {
+        const club = inClub.value;
+        const strat = inStrat.value;
+        const targetDistance = Number(inDist.value);
+
+        profile = shotRouter(club, targetDistance, strat);
+
+        uiName.innerText = `${club} · ${strat}`;
+        uiDesc.innerText = `Router picked "${profile.name}".`;
+        profileLine.innerText =
+            `profile → ${profile.name}\n` +
+            `vz:${profile.vz}  curve:${profile.curve}\n` +
+            `rest:${profile.rest}  bite:${profile.bite}  fric:${profile.fric}`;
+
+        // Derive the landing point from the target distance: aim straight up the
+        // fairway (curve, not aim, produces draw/fade lateral movement).
+        const travelPx = targetDistance * PX_PER_YARD;
+        const sx = TEE_X, sy = TEE_Y;
+        const tx = TEE_X;
+        const ty = Math.max(MIN_Y, TEE_Y - travelPx);
+
+        pos = { x: sx, y: sy, z: 0 };
+        vel = { x: 0, y: 0, z: profile.vz };
+        bounceCount = 0;
+        isRolling = false;
+        currentAirStep = 0;
+        tracerPath = `M ${pos.x} ${pos.y}`;
+        animationActive = true;
+
+        if (profile.vz > 0) {
+            totalAirSteps = (2 * profile.vz) / gravity;
+            vel.x = (tx - sx) / totalAirSteps;
+            vel.y = (ty - sy) / totalAirSteps;
+        } else {
+            let dist = Math.hypot(tx - sx, ty - sy);
+            let speedX = (tx - sx) / dist;
+            let speedY = (ty - sy) / dist;
+            let requiredSpeed = Math.sqrt(2 * profile.fric * dist) * 1.5;
+            vel.x = speedX * requiredSpeed;
+            vel.y = speedY * requiredSpeed;
+            isRolling = true;
+        }
+
+        requestAnimationFrame(physicsLoop);
+    }
+
+    function physicsLoop() {
+        if (!animationActive) return;
+        let visualX = pos.x;
+
+        if (!isRolling) {
+            vel.z -= gravity;
+            pos.z += vel.z;
+            pos.x += vel.x;
+            pos.y += vel.y;
+            currentAirStep++;
+
+            if (profile.curve !== 0 && pos.z > 0) {
+                let progress = Math.min(currentAirStep / totalAirSteps, 1);
+                let curveOffset = Math.sin(progress * Math.PI) * profile.curve;
+                visualX += curveOffset;
+            }
+
+            if (pos.z <= 0) {
+                pos.z = 0;
+                bounceCount++;
+                vel.z = Math.abs(vel.z) * profile.rest;
+
+                if (bounceCount === 1) {
+                    vel.x *= (1 - profile.bite);
+                    vel.y *= (1 - profile.bite);
+                }
+
+                if (vel.z < 0.5) {
+                    isRolling = true;
+                    vel.z = 0;
+                }
+            }
+        } else {
+            pos.x += vel.x;
+            pos.y += vel.y;
+            visualX = pos.x;
+
+            vel.x *= (1 - profile.fric);
+            vel.y *= (1 - profile.fric);
+
+            if (Math.abs(vel.x) < 0.05 && Math.abs(vel.y) < 0.05) {
+                animationActive = false;
+            }
+        }
+
+        let currentScale = 1 + (pos.z * 0.04);
+        ball.setAttribute('cx', visualX);
+        ball.setAttribute('cy', pos.y);
+        ball.setAttribute('r', baseRadius * currentScale);
+
+        let shadowX = visualX + (pos.z * 0.5);
+        let shadowY = pos.y + (pos.z * 0.8);
+        shadow.setAttribute('cx', shadowX);
+        shadow.setAttribute('cy', shadowY);
+        shadow.setAttribute('fill', profile.vz === 0 ? 'none' : 'rgba(0,0,0,0.6)');
+
+        tracerPath += ` L ${visualX} ${pos.y}`;
+        tracer.setAttribute('d', tracerPath);
+
+        if (animationActive) {
+            requestAnimationFrame(physicsLoop);
+        }
+    }
+
+    // Controls: the "game logic" side that feeds the router.
+    inDist.addEventListener('input', () => { distVal.innerText = ` ${inDist.value}y`; });
+    hitBtn.addEventListener('click', () => { tracer.setAttribute('d', ""); initShot(); });
+
+    // Show an opening shot so the canvas is not empty on load.
+    initShot();
+</script>
+</body>
+</html>
