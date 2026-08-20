@@ -130,7 +130,15 @@ function EventComplete({
   const playerRow = playerGolferId ? leaderboard.find((r) => r.golfer.id === playerGolferId) : null;
 
   async function onFinish() {
-    await complete.mutateAsync();
+    const result = await complete.mutateAsync();
+    // Finishing the last event of the calendar year resumes the week across the season boundary — that
+    // crossing is the off-season moment, so it takes priority over the hub (and over any week-1 event,
+    // which is still pending once they begin the new season), mirroring the "advance week" flow.
+    if (result.completeEvent.season > season) {
+      router.push(`/career/${id}/offseason`);
+      router.refresh();
+      return;
+    }
     router.push(`/career/${id}`);
     router.refresh();
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Sparkles, Trophy } from "lucide-react";
 
@@ -48,18 +49,34 @@ export function OffSeasonReview({ id }: { id: string }) {
   const router = useRouter();
   const query = useSeasonReview(id);
   const nextSeason = useCareerOverview(id).data?.world?.season ?? null;
+
+  // The off-season review is a blocking moment: crossing the season boundary has already advanced the
+  // world, so the review covers the command shell and locks body scroll while it's up — the sidebar and
+  // identity strip can't be reached behind it. The only way forward is to *accept* the new season (Begin
+  // Season), so the player can never navigate on and silently find themselves a year later. Mirrors the
+  // immersive Play Mode surface (spec: player-experience — the end-of-season beat).
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
   const gate = useSpokeGate(query);
-  if (gate) return gate;
+  if (gate) return <OffSeasonShell>{gate}</OffSeasonShell>;
 
   const review = (query.data?.seasonReview as Review | null) ?? null;
 
-  // No completed season yet (a brand-new career): nothing to review — send them back to the hub.
+  // No completed season yet (a brand-new career): nothing to review — the message offers its own way out.
   if (!review) {
     return (
-      <SpokeMessage
-        title="No season to review yet"
-        body="Play through a full season and its review will be waiting here at the year's turn."
-      />
+      <OffSeasonShell>
+        <SpokeMessage
+          title="No season to review yet"
+          body="Play through a full season and its review will be waiting here at the year's turn."
+        />
+      </OffSeasonShell>
     );
   }
 
@@ -74,7 +91,7 @@ export function OffSeasonReview({ id }: { id: string }) {
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-10">
+    <OffSeasonShell>
       <Hero season={review.season} stats={review.stats} onBegin={begin} nextSeason={nextSeason} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -89,6 +106,26 @@ export function OffSeasonReview({ id }: { id: string }) {
       <Gateway id={id} />
 
       <BeginBar season={review.season} nextSeason={nextSeason} onBegin={begin} />
+    </OffSeasonShell>
+  );
+}
+
+/**
+ * The blocking full-viewport surface the review lives in. It sits above the command shell (z-modal, like
+ * Play Mode) so the sidebar/identity strip behind it are covered and unclickable, and it owns its own
+ * vertical scroll so a tall review still reads. Inherits the command-centre tokens from its DOM ancestor.
+ */
+function OffSeasonShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Off-season review"
+      className="bg-background fixed inset-0 z-[var(--z-modal)] overflow-y-auto"
+    >
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 px-5 py-8 md:px-7 md:py-12">
+        {children}
+      </div>
     </div>
   );
 }
