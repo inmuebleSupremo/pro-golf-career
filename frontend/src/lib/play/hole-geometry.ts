@@ -86,6 +86,9 @@ export interface HoleLayout {
   readonly scatter: readonly PlacedScatter[];
   readonly flank: -1 | 1;
   readonly elevation: { readonly light: boolean; readonly alpha: number } | null;
+  readonly walls: WallParams | null;
+  /** Links coastal margin: -1 sea on the left, +1 on the right, 0 none. */
+  readonly coast: -1 | 0 | 1;
   readonly frame: Frame;
 }
 
@@ -162,6 +165,27 @@ export function pointAt(layout: HoleLayout, t: number): Point {
 /** A deterministic PRNG seeded from a hole's layout seed (+ optional salt), for reproducible cosmetic drawing. */
 export function seededRng(layoutSeed: string, salt = ""): () => number {
   return mulberry32(seedInt(layoutSeed + salt));
+}
+
+/** Slate-wall shape parameters for a mountain hole (the jagged inner edge of each cliff). */
+export interface WallParams {
+  readonly lW: number;
+  readonly rW: number;
+  readonly lp: number;
+  readonly rp: number;
+}
+
+/** The inner-edge x of a mountain wall at height `y` (side -1 = left cliff, +1 = right cliff). */
+export function wallEdgeX(w: WallParams, side: -1 | 1, y: number): number {
+  return side < 0
+    ? w.lW + Math.sin(y * 0.03 + w.lp) * 9 + Math.sin(y * 0.012) * 6
+    : VIEW_W - (w.rW + Math.sin(y * 0.028 + w.rp) * 9 + Math.sin(y * 0.013) * 6);
+}
+
+/** The wavy shoreline x of a links coastal margin at height `y` (side -1 = sea on the left, +1 = on the right). */
+export function coastShoreX(side: -1 | 1, y: number): number {
+  const base = side > 0 ? VIEW_W - 3 - 56 : 3 + 56;
+  return base - side * Math.sin(y * 0.02) * 8;
 }
 
 /** The point on the fairway centerline (a cubic bezier) at fraction `t` of the tee→green line. */
@@ -258,6 +282,15 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
   // Biome scatter — the cohesive plant/rock family, placed deterministically and NEVER overlapping each other,
   // the corridor, the green complex, the water, or a bunker. `forest` fills the surround densely, `scatter` fills
   // it at medium density, `edge` lines the corridor shoulders sparsely. Drawn over bunkers / under the green.
+  // Mountain slate walls frame the valley; their jagged inner edge is seeded here and reused for rendering.
+  const walls: WallParams | null = kit.walls
+    ? { lW: 24 + rng() * 12, rW: 24 + rng() * 12, lp: rng() * 6, rp: rng() * 6 }
+    : null;
+  // Links coastal margin — the sea runs down the side opposite the green, so the hole plays along the coast.
+  const coast: -1 | 0 | 1 = kit.coastal && rng() < 0.55 ? (grnX >= bx ? -1 : 1) : 0;
+  const onSea = (x: number, y: number) =>
+    coast !== 0 && (coast > 0 ? x > coastShoreX(coast, y) : x < coastShoreX(coast, y));
+
   const scatter: PlacedScatter[] = [];
   if (kit.scatterMode !== "none" && kit.scatter.length > 0) {
     const sr = mulberry32(seedInt(hole.layoutSeed + "scatter"));
@@ -290,9 +323,14 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
         const x = gx + (sr() * 2 - 1) * 7;
         const y = gy + (sr() * 2 - 1) * 7;
         if (sr() < kit.scatterCull) continue;
+        if (walls && (x < wallEdgeX(walls, -1, y) + 2 || x > wallEdgeX(walls, 1, y) - 2)) continue; // off the cliffs
+        if (onSea(x, y)) continue; // never in the sea
         const d = nearCL(x, y);
         if (kit.scatterMode === "edge") {
-          if (d < fairHalf + 3 || d > roughHalf + 18) continue; // just off the corridor
+          // On tropical islands, keep palms on the green shoulder (well inside the beach/shallow rim, never water);
+          // elsewhere (links gorse) allow just off the corridor in the dune surround.
+          const outer = kit.island ? roughHalf - 2 : roughHalf + 18;
+          if (d < fairHalf + 3 || d > outer) continue;
         } else if (d < roughHalf + 3) {
           continue; // out in the surround, clear of the corridor
         }
@@ -332,6 +370,8 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
     water,
     bunkers,
     scatter,
+    walls,
+    coast,
     flank,
     elevation,
     frame,

@@ -6,9 +6,11 @@ import { BIOME_KITS, resolveBiome, SYMBOL_SCALE, VEG_SYMBOLS, type SvgPrim, type
 import { blobPath, ribbonPath } from "@/lib/play/hole-draw";
 import {
   ballPosition,
+  coastShoreX,
   pointAt,
   projectHole,
   seededRng,
+  wallEdgeX,
   type HoleGeom,
   type HoleLayout,
   type Point,
@@ -24,6 +26,10 @@ const REACTION_COLOR: Record<"splash" | "sand" | "roll", string> = {
 
 const FLIGHT_MS = 1000;
 const REACTION_MS = 500;
+
+/** Tropical island rim colours (beach sand + turquoise shallows). */
+const BEACH = "#f4eccf";
+const SHALLOW = "#4bc6e0";
 
 /** True when the viewer asked for reduced motion — playback then places the ball without animating. */
 function usePrefersReducedMotion(): boolean {
@@ -186,10 +192,31 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
             ))}
           </g>
         ))}
+        {kit.dryGreen && (
+          <radialGradient id={id("dryGreen")} cx="50%" cy="44%" r="60%">
+            <stop offset="0%" stopColor="#4f8a34" />
+            <stop offset="72%" stopColor="#71a84a" />
+            <stop offset="100%" stopColor="#bcd28a" />
+          </radialGradient>
+        )}
+        {kit.grain && (
+          <pattern id={id("grain")} width="9" height="9" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="3" r="0.6" fill="#cbb489" />
+            <circle cx="6" cy="7" r="0.5" fill="#cbb489" />
+            <circle cx="7" cy="2" r="0.45" fill="#cbb489" />
+          </pattern>
+        )}
+        {kit.ocean && (
+          <pattern id={id("waves")} width="46" height="24" patternUnits="userSpaceOnUse">
+            <path d="M0 12 Q11 7 23 12 T46 12" stroke="#6fd6ec" strokeWidth="1" fill="none" opacity="0.16" />
+            <path d="M-23 22 Q-11 17 0 22 T23 22" stroke="#6fd6ec" strokeWidth="1" fill="none" opacity="0.12" />
+          </pattern>
+        )}
       </defs>
 
-      {/* Out-of-play surround */}
+      {/* Out-of-play surround (ocean for tropical) + faint wave texture */}
       <rect x="4" y="0" width={width - 8} height={height} rx="14" fill={outFill} />
+      {kit.ocean && <rect x="4" y="0" width={width - 8} height={height} rx="14" fill={url("waves")} />}
       {layout.elevation && (
         <rect
           x="4"
@@ -201,17 +228,116 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
           opacity={layout.elevation.alpha}
         />
       )}
-      {kit.rock && (
-        <>
-          <polygon points="8,20 44,10 66,34 34,46 8,40" fill="#546e7a" />
-          <polygon points="8,20 44,10 52,24 22,32" fill="#78909c" />
-          <polygon points={`${width - 8},26 ${width - 48},14 ${width - 62},40 ${width - 26},50`} fill="#455a64" />
-        </>
-      )}
+      {/* Mountain: slate cliffs framing the valley (base + lit facet + striations + snow ridge + scree) */}
+      {layout.walls &&
+        (() => {
+          const w = layout.walls;
+          const wr = seededRng(seed, "wall");
+          const wall = (side: -1 | 1) => {
+            const outer = side < 0 ? 3 : width - 3;
+            let base = `M ${outer} 0 L ${outer} ${height}`;
+            for (let y = height; y >= 0; y -= 18) base += ` L ${wallEdgeX(w, side, y).toFixed(1)} ${y}`;
+            let fac = `M ${outer} 40`;
+            for (let y = 60; y <= height; y += 26) fac += ` L ${(wallEdgeX(w, side, y) - 8).toFixed(1)} ${y}`;
+            fac += ` L ${outer} ${height} Z`;
+            const stri: string[] = [];
+            for (let y = 30; y < height; y += 46) {
+              const x0 = side < 0 ? outer : wallEdgeX(w, side, y);
+              const x1 = side < 0 ? wallEdgeX(w, side, y) : outer;
+              stri.push(`M${x0.toFixed(1)} ${y} L${x1.toFixed(1)} ${(y + 16).toFixed(1)}`);
+            }
+            let snow = `M ${wallEdgeX(w, side, 0).toFixed(1)} 0`;
+            for (let y = 12; y <= 150; y += 16) snow += ` L ${(wallEdgeX(w, side, y) - 2).toFixed(1)} ${y}`;
+            for (let y = 150; y >= 0; y -= 16) snow += ` L ${(wallEdgeX(w, side, y) - 9 - Math.sin(y * 0.1) * 4).toFixed(1)} ${y}`;
+            const scree: [number, number, number][] = [];
+            for (let i = 0; i < 7; i++) {
+              const y = 60 + wr() * 340;
+              scree.push([wallEdgeX(w, side, y) + 2 + wr() * 6, y, 1 + wr() * 1.6]);
+            }
+            return (
+              <g key={side}>
+                <path d={`${base} Z`} fill="#4f606b" />
+                <path d={fac} fill={side < 0 ? "#748592" : "#37474f"} opacity="0.5" />
+                {stri.map((d, i) => (
+                  <path key={i} d={d} stroke="#2f3d45" strokeWidth="1" opacity="0.35" />
+                ))}
+                <path d={`${snow} Z`} fill="#eef3f6" opacity="0.9" />
+                {scree.map(([x, y, r], i) => (
+                  <circle key={i} cx={x.toFixed(1)} cy={y.toFixed(1)} r={r.toFixed(1)} fill="#6b7480" opacity="0.7" />
+                ))}
+              </g>
+            );
+          };
+          return (
+            <>
+              {wall(-1)}
+              {wall(1)}
+              {kit.waterfall &&
+                (() => {
+                  const wf = seededRng(seed, "waterfall");
+                  if (wf() < 0.5) return null; // roughly half the holes carry a cliff waterfall
+                  const side: -1 | 1 = wf() < 0.5 ? -1 : 1;
+                  const fx = (y: number) => wallEdgeX(w, side, y) + (side < 0 ? -2 : 2);
+                  let fall = `M ${(fx(20) - 3).toFixed(1)} 20`;
+                  for (let y = 30; y <= 250; y += 14) fall += ` L ${(fx(y) - 3 + Math.sin(y * 0.3) * 1.5).toFixed(1)} ${y}`;
+                  for (let y = 250; y >= 20; y -= 14) fall += ` L ${(fx(y) + 3 + Math.sin(y * 0.3) * 1.5).toFixed(1)} ${y}`;
+                  return (
+                    <g>
+                      <ellipse cx={fx(252).toFixed(1)} cy="258" rx="15" ry="7" fill="#3b86ab" />
+                      <path d={`${fall} Z`} fill="#eef6fb" opacity="0.92" />
+                      <ellipse cx={fx(252).toFixed(1)} cy="256" rx="12" ry="5" fill="#eef6fb" opacity="0.45" />
+                    </g>
+                  );
+                })()}
+            </>
+          );
+        })()}
+      {/* Desert: sand grain + a meandering dry wash (arroyo) across the surround */}
+      {kit.grain && <rect x="4" y="0" width={width - 8} height={height} rx="14" fill={url("grain")} opacity="0.5" />}
+      {kit.arroyo &&
+        (() => {
+          const ar = seededRng(seed, "arroyo");
+          const yy = 120 + ar() * 220;
+          let d = `M4 ${yy.toFixed(0)}`;
+          for (let x = 20; x <= width; x += 24) d += ` L ${x} ${(yy + Math.sin(x * 0.05 + yy) * 14).toFixed(1)}`;
+          return (
+            <>
+              <path d={d} fill="none" stroke="#d3bd8b" strokeWidth="13" strokeLinecap="round" opacity="0.7" />
+              <path d={d} fill="none" stroke="#e7d6ac" strokeWidth="5" strokeLinecap="round" opacity="0.6" />
+            </>
+          );
+        })()}
+
+      {/* Links coastal margin — the sea down one edge with a pale beach and foam line */}
+      {layout.coast !== 0 &&
+        (() => {
+          const side = layout.coast as -1 | 1;
+          const edge = side < 0 ? 3 : width - 3;
+          let sp = `M ${coastShoreX(side, 0).toFixed(1)} 0`;
+          for (let y = 20; y <= height; y += 20) sp += ` L ${coastShoreX(side, y).toFixed(1)} ${y}`;
+          let sea = `M ${edge} 0 L ${edge} ${height}`;
+          for (let y = height; y >= 0; y -= 20) sea += ` L ${coastShoreX(side, y).toFixed(1)} ${y}`;
+          return (
+            <>
+              <path d={`${sea} Z`} fill="#5a86a0" />
+              <path d={sp} fill="none" stroke="#ece0c0" strokeWidth="12" strokeLinecap="round" />
+              <path d={sp} fill="none" stroke="#eef6f7" strokeWidth="1.4" opacity="0.6" />
+            </>
+          );
+        })()}
 
       {/* Organic rough corridor + its apron around the green (a concentric green complex — the rough wraps the
           whole thing, so the green is never a bare head), then the striped fairway + its own apron. `holdTop`
           keeps the fairway full width into the green so it flows around it rather than pinching to a lollipop. */}
+      {/* Tropical island rims — turquoise shallows then a white beach ring the land (corridor + green complex) */}
+      {kit.island && (
+        <>
+          <path d={ribbonPath(sample, roughWidth / 2 + 10, 2, seededRng(seed, "sh"), { holdTop: true })} fill={SHALLOW} />
+          <path d={ribbonPath(sample, roughWidth / 2 + 5, 2, seededRng(seed, "be"), { holdTop: true })} fill={BEACH} />
+          <path d={blobPath(green.cx, green.cy, green.rx + 30, green.ry + 30, seededRng(seed, "shg"), 12, 0.1)} fill={SHALLOW} />
+          <path d={blobPath(green.cx, green.cy, green.rx + 25, green.ry + 25, seededRng(seed, "beg"), 12, 0.1)} fill={BEACH} />
+        </>
+      )}
       <path d={ribbonPath(sample, roughWidth / 2, crinkle ? 7 : 4, seededRng(seed, "r"), { holdTop: true })} fill={roughFill} />
       <path d={blobPath(green.cx, green.cy, green.rx + 20, green.ry + 20, seededRng(seed, "rap"), 12, 0.1)} fill={roughFill} />
       {kit.waste && (
@@ -257,7 +383,27 @@ export function Hole2d({ hole, ball, className }: Hole2dProps) {
       {/* Green complex — drawn after vegetation so trees never sit on the putting surface. Two organic layers
           (subtle fringe + green) that blend into the fairway apron: no dark ring, no sand collar. */}
       <path d={blobPath(green.cx, green.cy, green.rx + 3.2, green.ry + 3.2, seededRng(seed, "gf"), 12, 0.08)} fill={kit.fringe} />
-      <path d={blobPath(green.cx, green.cy, green.rx, green.ry, seededRng(seed, "g2"), 12, 0.12)} fill={kit.green} />
+      <path
+        d={blobPath(green.cx, green.cy, green.rx, green.ry, seededRng(seed, "g2"), 12, 0.12)}
+        fill={kit.dryGreen ? url("dryGreen") : kit.green}
+      />
+      {/* Mountain tiered green — a contour ring + a raised, offset upper tier to read the elevation change */}
+      {kit.tiered && (
+        <>
+          <path
+            d={blobPath(green.cx, green.cy, green.rx * 0.7, green.ry * 0.7, seededRng(seed, "gc"), 12, 0.14)}
+            fill="none"
+            stroke="#5aa863"
+            strokeWidth="0.8"
+            opacity="0.5"
+          />
+          <path
+            d={blobPath(green.cx + green.rx * 0.24, green.cy - green.ry * 0.22, green.rx * 0.5, green.ry * 0.46, seededRng(seed, "g3"), 9, 0.16)}
+            fill="#96d79a"
+            opacity="0.5"
+          />
+        </>
+      )}
 
       {/* Tee — a turf pad with a pair of markers in this course's signature colour */}
       <rect x={layout.tee.x - 8} y={layout.tee.y - 4} width="16" height="8" rx="2.5" fill="#3f5730" opacity="0.9" />

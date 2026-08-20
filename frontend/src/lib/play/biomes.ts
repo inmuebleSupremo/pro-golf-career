@@ -135,7 +135,7 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
   },
   tropical: {
     biome: "tropical",
-    out: "#176d3d", rough: "#2f9455", roughPattern: null,
+    out: "#0d84b8", rough: "#3fa85a", roughPattern: null,
     fairway: "#31c766", mowStripe: ["#00e676", "#00c853"],
     green: "#8bef9d", fringe: "#3fae62", sand: "#efe3bf", sandStroke: "rgba(40,60,10,.18)",
     potBunkers: false, water: "#0277bd",
