@@ -31,7 +31,6 @@ import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentCharacteristics;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.media.NewsEvent;
-import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.course.GeneratedHole;
 import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.play.RoundScorecard;
@@ -118,13 +117,17 @@ public final class ApiMapper {
                 .toList();
     }
 
-    /** Projects a hole's geometry and the active round's pin to the client rendering DTO (spec: web-hole-visualization). */
-    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, EnvironmentClassification classification) {
+    /**
+     * Projects a hole's geometry and the active round's pin to the client rendering DTO (spec:
+     * web-hole-visualization). {@code courseType} is the event's canonical scene token (the same token the scene
+     * backdrop uses), so the hole's biome illustration always agrees with the event's name, place, and photo.
+     */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType) {
         return new PlayingHoleDto(hole.number(), hole.par(), hole.length(),
                 hole.fairwayHalfWidth(), hole.greenHalfWidth(), hole.greenDepth(), hole.elevationDelta(),
                 hole.hasGreensideBunker(), hole.hasWater(), hole.hasTrees(),
                 pin.lateralOffset(), pin.depthOffset(),
-                classification.name(), Long.toString(hole.holeSeed()));
+                courseType, Long.toString(hole.holeSeed()));
     }
 
     public static SeasonStatDto seasonStat(SeasonStatistics s) {

@@ -24,14 +24,16 @@ final class EventNaming {
     }
 
     /**
-     * The visual character of a course, used only to pick the play/hub scene backdrop (spec: play-event
-     * imagery). A superset of {@link EnvironmentClassification} — it adds {@code TROPICAL} (a Florida-style
-     * feel that the sim has no separate classification for) and folds WOODLAND into PARKLAND for imagery.
-     * Authored per curated Pro event below; derived from the host course's classification for the (procedural)
-     * Development tour, whose region now matches its classification.
+     * The canonical visual-character token for a course — the single source of truth the whole client renders
+     * from: the play/hub scene backdrop photo AND the 2D hole biome both key on it, so an event's place, name,
+     * imagery, and hole illustration always agree (spec: play-event imagery, web-hole-visualization). A sibling
+     * of {@link EnvironmentClassification} that trades the sim-only {@code WOODLAND} for the presentation
+     * {@code HEATHLAND} (its khaki-heather look) and adds {@code TROPICAL} (a Florida-style feel the sim has no
+     * separate classification for). Authored per curated Pro event below; derived from the host course's
+     * classification for the (procedural) Development tour, whose region already matches its classification.
      */
     enum Scene {
-        PARKLAND, LINKS, DESERT, TROPICAL, MOUNTAIN, COASTAL
+        PARKLAND, LINKS, DESERT, TROPICAL, MOUNTAIN, COASTAL, HEATHLAND
     }
 
     /** Fixed fictional major names, in season order — evocative of the four real majors without copying them. */
@@ -149,7 +151,7 @@ final class EventNaming {
         };
     }
 
-    /** The scene for a procedurally-generated course, from its environment (WOODLAND reads as parkland imagery). */
+    /** The scene for a procedurally-generated course, from its environment (WOODLAND reads as heathland imagery). */
     private static Scene sceneFor(Course course) {
         EnvironmentClassification classification = course.identity().classification();
         return switch (classification) {
@@ -157,7 +159,8 @@ final class EventNaming {
             case DESERT -> Scene.DESERT;
             case MOUNTAIN -> Scene.MOUNTAIN;
             case COASTAL -> Scene.COASTAL;
-            case PARKLAND, WOODLAND -> Scene.PARKLAND;
+            case WOODLAND -> Scene.HEATHLAND;
+            case PARKLAND -> Scene.PARKLAND;
         };
     }
 

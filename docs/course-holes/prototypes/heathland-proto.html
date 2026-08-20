@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Heathland restyle v1</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#12151a; color:#e7e9ec; font:14px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif; }
+  header { padding:20px 24px 4px; }
+  header h1 { margin:0 0 6px; font-size:20px; font-weight:680; }
+  header p { margin:0; color:#9aa2ad; max-width:82ch; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; padding:16px 24px 44px; }
+  .tile { background:#1a1e25; border:1px solid #262c35; border-radius:14px; overflow:hidden; }
+  .tile figcaption { display:flex; justify-content:space-between; padding:9px 13px; border-top:1px solid #262c35; color:#aeb6c2; font-size:12px; }
+  .tile .name { font-weight:600; color:#e7e9ec; }
+  .tile svg { display:block; width:100%; height:auto; background:#0e1116; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Heathland — v1</h1>
+  <p>Greener heath between links &amp; parkland: low-lying heather patches, bright gorse, a few sparse birch/pine (all non-overlapping); numerous varied strategic bunkers &amp; a moderate number of water hazards; concentric green complex, two-layer greens, doglegs/blind, single heather-purple tee.</p>
+</header>
+<div class="grid" id="grid"></div>
+<script>
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+function seedInt(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(seed){let a=seed>>>0;return()=>{a=(a+0x6d2b79f5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+const VIEW_W=220,VIEW_H=440;
+function cubic(p0,c1,c2,p3,t){const u=1-t;return{x:u*u*u*p0[0]+3*u*u*t*c1[0]+3*u*t*t*c2[0]+t*t*t*p3[0],y:u*u*u*p0[1]+3*u*u*t*c1[1]+3*u*t*t*c2[1]+t*t*t*p3[1]};}
+function curve(f,t){return cubic(f.p0,f.c1,f.c2,f.p3,t);}
+function frameFor(h,rng){
+  const usable=370,playLen=Math.max(1,h.length+(h.pinDepth||0));
+  const zoom=clamp(Math.sqrt(480/playLen),0.74,1.7);const xScale=1.6*zoom;
+  const bx=110,teeY=410,grnY=40,H=teeY-grnY;
+  const b=h.bend||{dir:0,amp:0}; const dir=b.dir||0;
+  const shiftT=dir?dir*Math.min(30,b.amp*0.28):0; const teeX=bx-shiftT;
+  const grnX=bx+(dir?dir*clamp(b.amp*0.46,0,56):(rng()*2-1)*8);
+  const p0=[teeX,teeY], c1=[teeX,teeY-0.60*H], c2=[grnX,grnY+0.55*H], p3=[grnX,grnY];
+  const fw=h.fairwayHalfWidth*xScale*2*(h.widthMul||1);
+  const rough=fw+22*zoom;
+  const grx=h.greenHalfWidth*xScale,gry=Math.max(10,h.greenDepth*xScale*1.05);
+  const pinX=grnX+clamp(h.pinLateral||0,-h.greenHalfWidth,h.greenHalfWidth)*xScale;const pinY=grnY-gry*0.25;
+  return {bx,teeX,teeY,grnX,grnY,zoom,xScale,fw,rough,grx,gry,pinX,pinY,p0,c1,c2,p3};
+}
+const n2=x=>x.toFixed(2);
+function smoothClosed(pts){const n=pts.length;if(n<3)return'';const m=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];let s=m(pts[0],pts[n-1]);let d=`M${n2(s[0])} ${n2(s[1])}`;for(let i=0;i<n;i++){const c=pts[i],x=pts[(i+1)%n],mid=m(c,x);d+=` Q${n2(c[0])} ${n2(c[1])} ${n2(mid[0])} ${n2(mid[1])}`;}return d+' Z';}
+function ribbon(f,half,jitter,rng,t0=0,t1=1,N=24,holdTop=false){const L=[],R=[];for(let i=0;i<=N;i++){const t=t0+(t1-t0)*(i/N);const p=curve(f,t);const a=curve(f,Math.max(0,t-0.01)),b=curve(f,Math.min(1,t+0.01));const dx=b.x-a.x,dy=b.y-a.y,Ln=Math.hypot(dx,dy)||1;const nx=-dy/Ln,ny=dx/Ln;const local=(t-t0)/(t1-t0);const taper=holdTop?Math.pow(clamp(local/0.16,0,1),0.6):Math.pow(Math.sin(Math.PI*clamp(local,0,1)),0.55);const hh=half*(0.30+0.70*taper)+(rng()*2-1)*jitter*taper;L.push([p.x+nx*hh,p.y+ny*hh]);R.push([p.x-nx*hh,p.y-ny*hh]);}return smoothClosed(L.concat(R.reverse()));}
+function blob(cx,cy,rx,ry,rng,lobes=11,rough=0.16,rot=0){const pts=[];for(let i=0;i<lobes;i++){const a=rot+(i/lobes)*Math.PI*2;const rr=1+(rng()*2-1)*rough;pts.push([cx+Math.cos(a)*rx*rr,cy+Math.sin(a)*ry*rr]);}return smoothClosed(pts);}
+function nearestCL(f,x,y,N=28){let md=1e9;for(let i=0;i<=N;i++){const p=curve(f,i/N);const d=Math.hypot(p.x-x,p.y-y);if(d<md)md=d;}return md;}
+function inWater(W,cx,cy,pad){if(!W)return false;const nx=(cx-W.cx)/(W.rx+pad),ny=(cy-W.cy)/(W.ry+pad);return nx*nx+ny*ny<1;}
+
+const C={out:'#7f9350', band:'#728647', rough:'#66803f', fair:'#6faa50', fairHi:'#7cbb5b', fringe:'#527a3c', green:'#83c069',
+  sand:'#ece0b8', sandStroke:'#9a875a', sandShade:'#ddd0a6',
+  water:'#3f6a86', waterHi:'#7ba7bf',
+  // one cohesive heath planting family — olive greens + brush browns, purple only as a whisper
+  heatherA:'#697c42', heatherB:'#7c8a57', heatherBrown:'#8b7a52', heatherTip:'#9a8a5e',
+  gorse:'#5f7a3f', gorse2:'#6f854a', gorseFlower:'#c2a248',
+  pineA:'#3a5730', pineB:'#4c6d40',
+  htuftP:'#7a8b58', htuftG:'#8a7a54', tee:'#8f7268'};
+
+// scatter symbols: heather patch / gorse / birch / pine — return {r, m}
+function symbol(kind,x,y,sc,rng){
+  const t=(m,sh)=>`<g transform="translate(${n2(x)} ${n2(y)}) scale(${sc.toFixed(2)})"${sh?' filter="url(#drop)"':''}>${m}</g>`;
+  if(kind==='heather'){ // low spreading heath mound — olive/sage with dried brush-brown patches (barely any colour)
+    let m=`<ellipse cx="0" cy="1" rx="8" ry="4.4" fill="${C.heatherA}"/><ellipse cx="-3" cy="0" rx="4.6" ry="3" fill="${C.heatherB}"/><ellipse cx="3.5" cy="1.5" rx="4" ry="2.6" fill="${C.heatherBrown}" opacity=".8"/>`;
+    for(let i=0;i<3;i++) m+=`<circle cx="${(rng()*12-6).toFixed(1)}" cy="${(rng()*5-2.5).toFixed(1)}" r="0.8" fill="${C.heatherTip}" opacity=".7"/>`;
+    return {r:7*sc, m:t(m,false)};
+  }
+  if(kind==='gorse'){ return {r:5.5*sc, m:t(`<circle cx="-3" cy="0.6" r="3.4" fill="${C.gorse}"/><circle cx="2.8" cy="-0.8" r="3" fill="${C.gorse2}"/><circle cx="0.4" cy="2.4" r="2.7" fill="${C.gorse}"/><circle cx="-2" cy="-1" r="0.8" fill="${C.gorseFlower}"/><circle cx="2.4" cy="1.2" r="0.7" fill="${C.gorseFlower}"/>`,false)};}
+  // the only tree — a small muted heath pine (keeps the planting cohesive)
+  return {r:8*sc, m:t(`<path d="M 0 -30 L 10 -8 L 4 -8 L 13 9 L -13 9 L -4 -8 L -10 -8 Z" fill="${C.pineA}"/><path d="M 0 -21 L 7 -4 L 2 -4 L 9 9 L -9 9 L -2 -4 L -7 -4 Z" fill="${C.pineB}"/>`,true)};
+}
+
+function drawHole(h){
+  const rng=mulberry32(seedInt(h.seed));
+  const f=frameFor(h,rng);
+  const uid=h.seed.replace(/[^a-z0-9]/gi,'');
+  let s='';
+  s+=`<defs>`;
+  s+=`<filter id="drop" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="1.2" dy="1.9" stdDeviation="1.3" flood-color="#26331b" flood-opacity="0.45"/></filter>`;
+  s+=`<filter id="wdrop-${uid}" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="1.3" stdDeviation="1.2" flood-color="#12303f" flood-opacity="0.4"/></filter>`;
+  s+=`<pattern id="mow-${uid}" width="14" height="18" patternUnits="userSpaceOnUse"><rect width="14" height="9" fill="#82bd66" opacity=".26"/><rect y="9" width="14" height="9" fill="#5f9a48" opacity=".2"/></pattern>`;
+  // heather texture flecks over the green heath surround
+  s+=`<pattern id="heath-${uid}" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M4 8 Q6 4 8 8" stroke="${C.htuftG}" stroke-width="1.1" fill="none" opacity=".34" stroke-linecap="round"/><path d="M15 18 Q17 14 19 18" stroke="${C.htuftP}" stroke-width="1.1" fill="none" opacity=".3" stroke-linecap="round"/><path d="M10 20 Q12 17 14 20" stroke="${C.heatherB}" stroke-width="1.1" fill="none" opacity=".34" stroke-linecap="round"/><circle cx="5" cy="8" r="0.8" fill="${C.heatherBrown}" opacity=".45"/><circle cx="18" cy="11" r="0.9" fill="${C.htuftP}" opacity=".45"/></pattern>`;
+  s+=`</defs>`;
+
+  // green heath surround + soft undulation bands + heather texture
+  s+=`<rect x="3" y="0" width="${VIEW_W-6}" height="${VIEW_H}" rx="14" fill="${C.out}"/>`;
+  s+=`<path d="M3 140 C 80 90,160 220,${VIEW_W-3} 175 L ${VIEW_W-3} ${VIEW_H} L 3 ${VIEW_H} Z" fill="${C.band}" opacity=".5"/>`;
+  s+=`<path d="M3 450 C 90 390,150 470,${VIEW_W-3} 410 L ${VIEW_W-3} 300 C 120 340,70 300,3 350 Z" fill="${C.band}" opacity=".3"/>`;
+  s+=`<rect x="3" y="0" width="${VIEW_W-6}" height="${VIEW_H}" rx="14" fill="url(#heath-${uid})" opacity=".55"/>`;
+
+  // rough + rough-apron, fairway + fairway-apron + mow (concentric green complex)
+  s+=`<path d="${ribbon(f,f.rough/2,5,mulberry32(seedInt(h.seed+'r')),0,1,24,true)}" fill="${C.rough}"/>`;
+  const rAp=blob(f.grnX,f.grnY,f.grx+9+11*f.zoom,f.gry+9+11*f.zoom,mulberry32(seedInt(h.seed+'rap')),12,0.10);
+  s+=`<path d="${rAp}" fill="${C.rough}"/>`;
+  s+=`<path d="${ribbon(f,f.fw/2,4,mulberry32(seedInt(h.seed+'f')),0,1,24,true)}" fill="${C.fair}"/>`;
+  s+=`<path d="${ribbon(f,f.fw/2,4,mulberry32(seedInt(h.seed+'f')),0,1,24,true)}" fill="url(#mow-${uid})"/>`;
+  const fAp=blob(f.grnX,f.grnY,f.grx+9,f.gry+9,mulberry32(seedInt(h.seed+'ap')),12,0.10);
+  s+=`<path d="${fAp}" fill="${C.fair}"/>`;
+  s+=`<path d="${fAp}" fill="url(#mow-${uid})"/>`;
+
+  // water hazards — moderate number, varied placement
+  let W=null;
+  if(h.water){
+    const wr=mulberry32(seedInt(h.seed+'water'));let cx,cy,rx,ry;
+    if(h.water==='green-lat'){const side=h.bend&&h.bend.dir?-h.bend.dir:(wr()<.5?-1:1);cx=f.grnX+side*(f.grx+13);cy=f.grnY+9;rx=13;ry=20;}
+    else if(h.water==='fairway'){const p=curve(f,0.5);const side=wr()<.5?-1:1;cx=p.x+side*(f.fw/2+15);cy=p.y;rx=15;ry=30;}
+    else {const p=curve(f,0.84);cx=p.x;cy=p.y+6;rx=f.fw*0.6+8;ry=14;} // front carry
+    W={cx,cy,rx,ry};
+    s+=`<path d="${blob(cx,cy,rx,ry,wr,10,0.16)}" fill="${C.water}" stroke="#345b73" stroke-width="1" filter="url(#wdrop-${uid})"/>`;
+    s+=`<path d="${blob(cx-rx*0.2,cy-ry*0.2,rx*0.5,ry*0.4,mulberry32(seedInt(h.seed+'wh')),9,0.2)}" fill="${C.waterHi}" opacity=".5"/>`;
+  }
+
+  // bunkers — numerous, varied size/shape/position, strategic, NEVER overlapping; not in water
+  const bunkers=[];
+  {
+    const br=mulberry32(seedInt(h.seed+'bunk'));
+    const addB=(cx,cy,rx,ry,lobes,rgh)=>{const r=Math.max(rx,ry);
+      if(inWater(W,cx,cy,r))return'';
+      for(const b of bunkers){ if(Math.hypot(cx-b.cx,cy-b.cy) < r+b.r+2) return ''; }
+      bunkers.push({cx,cy,r});const rot=br()*6;
+      return `<path d="${blob(cx,cy,rx+1.4,ry+1.4,mulberry32(seedInt(h.seed+cx+cy+'o')),lobes,rgh,rot)}" fill="${C.sandShade}"/><path d="${blob(cx,cy,rx,ry,mulberry32(seedInt(h.seed+cx+cy)),lobes,rgh,rot)}" fill="${C.sand}" stroke="${C.sandStroke}" stroke-width="0.9"/>`;};
+    if(br()<0.7){const t=0.4+br()*0.32;const p=curve(f,t);const side=br()<0.5?-1:1;s+=addB(p.x+side*(f.fw/2+8+br()*6),p.y,8+br()*6,5.5+br()*3.5,13,0.28);}
+    for(const t of [0.36,0.50,0.64,0.78]){ if(br()<0.32) continue; const p=curve(f,t);const side=(h.bend&&h.bend.dir&&br()<0.6)?h.bend.dir:(br()<0.5?-1:1);s+=addB(p.x+side*(f.fw/2-1+br()*7),p.y,5+br()*4.2,3.8+br()*2.6,9,0.24);}
+    if(br()<0.55){const p=curve(f,0.28);const side=br()<0.5?-1:1;s+=addB(p.x+side*(f.fw/2-2+br()*5),p.y,4.6+br()*2.4,3.6+br()*1.8,9,0.22);}
+    const gN=2+(br()<0.7?1:0);
+    for(let i=0;i<gN;i++){const ang=(-0.5+i/gN)*Math.PI+(br()*0.5-0.25);s+=addB(f.grnX+Math.cos(ang)*(f.grx+7+br()*4),f.grnY+Math.sin(ang)*(f.gry*0.7)+3,4.8+br()*3.2,3.8+br()*2.4,9,0.22);}
+  }
+
+  // heath scatter — heather patches + gorse (dominant), a few sparse birch/pine; over bunkers, under green; none overlapping
+  {
+    const dr=mulberry32(seedInt(h.seed+'scatter'));const placed=[];const step=19;const gClr=9+11*f.zoom+4;
+    const inBunker=(x,y)=>{for(const b of bunkers){if(Math.hypot(x-b.cx,y-b.cy)<b.r+1)return true;}return false;};
+    for(let gy=6; gy<=436; gy+=step){
+      for(let gx=6; gx<=214; gx+=step){
+        const x=gx+(dr()*2-1)*8, y=gy+(dr()*2-1)*8;
+        if(dr()<0.42) continue;                                    // medium density (between links & parkland)
+        if(nearestCL(f,x,y) < f.rough/2 + 3) continue;
+        const gdx=(x-f.grnX)/(f.grx+gClr),gdy=(y-f.grnY)/(f.gry+gClr); if(gdx*gdx+gdy*gdy<1) continue;
+        if(inWater(W,x,y,5)||inBunker(x,y)) continue;
+        const roll=dr(); const kind = roll<0.52?'heather':roll<0.92?'gorse':'pine'; // low brush dominant, trees sparse (~8%)
+        const tree=(kind==='pine');
+        const sc=tree?(0.5+dr()*0.26):(0.85+dr()*0.55); // pines kept small so they don't dominate the heath
+        const sym=symbol(kind,x,y,sc,dr);
+        let ok=true; for(const p of placed){ if(Math.hypot(x-p.x,y-p.y) < sym.r+p.r+1.5){ ok=false; break; } }
+        if(!ok) continue;
+        placed.push({x,y,r:sym.r}); s+=sym.m;
+      }
+    }
+  }
+
+  // green — two layers only (fringe + green), embedded, shape varied
+  {
+    const gs=mulberry32(seedInt(h.seed+'g'));
+    const rot=gs()*Math.PI*2, aspX=0.8+gs()*0.65, aspY=0.8+gs()*0.65, rgh=0.10+gs()*0.15, lobes=9+Math.floor(gs()*7);
+    const rx=f.grx*aspX, ry=f.gry*aspY;
+    s+=`<path d="${blob(f.grnX,f.grnY,rx+3.2,ry+3.2,mulberry32(seedInt(h.seed+'gf')),lobes,rgh*0.7,rot)}" fill="${C.fringe}"/>`;
+    s+=`<path d="${blob(f.grnX,f.grnY,rx,ry,mulberry32(seedInt(h.seed+'g2')),lobes,rgh,rot)}" fill="${C.green}"/>`;
+  }
+
+  // tee — one, heather purple
+  s+=`<rect x="${n2(f.teeX-8)}" y="${n2(f.teeY-4)}" width="16" height="8" rx="2.5" fill="#3f5730" opacity=".95"/>`;
+  s+=`<rect x="${n2(f.teeX-6)}" y="${n2(f.teeY-2.4)}" width="5" height="4.8" rx="1.6" fill="${C.tee}" stroke="#3a2c22" stroke-width="0.5"/>`;
+  s+=`<rect x="${n2(f.teeX+1)}" y="${n2(f.teeY-2.4)}" width="5" height="4.8" rx="1.6" fill="${C.tee}" stroke="#3a2c22" stroke-width="0.5"/>`;
+  // pin
+  s+=`<circle cx="${n2(f.pinX)}" cy="${n2(f.pinY)}" r="2" fill="#111"/><line x1="${n2(f.pinX)}" y1="${n2(f.pinY)}" x2="${n2(f.pinX)}" y2="${n2(f.pinY-14)}" stroke="#111" stroke-width="1"/><path d="M${n2(f.pinX)} ${n2(f.pinY-14)} l7 2.5 -7 2.5 z" fill="#e23b3b"/>`;
+  return `<svg viewBox="0 0 ${VIEW_W} ${VIEW_H}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
+}
+
+const HOLES=[
+  {seed:'hl-a', label:'Par 4 · dogleg right', par:4, length:415, bend:{dir:1,amp:104}, widthMul:1.05, water:null, fairwayHalfWidth:16, greenHalfWidth:12, greenDepth:14, pinLateral:5, pinDepth:6},
+  {seed:'hl-b', label:'Par 4 · blind dogleg left', par:4, length:400, bend:{dir:-1,amp:126}, widthMul:1.0, water:'fairway', fairwayHalfWidth:16, greenHalfWidth:12, greenDepth:14, pinLateral:-6, pinDepth:6},
+  {seed:'hl-c', label:'Par 5 · dogleg left', par:5, length:560, bend:{dir:-1,amp:108}, widthMul:1.15, water:null, fairwayHalfWidth:16, greenHalfWidth:12, greenDepth:14, pinLateral:4, pinDepth:8},
+  {seed:'hl-d', label:'Par 5 · blind dogleg right', par:5, length:585, bend:{dir:1,amp:122}, widthMul:0.92, water:'green-lat', fairwayHalfWidth:15, greenHalfWidth:11, greenDepth:15, pinLateral:-4, pinDepth:8},
+  {seed:'hl-e', label:'Par 4 · straight · wide', par:4, length:435, bend:{dir:0,amp:0}, widthMul:1.3, water:null, fairwayHalfWidth:16, greenHalfWidth:13, greenDepth:14, pinLateral:2, pinDepth:6},
+  {seed:'hl-f', label:'Par 3 · over water', par:3, length:190, bend:{dir:0,amp:0}, widthMul:1.0, water:'carry', fairwayHalfWidth:13, greenHalfWidth:13, greenDepth:16, pinLateral:6, pinDepth:5},
+];
+const grid=document.getElementById('grid');
+for(const h of HOLES){const fig=document.createElement('figure');fig.className='tile';fig.style.margin='0';fig.innerHTML=drawHole(h)+`<figcaption><span class="name">${h.label.split(' · ')[0]}</span><span>${h.label.split(' · ').slice(1).join(' · ')} · ${h.length}y</span></figcaption>`;grid.appendChild(fig);}
+</script>
+</body>
+</html>

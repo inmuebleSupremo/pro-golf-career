@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Parkland restyle v3</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#12151a; color:#e7e9ec; font:14px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif; }
+  header { padding:20px 24px 4px; }
+  header h1 { margin:0 0 6px; font-size:20px; font-weight:680; }
+  header p { margin:0; color:#9aa2ad; max-width:80ch; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; padding:16px 24px 44px; }
+  .tile { background:#1a1e25; border:1px solid #262c35; border-radius:14px; overflow:hidden; }
+  .tile figcaption { display:flex; justify-content:space-between; padding:9px 13px; border-top:1px solid #262c35; color:#aeb6c2; font-size:12px; }
+  .tile .name { font-weight:600; color:#e7e9ec; }
+  .tile svg { display:block; width:100%; height:auto; background:#0e1116; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Parkland — v3</h1>
+  <p>Thinner forest; no cart path; varied green shapes; water hazards; pronounced &amp; blind doglegs (cubic spine); more championship bunkering; colour-coded tee boxes.</p>
+</header>
+<div class="grid" id="grid"></div>
+<script>
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+function seedInt(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(seed){let a=seed>>>0;return()=>{a=(a+0x6d2b79f5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+const VIEW_W=220,VIEW_H=440;
+
+// Cubic fairway spine: straight off the tee, then elbows toward the green (real doglegs, incl. blind).
+function cubic(p0,c1,c2,p3,t){const u=1-t;return{x:u*u*u*p0[0]+3*u*u*t*c1[0]+3*u*t*t*c2[0]+t*t*t*p3[0],y:u*u*u*p0[1]+3*u*u*t*c1[1]+3*u*t*t*c2[1]+t*t*t*p3[1]};}
+function curve(f,t){return cubic(f.p0,f.c1,f.c2,f.p3,t);}
+function frameFor(h,rng){
+  const usable=370,playLen=Math.max(1,h.length+(h.pinDepth||0));
+  const zoom=clamp(Math.sqrt(480/playLen),0.74,1.7);
+  const xScale=1.6*zoom;
+  const bx=110,teeY=410,grnY=40,H=teeY-grnY;
+  const b=h.bend||{dir:0,amp:0};
+  const dir=b.dir||0;
+  // Offset the tee OPPOSITE the dogleg and the green toward it, so the hole swings hard across the frame while
+  // both stay in view; a compressed elbow (control points bunched near mid-hole) makes the bend sharp, not an arc.
+  const shiftT=dir?dir*Math.min(28,b.amp*0.28):0;
+  const teeX=bx-shiftT;
+  const grnX=bx+(dir?dir*clamp(b.amp*0.46,0,58):(rng()*2-1)*8);
+  const p0=[teeX,teeY];
+  const c1=[teeX, teeY-0.60*H];   // long straight leg off the tee
+  const c2=[grnX, grnY+0.55*H];   // sharp turn compressed near mid-hole
+  const p3=[grnX,grnY];
+  const widthMul=h.widthMul||1;
+  const fw=h.fairwayHalfWidth*xScale*2*widthMul;
+  const rough=fw+24*zoom;
+  const grx=h.greenHalfWidth*xScale,gry=Math.max(10,h.greenDepth*xScale*1.05);
+  const pinX=grnX+clamp(h.pinLateral||0,-h.greenHalfWidth,h.greenHalfWidth)*xScale;
+  const pinY=grnY-gry*0.25;
+  return {bx,teeX,teeY,grnX,grnY,zoom,xScale,fw,rough,grx,gry,pinX,pinY,p0,c1,c2,p3};
+}
+const n2=x=>x.toFixed(2);
+function smoothClosed(pts){const n=pts.length;if(n<3)return'';const m=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];let s=m(pts[0],pts[n-1]);let d=`M${n2(s[0])} ${n2(s[1])}`;for(let i=0;i<n;i++){const c=pts[i],x=pts[(i+1)%n],mid=m(c,x);d+=` Q${n2(c[0])} ${n2(c[1])} ${n2(mid[0])} ${n2(mid[1])}`;}return d+' Z';}
+function ribbon(f,half,jitter,rng,t0=0,t1=1,N=24){const L=[],R=[];for(let i=0;i<=N;i++){const t=t0+(t1-t0)*(i/N);const p=curve(f,t);
+  // local normal from tangent, so the ribbon offsets across the dogleg correctly
+  const a=curve(f,Math.max(0,t-0.01)),b=curve(f,Math.min(1,t+0.01));const dx=b.x-a.x,dy=b.y-a.y,Ln=Math.hypot(dx,dy)||1;const nx=-dy/Ln,ny=dx/Ln;
+  const local=(t-t0)/(t1-t0);const taper=Math.pow(Math.sin(Math.PI*clamp(local,0,1)),0.55);const hh=half*(0.30+0.70*taper)+(rng()*2-1)*jitter*taper;
+  L.push([p.x+nx*hh,p.y+ny*hh]);R.push([p.x-nx*hh,p.y-ny*hh]);}
+  return smoothClosed(L.concat(R.reverse()));}
+function blob(cx,cy,rx,ry,rng,lobes=11,rough=0.16,rot=0){const pts=[];for(let i=0;i<lobes;i++){const a=rot+(i/lobes)*Math.PI*2;const rr=1+(rng()*2-1)*rough;pts.push([cx+Math.cos(a)*rx*rr,cy+Math.sin(a)*ry*rr]);}return smoothClosed(pts);}
+function nearestCL(f,x,y,N=28){let md=1e9;for(let i=0;i<=N;i++){const p=curve(f,i/N);const d=Math.hypot(p.x-x,p.y-y);if(d<md)md=d;}return md;}
+// True if a point (with padding) falls inside the water hazard ellipse — used to keep bunkers out of the water.
+function inWater(W,cx,cy,pad){if(!W)return false;const nx=(cx-W.cx)/(W.rx+pad),ny=(cy-W.cy)/(W.ry+pad);return nx*nx+ny*ny<1;}
+// Dense forest, carved around the corridor/green/tee. Drawn LAST so canopies overhang the rough edge and sit on
+// top of any bunker that reaches the tree line (bird's-eye view).
+function forestFill(f,uid){
+  const fr=mulberry32(seedInt(uid+'forest'));const step=21,SC=0.32;let s='';
+  for(let gy=2; gy<=440; gy+=step){
+    for(let gx=2; gx<=218; gx+=step){
+      const x=gx+(fr()*2-1)*9, y=gy+(fr()*2-1)*9;
+      if(fr()<0.16) continue;
+      if(nearestCL(f,x,y) < f.rough/2 + 2) continue;
+      const gdx=(x-f.grnX)/(f.grx+3),gdy=(y-f.grnY)/(f.gry+3);
+      if(gdx*gdx+gdy*gdy<1) continue;
+      if(Math.abs(x-f.teeX)<16 && y>f.teeY-18) continue;
+      const sc=(0.7+fr()*0.85)*SC;
+      s+=`<use href="#${fr()<0.5?'t0':'t1'}-${uid}" transform="translate(${n2(x)} ${n2(y)}) scale(${sc.toFixed(3)})" filter="url(#drop-${uid})"/>`;
+    }
+  }
+  return s;
+}
+// Signature tee-box colour, one per course type (variety comes between courses, not between tees on a hole).
+const TEE_COLOR='#eef0f2'; // parkland
+
+function drawHole(h){
+  const rng=mulberry32(seedInt(h.seed));
+  const f=frameFor(h,rng);
+  const uid=h.seed.replace(/[^a-z0-9]/gi,'');
+  let s='';
+  s+=`<defs>`;
+  s+=`<filter id="drop-${uid}" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="1.3" dy="2.1" stdDeviation="1.5" flood-color="#0b2f0e" flood-opacity="0.55"/></filter>`;
+  s+=`<filter id="wdrop-${uid}" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="1.4" stdDeviation="1.3" flood-color="#001833" flood-opacity="0.45"/></filter>`;
+  s+=`<pattern id="mow-${uid}" width="10" height="14" patternUnits="userSpaceOnUse"><rect width="10" height="7" fill="rgba(255,255,255,.10)"/><rect y="7" width="10" height="7" fill="rgba(0,0,0,.06)"/></pattern>`;
+  s+=`<g id="t0-${uid}"><path d="M 0 -22 C 15 -27,28 -12,22 5 C 32 15,22 32,5 28 C -8 38,-25 28,-28 12 C -38 -5,-22 -25,-5 -18 C -5 -28,0 -28,0 -22 Z" fill="#164a1a"/><path d="M -2 -16 C 8 -20,18 -8,14 2 C 22 10,14 20,2 18 C -6 25,-16 18,-18 6 C -25 -2,-14 -16,-2 -12 Z" fill="#256a2a"/></g>`;
+  s+=`<g id="t1-${uid}"><path d="M 0 -22 C 15 -27,28 -12,22 5 C 32 15,22 32,5 28 C -8 38,-25 28,-28 12 C -38 -5,-22 -25,-5 -18 C -5 -28,0 -28,0 -22 Z" fill="#1e5e22"/><path d="M -2 -16 C 8 -20,18 -8,14 2 C 22 10,14 20,2 18 C -6 25,-16 18,-18 6 C -25 -2,-14 -16,-2 -12 Z" fill="#39923e"/></g>`;
+  s+=`</defs>`;
+
+  s+=`<rect x="3" y="0" width="${VIEW_W-6}" height="${VIEW_H}" rx="14" fill="#123d16"/>`;
+
+  // rough + fairway (+ mow + centre highlight)
+  s+=`<path d="${ribbon(f,f.rough/2,4,mulberry32(seedInt(h.seed+'r')))}" fill="#2f7a37"/>`;
+  s+=`<path d="${ribbon(f,f.fw/2,3.2,mulberry32(seedInt(h.seed+'f')))}" fill="#57b855"/>`;
+  s+=`<path d="${ribbon(f,f.fw/2,3.2,mulberry32(seedInt(h.seed+'f')))}" fill="url(#mow-${uid})"/>`;
+  s+=`<path d="${ribbon(f,f.fw*0.26,2.4,mulberry32(seedInt(h.seed+'hi')))}" fill="#63c65e" opacity=".5"/>`;
+
+  // water hazard (varied placement) — region kept so bunkers can be steered clear of it
+  let W=null;
+  if(h.water){
+    const wr=mulberry32(seedInt(h.seed+'water'));
+    let cx,cy,rx,ry;
+    if(h.water==='green-lat'){const side=h.bend&&h.bend.dir?-h.bend.dir:(wr()<.5?-1:1);cx=f.grnX+side*(f.grx+11);cy=f.grnY+8;rx=11;ry=19;}
+    else if(h.water==='green-front'){const p=curve(f,0.85);cx=p.x;cy=p.y+4;rx=f.fw*0.55+6;ry=13;}
+    else if(h.water==='fairway'){const p=curve(f,0.5);const side=wr()<.5?-1:1;cx=p.x+side*(f.fw/2+13);cy=p.y;rx=13;ry=26;}
+    else {const p=curve(f,0.5);cx=p.x;cy=p.y+30;rx=f.fw*0.7+10;ry=40;} // carry (par 3)
+    W={cx,cy,rx,ry};
+    s+=`<path d="${blob(cx,cy,rx,ry,wr,10,0.18)}" fill="#2f7fb5" stroke="#1c6fa0" stroke-width="1" filter="url(#wdrop-${uid})"/>`;
+    s+=`<path d="${blob(cx-rx*0.25,cy-ry*0.2,rx*0.5,ry*0.42,mulberry32(seedInt(h.seed+'wh')),9,0.2)}" fill="#4a9bcf" opacity=".5"/>`;
+  }
+
+  // bunkers — championship count, varied size/shape/side/position
+  {
+    const br=mulberry32(seedInt(h.seed+'bunk'));
+    // A bunker renders only if it isn't sitting in the water hazard.
+    const draw=(cx,cy,rx,ry,rot)=>inWater(W,cx,cy,Math.max(rx,ry))?'':`<path d="${blob(cx,cy,rx,ry,mulberry32(seedInt(h.seed+cx+cy)),9,0.24,rot)}" fill="#eeeeee" stroke="#bdbdbd" stroke-width="1"/>`;
+    // greenside 2-3 around the green (skip the side the water sits on)
+    const waterSide = h.water==='green-lat' ? (h.bend&&h.bend.dir?-h.bend.dir:0) : 0;
+    const gs=2+(br()<0.5?1:0);
+    for(let i=0;i<gs;i++){const ang=(-0.5+ i/(gs))*Math.PI + (br()*0.4-0.2);let side=Math.cos(ang)>=0?1:-1;if(side===waterSide) side=-side;
+      const cx=f.grnX+side*(f.grx+5+br()*5), cy=f.grnY+Math.sin(ang)*(f.gry*0.6)+3;
+      s+=draw(cx,cy,5.5+br()*4.5,4+br()*3,br()*6);}
+    // fairway 1-3 at varied t/flank/size (bias inside of dogleg)
+    const fn=(h.par>=5?2:1)+(br()<0.5?1:0);
+    for(let i=0;i<fn;i++){const t=0.34+br()*0.42;const p=curve(f,t);const side=(h.bend&&h.bend.dir&&br()<0.6)?h.bend.dir:(br()<0.5?-1:1);s+=draw(p.x+side*(f.fw/2-1+br()*8),p.y,5+br()*4.5,3.6+br()*2.6,br()*6);}
+  }
+
+  // forest — over bunkers (canopies overhang slightly) but UNDER the green drawn next, so greens are never obscured
+  s+=forestFill(f,uid);
+
+  // green — two layers, shape varied (aspect / rotation / irregularity / size)
+  {
+    const gs=mulberry32(seedInt(h.seed+'g'));
+    const rot=gs()*Math.PI*2, aspX=0.78+gs()*0.7, aspY=0.78+gs()*0.7, rgh=0.10+gs()*0.18, lobes=9+Math.floor(gs()*7);
+    const rx=f.grx*aspX, ry=f.gry*aspY;
+    s+=`<path d="${blob(f.grnX,f.grnY,rx+4,ry+4,mulberry32(seedInt(h.seed+'gf')),lobes,rgh*0.7,rot)}" fill="#3f8a45"/>`;
+    s+=`<path d="${blob(f.grnX,f.grnY,rx,ry,mulberry32(seedInt(h.seed+'g2')),lobes,rgh,rot)}" fill="#84d47f"/>`;
+  }
+
+  // tee box — one, in this course's signature colour (a pair of markers on a turf pad)
+  s+=`<rect x="${n2(f.teeX-8)}" y="${n2(f.teeY-4)}" width="16" height="8" rx="2.5" fill="#3f7d43" opacity=".9"/>`;
+  s+=`<rect x="${n2(f.teeX-6)}" y="${n2(f.teeY-2.4)}" width="5" height="4.8" rx="1.6" fill="${TEE_COLOR}" stroke="#0d2a10" stroke-width="0.5"/>`;
+  s+=`<rect x="${n2(f.teeX+1)}" y="${n2(f.teeY-2.4)}" width="5" height="4.8" rx="1.6" fill="${TEE_COLOR}" stroke="#0d2a10" stroke-width="0.5"/>`;
+  // pin
+  s+=`<circle cx="${n2(f.pinX)}" cy="${n2(f.pinY)}" r="2" fill="#111"/><line x1="${n2(f.pinX)}" y1="${n2(f.pinY)}" x2="${n2(f.pinX)}" y2="${n2(f.pinY-14)}" stroke="#111" stroke-width="1"/><path d="M${n2(f.pinX)} ${n2(f.pinY-14)} l7 2.5 -7 2.5 z" fill="#e23b3b"/>`;
+  return `<svg viewBox="0 0 ${VIEW_W} ${VIEW_H}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
+}
+
+const HOLES=[
+  {seed:'pk-a', label:'Par 4 · dogleg right', par:4, length:415, bend:{dir:1,amp:88}, widthMul:1.0, water:'green-lat', fairwayHalfWidth:16, greenHalfWidth:12, greenDepth:15, pinLateral:5, pinDepth:6},
+  {seed:'pk-b', label:'Par 4 · blind dogleg left', par:4, length:395, bend:{dir:-1,amp:125}, widthMul:1.05, water:null, fairwayHalfWidth:16, greenHalfWidth:13, greenDepth:14, pinLateral:-6, pinDepth:6},
+  {seed:'pk-c', label:'Par 5 · dogleg left', par:5, length:565, bend:{dir:-1,amp:95}, widthMul:1.1, water:'fairway', fairwayHalfWidth:15, greenHalfWidth:12, greenDepth:14, pinLateral:4, pinDepth:8},
+  {seed:'pk-d', label:'Par 5 · blind dogleg right', par:5, length:585, bend:{dir:1,amp:128}, widthMul:0.86, water:'green-front', fairwayHalfWidth:15, greenHalfWidth:11, greenDepth:16, pinLateral:-4, pinDepth:8},
+  {seed:'pk-e', label:'Par 4 · straight · wide', par:4, length:440, bend:{dir:0,amp:0}, widthMul:1.3, water:'green-lat', fairwayHalfWidth:16, greenHalfWidth:13, greenDepth:15, pinLateral:2, pinDepth:6},
+  {seed:'pk-f', label:'Par 3 · over water', par:3, length:190, bend:{dir:0,amp:0}, widthMul:1.0, water:'carry', fairwayHalfWidth:13, greenHalfWidth:13, greenDepth:16, pinLateral:6, pinDepth:5},
+];
+const grid=document.getElementById('grid');
+for(const h of HOLES){const fig=document.createElement('figure');fig.className='tile';fig.style.margin='0';fig.innerHTML=drawHole(h)+`<figcaption><span class="name">${h.label.split(' · ')[0]}</span><span>${h.label.split(' · ').slice(1).join(' · ')} · ${h.length}y</span></figcaption>`;grid.appendChild(fig);}
+</script>
+</body>
+</html>

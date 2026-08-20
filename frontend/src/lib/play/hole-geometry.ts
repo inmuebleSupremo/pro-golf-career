@@ -8,7 +8,7 @@
  * flavor. No rendering here (kept JSX-free); the component in the play layer draws from this data.
  */
 
-import type { BiomeKit } from "@/lib/play/biomes";
+import type { BiomeKit, Vegetation } from "@/lib/play/biomes";
 
 /** The hole geometry the layout needs — structurally the `playingHole` query result. */
 export interface HoleGeom {
@@ -41,10 +41,11 @@ export interface Point {
   readonly y: number;
 }
 
-export interface PlacedTree {
+export interface PlacedScatter {
   readonly x: number;
   readonly y: number;
   readonly scale: number;
+  readonly kind: Vegetation;
 }
 
 export interface WaterHazard {
@@ -61,16 +62,13 @@ export interface Bunker {
   readonly pot: boolean;
 }
 
-/** The parametric frame — enough to re-derive any point along the hole for ball placement. */
+/** The parametric frame — a cubic fairway spine (tee → green), enough to re-derive any point for ball placement. */
 interface Frame {
-  readonly bx: number;
-  readonly ctrlX: number;
-  readonly ctrlY: number;
-  readonly grnX: number;
-  readonly grnY: number;
-  readonly teeY: number;
+  readonly p0: Point;
+  readonly c1: Point;
+  readonly c2: Point;
+  readonly p3: Point;
   readonly playLen: number;
-  readonly yScale: number;
   readonly xScale: number;
 }
 
@@ -85,9 +83,12 @@ export interface HoleLayout {
   readonly pin: Point;
   readonly water: WaterHazard | null;
   readonly bunkers: readonly Bunker[];
-  readonly trees: readonly PlacedTree[];
+  readonly scatter: readonly PlacedScatter[];
   readonly flank: -1 | 1;
   readonly elevation: { readonly light: boolean; readonly alpha: number } | null;
+  readonly walls: WallParams | null;
+  /** Links coastal margin: -1 sea on the left, +1 on the right, 0 none. */
+  readonly coast: -1 | 0 | 1;
   readonly frame: Frame;
 }
 
@@ -105,9 +106,24 @@ const VIEW_H = 440;
 const PAD_TOP = 40;
 const PAD_BOT = 30;
 const X_SCALE = 1.6;
-const DOGLEG_MAX = 40;
+const DOGLEG_MIN_AMP = 70; // lateral pull of the elbow for the gentlest dogleg…
+const DOGLEG_AMP_SPAN = 58; // …up to DOGLEG_MIN_AMP + this for the sharpest (blind) ones
 const ROUGH_EXTRA = 24;
-const TREE_BASE_COUNT = 11;
+/** Approx rendered footprint radius (px, at scale 1) per scatter kind — for non-overlap spacing. */
+const SCATTER_BASE_R: Record<Vegetation, number> = {
+  deciduous: 7,
+  pine: 6,
+  palm: 8,
+  yucca: 6,
+  saguaro: 7,
+  barrel: 5,
+  scrub: 4,
+  rock: 6,
+  heather: 7,
+  gorse: 4,
+  birch: 7,
+};
+const scatterRadius = (kind: Vegetation, scale: number) => SCATTER_BASE_R[kind] * scale;
 
 // Dynamic viewport zoom (spec: fill the stage regardless of hole length). Every hole now fills the tee→green
 // span vertically; a bounded "altitude" zoom then sizes the objects so distance still reads: short holes render
@@ -141,12 +157,43 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-/** The point on the fairway centerline at fraction `t` of the tee→green line. */
+/** The point on the fairway centerline at fraction `t` (0 = tee, 1 = green) — for drawing/placement layers. */
+export function pointAt(layout: HoleLayout, t: number): Point {
+  return bezier(layout.frame, t);
+}
+
+/** A deterministic PRNG seeded from a hole's layout seed (+ optional salt), for reproducible cosmetic drawing. */
+export function seededRng(layoutSeed: string, salt = ""): () => number {
+  return mulberry32(seedInt(layoutSeed + salt));
+}
+
+/** Slate-wall shape parameters for a mountain hole (the jagged inner edge of each cliff). */
+export interface WallParams {
+  readonly lW: number;
+  readonly rW: number;
+  readonly lp: number;
+  readonly rp: number;
+}
+
+/** The inner-edge x of a mountain wall at height `y` (side -1 = left cliff, +1 = right cliff). */
+export function wallEdgeX(w: WallParams, side: -1 | 1, y: number): number {
+  return side < 0
+    ? w.lW + Math.sin(y * 0.03 + w.lp) * 9 + Math.sin(y * 0.012) * 6
+    : VIEW_W - (w.rW + Math.sin(y * 0.028 + w.rp) * 9 + Math.sin(y * 0.013) * 6);
+}
+
+/** The wavy shoreline x of a links coastal margin at height `y` (side -1 = sea on the left, +1 = on the right). */
+export function coastShoreX(side: -1 | 1, y: number): number {
+  const base = side > 0 ? VIEW_W - 3 - 56 : 3 + 56;
+  return base - side * Math.sin(y * 0.02) * 8;
+}
+
+/** The point on the fairway centerline (a cubic bezier) at fraction `t` of the tee→green line. */
 function bezier(f: Frame, t: number): Point {
   const u = 1 - t;
   return {
-    x: u * u * f.bx + 2 * u * t * f.ctrlX + t * t * f.grnX,
-    y: u * u * f.teeY + 2 * u * t * f.ctrlY + t * t * f.grnY,
+    x: u * u * u * f.p0.x + 3 * u * u * t * f.c1.x + 3 * u * t * t * f.c2.x + t * t * t * f.p3.x,
+    y: u * u * u * f.p0.y + 3 * u * u * t * f.c1.y + 3 * u * t * t * f.c2.y + t * t * t * f.p3.y,
   };
 }
 
@@ -164,8 +211,7 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
   const rng = mulberry32(seedInt(hole.layoutSeed));
   const usable = VIEW_H - PAD_TOP - PAD_BOT;
   const playLen = Math.max(1, hole.length + hole.pinDepth); // tee-to-pin
-  const yScale = usable / playLen; // always fill the stage vertically, tee to green
-  const holeLen = usable;
+  const holeLen = usable; // always fill the stage vertically, tee to green
   // Altitude zoom: neutral at REF_LEN, larger (closer) on short holes, smaller (higher) on long ones.
   const zoom = clamp(Math.sqrt(REF_LEN / playLen), ZOOM_MIN, ZOOM_MAX);
   const xScale = X_SCALE * zoom; // lateral px per yard, scaled by the zoom
@@ -173,14 +219,26 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
   const bx = VIEW_W / 2;
   const teeY = VIEW_H - PAD_BOT;
   const grnY = teeY - holeLen;
-  const dog = (rng() * 2 - 1) * DOGLEG_MAX;
-  const ctrlX = bx + dog;
-  const ctrlY = (teeY + grnY) / 2;
-  const grnX = bx + dog * 0.55;
-  const frame: Frame = { bx, ctrlX, ctrlY, grnX, grnY, teeY, playLen, yScale, xScale };
+  const hh = teeY - grnY;
+  // Dogleg: ~a third of holes play straight; the rest bend left/right, the sharpest reading as blind. The tee is
+  // offset OPPOSITE the bend and the green toward it (a compressed cubic elbow), so the hole swings across the
+  // frame while both stay in view. Derived from the layout seed, so each hole is reproducible.
+  const straight = rng() < 0.3;
+  const dir = straight ? 0 : rng() < 0.5 ? -1 : 1;
+  const amp = straight ? 0 : DOGLEG_MIN_AMP + rng() * DOGLEG_AMP_SPAN;
+  const teeX = bx - (dir ? dir * Math.min(28, amp * 0.28) : 0);
+  const grnX = bx + (dir ? dir * clamp(amp * 0.44, 0, 56) : (rng() * 2 - 1) * 6);
+  const p0: Point = { x: teeX, y: teeY };
+  const c1: Point = { x: teeX, y: teeY - 0.6 * hh };
+  const c2: Point = { x: grnX, y: grnY + 0.55 * hh };
+  const p3: Point = { x: grnX, y: grnY };
+  const frame: Frame = { p0, c1, c2, p3, playLen, xScale };
 
-  const centerline = `M${bx} ${teeY} Q ${ctrlX} ${ctrlY} ${grnX} ${grnY}`;
-  const fairwayWidth = hole.fairwayHalfWidth * xScale * 2;
+  const centerline =
+    `M${teeX.toFixed(1)} ${teeY} C ${c1.x.toFixed(1)} ${c1.y.toFixed(1)} ` +
+    `${c2.x.toFixed(1)} ${c2.y.toFixed(1)} ${grnX.toFixed(1)} ${grnY.toFixed(1)}`;
+  const widthMul = 0.9 + rng() * 0.5; // fairway-width variance (narrow to wide)
+  const fairwayWidth = hole.fairwayHalfWidth * xScale * 2 * widthMul;
   const roughWidth = fairwayWidth + ROUGH_EXTRA * zoom;
   const flank: -1 | 1 = rng() < 0.5 ? -1 : 1;
 
@@ -221,18 +279,77 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
     }
   }
 
-  const trees: PlacedTree[] = [];
-  if (hole.hasTrees || kit.vegetation === "yucca") {
-    const count = Math.round(kit.vegetationDensity * TREE_BASE_COUNT);
-    for (let i = 0; i < count; i++) {
-      const t = 0.1 + rng() * 0.82;
-      const side = rng() < 0.5 ? -1 : 1;
-      const p = bezier(frame, t);
-      trees.push({
-        x: p.x + side * (fairwayWidth / 2 + (8 + rng() * 11) * zoom),
-        y: p.y,
-        scale: (0.85 + rng() * 0.6) * zoom,
-      });
+  // Biome scatter — the cohesive plant/rock family, placed deterministically and NEVER overlapping each other,
+  // the corridor, the green complex, the water, or a bunker. `forest` fills the surround densely, `scatter` fills
+  // it at medium density, `edge` lines the corridor shoulders sparsely. Drawn over bunkers / under the green.
+  // Mountain slate walls frame the valley; their jagged inner edge is seeded here and reused for rendering.
+  const walls: WallParams | null = kit.walls
+    ? { lW: 24 + rng() * 12, rW: 24 + rng() * 12, lp: rng() * 6, rp: rng() * 6 }
+    : null;
+  // Links coastal margin — the sea runs down the side opposite the green, so the hole plays along the coast.
+  const coast: -1 | 0 | 1 = kit.coastal && rng() < 0.55 ? (grnX >= bx ? -1 : 1) : 0;
+  const onSea = (x: number, y: number) =>
+    coast !== 0 && (coast > 0 ? x > coastShoreX(coast, y) : x < coastShoreX(coast, y));
+
+  const scatter: PlacedScatter[] = [];
+  if (kit.scatterMode !== "none" && kit.scatter.length > 0) {
+    const sr = mulberry32(seedInt(hole.layoutSeed + "scatter"));
+    const fairHalf = fairwayWidth / 2;
+    const roughHalf = roughWidth / 2;
+    const nearCL = (x: number, y: number) => {
+      let m = Infinity;
+      for (let i = 0; i <= 26; i++) {
+        const p = bezier(frame, i / 26);
+        const d = Math.hypot(p.x - x, p.y - y);
+        if (d < m) m = d;
+      }
+      return m;
+    };
+    const complexClear = Math.max(grx, gry) * 0.4 + 22;
+    const inGreen = (x: number, y: number) =>
+      ((x - grnX) / (grx + complexClear)) ** 2 + ((y - grnY) / (gry + complexClear)) ** 2 < 1;
+    const inWater = (x: number, y: number) => (water ? Math.hypot(x - water.x, y - water.y) < 26 * zoom : false);
+    const inBunker = (x: number, y: number) =>
+      bunkers.some((b) => Math.hypot(x - b.cx, y - b.cy) < Math.max(b.rx, b.ry) + 1);
+    const totalWeight = kit.scatter.reduce((s, k) => s + k.weight, 0);
+    const pickKind = (): Vegetation => {
+      let r = sr() * totalWeight;
+      for (const k of kit.scatter) if ((r -= k.weight) <= 0) return k.kind;
+      return kit.scatter[0].kind;
+    };
+    const step = kit.scatterMode === "forest" ? 17 : kit.scatterMode === "edge" ? 13 : 19;
+    for (let gy = 4; gy <= VIEW_H - 4; gy += step) {
+      for (let gx = 4; gx <= VIEW_W - 4; gx += step) {
+        const x = gx + (sr() * 2 - 1) * 7;
+        const y = gy + (sr() * 2 - 1) * 7;
+        if (sr() < kit.scatterCull) continue;
+        if (walls && (x < wallEdgeX(walls, -1, y) + 2 || x > wallEdgeX(walls, 1, y) - 2)) continue; // off the cliffs
+        if (onSea(x, y)) continue; // never in the sea
+        const d = nearCL(x, y);
+        if (kit.scatterMode === "edge") {
+          // On tropical islands, keep palms on the green shoulder (well inside the beach/shallow rim, never water);
+          // elsewhere (links gorse) allow just off the corridor in the dune surround.
+          const outer = kit.island ? roughHalf - 2 : roughHalf + 18;
+          if (d < fairHalf + 3 || d > outer) continue;
+        } else if (d < roughHalf + 3) {
+          continue; // out in the surround, clear of the corridor
+        }
+        if (inGreen(x, y) || inWater(x, y) || inBunker(x, y)) continue;
+        const kind = pickKind();
+        const scale =
+          kit.scatterMode === "forest"
+            ? (0.7 + sr() * 0.7) * zoom
+            : (kind === "pine" || kind === "birch" ? 0.5 + sr() * 0.28 : 0.82 + sr() * 0.5) * zoom;
+        const r = scatterRadius(kind, scale);
+        let ok = true;
+        for (const p of scatter) {
+          if (Math.hypot(x - p.x, y - p.y) < r + scatterRadius(p.kind, p.scale) + 1.5) {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) scatter.push({ x, y, scale, kind });
+      }
     }
   }
 
@@ -247,12 +364,14 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
     centerline,
     fairwayWidth,
     roughWidth,
-    tee: { x: bx, y: teeY },
+    tee: { x: teeX, y: teeY },
     green: { cx: grnX, cy: grnY, rx: grx, ry: gry },
     pin: { x: pinX, y: pinY },
     water,
     bunkers,
-    trees,
+    scatter,
+    walls,
+    coast,
     flank,
     elevation,
     frame,

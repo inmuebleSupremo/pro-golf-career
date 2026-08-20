@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tropical restyle v1</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#12151a; color:#e7e9ec; font:14px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif; }
+  header { padding:20px 24px 4px; }
+  header h1 { margin:0 0 6px; font-size:20px; font-weight:680; }
+  header p { margin:0; color:#9aa2ad; max-width:82ch; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; padding:16px 24px 44px; }
+  .tile { background:#1a1e25; border:1px solid #262c35; border-radius:14px; overflow:hidden; }
+  .tile figcaption { display:flex; justify-content:space-between; padding:9px 13px; border-top:1px solid #262c35; color:#aeb6c2; font-size:12px; }
+  .tile .name { font-weight:600; color:#e7e9ec; }
+  .tile svg { display:block; width:100%; height:auto; background:#0e1116; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tropical — v1</h1>
+  <p>Manmade resort golf on turquoise water: wide manicured landmasses with white-sand beaches &amp; turquoise shallows, coves/lagoons, forced carries bridged with boardwalks, crisp diagonal mow, palms. Concentric embedded green complex (no lollipop, no dark border); nothing is ever placed in water; general rules throughout.</p>
+</header>
+<div class="grid" id="grid"></div>
+<script>
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+function seedInt(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(seed){let a=seed>>>0;return()=>{a=(a+0x6d2b79f5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+const VIEW_W=220,VIEW_H=440;
+function cubic(p0,c1,c2,p3,t){const u=1-t;return{x:u*u*u*p0[0]+3*u*u*t*c1[0]+3*u*t*t*c2[0]+t*t*t*p3[0],y:u*u*u*p0[1]+3*u*u*t*c1[1]+3*u*t*t*c2[1]+t*t*t*p3[1]};}
+function curve(f,t){return cubic(f.p0,f.c1,f.c2,f.p3,t);}
+function frameFor(h,rng){
+  const usable=370,playLen=Math.max(1,h.length+(h.pinDepth||0));
+  const zoom=clamp(Math.sqrt(480/playLen),0.74,1.7);const xScale=1.6*zoom;
+  const bx=110,teeY=410,grnY=40,H=teeY-grnY;
+  const b=h.bend||{dir:0,amp:0}; const dir=b.dir||0;
+  const shiftT=dir?dir*Math.min(26,b.amp*0.26):0; const teeX=bx-shiftT;
+  const grnX=bx+(dir?dir*clamp(b.amp*0.42,0,48):(rng()*2-1)*6);
+  const p0=[teeX,teeY], c1=[teeX,teeY-0.60*H], c2=[grnX,grnY+0.55*H], p3=[grnX,grnY];
+  const fw=h.fairwayHalfWidth*xScale*2*(h.widthMul||1);
+  const rough=fw+30*zoom; // wide manicured green shoulder — room for dense palms lining the fairway
+  const grx=h.greenHalfWidth*xScale,gry=Math.max(10,h.greenDepth*xScale*1.05);
+  const pinX=grnX+clamp(h.pinLateral||0,-h.greenHalfWidth,h.greenHalfWidth)*xScale;const pinY=grnY-gry*0.25;
+  return {bx,teeX,teeY,grnX,grnY,zoom,xScale,fw,rough,grx,gry,pinX,pinY,p0,c1,c2,p3};
+}
+const n2=x=>x.toFixed(2);
+function smoothClosed(pts){const n=pts.length;if(n<3)return'';const m=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];let s=m(pts[0],pts[n-1]);let d=`M${n2(s[0])} ${n2(s[1])}`;for(let i=0;i<n;i++){const c=pts[i],x=pts[(i+1)%n],mid=m(c,x);d+=` Q${n2(c[0])} ${n2(c[1])} ${n2(mid[0])} ${n2(mid[1])}`;}return d+' Z';}
+function ribbon(f,half,jitter,rng,t0=0,t1=1,N=24,holdTop=false){const L=[],R=[];for(let i=0;i<=N;i++){const t=t0+(t1-t0)*(i/N);const p=curve(f,t);const a=curve(f,Math.max(0,t-0.01)),b=curve(f,Math.min(1,t+0.01));const dx=b.x-a.x,dy=b.y-a.y,Ln=Math.hypot(dx,dy)||1;const nx=-dy/Ln,ny=dx/Ln;const local=(t-t0)/(t1-t0);const taper=holdTop?Math.pow(clamp(local/0.16,0,1),0.6):Math.pow(Math.sin(Math.PI*clamp(local,0,1)),0.55);const hh=half*(0.30+0.70*taper)+(rng()*2-1)*jitter*taper;L.push([p.x+nx*hh,p.y+ny*hh]);R.push([p.x-nx*hh,p.y-ny*hh]);}return smoothClosed(L.concat(R.reverse()));}
+function blob(cx,cy,rx,ry,rng,lobes=11,rough=0.16,rot=0){const pts=[];for(let i=0;i<lobes;i++){const a=rot+(i/lobes)*Math.PI*2;const rr=1+(rng()*2-1)*rough;pts.push([cx+Math.cos(a)*rx*rr,cy+Math.sin(a)*ry*rr]);}return smoothClosed(pts);}
+
+const C={ocean:'#0d84b8', oceanDeep:'#0a6f9c', shallow:'#4bc6e0', beach:'#f4eccf', beachEdge:'#e6d9ad',
+  rough:'#3fa85a', fair:'#54c169', mowA:'#63d178', mowB:'#3fa557', fringe:'#3f9a55', green:'#79d488',
+  bunker:'#fbfaf3', bunkerStroke:'#e3dcc4', bunkerShade:'#efe9d6',
+  palmTrunk:'#8a6238', frond1:'#2f8f4a', frond2:'#1f7a3d', frond3:'#3fa85a', coconut:'#6b4a2a',
+  bridge:'#e4e0d6', bridgePlank:'#b0a892', tee:'#00bcd4', wave:'#6fd6ec'};
+
+function segments(gaps){const segs=[];let prev=0;for(const g of gaps){if(g[0]>prev)segs.push([prev,g[0]]);prev=Math.max(prev,g[1]);}if(prev<1)segs.push([prev,1]);return segs;}
+function landLayer(f,half,jitter,fill,segs,key){let out='';segs.forEach((seg,i)=>{const last=(i===segs.length-1);out+=`<path d="${ribbon(f,half,jitter,mulberry32(seedInt(key+i)),seg[0],seg[1],22,last)}" fill="${fill}"/>`;});return out;}
+
+// palm — one cohesive family (trunk + radiating fronds + coconuts)
+function palm(x,y,sc){
+  return `<g transform="translate(${n2(x)} ${n2(y)}) scale(${sc.toFixed(2)})" filter="url(#drop)"><path d="M0 5 C -1 -2,1 -5,0 -12" stroke="${C.palmTrunk}" stroke-width="2" fill="none" stroke-linecap="round"/>`
+    +`<circle cx="0" cy="-12" r="1.6" fill="${C.coconut}"/>`
+    +`<path d="M0 -12 C -8 -18,-16 -18,-22 -13 C -14 -15,-7 -14,0 -12" fill="${C.frond2}"/>`
+    +`<path d="M0 -12 C 8 -18,16 -18,22 -13 C 14 -15,7 -14,0 -12" fill="${C.frond2}"/>`
+    +`<path d="M0 -12 C -6 -20,-4 -28,3 -30 C -1 -22,-2 -16,0 -12" fill="${C.frond1}"/>`
+    +`<path d="M0 -12 C 6 -20,4 -28,-3 -30 C 1 -22,2 -16,0 -12" fill="${C.frond1}"/>`
+    +`<path d="M0 -12 C 12 -14,20 -8,22 0 C 14 -6,7 -10,0 -12" fill="${C.frond3}"/>`
+    +`<path d="M0 -12 C -12 -14,-20 -8,-22 0 C -14 -6,-7 -10,0 -12" fill="${C.frond3}"/>`
+    +`<circle cx="0" cy="-12" r="2" fill="#8fe0a0"/></g>`;
+}
+
+function drawHole(h){
+  const rng=mulberry32(seedInt(h.seed));
+  const f=frameFor(h,rng);
+  const uid=h.seed.replace(/[^a-z0-9]/gi,'');
+  const gaps=h.gaps||[]; const segs=segments(gaps);
+  const coves=h.coves||[];
+  const zoom=f.zoom;
+  const beachW=4.5*zoom, shallowW=5*zoom; // thin, clean rims — not a heavy border
+  const landOuter=f.rough/2+beachW;           // land extends to the beach edge
+  // The green sits DOWN inside the fairway (not at the tip) so the fairway flows around & above it — no lollipop.
+  const gy=f.grnY+f.gry+12, pinY=gy-f.gry*0.25;
+  // nearest centreline info + water tests
+  const nearestT=(x,y)=>{let md=1e9,mt=0;for(let i=0;i<=28;i++){const p=curve(f,i/28);const d=Math.hypot(p.x-x,p.y-y);if(d<md){md=d;mt=i/28;}}return {d:md,t:mt};};
+  const inGap=(t)=>gaps.some(g=>t>=g[0]-0.015&&t<=g[1]+0.015);
+  // ACTUAL local half-width of the green land at t (mirrors the rough ribbon taper, incl. the pointed carry ends),
+  // so objects are tested against the real shoreline — nothing can ever sit past it in the water.
+  const halfAt=(base,t)=>{for(const seg of segs){if(t>=seg[0]&&t<=seg[1]){const local=(t-seg[0])/(seg[1]-seg[0]);const last=(seg===segs[segs.length-1]);const tp=last?Math.pow(clamp(local/0.16,0,1),0.6):Math.pow(Math.sin(Math.PI*clamp(local,0,1)),0.55);return base*(0.30+0.70*tp);}}return 0;};
+  const roughHalfAt=(t)=>halfAt(f.rough/2,t);   // green shoulder edge
+  const landHalfAt=(t)=>halfAt(landOuter,t);    // white-beach outer edge (land/water boundary)
+  const onWater=(x,y)=>{const {d,t}=nearestT(x,y);if(inGap(t))return true;return d > roughHalfAt(t)-2;};
+
+  let s='';
+  s+=`<defs>`;
+  s+=`<filter id="drop" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="1.3" dy="2.1" stdDeviation="1.5" flood-color="#0d3320" flood-opacity="0.45"/></filter>`;
+  s+=`<filter id="ldrop-${uid}" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="1.6" stdDeviation="1.6" flood-color="#053b52" flood-opacity="0.45"/></filter>`;
+  s+=`<pattern id="mow-${uid}" width="15" height="15" patternUnits="userSpaceOnUse" patternTransform="rotate(34)"><rect width="15" height="7.5" fill="${C.mowA}" opacity=".5"/><rect y="7.5" width="15" height="7.5" fill="${C.mowB}" opacity=".4"/></pattern>`;
+  s+=`<pattern id="waves-${uid}" width="46" height="24" patternUnits="userSpaceOnUse"><path d="M0 12 Q11 7 23 12 T46 12" stroke="${C.wave}" stroke-width="1" fill="none" opacity=".16"/><path d="M-23 22 Q-11 17 0 22 T23 22" stroke="${C.wave}" stroke-width="1" fill="none" opacity=".12"/></pattern>`;
+  s+=`</defs>`;
+
+  // ocean (deep) + faint waves
+  s+=`<rect x="3" y="0" width="${VIEW_W-6}" height="${VIEW_H}" rx="14" fill="${C.ocean}"/>`;
+  s+=`<path d="M3 200 C 80 150,150 260,${VIEW_W-3} 220 L ${VIEW_W-3} ${VIEW_H} L 3 ${VIEW_H} Z" fill="${C.oceanDeep}" opacity=".5"/>`;
+  s+=`<rect x="3" y="0" width="${VIEW_W-6}" height="${VIEW_H}" rx="14" fill="url(#waves-${uid})"/>`;
+
+  // land build-up: turquoise shallow halo -> white beach -> green rough -> striped fairway (in carry segments)
+  s+=`<g filter="url(#ldrop-${uid})">${landLayer(f,landOuter+shallowW,2,C.shallow,segs,h.seed+'sh')}</g>`;
+  s+=landLayer(f,landOuter,2,C.beach,segs,h.seed+'be');
+  s+=landLayer(f,f.rough/2,2,C.rough,segs,h.seed+'ro');
+  s+=landLayer(f,f.fw/2,2,C.fair,segs,h.seed+'fa');
+  s+=landLayer(f,f.fw/2,2,`url(#mow-${uid})`,segs,h.seed+'fa');
+
+  // NOTE: no green apron here — the wide fairway ribbon itself flows around & above the pushed-down green, so
+  // the green is embedded in fairway (no bulbous head, and no sand where the green meets the fairway).
+
+  // sleek modern footbridges spanning the forced carries — slim pale deck extended slightly onto each shore,
+  // with two thin clean rails (no rustic planks)
+  if(h.bridge) for(const g of gaps){const ext=0.03;const a=curve(f,Math.max(0,g[0]-ext)),b=curve(f,Math.min(1,g[1]+ext));const dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1;const px=-dy/L,py=dx/L;const w=Math.min(f.fw*0.16,8);
+    const c1=[a.x+px*w,a.y+py*w],c2=[b.x+px*w,b.y+py*w],c3=[b.x-px*w,b.y-py*w],c4=[a.x-px*w,a.y-py*w];
+    s+=`<path d="M${n2(c1[0])} ${n2(c1[1])} L${n2(c2[0])} ${n2(c2[1])} L${n2(c3[0])} ${n2(c3[1])} L${n2(c4[0])} ${n2(c4[1])} Z" fill="${C.bridge}" filter="url(#drop)"/>`;
+    s+=`<line x1="${n2(c1[0])}" y1="${n2(c1[1])}" x2="${n2(c2[0])}" y2="${n2(c2[1])}" stroke="${C.bridgePlank}" stroke-width="0.9"/>`;
+    s+=`<line x1="${n2(c4[0])}" y1="${n2(c4[1])}" x2="${n2(c3[0])}" y2="${n2(c3[1])}" stroke="${C.bridgePlank}" stroke-width="0.9"/>`;
+  }
+
+  // bunkers — white, size/shape varied, strategic, NEVER overlapping, NEVER in water
+  const bunkers=[];
+  {
+    const br=mulberry32(seedInt(h.seed+'bunk'));
+    const addB=(cx,cy,rx,ry,lobes,rgh)=>{const r=Math.max(rx,ry);
+      if(onWater(cx,cy)||onWater(cx+r*0.7,cy)||onWater(cx-r*0.7,cy))return''; // whole bunker must be on land
+      for(const b of bunkers){ if(Math.hypot(cx-b.cx,cy-b.cy) < r+b.r+2) return ''; }
+      bunkers.push({cx,cy,r});const rot=br()*6;
+      return `<path d="${blob(cx,cy,rx+1.4,ry+1.4,mulberry32(seedInt(h.seed+cx+cy+'o')),lobes,rgh,rot)}" fill="${C.bunkerShade}"/><path d="${blob(cx,cy,rx,ry,mulberry32(seedInt(h.seed+cx+cy)),lobes,rgh,rot)}" fill="${C.bunker}" stroke="${C.bunkerStroke}" stroke-width="0.8"/>`;};
+    for(const t of [0.4,0.55,0.72]){ if(br()<0.4) continue; const p=curve(f,t);const side=(h.bend&&h.bend.dir&&br()<0.6)?h.bend.dir:(br()<0.5?-1:1);s+=addB(p.x+side*(f.fw/2-2+br()*5),p.y,5+br()*3.6,3.8+br()*2.4,9,0.24);}
+    const gN=2+(br()<0.6?1:0);
+    for(let i=0;i<gN;i++){const ang=(-0.5+i/gN)*Math.PI+(br()*0.5-0.25);s+=addB(f.grnX+Math.cos(ang)*(f.grx+6+br()*4),gy+Math.sin(ang)*(f.gry*0.7),4.8+br()*3,3.8+br()*2.2,9,0.22);}
+  }
+
+  // palms — cohesive family, on the land/beach only (NEVER in water), over bunkers/under green, non-overlapping
+  {
+    const pr=mulberry32(seedInt(h.seed+'palm'));const placed=[];const step=11;const gClr=8;
+    const inBunker=(x,y)=>{for(const b of bunkers){if(Math.hypot(x-b.cx,y-b.cy)<b.r+2)return true;}return false;};
+    for(let py=8; py<=434; py+=step){
+      for(let gx=8; gx<=212; gx+=step){
+        const x=gx+(pr()*2-1)*5, y=py+(pr()*2-1)*5;
+        if(pr()<0.16) continue;                                // dense palms lining the edges
+        const near=nearestT(x,y);
+        if(inGap(near.t)||near.t<0.05||near.t>0.96) continue;  // never over a carry / at the tapered ends
+        if(near.d < f.fw/2 + 3) continue;                      // NEVER on the fairway
+        if(near.d > roughHalfAt(near.t) - 5) continue;         // GREEN shoulder only, well inside the shore (absorbs edge jitter) — never near water
+        const gdx=(x-f.grnX)/(f.grx+gClr),gdy=(y-gy)/(f.gry+gClr); if(gdx*gdx+gdy*gdy<1) continue;
+        if(inBunker(x,y)) continue;
+        const sc=(0.5+pr()*0.26);
+        let ok=true;for(const p of placed){if(Math.hypot(x-p.x,y-p.y)<6*sc+p.r+0.8){ok=false;break;}}
+        if(!ok) continue;
+        placed.push({x,y,r:7*sc}); s+=palm(x,y,sc);
+      }
+    }
+  }
+
+  // green — two layers only, embedded, NO dark border (subtle green fringe blends into the apron)
+  {
+    const gs=mulberry32(seedInt(h.seed+'g'));
+    const rot=gs()*Math.PI*2, aspX=0.82+gs()*0.6, aspY=0.82+gs()*0.6, rgh=0.10+gs()*0.14, lobes=9+Math.floor(gs()*7);
+    const rx=f.grx*aspX, ry=f.gry*aspY;
+    s+=`<path d="${blob(f.grnX,gy,rx+3,ry+3,mulberry32(seedInt(h.seed+'gf')),lobes,rgh*0.7,rot)}" fill="${C.fringe}"/>`;
+    s+=`<path d="${blob(f.grnX,gy,rx,ry,mulberry32(seedInt(h.seed+'g2')),lobes,rgh,rot)}" fill="${C.green}"/>`;
+  }
+
+  // tee — one, tropical aqua
+  s+=`<rect x="${n2(f.teeX-8)}" y="${n2(f.teeY-4)}" width="16" height="8" rx="2.5" fill="#2f9a55" opacity=".95"/>`;
+  s+=`<rect x="${n2(f.teeX-6)}" y="${n2(f.teeY-2.4)}" width="5" height="4.8" rx="1.6" fill="${C.tee}" stroke="#0a4a55" stroke-width="0.5"/>`;
+  s+=`<rect x="${n2(f.teeX+1)}" y="${n2(f.teeY-2.4)}" width="5" height="4.8" rx="1.6" fill="${C.tee}" stroke="#0a4a55" stroke-width="0.5"/>`;
+  // pin
+  s+=`<circle cx="${n2(f.pinX)}" cy="${n2(pinY)}" r="2" fill="#111"/><line x1="${n2(f.pinX)}" y1="${n2(pinY)}" x2="${n2(f.pinX)}" y2="${n2(pinY-14)}" stroke="#111" stroke-width="1"/><path d="M${n2(f.pinX)} ${n2(pinY-14)} l7 2.5 -7 2.5 z" fill="#e23b3b"/>`;
+  return `<svg viewBox="0 0 ${VIEW_W} ${VIEW_H}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
+}
+
+const HOLES=[
+  {seed:'tp-a', label:'Par 4 · one carry', par:4, length:410, bend:{dir:1,amp:64}, widthMul:1.5, gaps:[[0.46,0.56]], bridge:true, fairwayHalfWidth:16, greenHalfWidth:12, greenDepth:14, pinLateral:5, pinDepth:6},
+  {seed:'tp-b', label:'Par 4 · dogleg right', par:4, length:395, bend:{dir:1,amp:88}, widthMul:1.45, gaps:[[0.4,0.49]], fairwayHalfWidth:16, greenHalfWidth:12, greenDepth:14, pinLateral:-5, pinDepth:6},
+  {seed:'tp-c', label:'Par 5 · double carry', par:5, length:560, bend:{dir:-1,amp:72}, widthMul:1.4, gaps:[[0.34,0.42],[0.6,0.68]], bridge:true, fairwayHalfWidth:16, greenHalfWidth:12, greenDepth:14, pinLateral:4, pinDepth:8},
+  {seed:'tp-d', label:'Par 5 · one carry', par:5, length:580, bend:{dir:1,amp:70}, widthMul:1.5, gaps:[[0.5,0.58]], bridge:true, fairwayHalfWidth:16, greenHalfWidth:11, greenDepth:15, pinLateral:-4, pinDepth:8},
+  {seed:'tp-e', label:'Par 4 · wide', par:4, length:430, bend:{dir:0,amp:0}, widthMul:1.65, fairwayHalfWidth:16, greenHalfWidth:13, greenDepth:14, pinLateral:2, pinDepth:6},
+  {seed:'tp-f', label:'Par 3 · over the bay', par:3, length:180, bend:{dir:0,amp:0}, widthMul:1.35, gaps:[[0.22,0.5]], bridge:true, fairwayHalfWidth:14, greenHalfWidth:13, greenDepth:16, pinLateral:6, pinDepth:5},
+];
+const grid=document.getElementById('grid');
+for(const h of HOLES){const fig=document.createElement('figure');fig.className='tile';fig.style.margin='0';fig.innerHTML=drawHole(h)+`<figcaption><span class="name">${h.label.split(' · ')[0]}</span><span>${h.label.split(' · ').slice(1).join(' · ')} · ${h.length}y</span></figcaption>`;grid.appendChild(fig);}
+</script>
+</body>
+</html>
