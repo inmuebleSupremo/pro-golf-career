@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mountain restyle v1</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#12151a; color:#e7e9ec; font:14px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif; }
+  header { padding:20px 24px 4px; }
+  header h1 { margin:0 0 6px; font-size:20px; font-weight:680; }
+  header p { margin:0; color:#9aa2ad; max-width:82ch; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; padding:16px 24px 44px; }
+  .tile { background:#1a1e25; border:1px solid #262c35; border-radius:14px; overflow:hidden; }
+  .tile figcaption { display:flex; justify-content:space-between; padding:9px 13px; border-top:1px solid #262c35; color:#aeb6c2; font-size:12px; }
+  .tile .name { font-weight:600; color:#e7e9ec; }
+  .tile svg { display:block; width:100%; height:auto; background:#0e1116; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mountain — v1</h1>
+  <p>A forested valley walled by slate mountainsides (snow caps, facets, striations, scree), dense pines, elevation shading, winding fairway with pronounced/blind doglegs, full concentric green complex, varied strategic bunkers — plus cliff-base streams and waterfalls cascading off the rock walls. Alpine-blue tees.</p>
+</header>
+<div class="grid" id="grid"></div>
+<script>
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+function seedInt(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(seed){let a=seed>>>0;return()=>{a=(a+0x6d2b79f5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+const VIEW_W=220,VIEW_H=440;
+function cubic(p0,c1,c2,p3,t){const u=1-t;return{x:u*u*u*p0[0]+3*u*u*t*c1[0]+3*u*t*t*c2[0]+t*t*t*p3[0],y:u*u*u*p0[1]+3*u*u*t*c1[1]+3*u*t*t*c2[1]+t*t*t*p3[1]};}
+function curve(f,t){return cubic(f.p0,f.c1,f.c2,f.p3,t);}
+function frameFor(h,rng){
+  const usable=370,playLen=Math.max(1,h.length+(h.pinDepth||0));
+  const zoom=clamp(Math.sqrt(480/playLen),0.74,1.7);const xScale=1.6*zoom;
+  const bx=110,teeY=410,grnY=40,H=teeY-grnY;
+  const b=h.bend||{dir:0,amp:0}; const dir=b.dir||0;
+  const shiftT=dir?dir*Math.min(30,b.amp*0.28):0; const teeX=bx-shiftT;
+  const grnX=bx+(dir?dir*clamp(b.amp*0.44,0,52):(rng()*2-1)*8); // swings hard across the valley for real doglegs
+  const p0=[teeX,teeY], c1=[teeX,teeY-0.60*H], c2=[grnX,grnY+0.55*H], p3=[grnX,grnY];
+  const fw=h.fairwayHalfWidth*xScale*2*(h.widthMul||1);
+  const rough=fw+22*zoom;
+  const grx=h.greenHalfWidth*xScale,gry=Math.max(10,h.greenDepth*xScale*1.05);
+  const pinX=grnX+clamp(h.pinLateral||0,-h.greenHalfWidth,h.greenHalfWidth)*xScale;const pinY=grnY-gry*0.25;
+  return {bx,teeX,teeY,grnX,grnY,zoom,xScale,fw,rough,grx,gry,pinX,pinY,p0,c1,c2,p3};
+}
+const n2=x=>x.toFixed(2);
+function smoothClosed(pts){const n=pts.length;if(n<3)return'';const m=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];let s=m(pts[0],pts[n-1]);let d=`M${n2(s[0])} ${n2(s[1])}`;for(let i=0;i<n;i++){const c=pts[i],x=pts[(i+1)%n],mid=m(c,x);d+=` Q${n2(c[0])} ${n2(c[1])} ${n2(mid[0])} ${n2(mid[1])}`;}return d+' Z';}
+function ribbon(f,half,jitter,rng,t0=0,t1=1,N=24,holdTop=false){const L=[],R=[];for(let i=0;i<=N;i++){const t=t0+(t1-t0)*(i/N);const p=curve(f,t);const a=curve(f,Math.max(0,t-0.01)),b=curve(f,Math.min(1,t+0.01));const dx=b.x-a.x,dy=b.y-a.y,Ln=Math.hypot(dx,dy)||1;const nx=-dy/Ln,ny=dx/Ln;const local=(t-t0)/(t1-t0);const taper=holdTop?Math.pow(clamp(local/0.16,0,1),0.6):Math.pow(Math.sin(Math.PI*clamp(local,0,1)),0.55);const hh=half*(0.30+0.70*taper)+(rng()*2-1)*jitter*taper;L.push([p.x+nx*hh,p.y+ny*hh]);R.push([p.x-nx*hh,p.y-ny*hh]);}return smoothClosed(L.concat(R.reverse()));}
+function blob(cx,cy,rx,ry,rng,lobes=11,rough=0.16,rot=0){const pts=[];for(let i=0;i<lobes;i++){const a=rot+(i/lobes)*Math.PI*2;const rr=1+(rng()*2-1)*rough;pts.push([cx+Math.cos(a)*rx*rr,cy+Math.sin(a)*ry*rr]);}return smoothClosed(pts);}
+function nearestCL(f,x,y,N=28){let md=1e9;for(let i=0;i<=N;i++){const p=curve(f,i/N);const d=Math.hypot(p.x-x,p.y-y);if(d<md)md=d;}return md;}
+
+const C={valley:'#123d16', rough:'#357a41', fair:'#4caf50', fairHi:'#66bb6a', fringe:'#3f8a45',
+  green:'#77c980', greenHi:'#96d79a',
+  rock:'#4f606b', rockLit:'#748592', rockDark:'#37474f', snow:'#eef3f6', striation:'#2f3d45', scree:'#6b7480',
+  water:'#3b86ab', waterHi:'#8fd0e6', foam:'#eef7fb',
+  pineA:['#0f3d33','#1c6f5a'], pineB:['#12463a','#238a6a'],
+  tee:'#3b6fd4'};
+
+function pineDefs(uid){
+  return `<g id="pa-${uid}"><path d="M 0 -35 L 12 -10 L 5 -10 L 15 10 L 7 10 L 20 30 L -20 30 L -7 10 L -15 10 L -5 -10 L -12 -10 Z" fill="${C.pineA[0]}"/><path d="M 0 -25 L 8 -5 L 3 -5 L 10 10 L -10 10 L -3 -5 L -8 -5 Z" fill="${C.pineA[1]}"/></g>`
+    + `<g id="pb-${uid}"><path d="M 0 -35 L 12 -10 L 5 -10 L 15 10 L 7 10 L 20 30 L -20 30 L -7 10 L -15 10 L -5 -10 L -12 -10 Z" fill="${C.pineB[0]}"/><path d="M 0 -25 L 8 -5 L 3 -5 L 10 10 L -10 10 L -3 -5 L -8 -5 Z" fill="${C.pineB[1]}"/></g>`;
+}
+
+function drawHole(h){
+  const rng=mulberry32(seedInt(h.seed));
+  const f=frameFor(h,rng);
+  const uid=h.seed.replace(/[^a-z0-9]/gi,'');
+  const wseed=mulberry32(seedInt(h.seed+'wall'));
+  const lW=24+wseed()*12, rW=24+wseed()*12, lp=wseed()*6, rp=wseed()*6;
+  const leftEdge=(y)=> lW + Math.sin(y*0.03+lp)*9 + Math.sin(y*0.012)*6;
+  const rightEdge=(y)=> VIEW_W - (rW + Math.sin(y*0.028+rp)*9 + Math.sin(y*0.013)*6);
+  const onWall=(x,y,m=0)=> x < leftEdge(y)+m || x > rightEdge(y)-m;
+
+  let s='';
+  s+=`<defs>`;
+  s+=`<filter id="drop-${uid}" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="1.3" dy="2.1" stdDeviation="1.5" flood-color="#08251e" flood-opacity="0.5"/></filter>`;
+  s+=`<filter id="wdrop-${uid}" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="1.3" stdDeviation="1.2" flood-color="#0a2a38" flood-opacity="0.4"/></filter>`;
+  // premium striped fairway: crisp two-green mow bands
+  s+=`<pattern id="mow-${uid}" width="14" height="18" patternUnits="userSpaceOnUse"><rect width="14" height="9" fill="#5ec267" opacity=".34"/><rect y="9" width="14" height="9" fill="#3c9646" opacity=".26"/></pattern>`;
+  s+=`<linearGradient id="elev-${uid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.10"/><stop offset="55%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.18"/></linearGradient>`;
+  s+=pineDefs(uid);
+  s+=`</defs>`;
+
+  // valley floor
+  s+=`<rect x="3" y="0" width="${VIEW_W-6}" height="${VIEW_H}" rx="14" fill="${C.valley}"/>`;
+
+  // --- rock walls (mountainsides) both edges: base, lit facet, striations, snow ridge, scree ---
+  const wall=(side)=>{
+    const edgeFn=side<0?leftEdge:rightEdge, outer=side<0?3:VIEW_W-3; let w='';
+    let base=`M ${outer} 0 L ${outer} ${VIEW_H}`; for(let y=VIEW_H;y>=0;y-=18) base+=` L ${edgeFn(y).toFixed(1)} ${y}`; base+=' Z';
+    w+=`<path d="${base}" fill="${C.rock}"/>`;
+    // lit facet (a lighter slab offset inward on the sunlit half)
+    let fac=`M ${outer} 40`; for(let y=60;y<=VIEW_H;y+=26) fac+=` L ${(edgeFn(y)-8).toFixed(1)} ${y}`; fac+=` L ${outer} ${VIEW_H} Z`;
+    w+=`<path d="${fac}" fill="${side<0?C.rockLit:C.rockDark}" opacity=".5"/>`;
+    // striations (rock strata)
+    for(let y=30;y<VIEW_H;y+=46){const x0=side<0?outer:edgeFn(y), x1=side<0?edgeFn(y):outer; w+=`<line x1="${x0}" y1="${y}" x2="${x1.toFixed(1)}" y2="${(y+16).toFixed(1)}" stroke="${C.striation}" stroke-width="1" opacity=".35"/>`;}
+    // snow along the upper ridge (inner edge, top third)
+    let snow=`M ${edgeFn(0).toFixed(1)} 0`; for(let y=12;y<=150;y+=16) snow+=` L ${(edgeFn(y)-2).toFixed(1)} ${y}`;
+    for(let y=150;y>=0;y-=16) snow+=` L ${(edgeFn(y)-9-Math.sin(y*0.1)*4).toFixed(1)} ${y}`; snow+=' Z';
+    w+=`<path d="${snow}" fill="${C.snow}" opacity=".9"/>`;
+    // scree at the base of the inner edge
+    const sc=mulberry32(seedInt(h.seed+'scree'+side));
+    for(let i=0;i<7;i++){const y=60+sc()*340;const x=edgeFn(y)+2+sc()*6;w+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(1+sc()*1.6).toFixed(1)}" fill="${C.scree}" opacity=".7"/>`;}
+    return w;
+  };
+  s+=wall(-1); s+=wall(1);
+
+  // waterfall cascading down a wall into the valley (feeds the stream)
+  if(h.waterfall){const wf=h.waterfall; const wx=(wf<0?leftEdge:rightEdge);
+    const fx=(y)=> wx(y) + (wf<0? -2: 2);
+    let fall=`M ${(fx(20)-3).toFixed(1)} 20`; for(let y=30;y<=250;y+=14) fall+=` L ${(fx(y)-3+Math.sin(y*0.3)*1.5).toFixed(1)} ${y}`;
+    for(let y=250;y>=20;y-=14) fall+=` L ${(fx(y)+3+Math.sin(y*0.3)*1.5).toFixed(1)} ${y}`; fall+=' Z';
+    // plunge pool at the base, then the cascade + mist over it
+    s+=`<ellipse cx="${fx(252).toFixed(1)}" cy="258" rx="15" ry="7" fill="${C.water}" filter="url(#wdrop-${uid})"/>`;
+    s+=`<ellipse cx="${(fx(252)-3).toFixed(1)}" cy="256" rx="8" ry="3.5" fill="${C.waterHi}" opacity=".55"/>`;
+    s+=`<path d="${fall}" fill="${C.foam}" opacity=".92"/>`;
+    s+=`<path d="${fall}" fill="${C.waterHi}" opacity=".3"/>`;
+    s+=`<ellipse cx="${fx(252).toFixed(1)}" cy="256" rx="12" ry="5" fill="${C.foam}" opacity=".45"/>`;
+  }
+
+  // elevation shading (light high / dark low)
+  s+=`<rect x="3" y="0" width="${VIEW_W-6}" height="${VIEW_H}" rx="14" fill="url(#elev-${uid})"/>`;
+
+  // rough + rough-apron, fairway + fairway-apron + mow (concentric green complex)
+  s+=`<path d="${ribbon(f,f.rough/2,4,mulberry32(seedInt(h.seed+'r')),0,1,24,true)}" fill="${C.rough}"/>`;
+  const rAp=blob(f.grnX,f.grnY,f.grx+9+11*f.zoom,f.gry+9+11*f.zoom,mulberry32(seedInt(h.seed+'rap')),12,0.10);
+  s+=`<path d="${rAp}" fill="${C.rough}"/>`;
+  s+=`<path d="${ribbon(f,f.fw/2,3.5,mulberry32(seedInt(h.seed+'f')),0,1,24,true)}" fill="${C.fair}"/>`;
+  s+=`<path d="${ribbon(f,f.fw/2,3.5,mulberry32(seedInt(h.seed+'f')),0,1,24,true)}" fill="url(#mow-${uid})"/>`;
+  const fAp=blob(f.grnX,f.grnY,f.grx+9,f.gry+9,mulberry32(seedInt(h.seed+'ap')),12,0.10);
+  s+=`<path d="${fAp}" fill="${C.fair}"/>`;
+  s+=`<path d="${fAp}" fill="url(#mow-${uid})"/>`;
+
+  // bunkers — plentiful, large, size & shape varied, NEVER overlapping; off the walls
+  const bunkers=[];
+  {
+    const br=mulberry32(seedInt(h.seed+'bunk'));
+    const addB=(cx,cy,rx,ry,lobes,rgh)=>{const r=Math.max(rx,ry);
+      if(onWall(cx,cy,r))return'';
+      for(const b of bunkers){ if(Math.hypot(cx-b.cx,cy-b.cy) < r+b.r+2) return ''; }
+      bunkers.push({cx,cy,r});const rot=br()*6;
+      return `<path d="${blob(cx,cy,rx+1.6,ry+1.6,mulberry32(seedInt(h.seed+cx+cy+'o')),lobes,rgh,rot)}" fill="#e6dcc0"/><path d="${blob(cx,cy,rx,ry,mulberry32(seedInt(h.seed+cx+cy)),lobes,rgh,rot)}" fill="#f1eadb" stroke="#cbbf9e" stroke-width="0.8"/>`;};
+    // a big sandy scar carved along a flank
+    if(br()<0.85){const t=0.40+br()*0.32;const p=curve(f,t);const side=br()<0.5?-1:1;s+=addB(p.x+side*(f.fw/2+8+br()*7),p.y,10+br()*7,6.5+br()*4,13,0.30);}
+    // fairway guards — more, larger
+    for(const t of [0.36,0.50,0.64,0.78]){ if(br()<0.3) continue; const p=curve(f,t);const side=(h.bend&&h.bend.dir&&br()<0.6)?h.bend.dir:(br()<0.5?-1:1);s+=addB(p.x+side*(f.fw/2-1+br()*8),p.y,5.6+br()*4.6,4+br()*3,9,0.24);}
+    if(br()<0.6){const p=curve(f,0.28);const side=br()<0.5?-1:1;s+=addB(p.x+side*(f.fw/2-2+br()*6),p.y,5.2+br()*3,4+br()*2,9,0.22);}
+    // greenside — larger guards
+    const gN=2+(br()<0.7?1:0);
+    for(let i=0;i<gN;i++){const ang=(-0.5+i/gN)*Math.PI+(br()*0.5-0.25);s+=addB(f.grnX+Math.cos(ang)*(f.grx+7+br()*4),f.grnY+Math.sin(ang)*(f.gry*0.7)+3,5.2+br()*3.6,4+br()*2.6,9,0.22);}
+  }
+
+  // dense pine forest on the valley floor — over bunkers, under green; off the walls/corridor/green/stream
+  {
+    const fr=mulberry32(seedInt(h.seed+'forest'));const step=18;const gClr=9+11*f.zoom+4;
+    for(let gy=6; gy<=440; gy+=step){
+      for(let gx=6; gx<=214; gx+=step){
+        const x=gx+(fr()*2-1)*8, y=gy+(fr()*2-1)*8;
+        if(fr()<0.12) continue;
+        if(onWall(x,y,-2)) continue;                         // trees cling just off the rock
+        if(nearestCL(f,x,y) < f.rough/2 + 2) continue;
+        const gdx=(x-f.grnX)/(f.grx+gClr),gdy=(y-f.grnY)/(f.gry+gClr); if(gdx*gdx+gdy*gdy<1) continue;
+        const sc=(0.62+fr()*0.7)*0.30;
+        s+=`<use href="#${fr()<0.5?'pa':'pb'}-${uid}" transform="translate(${n2(x)} ${n2(y)}) scale(${sc.toFixed(3)})" filter="url(#drop-${uid})"/>`;
+      }
+    }
+  }
+
+  // green — embedded, subtle fringe + MULTI-LAYER surface: a tiered/contoured green (this height read is unique to
+  // mountain; every other course type stays two-layer with no centre ring).
+  {
+    const gs=mulberry32(seedInt(h.seed+'g'));
+    const rot=gs()*Math.PI*2, aspX=0.8+gs()*0.6, aspY=0.8+gs()*0.6, rgh=0.10+gs()*0.15, lobes=9+Math.floor(gs()*7);
+    const rx=f.grx*aspX, ry=f.gry*aspY;
+    const off=gs()<0.5?-1:1; // which side the upper tier sits
+    s+=`<path d="${blob(f.grnX,f.grnY,rx+3.2,ry+3.2,mulberry32(seedInt(h.seed+'gf')),lobes,rgh*0.7,rot)}" fill="${C.fringe}"/>`;
+    s+=`<path d="${blob(f.grnX,f.grnY,rx,ry,mulberry32(seedInt(h.seed+'g2')),lobes,rgh,rot)}" fill="${C.green}"/>`;
+    // a contour ring (tier break) then a raised upper tier, offset — reads as slope/elevation
+    s+=`<path d="${blob(f.grnX,f.grnY,rx*0.7,ry*0.7,mulberry32(seedInt(h.seed+'gc')),lobes,rgh,rot)}" fill="none" stroke="#5aa863" stroke-width="0.8" opacity=".5"/>`;
+    s+=`<path d="${blob(f.grnX+off*rx*0.24,f.grnY-ry*0.22,rx*0.5,ry*0.46,mulberry32(seedInt(h.seed+'g3')),9,0.16,rot)}" fill="${C.greenHi}" opacity=".5"/>`;
+  }
+
+  // tee — one, alpine blue
+  s+=`<rect x="${n2(f.teeX-8)}" y="${n2(f.teeY-4)}" width="16" height="8" rx="2.5" fill="#2e6b34" opacity=".95"/>`;
+  s+=`<rect x="${n2(f.teeX-6)}" y="${n2(f.teeY-2.4)}" width="5" height="4.8" rx="1.6" fill="${C.tee}" stroke="#10214a" stroke-width="0.5"/>`;
+  s+=`<rect x="${n2(f.teeX+1)}" y="${n2(f.teeY-2.4)}" width="5" height="4.8" rx="1.6" fill="${C.tee}" stroke="#10214a" stroke-width="0.5"/>`;
+  // pin
+  s+=`<circle cx="${n2(f.pinX)}" cy="${n2(f.pinY)}" r="2" fill="#111"/><line x1="${n2(f.pinX)}" y1="${n2(f.pinY)}" x2="${n2(f.pinX)}" y2="${n2(f.pinY-14)}" stroke="#111" stroke-width="1"/><path d="M${n2(f.pinX)} ${n2(f.pinY-14)} l7 2.5 -7 2.5 z" fill="#e23b3b"/>`;
+  return `<svg viewBox="0 0 ${VIEW_W} ${VIEW_H}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
+}
+
+const HOLES=[
+  {seed:'mt-a', label:'Par 4 · dogleg right · falls', par:4, length:415, bend:{dir:1,amp:104}, widthMul:1.0, waterfall:-1, fairwayHalfWidth:15, greenHalfWidth:12, greenDepth:14, pinLateral:5, pinDepth:6},
+  {seed:'mt-b', label:'Par 4 · blind dogleg left', par:4, length:400, bend:{dir:-1,amp:130}, widthMul:1.0, fairwayHalfWidth:15, greenHalfWidth:12, greenDepth:14, pinLateral:-6, pinDepth:6},
+  {seed:'mt-c', label:'Par 5 · dogleg left', par:5, length:560, bend:{dir:-1,amp:112}, widthMul:1.05, fairwayHalfWidth:15, greenHalfWidth:12, greenDepth:14, pinLateral:4, pinDepth:8},
+  {seed:'mt-d', label:'Par 5 · blind dogleg right · falls', par:5, length:585, bend:{dir:1,amp:128}, widthMul:0.9, waterfall:1, fairwayHalfWidth:15, greenHalfWidth:11, greenDepth:15, pinLateral:-4, pinDepth:8},
+  {seed:'mt-e', label:'Par 4 · straight', par:4, length:435, bend:{dir:0,amp:0}, widthMul:1.15, fairwayHalfWidth:15, greenHalfWidth:13, greenDepth:14, pinLateral:2, pinDepth:6},
+  {seed:'mt-f', label:'Par 3 · over the gorge', par:3, length:195, bend:{dir:0,amp:0}, widthMul:1.0, waterfall:-1, fairwayHalfWidth:13, greenHalfWidth:13, greenDepth:16, pinLateral:6, pinDepth:5},
+];
+const grid=document.getElementById('grid');
+for(const h of HOLES){const fig=document.createElement('figure');fig.className='tile';fig.style.margin='0';fig.innerHTML=drawHole(h)+`<figcaption><span class="name">${h.label.split(' · ')[0]}</span><span>${h.label.split(' · ').slice(1).join(' · ')} · ${h.length}y</span></figcaption>`;grid.appendChild(fig);}
+</script>
+</body>
+</html>

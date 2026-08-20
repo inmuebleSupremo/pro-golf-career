@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Desert restyle v1</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#12151a; color:#e7e9ec; font:14px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif; }
+  header { padding:20px 24px 4px; }
+  header h1 { margin:0 0 6px; font-size:20px; font-weight:680; }
+  header p { margin:0; color:#9aa2ad; max-width:82ch; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; padding:16px 24px 44px; }
+  .tile { background:#1a1e25; border:1px solid #262c35; border-radius:14px; overflow:hidden; }
+  .tile figcaption { display:flex; justify-content:space-between; padding:9px 13px; border-top:1px solid #262c35; color:#aeb6c2; font-size:12px; }
+  .tile .name { font-weight:600; color:#e7e9ec; }
+  .tile svg { display:block; width:100%; height:auto; background:#0e1116; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Desert — v1</h1>
+  <p>Dry sand landscape with layered detail: saguaro / barrel / scrub / boulders (none overlapping), sand grain + dry washes, a unique diamond fairway mow, blended sandy green collar (no dark ring), size/shape-varied strategic bunkers, rare water. Parkland engine: doglegs, layering, two-layer green, single course-colour tee.</p>
+</header>
+<div class="grid" id="grid"></div>
+<script>
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+function seedInt(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(seed){let a=seed>>>0;return()=>{a=(a+0x6d2b79f5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+const VIEW_W=220,VIEW_H=440;
+function cubic(p0,c1,c2,p3,t){const u=1-t;return{x:u*u*u*p0[0]+3*u*u*t*c1[0]+3*u*t*t*c2[0]+t*t*t*p3[0],y:u*u*u*p0[1]+3*u*u*t*c1[1]+3*u*t*t*c2[1]+t*t*t*p3[1]};}
+function curve(f,t){return cubic(f.p0,f.c1,f.c2,f.p3,t);}
+function frameFor(h,rng){
+  const usable=370,playLen=Math.max(1,h.length+(h.pinDepth||0));
+  const zoom=clamp(Math.sqrt(480/playLen),0.74,1.7);const xScale=1.6*zoom;
+  const bx=110,teeY=410,grnY=40,H=teeY-grnY;
+  const b=h.bend||{dir:0,amp:0}; const dir=b.dir||0;
+  const shiftT=dir?dir*Math.min(28,b.amp*0.28):0; const teeX=bx-shiftT;
+  const grnX=bx+(dir?dir*clamp(b.amp*0.46,0,58):(rng()*2-1)*8);
+  const p0=[teeX,teeY], c1=[teeX,teeY-0.60*H], c2=[grnX,grnY+0.55*H], p3=[grnX,grnY];
+  const fw=h.fairwayHalfWidth*xScale*2*(h.widthMul||1);
+  const rough=fw+22*zoom;
+  const grx=h.greenHalfWidth*xScale,gry=Math.max(10,h.greenDepth*xScale*1.05);
+  const pinX=grnX+clamp(h.pinLateral||0,-h.greenHalfWidth,h.greenHalfWidth)*xScale;const pinY=grnY-gry*0.25;
+  return {bx,teeX,teeY,grnX,grnY,zoom,xScale,fw,rough,grx,gry,pinX,pinY,p0,c1,c2,p3};
+}
+const n2=x=>x.toFixed(2);
+function smoothClosed(pts){const n=pts.length;if(n<3)return'';const m=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];let s=m(pts[0],pts[n-1]);let d=`M${n2(s[0])} ${n2(s[1])}`;for(let i=0;i<n;i++){const c=pts[i],x=pts[(i+1)%n],mid=m(c,x);d+=` Q${n2(c[0])} ${n2(c[1])} ${n2(mid[0])} ${n2(mid[1])}`;}return d+' Z';}
+function ribbon(f,half,jitter,rng,t0=0,t1=1,N=24,holdTop=false){const L=[],R=[];for(let i=0;i<=N;i++){const t=t0+(t1-t0)*(i/N);const p=curve(f,t);const a=curve(f,Math.max(0,t-0.01)),b=curve(f,Math.min(1,t+0.01));const dx=b.x-a.x,dy=b.y-a.y,Ln=Math.hypot(dx,dy)||1;const nx=-dy/Ln,ny=dx/Ln;const local=(t-t0)/(t1-t0);
+  // holdTop: taper only at the tee and keep full width into the green so the fairway forms an apron around it
+  const taper=holdTop?Math.pow(clamp(local/0.16,0,1),0.6):Math.pow(Math.sin(Math.PI*clamp(local,0,1)),0.55);
+  const hh=half*(0.30+0.70*taper)+(rng()*2-1)*jitter*taper;L.push([p.x+nx*hh,p.y+ny*hh]);R.push([p.x-nx*hh,p.y-ny*hh]);}return smoothClosed(L.concat(R.reverse()));}
+function blob(cx,cy,rx,ry,rng,lobes=11,rough=0.16,rot=0){const pts=[];for(let i=0;i<lobes;i++){const a=rot+(i/lobes)*Math.PI*2;const rr=1+(rng()*2-1)*rough;pts.push([cx+Math.cos(a)*rx*rr,cy+Math.sin(a)*ry*rr]);}return smoothClosed(pts);}
+function nearestCL(f,x,y,N=28){let md=1e9;for(let i=0;i<=N;i++){const p=curve(f,i/N);const d=Math.hypot(p.x-x,p.y-y);if(d<md)md=d;}return md;}
+function inWater(W,cx,cy,pad){if(!W)return false;const nx=(cx-W.cx)/(W.rx+pad),ny=(cy-W.cy)/(W.ry+pad);return nx*nx+ny*ny<1;}
+
+const C={sand:'#e6d0a3', waste:'#d8c08a', scrub:'#cdba85', fair:'#68a844', mow:'#8ed069',
+  fringe:'#61a03f', bunker:'#f3f0e6', bunkerStroke:'#dccca4', bunkerShade:'#e7dcc0',
+  water:'#2f9ec4', waterHi:'#74cbe6',
+  rock:'#b8a184', rockHi:'#cdba98', rockShade:'#8c7a5d',
+  saguaro:'#4e7d3a', saguaroHi:'#5f9247', barrel:'#5a8a3f', barrelRib:'#3c6a2a', scrubVeg:'#94a05f', flower:'#e6a13a',
+  arroyo:'#cdb282', arroyoHi:'#e3d1a3', grain:'#cbb489', tee:'#c1502e'};
+
+// --- desert flora / rock symbols (native coords ~ ±10), non-overlap collision radius returned ---
+function symbol(kind,x,y,sc,rng){
+  const t=(m)=>`<g transform="translate(${n2(x)} ${n2(y)}) scale(${sc.toFixed(2)})">${m}</g>`;
+  if(kind==='saguaro'){const arm=rng()<0.5;
+    return {r:7*sc, m:t(`<path d="M0 3 L0 -13" stroke="${C.saguaro}" stroke-width="2.6" stroke-linecap="round"/><path d="M0 -6 L-3.4 -6 L-3.4 -10.5" stroke="${C.saguaro}" stroke-width="1.9" fill="none" stroke-linecap="round"/><path d="M0 -8 L3.4 -8 L3.4 -12" stroke="${C.saguaro}" stroke-width="1.9" fill="none" stroke-linecap="round"/><path d="M0 3 L0 -12" stroke="${C.saguaroHi}" stroke-width="0.8" stroke-linecap="round"/>`+(arm?`<path d="M0 -2 L4.6 -2 L4.6 -7" stroke="${C.saguaro}" stroke-width="1.9" fill="none" stroke-linecap="round"/>`:''))};}
+  if(kind==='barrel'){return {r:5.5*sc, m:t(`<ellipse cx="0" cy="0" rx="4.4" ry="5.6" fill="${C.barrel}"/><path d="M0 -5 L0 5 M-2.4 -4.6 L-2.4 4.6 M2.4 -4.6 L2.4 4.6" stroke="${C.barrelRib}" stroke-width="0.6"/><circle cx="-1.4" cy="-5.4" r="1" fill="${C.flower}"/><circle cx="1.6" cy="-5" r="0.9" fill="${C.flower}"/>`)};}
+  if(kind==='scrub'){return {r:5*sc, m:t(`<circle cx="-3" cy="0.6" r="3.1" fill="${C.scrubVeg}"/><circle cx="2.6" cy="-0.8" r="2.7" fill="${C.scrubVeg}"/><circle cx="0.3" cy="2.4" r="2.5" fill="${C.scrubVeg}"/>`)};}
+  // rock / boulder
+  const rr=rng();
+  return {r:6.5*sc, m:t(`<polygon points="-6,3 -4,-3.5 2,-5 6,-1 4,4 -2,5" fill="${C.rock}"/><polygon points="-4,-3.5 2,-5 3,-1 -2,0" fill="${C.rockHi}"/><polygon points="-6,3 -2,5 4,4 3,5.5 -4,5" fill="${C.rockShade}" opacity=".6"/>`)};
+}
+
+function drawHole(h){
+  const rng=mulberry32(seedInt(h.seed));
+  const f=frameFor(h,rng);
+  const uid=h.seed.replace(/[^a-z0-9]/gi,'');
+  let s='';
+  s+=`<defs>`;
+  s+=`<filter id="sdrop-${uid}" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="1.2" dy="1.8" stdDeviation="1.2" flood-color="#7a5f34" flood-opacity="0.35"/></filter>`;
+  s+=`<filter id="wdrop-${uid}" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="1.3" stdDeviation="1.2" flood-color="#0d4a5e" flood-opacity="0.4"/></filter>`;
+  s+=`<pattern id="grain-${uid}" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="2" cy="3" r="0.6" fill="${C.grain}"/><circle cx="6" cy="7" r="0.5" fill="${C.grain}"/><circle cx="7" cy="2" r="0.45" fill="${C.grain}"/></pattern>`;
+  // desert mow: clean diagonal stripes (distinct from parkland's horizontal)
+  s+=`<pattern id="mow-${uid}" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(38)"><rect width="14" height="7" fill="${C.mow}" opacity=".42"/><rect y="7" width="14" height="7" fill="#4f8a34" opacity=".22"/></pattern>`;
+  s+=`<radialGradient id="dry-${uid}" cx="50%" cy="44%" r="60%"><stop offset="0%" stop-color="#4f8a34"/><stop offset="72%" stop-color="#71a84a"/><stop offset="100%" stop-color="#bcd28a"/></radialGradient>`;
+  s+=`</defs>`;
+
+  // surround sand + grain + soft waste-shadow bands
+  s+=`<rect x="3" y="0" width="${VIEW_W-6}" height="${VIEW_H}" rx="14" fill="${C.sand}"/>`;
+  s+=`<path d="M3 130 C 70 60,170 260,${VIEW_W-3} 210 L ${VIEW_W-3} ${VIEW_H} L 3 ${VIEW_H} Z" fill="${C.waste}" opacity=".55"/>`;
+  s+=`<path d="M3 470 C 80 380,150 470,${VIEW_W-3} 400 L ${VIEW_W-3} 300 C 120 340,70 300,3 350 Z" fill="${C.waste}" opacity=".35"/>`;
+  s+=`<rect x="3" y="0" width="${VIEW_W-6}" height="${VIEW_H}" rx="14" fill="url(#grain-${uid})" opacity=".5"/>`;
+
+  // dry wash (arroyo) — a meandering pale channel crossing the sand (visual landscape touch)
+  if(h.arroyo){
+    const ar=mulberry32(seedInt(h.seed+'arroyo'));const yy=120+ar()*220;
+    let d=`M3 ${yy.toFixed(0)}`; for(let x=20;x<=VIEW_W;x+=24) d+=` L ${x} ${(yy+Math.sin(x*0.05+yy)*14).toFixed(1)}`;
+    s+=`<path d="${d}" fill="none" stroke="${C.arroyo}" stroke-width="13" stroke-linecap="round" opacity=".7"/>`;
+    s+=`<path d="${d}" fill="none" stroke="${C.arroyoHi}" stroke-width="5" stroke-linecap="round" opacity=".6"/>`;
+  }
+
+  // scrub-desert rough band, then irrigated fairway with the diagonal mow (crisp edge; holds width into a green apron)
+  s+=`<path d="${ribbon(f,f.rough/2,4,mulberry32(seedInt(h.seed+'r')),0,1,24,true)}" fill="${C.scrub}"/>`;
+  // rough wraps the whole green complex too — one concentric look (rough → fairway → green), not fairway bordering bare sand
+  const rApron=blob(f.grnX,f.grnY,f.grx+9+11*f.zoom,f.gry+9+11*f.zoom,mulberry32(seedInt(h.seed+'rap')),12,0.10);
+  s+=`<path d="${rApron}" fill="${C.scrub}"/>`;
+  s+=`<path d="${ribbon(f,f.fw/2,3,mulberry32(seedInt(h.seed+'f')),0,1,24,true)}" fill="${C.fair}"/>`;
+  s+=`<path d="${ribbon(f,f.fw/2,3,mulberry32(seedInt(h.seed+'f')),0,1,24,true)}" fill="url(#mow-${uid})"/>`;
+  // green apron — fairway turf wrapped around the green so it sits INSIDE the fairway (no lollipop)
+  const apron=blob(f.grnX,f.grnY,f.grx+9,f.gry+9,mulberry32(seedInt(h.seed+'ap')),12,0.10);
+  s+=`<path d="${apron}" fill="${C.fair}"/>`;
+  s+=`<path d="${apron}" fill="url(#mow-${uid})"/>`;
+
+  // water — RARE in the desert (only when the hole asks for it): a small oasis
+  let W=null;
+  if(h.water){
+    const wr=mulberry32(seedInt(h.seed+'water'));const side=h.bend&&h.bend.dir?-h.bend.dir:(wr()<.5?-1:1);
+    const cx=f.grnX+side*(f.grx+12), cy=f.grnY+10, rx=11, ry=16; W={cx,cy,rx,ry};
+    s+=`<path d="${blob(cx,cy,rx,ry,wr,10,0.16)}" fill="${C.water}" filter="url(#wdrop-${uid})"/>`;
+    s+=`<path d="${blob(cx-rx*0.2,cy-ry*0.2,rx*0.5,ry*0.4,mulberry32(seedInt(h.seed+'wh')),9,0.2)}" fill="${C.waterHi}" opacity=".5"/>`;
+  }
+
+  // bunkers — strategic, size & shape varied, NEVER overlapping; incl. large sprawling waste bunkers
+  const bunkers=[];
+  {
+    const br=mulberry32(seedInt(h.seed+'bunk'));
+    const addB=(cx,cy,rx,ry,lobes,rgh)=>{const r=Math.max(rx,ry);
+      if(inWater(W,cx,cy,r))return'';
+      for(const b of bunkers){ if(Math.hypot(cx-b.cx,cy-b.cy) < r+b.r+2) return ''; }
+      bunkers.push({cx,cy,r});const rot=br()*6;
+      return `<path d="${blob(cx,cy,rx+1.4,ry+1.4,mulberry32(seedInt(h.seed+cx+cy+'o')),lobes,rgh,rot)}" fill="${C.bunkerShade}"/><path d="${blob(cx,cy,rx,ry,mulberry32(seedInt(h.seed+cx+cy)),lobes,rgh,rot)}" fill="${C.bunker}" stroke="${C.bunkerStroke}" stroke-width="0.8"/>`;};
+    // 1 big sprawling waste bunker along a flank
+    if(br()<0.8){const t=0.35+br()*0.4;const p=curve(f,t);const side=br()<0.5?-1:1;s+=addB(p.x+side*(f.fw/2+9+br()*6),p.y,9+br()*6,6+br()*4,13,0.30);}
+    // fairway guards 2-4, varied size/shape
+    for(const t of [0.42,0.56,0.70,0.82]){ if(br()<0.42) continue; const p=curve(f,t);const side=(h.bend&&h.bend.dir&&br()<0.6)?h.bend.dir:(br()<0.5?-1:1);s+=addB(p.x+side*(f.fw/2-1+br()*7),p.y,4.5+br()*4,3.4+br()*2.6,9,0.24);}
+    // greenside 2-3, varied
+    const gN=2+(br()<0.6?1:0);
+    for(let i=0;i<gN;i++){const ang=(-0.5+i/gN)*Math.PI+(br()*0.5-0.25);s+=addB(f.grnX+Math.cos(ang)*(f.grx+7+br()*4),f.grnY+Math.sin(ang)*(f.gry*0.7)+3,4.5+br()*3,3.6+br()*2.2,9,0.22);}
+  }
+
+  // desert flora + boulders — layered over bunkers, under the green; NONE overlapping each other
+  {
+    const dr=mulberry32(seedInt(h.seed+'flora'));const placed=[];const step=16;
+    const inBunker=(x,y)=>{for(const b of bunkers){if(Math.hypot(x-b.cx,y-b.cy)<b.r+1)return true;}return false;};
+    for(let gy=4; gy<=436; gy+=step){
+      for(let gx=4; gx<=216; gx+=step){
+        const x=gx+(dr()*2-1)*7, y=gy+(dr()*2-1)*7;
+        if(dr()<0.70) continue;                                   // open desert — thinned scatter (~35% fewer)
+        if(nearestCL(f,x,y) < f.rough/2 + 4) continue;            // off corridor
+        const gClr=9+11*f.zoom+4; const gdx=(x-f.grnX)/(f.grx+gClr),gdy=(y-f.grnY)/(f.gry+gClr); if(gdx*gdx+gdy*gdy<1) continue; // clear of the whole green complex (rough+fairway apron)
+        if(inWater(W,x,y,5)||inBunker(x,y)) continue;
+        const roll=dr(); const kind = roll<0.42?'saguaro':roll<0.62?'barrel':roll<0.82?'scrub':'rock';
+        const sc=0.8+dr()*0.7;
+        const sym=symbol(kind,x,y,sc,dr);
+        let ok=true; for(const p of placed){ if(Math.hypot(x-p.x,y-p.y) < sym.r+p.r+1.5){ ok=false; break; } }
+        if(!ok) continue;
+        placed.push({x,y,r:sym.r});
+        s+=`<g filter="url(#sdrop-${uid})">${sym.m}</g>`;
+      }
+    }
+  }
+
+  // green — sits inside the fairway apron: a subtle same-family fringe (no dark ring, no clashing pale collar)
+  // then the burnt dry-green surface (radial).
+  {
+    const gs=mulberry32(seedInt(h.seed+'g'));
+    const rot=gs()*Math.PI*2, aspX=0.8+gs()*0.65, aspY=0.8+gs()*0.65, rgh=0.10+gs()*0.15, lobes=9+Math.floor(gs()*7);
+    const rx=f.grx*aspX, ry=f.gry*aspY;
+    s+=`<path d="${blob(f.grnX,f.grnY,rx+3.2,ry+3.2,mulberry32(seedInt(h.seed+'gc')),lobes,rgh*0.7,rot)}" fill="${C.fringe}"/>`;
+    s+=`<path d="${blob(f.grnX,f.grnY,rx,ry,mulberry32(seedInt(h.seed+'g2')),lobes,rgh,rot)}" fill="url(#dry-${uid})"/>`;
+  }
+
+  // tee box — one, desert colour (terracotta)
+  s+=`<rect x="${n2(f.teeX-8)}" y="${n2(f.teeY-4)}" width="16" height="8" rx="2.5" fill="${C.scrub}" opacity=".95"/>`;
+  s+=`<rect x="${n2(f.teeX-6)}" y="${n2(f.teeY-2.4)}" width="5" height="4.8" rx="1.6" fill="${C.tee}" stroke="#5a2410" stroke-width="0.5"/>`;
+  s+=`<rect x="${n2(f.teeX+1)}" y="${n2(f.teeY-2.4)}" width="5" height="4.8" rx="1.6" fill="${C.tee}" stroke="#5a2410" stroke-width="0.5"/>`;
+  // pin
+  s+=`<circle cx="${n2(f.pinX)}" cy="${n2(f.pinY)}" r="2" fill="#111"/><line x1="${n2(f.pinX)}" y1="${n2(f.pinY)}" x2="${n2(f.pinX)}" y2="${n2(f.pinY-14)}" stroke="#111" stroke-width="1"/><path d="M${n2(f.pinX)} ${n2(f.pinY-14)} l7 2.5 -7 2.5 z" fill="#e23b3b"/>`;
+  return `<svg viewBox="0 0 ${VIEW_W} ${VIEW_H}" xmlns="http://www.w3.org/2000/svg">${s}</svg>`;
+}
+
+const HOLES=[
+  {seed:'ds-a', label:'Par 4 · dogleg right', par:4, length:420, bend:{dir:1,amp:88}, widthMul:1.25, arroyo:true, fairwayHalfWidth:16, greenHalfWidth:12, greenDepth:14, pinLateral:5, pinDepth:6},
+  {seed:'ds-b', label:'Par 4 · blind dogleg left', par:4, length:400, bend:{dir:-1,amp:120}, widthMul:1.5, fairwayHalfWidth:16, greenHalfWidth:12, greenDepth:14, pinLateral:-6, pinDepth:6},
+  {seed:'ds-c', label:'Par 5 · dogleg left', par:5, length:565, bend:{dir:-1,amp:92}, widthMul:1.1, arroyo:true, fairwayHalfWidth:16, greenHalfWidth:12, greenDepth:14, pinLateral:4, pinDepth:8},
+  {seed:'ds-d', label:'Par 5 · oasis', par:5, length:580, bend:{dir:1,amp:80}, widthMul:1.35, water:'oasis', fairwayHalfWidth:16, greenHalfWidth:11, greenDepth:15, pinLateral:-4, pinDepth:8},
+  {seed:'ds-e', label:'Par 4 · straight', par:4, length:435, bend:{dir:0,amp:0}, widthMul:1.6, arroyo:true, fairwayHalfWidth:16, greenHalfWidth:13, greenDepth:14, pinLateral:2, pinDepth:6},
+  {seed:'ds-f', label:'Par 3 · short', par:3, length:190, bend:{dir:0,amp:0}, widthMul:1.15, fairwayHalfWidth:14, greenHalfWidth:13, greenDepth:16, pinLateral:6, pinDepth:5},
+];
+const grid=document.getElementById('grid');
+for(const h of HOLES){const fig=document.createElement('figure');fig.className='tile';fig.style.margin='0';fig.innerHTML=drawHole(h)+`<figcaption><span class="name">${h.label.split(' · ')[0]}</span><span>${h.label.split(' · ').slice(1).join(' · ')} · ${h.length}y</span></figcaption>`;grid.appendChild(fig);}
+</script>
+</body>
+</html>
