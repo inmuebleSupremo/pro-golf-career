@@ -61,16 +61,13 @@ export interface Bunker {
   readonly pot: boolean;
 }
 
-/** The parametric frame — enough to re-derive any point along the hole for ball placement. */
+/** The parametric frame — a cubic fairway spine (tee → green), enough to re-derive any point for ball placement. */
 interface Frame {
-  readonly bx: number;
-  readonly ctrlX: number;
-  readonly ctrlY: number;
-  readonly grnX: number;
-  readonly grnY: number;
-  readonly teeY: number;
+  readonly p0: Point;
+  readonly c1: Point;
+  readonly c2: Point;
+  readonly p3: Point;
   readonly playLen: number;
-  readonly yScale: number;
   readonly xScale: number;
 }
 
@@ -105,7 +102,8 @@ const VIEW_H = 440;
 const PAD_TOP = 40;
 const PAD_BOT = 30;
 const X_SCALE = 1.6;
-const DOGLEG_MAX = 40;
+const DOGLEG_MIN_AMP = 70; // lateral pull of the elbow for the gentlest dogleg…
+const DOGLEG_AMP_SPAN = 58; // …up to DOGLEG_MIN_AMP + this for the sharpest (blind) ones
 const ROUGH_EXTRA = 24;
 const TREE_BASE_COUNT = 11;
 
@@ -141,12 +139,12 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-/** The point on the fairway centerline at fraction `t` of the tee→green line. */
+/** The point on the fairway centerline (a cubic bezier) at fraction `t` of the tee→green line. */
 function bezier(f: Frame, t: number): Point {
   const u = 1 - t;
   return {
-    x: u * u * f.bx + 2 * u * t * f.ctrlX + t * t * f.grnX,
-    y: u * u * f.teeY + 2 * u * t * f.ctrlY + t * t * f.grnY,
+    x: u * u * u * f.p0.x + 3 * u * u * t * f.c1.x + 3 * u * t * t * f.c2.x + t * t * t * f.p3.x,
+    y: u * u * u * f.p0.y + 3 * u * u * t * f.c1.y + 3 * u * t * t * f.c2.y + t * t * t * f.p3.y,
   };
 }
 
@@ -164,8 +162,7 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
   const rng = mulberry32(seedInt(hole.layoutSeed));
   const usable = VIEW_H - PAD_TOP - PAD_BOT;
   const playLen = Math.max(1, hole.length + hole.pinDepth); // tee-to-pin
-  const yScale = usable / playLen; // always fill the stage vertically, tee to green
-  const holeLen = usable;
+  const holeLen = usable; // always fill the stage vertically, tee to green
   // Altitude zoom: neutral at REF_LEN, larger (closer) on short holes, smaller (higher) on long ones.
   const zoom = clamp(Math.sqrt(REF_LEN / playLen), ZOOM_MIN, ZOOM_MAX);
   const xScale = X_SCALE * zoom; // lateral px per yard, scaled by the zoom
@@ -173,14 +170,26 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
   const bx = VIEW_W / 2;
   const teeY = VIEW_H - PAD_BOT;
   const grnY = teeY - holeLen;
-  const dog = (rng() * 2 - 1) * DOGLEG_MAX;
-  const ctrlX = bx + dog;
-  const ctrlY = (teeY + grnY) / 2;
-  const grnX = bx + dog * 0.55;
-  const frame: Frame = { bx, ctrlX, ctrlY, grnX, grnY, teeY, playLen, yScale, xScale };
+  const hh = teeY - grnY;
+  // Dogleg: ~a third of holes play straight; the rest bend left/right, the sharpest reading as blind. The tee is
+  // offset OPPOSITE the bend and the green toward it (a compressed cubic elbow), so the hole swings across the
+  // frame while both stay in view. Derived from the layout seed, so each hole is reproducible.
+  const straight = rng() < 0.3;
+  const dir = straight ? 0 : rng() < 0.5 ? -1 : 1;
+  const amp = straight ? 0 : DOGLEG_MIN_AMP + rng() * DOGLEG_AMP_SPAN;
+  const teeX = bx - (dir ? dir * Math.min(28, amp * 0.28) : 0);
+  const grnX = bx + (dir ? dir * clamp(amp * 0.44, 0, 56) : (rng() * 2 - 1) * 6);
+  const p0: Point = { x: teeX, y: teeY };
+  const c1: Point = { x: teeX, y: teeY - 0.6 * hh };
+  const c2: Point = { x: grnX, y: grnY + 0.55 * hh };
+  const p3: Point = { x: grnX, y: grnY };
+  const frame: Frame = { p0, c1, c2, p3, playLen, xScale };
 
-  const centerline = `M${bx} ${teeY} Q ${ctrlX} ${ctrlY} ${grnX} ${grnY}`;
-  const fairwayWidth = hole.fairwayHalfWidth * xScale * 2;
+  const centerline =
+    `M${teeX.toFixed(1)} ${teeY} C ${c1.x.toFixed(1)} ${c1.y.toFixed(1)} ` +
+    `${c2.x.toFixed(1)} ${c2.y.toFixed(1)} ${grnX.toFixed(1)} ${grnY.toFixed(1)}`;
+  const widthMul = 0.9 + rng() * 0.5; // fairway-width variance (narrow to wide)
+  const fairwayWidth = hole.fairwayHalfWidth * xScale * 2 * widthMul;
   const roughWidth = fairwayWidth + ROUGH_EXTRA * zoom;
   const flank: -1 | 1 = rng() < 0.5 ? -1 : 1;
 
@@ -247,7 +256,7 @@ export function projectHole(hole: HoleGeom, kit: BiomeKit): HoleLayout {
     centerline,
     fairwayWidth,
     roughWidth,
-    tee: { x: bx, y: teeY },
+    tee: { x: teeX, y: teeY },
     green: { cx: grnX, cy: grnY, rx: grx, ry: gry },
     pin: { x: pinX, y: pinY },
     water,
