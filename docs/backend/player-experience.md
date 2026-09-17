@@ -1,8 +1,8 @@
 # Player Experience Definition — the complete-game target
 
-**Status:** target largely realised in the engine + app-service layer (last updated 2026-07-12). This document defines *what the finished game offers the player*, so every build slice can be measured against it and we never discover a hollow "make two decisions then watch a sim" experience. It **synthesises** the authoritative vision in `explore.md` (§1) into the player-facing decision + play surface; where the two ever disagree, `explore.md` wins. It is not itself an implementation.
+**Status:** target realised — engine + app-service layer + GraphQL API + auth + a full player-facing UI (last updated 2026-08-20). This document defines *what the finished game offers the player*, so every build slice can be measured against it and we never discover a hollow "make two decisions then watch a sim" experience. It **synthesises** the authoritative vision in `explore.md` (§1) into the player-facing decision + play surface; where the two ever disagree, `explore.md` wins. It is not itself an implementation.
 
-> **Where we are (2026-07-12):** every decision surface below is now **built in the framework-free engine and driven through `WorldService`** (the app seam a human acts through) — create-your-golfer, shot-by-shot play (always skippable), event-by-event scheduling, development, staff, equipment, sponsorship, and self-chosen career goals. A **depth pass** then put real substance behind the pillars: putting that holes out (realistic absolute scores ~par, not +90/round), shot-level stats, a scaled 640-golfer world, per-golfer **AI strategy variety**, and a two-phase **Hall-of-Fame election** — so Statistical realism (3), Emergent storytelling (4), and Meaningful risk (5) are mechanically real, not stubs. What remains is **not gameplay** but delivery: **persistence (save/load) is next**, then GraphQL API → auth → a React/Vite **UI** (there is no player-facing UI yet — decisions are exercised through the service/API seam).
+> **Where we are (2026-08-20):** every decision surface below is **built in the framework-free engine, driven through `WorldService`, exposed over GraphQL, and now playable through a real Next.js UI** — create-your-golfer, shot-by-shot play (always skippable, with a 2D/2.5D hole layer), event-by-event scheduling, development, staff, equipment, sponsorship, self-chosen achievements, career records, and an end-of-season/off-season review. The **depth pass** put real substance behind the pillars: putting that holes out (realistic absolute scores ~par, not +90/round), shot-level stats, a scaled 640-golfer world, per-golfer **AI strategy variety**, and a two-phase **Hall-of-Fame election** — so Statistical realism (3), Emergent storytelling (4), and Meaningful risk (5) are mechanically real. The delivery pipeline that was "next" in the earlier draft is done: **persistence (filesystem save/load), the GraphQL API, JWT auth, and the React/Next UI all exist.** (Original intent named React/Vite; the UI was built with Next.js — see [`tech_stack.md`](tech_stack.md).) Remaining work is polish/breadth on the backlog ([`../info.txt`](../info.txt)), not a missing pillar.
 
 ---
 
@@ -81,7 +81,7 @@ We can say the game is real when a player can, end to end:
 
 If a slice does not move at least one of these forward, it is infrastructure, not game.
 
-**Status (2026-07-12): all six pass at the engine + `WorldService` seam.** A human can create a golfer, play or sim tournament rounds via club/target/risk, make the full set of between-event decisions (development, scheduling, staff, equipment, sponsorship, finances), feel choices compound over a multi-decade career, progress through the phases pursuing self-chosen goals up to Hall-of-Fame induction, and read the living world's news/stats/records/ranking. The one missing piece is a **player-facing UI** (item 8) — today these are exercised through the service/API seam, not a screen.
+**Status (2026-08-20): all six pass end-to-end through the real UI.** A human can create a golfer, play or sim tournament rounds via club/target/risk (with a 2D hole layer), make the full set of between-event decisions (development, scheduling, staff, equipment, sponsorship, finances), feel choices compound over a multi-decade career, progress through the phases pursuing self-chosen goals/achievements up to Hall-of-Fame induction, and read the living world's news/stats/records/ranking — all on screen, with saves persisted to disk. The player-facing UI (item 8) now exists.
 
 ## 6. Guardrails
 
@@ -100,8 +100,10 @@ Proving the *game* early took priority over more infrastructure. Items 1–5 are
 4. ✅ **Management breadth** — staff, equipment, and **event-by-event scheduling** across the differentiated calendar, all exposed via the same seam pattern; spends are budget-gated.
 5. ✅ **Onboarding & goals** — **create-your-golfer** (custom identity + starting build); self-defined career goals with live progress, surfaced by the narrative layer.
 6. ✅ **Depth pass** *(engine realism)* — closed the gaps that made decisions hollow or scores unreal: staff/equipment shot effects, economy stakes, a scaled 640-golfer world, shot-level stats, a **putting make-% model** (believable absolute scores), per-golfer **AI strategy variety**, and a two-phase **Hall-of-Fame election**. (Remaining Tier-3 calibration items are tracked separately.)
-7. **Persistence** — snapshot + save/load (now against a settled, fuller player-state). ← **next**
-8. **GraphQL API → Auth → React/Vite frontend → Docker** — deliver it as an actual playable product.
+7. ✅ **Persistence** — snapshot + filesystem save/load against the settled player-state (`SimSnapshotModule`).
+8. ✅ **GraphQL API → Auth → frontend → Docker** — delivered as an actual playable product (Spring GraphQL +
+   JWT auth + a Next.js App-Router UI + `docker compose`). Ongoing work is polish/breadth on the backlog
+   ([`../info.txt`](../info.txt)), not a missing pillar.
 
 ## 8. Confirmed decisions (locked 2026-07-10)
 
