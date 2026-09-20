@@ -48,15 +48,6 @@ const GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "World",
-    items: [
-      { label: "News", icon: Newspaper, path: "/news" },
-      { label: "Rankings", icon: Globe, path: "/rankings" },
-      { label: "Rivals", icon: Users, path: "/rivals" },
-      { label: "Records", icon: Award, path: "/records" },
-    ],
-  },
-  {
     label: "Career",
     items: [
       { label: "Profile", icon: User, path: "/profile" },
@@ -74,6 +65,15 @@ const GROUPS: NavGroup[] = [
       { label: "Staff", icon: Handshake, path: "/staff" },
       { label: "Finances", icon: Wallet, path: "/finances" },
       { label: "Fitness", icon: Activity, path: "/fitness" },
+    ],
+  },
+  {
+    label: "World",
+    items: [
+      { label: "News", icon: Newspaper, path: "/news" },
+      { label: "Rankings", icon: Globe, path: "/rankings" },
+      { label: "Rivals", icon: Users, path: "/rivals" },
+      { label: "Records", icon: Award, path: "/records" },
     ],
   },
 ];
