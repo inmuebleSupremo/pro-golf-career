@@ -15,14 +15,16 @@ by deciding better.
 
 ## Run it locally
 
+Before starting the backend, copy `.env.example` to `.env` and replace `PROGOLF_JWT_SECRET` with a unique
+local value of at least 32 characters. `.env` is intentionally ignored by Git.
+
 Everything together with Docker:
 
 ```bash
 docker compose up --build
 ```
 
-Frontend → http://localhost:3000 · Backend → http://localhost:8080 (GraphiQL at `/graphiql`). Override
-`PROGOLF_JWT_SECRET` via a root `.env` for anything beyond local dev.
+Frontend → http://localhost:3000 · Backend → http://localhost:8080 (GraphiQL at `/graphiql`).
 
 Or run each side on its own — see [`backend/AGENTS.md`](backend/AGENTS.md) and
 [`frontend/README.md`](frontend/README.md).

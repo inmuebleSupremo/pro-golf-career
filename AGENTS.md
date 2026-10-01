@@ -98,14 +98,15 @@ pnpm lint             # eslint
 pnpm build            # production build
 ```
 Set `BACKEND_INTERNAL_URL` (see `frontend/.env.example`; defaults to `http://localhost:8080`). Run the backend
-first so the frontend has an API to call.
+first so the frontend has an API to call. Before starting the backend, copy the root `.env.example` to `.env` and
+set `PROGOLF_JWT_SECRET` to a unique value of at least 32 characters.
 
 ### Both together (Docker)
 ```bash
 docker compose up --build   # frontend :3000, backend :8080, shared data volume
 ```
-Override `PROGOLF_JWT_SECRET` (a root `.env`) for anything beyond local dev — the default is an insecure
-dev-only secret.
+Docker Compose requires `PROGOLF_JWT_SECRET` in a root `.env`; copy `.env.example` and set a unique value of at
+least 32 characters.
 
 ---
 

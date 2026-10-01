@@ -39,7 +39,8 @@ Read the root [`AGENTS.md`](../AGENTS.md) first. Product requirements: [`../docs
 - `src/main/resources/application.properties` — actuator exposes `health` only (until auth locks it down),
   GraphiQL enabled, JWT TTLs, and the store dirs.
 - Users → `./users` (`PROGOLF_USERS_DIR`), saves → `./saves` (`PROGOLF_SAVES_DIR`) — JSON files, gitignored.
-- `PROGOLF_JWT_SECRET` — HS256 needs ≥ 32 chars; the checked-in default is dev-only, override in real deploys.
+- `PROGOLF_JWT_SECRET` — required for normal application startup; HS256 needs ≥ 32 chars. Copy the root
+  `.env.example` to `.env` for local development and set a unique value.
 
 ## Commands
 ```bash
