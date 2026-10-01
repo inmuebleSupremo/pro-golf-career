@@ -145,7 +145,6 @@ dev-only secret.
 | Change the API | `schema.graphqls` + `backend/.../app/api/*Controller.java` + `WorldService` |
 | Change the UI | `frontend/src/app/` (routes), `frontend/src/components/`, `frontend/src/lib/` |
 | Know the frontend design rules | [`docs/frontend/`](docs/frontend/) |
-| See the product backlog / "we are here" | [`docs/info.txt`](docs/info.txt) (the owner's running task log) |
 
 ---
 
