@@ -4,7 +4,7 @@ import Image from "next/image";
 import { MapPin, Play, Trophy } from "lucide-react";
 
 import { Card, CardHeader } from "@/components/command/card";
-import { sceneBackdrop } from "@/lib/play/scene";
+import { applySceneFallback, sceneBackdrop } from "@/lib/play/scene";
 import { useAchievements, useCareerOverview, useHallOfFame, usePlayerProfile } from "@/lib/api/queries";
 import {
   attributeShortLabel,
@@ -66,7 +66,7 @@ export function HubDashboard({ id }: { id: string }) {
   const nextEvent = (data.playerSchedule ?? [])
     .filter((e) => e.entered && e.week >= world.week)
     .sort((a, b) => a.week - b.week)[0];
-  const eventBackdrop = nextEvent ? sceneBackdrop(nextEvent.courseType, nextEvent.name) : null;
+  const eventBackdrop = nextEvent ? sceneBackdrop(nextEvent.courseType, nextEvent.name, { season: world.season }) : null;
   const attrs = profile?.attributes ?? [];
   const overall = attrs.length
     ? (attrs.reduce((s, a) => s + a.value, 0) / attrs.length).toFixed(1)
@@ -95,6 +95,12 @@ export function HubDashboard({ id }: { id: string }) {
                   fill
                   sizes="(min-width: 640px) 50vw, 100vw"
                   className="object-cover object-center"
+                  onError={
+                    eventBackdrop.fallbackSrc
+                      ? (event) =>
+                          applySceneFallback(event.currentTarget, eventBackdrop.fallbackSrc!)
+                      : undefined
+                  }
                 />
                 <div className="from-surface-elevated via-surface-elevated/80 absolute inset-0 bg-gradient-to-t to-transparent" />
                 <div className="from-surface-elevated/70 absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent" />
