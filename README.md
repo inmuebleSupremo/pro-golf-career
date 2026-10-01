@@ -1,45 +1,112 @@
 # Pro Golf Career
 
-An interactive professional-golf **career-simulation game**. You create one golfer and guide their multi-decade
-career — making the strategic decisions (shot selection on the course; development, schedule, staff, equipment,
-sponsorship, and finances off it) while a simulation resolves the outcomes. No reflexes, no swing meter: you win
-by deciding better.
+Pro Golf Career is a single-player professional-golf career simulation. Create a golfer, make tactical decisions during tournaments, and manage the long-term choices around training, scheduling, staff, equipment, sponsorships, and finances.
 
-## Repository
+The game has no swing meter or reflex-based input: performance is resolved by the simulation from player attributes, conditions, decisions, and controlled variance.
 
-| Path | What |
-|---|---|
-| [`backend/`](backend) | Spring Boot (Java 21) — pure simulation engine + GraphQL API + JWT auth + save/load |
-| [`frontend/`](frontend) | Next.js 16 (App Router, TypeScript, pnpm) — the player-facing UI |
-| [`docs/`](docs) | Product vision & requirements, tech stack, frontend design system, course-hole art |
+## Screenshots
 
-## Run it locally
+### Career command centre
 
-Before starting the backend, copy `.env.example` to `.env` and replace `PROGOLF_JWT_SECRET` with a unique
-local value of at least 32 characters. `.env` is intentionally ignored by Git.
+The career hub brings together the next event, world ranking, finances, player development, season progress, and tour news.
 
-Everything together with Docker:
+![Career command centre](docs/screenshots/001-career-command-center.png)
+
+### Shot-by-shot event play
+
+During an event, the player chooses how to approach each shot while following hole, round, and leaderboard context.
+
+![Shot-by-shot event gameplay](docs/screenshots/002-shot-by-shot-event.png)
+
+### Career records
+
+Completed events feed into a persistent career history with results, round scores, and performance statistics.
+
+![Career records](docs/screenshots/003-career-records.png)
+
+## What you do
+
+- Create a professional golfer and develop their attributes over multiple seasons.
+- Schedule events, play tournaments shot by shot or simulate them, and compete against a simulated tour field.
+- Make off-course decisions about fitness, staff, equipment, sponsorships, and finances.
+- Follow rankings, achievements, rivals, records, and season/career results; save and resume a career.
+
+## Technical approach
+
+- **Frontend:** Next.js 16 App Router, React 19, TypeScript, Tailwind CSS, TanStack Query, and GraphQL Code Generator.
+- **Backend:** Java 21 and Spring Boot 3 with a schema-first GraphQL API, Spring Security, and JWT authentication.
+- **Browser/API boundary:** Next.js route handlers act as a backend-for-frontend layer. The browser talks to the BFF, which calls the Spring GraphQL API server-side and maintains the session in httpOnly cookies.
+- **Simulation boundary:** `com.progolf.sim.*` contains the framework-free game engine. Spring, GraphQL resolvers, authentication, and persistence live in `com.progolf.app.*`; an architecture test guards that separation.
+- **Persistence:** there is currently no database. User accounts and career saves are stored as JSON files, and a full world session is snapshotted and restored through the save-game store.
+
+The GraphQL schema is checked in at [`backend/src/main/resources/graphql/schema.graphqls`](backend/src/main/resources/graphql/schema.graphqls). Frontend operation types are generated from that schema before frontend development, type-checking, and production builds.
+
+## Run locally
+
+### Prerequisites
+
+Install Docker with Docker Compose available.
+
+### Start the application
+
+````md
+1. Create a local environment file from the example:
+
+   ```bash
+   cp .env.example .env
+   # Windows PowerShell:
+   Copy-Item .env.example .env
+   # Windows Command Prompt:
+   copy .env.example .env
+   ```
+
+2. In `.env`, replace the placeholder `PROGOLF_JWT_SECRET` with a unique local value of at least 32 characters. The backend and Docker Compose require this value; `.env` is ignored by Git.
+
+3. Build and start both services:
+
+   ```bash
+   docker compose up --build
+   ```
+
+Open the frontend at [http://localhost:3000](http://localhost:3000). The backend is available at [http://localhost:8080](http://localhost:8080), with GraphiQL at [http://localhost:8080/graphiql](http://localhost:8080/graphiql).
+
+Docker Compose stores local users and saves in its `backend-data` volume. When running the backend outside Docker, its default local directories are `backend/users/` and `backend/saves/`; both can be overridden with `PROGOLF_USERS_DIR` and `PROGOLF_SAVES_DIR`.
+
+## Verification commands
+
+For backend work, install JDK 21 and Maven:
 
 ```bash
-docker compose up --build
+cd backend
+mvn test       # JUnit suite, including the simulation/application boundary test
+mvn package     # Build the runnable Spring Boot jar
 ```
 
-Frontend → http://localhost:3000 · Backend → http://localhost:8080 (GraphiQL at `/graphiql`).
+For frontend work, install Node.js and pnpm:
 
-Or run each side on its own — see [`backend/AGENTS.md`](backend/AGENTS.md) and
-[`frontend/README.md`](frontend/README.md).
+```bash
+cd frontend
+pnpm install
+pnpm lint
+pnpm typecheck
+pnpm build
+pnpm format:check
+```
 
-## Documentation
+The frontend does not currently have a separate unit-test runner; its available checks are linting, TypeScript validation, build, and formatting. `pnpm typecheck` and `pnpm build` run GraphQL code generation first.
 
-- **Working in this repo (any AI agent):** start with [`AGENTS.md`](AGENTS.md), then the directory-level
-  `AGENTS.md` for the area you're touching.
-- **Product vision & requirements:** [`docs/backend/explore.md`](docs/backend/explore.md) (the north star) and
-  [`docs/backend/player-experience.md`](docs/backend/player-experience.md).
-- **As-built technology:** [`docs/backend/tech_stack.md`](docs/backend/tech_stack.md).
-- **Frontend design system:** [`docs/frontend/`](docs/frontend/).
+## Repository layout
 
-## Architecture in one line
+| Path | Purpose |
+| --- | --- |
+| [`frontend/`](frontend) | Next.js player interface and BFF route handlers |
+| [`backend/`](backend) | Spring Boot application, GraphQL API, authentication, persistence, and simulation engine |
+| [`docs/`](docs) | Product, technical, and frontend design documentation |
+| [`img-assets/`](img-assets) | Source scenery artwork used by course and event views |
 
-The game logic is a **pure, framework-free simulation** (`com.progolf.sim.*`, deterministic from a seed); a thin
-Spring layer (`com.progolf.app.*`) wraps it with a GraphQL API, auth, and filesystem persistence; a Next.js BFF
-+ UI consumes that API. The `sim`/`app` boundary is enforced by a test. See [`AGENTS.md`](AGENTS.md).
+## Further reading
+
+- [Product vision and requirements](docs/backend/explore.md)
+- [Player experience and game decision surfaces](docs/backend/player-experience.md)
+- [Technology stack notes](docs/backend/tech_stack.md)
+- [Frontend design documentation](docs/frontend/)
