@@ -9,6 +9,8 @@ A hole SHALL be authored, generated, and resolved in canonical two-dimensional y
 - **WHEN** a shot is resolved on a generated production hole
 - **THEN** its final contact surface SHALL be obtained from canonical `surfaceAt(position)` rather than from independently authored presentation geometry or a zone-band lookup
 
+## ADDED Requirements
+
 ### Requirement: Canonical projection preserves the legacy local shot frame
 
 For a canonical full shot, the resolver SHALL retain the legacy sampler's carry/lateral semantics in an explicit local frame. The frame origin SHALL be the current playable `BallState`; its forward axis SHALL point to the green-centre reference at the active cup's front/back depth; and positive lateral SHALL be golfer-right. The active cup's lateral coordinate SHALL be derived in that frame before strategy targeting is applied, so a pin offset neither rotates the frame nor gets applied twice. The existing sampled carry distribution SHALL remain measured against its legacy remaining-distance input. A canonical putt, whose distance is already measured directly to the physical cup, SHALL instead use a cup-facing local frame.
@@ -32,6 +34,8 @@ For a canonical full shot, the resolver SHALL retain the legacy sampler's carry/
 
 - **WHEN** canonical terrain changes in a generated production hole
 - **THEN** surface lookup and resulting shot settlement SHALL reflect that terrain change
+
+## MODIFIED Requirements
 
 ### Requirement: Zone-Band Abstraction
 

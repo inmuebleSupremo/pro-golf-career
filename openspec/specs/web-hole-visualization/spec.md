@@ -5,50 +5,50 @@ TBD - created by archiving change add-2d-hole-graphics. Update Purpose after arc
 ## Requirements
 ### Requirement: Parametric 2D Hole Rendering
 
-The Play Event screen SHALL render a 2D graphical representation of the hole being played, generated parametrically from that hole's simulation geometry — its par, length, fairway and green dimensions, elevation, and hazard presence — rather than from a fixed per-hole image. The rendering SHALL scale to any hole in any pool course without hand-authored layouts: changing a hole's geometry SHALL change the rendered shape correspondingly.
+The Play Event screen SHALL render a 2D graphical representation of the hole being played from the current hole's canonical geometry: its tee, active cup, playable boundary, and ordered terrain-region polygons. It SHALL not generate gameplay landforms from coarse dimensions, hazard flags, or a local layout seed. The rendering SHALL scale to any hole in any pool course without hand-authored layouts: changing canonical geometry SHALL change the rendered gameplay shape correspondingly. A client MAY still use stable local data for non-gameplay decoration only.
 
-#### Scenario: A hole is drawn from its geometry
+#### Scenario: A hole is drawn from canonical geometry
 
-- **WHEN** the player is on a hole with a given length, fairway width, and green size
-- **THEN** the 2D view SHALL show a corridor and green whose proportions reflect those values, with the tee and green in the play direction
+- **WHEN** the player is on a hole with canonical fairway, green, bunker, water, and playable-boundary polygons
+- **THEN** the 2D view SHALL draw those landforms from their supplied vertices, with tee and cup in the supplied play direction
 
 #### Scenario: Different holes render differently
 
-- **WHEN** two holes of different par and length are played
-- **THEN** their 2D renders SHALL differ in length and layout accordingly, from the same generator
+- **WHEN** two holes have different canonical geometry
+- **THEN** their 2D renders SHALL differ in length and layout accordingly, without a local terrain-layout generator
 
 ### Requirement: Faithful Representation of Mechanical Facts
 
-The 2D layer SHALL be a truthful representation of the simulation and SHALL NOT contradict any resolved mechanical fact. The hole's dimensions, the active pin's lateral side, and each resolved shot's final surface, distance remaining, and penalty SHALL be represented literally. Presentation details the simulation does not model — which flank a hazard sits on, dogleg lean, hazard longitudinal position, and vegetation scatter — MAY be synthesized, provided they never contradict a load-bearing fact.
+The 2D layer SHALL be a truthful representation of the simulation and SHALL NOT contradict any resolved mechanical fact. The hole's canonical terrain, active pin/cup position, and each resolved shot's contact, final playable ball state, distance remaining, and penalty SHALL be represented literally. The client SHALL NOT synthesize which flank a gameplay hazard occupies, dogleg lean, hazard longitudinal position, fairway-width variation, or any other gameplay terrain. Presentation details not represented by canonical geometry — vegetation scatter, texture, lighting, organic edge treatment, and camera treatment — MAY be synthesized only when they cannot imply or obscure a different gameplay surface.
 
-#### Scenario: The pin is drawn on its real side
+#### Scenario: The pin is drawn at its real position
 
-- **WHEN** the active round's pin has a lateral offset to one side of the green
-- **THEN** the flag SHALL be drawn on that side
+- **WHEN** the active round's cup has a canonical position
+- **THEN** the flag SHALL be drawn at that position
 
-#### Scenario: A hazard outcome is shown in a hazard
+#### Scenario: A water recovery is shown truthfully
 
-- **WHEN** a resolved shot finishes on a penalty surface such as water or a bunker
-- **THEN** the ball SHALL be shown resting in a hazard of that type, and the shown penalty and distance remaining SHALL match the resolved outcome
+- **WHEN** a resolved shot contacts water and settles at a legal recovery position
+- **THEN** the animation SHALL show the water contact and the subsequent authoritative recovery position, and the shown penalty and distance remaining SHALL match the resolved outcome
 
-#### Scenario: Cosmetic placement never overrides an outcome
+#### Scenario: Decoration never overrides canonical terrain
 
-- **WHEN** a shot's synthesized (flavor) surroundings would place the ball on a different surface than the one the simulation resolved
-- **THEN** the resolved surface SHALL win — the ball SHALL be drawn on the resolved surface, not the flavor one
+- **WHEN** a cosmetic layer would visually suggest a surface different from canonical terrain
+- **THEN** canonical terrain SHALL win and the cosmetic layer SHALL be suppressed, clipped, or restyled
 
 ### Requirement: Stable, Deterministic Hole Appearance
 
-A given hole SHALL look the same every time it is rendered — across shots, rounds, and sessions — with only the pin position changing per round. The synthesized cosmetic layout SHALL be derived deterministically from a stable per-hole layout seed so a course's holes read as permanent, designed venues.
+A given hole's gameplay landforms SHALL look the same every time it is rendered because they derive from immutable canonical geometry, with only the permitted per-round cup position changing. Cosmetic decoration MAY be derived deterministically from a stable per-hole decoration seed so a course's holes read as permanent, designed venues; it SHALL not create or reshape a gameplay landform.
 
-#### Scenario: A hole's layout is stable across rounds
+#### Scenario: A hole's gameplay layout is stable across rounds
 
 - **WHEN** the same hole is played on different rounds of an event
-- **THEN** its fairway shape, hazards, and vegetation SHALL be identical, and only the pin position SHALL change
+- **THEN** its canonical fairway shape and hazards SHALL be identical, and only the permitted cup position and non-gameplay decoration variation MAY change
 
-#### Scenario: Layout is reproducible
+#### Scenario: Cosmetic layout is reproducible
 
 - **WHEN** the same hole is rendered in two separate sessions
-- **THEN** the synthesized layout SHALL be identical, derived from the same layout seed
+- **THEN** its deterministic cosmetic decoration SHALL be identical when given the same decoration seed
 
 ### Requirement: Biome-Styled Visual Themes
 
@@ -66,12 +66,17 @@ The 2D hole SHALL be styled by a visual theme selected from the host course's en
 
 ### Requirement: Shot Playback Animation
 
-Each resolved shot SHALL be played back visually on the 2D hole — the ball travelling from its start to its resulting position, ending on the resolved surface — so the player sees the result of the shot they took.
+Each resolved shot SHALL be played back visually on the 2D hole using spatial settlement data: the ball travels from the authoritative pre-shot ball position to its sampled contact, then, when a penalty recovery or replay applies, visibly transitions to the resulting playable ball state. The final next-shot marker SHALL be on the authoritative settlement position and surface.
 
-#### Scenario: A shot is animated to its result
+#### Scenario: A normal shot is animated to its result
 
-- **WHEN** the simulation resolves the player's shot
-- **THEN** the 2D view SHALL animate the ball from its origin to a resting position consistent with the resolved carry, remaining distance, and final surface
+- **WHEN** the simulation resolves a non-penalty player shot
+- **THEN** the 2D view SHALL animate the ball from its authoritative origin to the contact/settlement position on the resolved surface
+
+#### Scenario: A penalty recovery begins the next shot at settlement
+
+- **WHEN** the simulation resolves a water drop or out-of-bounds replay
+- **THEN** the 2D view SHALL retain the reported contact for playback and place the next-shot ball at the authoritative recovery or replay position
 
 ### Requirement: Flyover Introduction Per Hole
 
