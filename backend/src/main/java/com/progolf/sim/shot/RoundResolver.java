@@ -40,15 +40,25 @@ public final class RoundResolver {
         int totalStrokes = 0;
         double remaining = hole.startDistance();
         Surface lie = Surface.TEE_BOX; // the surface the next shot is played from (a green lie => a putt)
+        BallState ball = hole.geometry() == null ? null : new BallState(hole.geometry().tee(), Surface.TEE_BOX);
 
         for (int shotNo = 1; shotNo <= SimConstants.MAX_SHOTS_PER_HOLE; shotNo++) {
             double preShotRemaining = remaining;
-            ShotContext context = buildContext(hole, attributes, state, environment, policy, remaining, lie, holeCoordinate, shotNo);
+            ShotContext context = ball == null
+                    ? buildContext(hole, attributes, state, environment, policy, remaining, lie, holeCoordinate, shotNo)
+                    : spatialContext(hole, attributes, state, environment, policy, remaining, lie, holeCoordinate, shotNo, ball);
             ShotOutcome outcome = ShotResolver.resolveShot(context);
             shots.add(outcome);
             totalStrokes += outcome.strokes();
             lie = outcome.finalSurface(); // updated unconditionally, matching the interactive PlayableRound
-            if (outcome.hazardEntered()) {
+            if (outcome.settlement() != null) {
+                ball = outcome.settlement().ball();
+                lie = ball.lie();
+                remaining = ball.position().distanceTo(hole.cupPosition());
+                if (!outcome.hazardEntered() && remaining <= SimConstants.HOLED_THRESHOLD) {
+                    break;
+                }
+            } else if (outcome.hazardEntered()) {
                 // Penalty-hazard recovery (spec: shot-resolution). The penalty stroke is already counted in
                 // outcome.strokes(); the loop only decides where the next shot is played from.
                 if (outcome.finalSurface() == Surface.WATER) {
@@ -69,6 +79,17 @@ public final class RoundResolver {
         }
 
         return new RoundOutcome(shots, totalStrokes);
+    }
+
+    private static ShotContext spatialContext(HoleModel hole, Attributes attributes, GolferState state,
+                                              Environment environment, StrategyPolicy policy, double remainingDistance,
+                                              Surface lie, SeedCoordinate holeCoordinate, int shotNo, BallState ball) {
+        ShotFrame frame = ShotFrame.towardGreenCentreReference(ball.position(), hole.geometry().greenCenter(),
+                hole.cupPosition());
+        double localPinLateral = frame.lateralTo(hole.cupPosition());
+        ShotDecision decision = policy.decide(remainingDistance, lie, localPinLateral, attributes, hole.par());
+        return new ShotContext(attributes, state, environment, remainingDistance, hole.zoneProfileFor(remainingDistance),
+                decision, holeCoordinate.withShot(shotNo), lie, localPinLateral, ball, hole.geometry(), hole.cupPosition());
     }
 
     /**

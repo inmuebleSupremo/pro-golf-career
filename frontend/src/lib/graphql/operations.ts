@@ -732,6 +732,13 @@ export const PlayingHoleDocument = graphql(`
       pinDepth
       courseType
       layoutSeed
+      geometry {
+        tee { x y }
+        cup { x y }
+        playableBoundary { x y }
+        regions { surface boundary { x y } }
+      }
+      ball { position { x y } lie }
     }
   }
 `);
@@ -747,6 +754,12 @@ export const PlayShotDocument = graphql(`
       hazardEntered
       penaltyStrokes
       strokes
+      settlement {
+        contact { position { x y } surface }
+        recoveryPosition { x y }
+        recoveryKind
+        ball { position { x y } lie }
+      }
     }
   }
 `);
@@ -762,6 +775,12 @@ export const SimShotDocument = graphql(`
       hazardEntered
       penaltyStrokes
       strokes
+      settlement {
+        contact { position { x y } surface }
+        recoveryPosition { x y }
+        recoveryKind
+        ball { position { x y } lie }
+      }
     }
   }
 `);

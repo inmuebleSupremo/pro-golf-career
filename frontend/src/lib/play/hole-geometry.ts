@@ -1,11 +1,10 @@
 /**
  * Pure geometry + fidelity layer for the 2D hole schematic (spec: web-hole-visualization).
  *
- * `projectHole` turns a hole's sim numbers + its biome kit into a complete, render-ready `HoleLayout`: a
- * fairway corridor, green, tee, pin (on its real `pinLateral` side), and seed-derived cosmetic placement
- * (dogleg lean, hazard flanks, tree scatter). `ballPosition` resolves a shot's resting spot on that layout
- * under the fidelity rule — load-bearing facts (surface, distance) are honoured literally; the exact pixel is
- * flavor. No rendering here (kept JSX-free); the component in the play layer draws from this data.
+ * This module is the retained legacy/fallback layout helper. Canonical play rendering uses
+ * `canonical-geometry.ts`, which derives every gameplay terrain path from the API's `geometry.regions` and
+ * `geometry.playableBoundary`. The seed-derived landforms below must never be used when canonical geometry is
+ * present; any remaining seed use is decorative fallback only. No rendering happens here (kept JSX-free).
  */
 
 import type { Biome, BiomeKit, Vegetation } from "@/lib/play/biomes";
@@ -26,6 +25,13 @@ export interface HoleGeom {
   readonly pinDepth: number;
   readonly courseType: string;
   readonly layoutSeed: string;
+  readonly geometry?: {
+    readonly tee: Point;
+    readonly cup: Point;
+    readonly playableBoundary: readonly Point[];
+    readonly regions: readonly { readonly surface: string; readonly boundary: readonly Point[] }[];
+  };
+  readonly ball?: { readonly position: Point; readonly lie: string };
 }
 
 /** A resolved shot's load-bearing facts, from the `ShotOutcome` mutation result. */
@@ -34,6 +40,12 @@ export interface ResolvedShot {
   readonly carry: number;
   readonly lateral: number;
   readonly distanceRemaining: number;
+  readonly settlement?: {
+    readonly contact: { readonly position: Point; readonly surface: string };
+    readonly recoveryPosition?: Point | null;
+    readonly recoveryKind: string;
+    readonly ball: { readonly position: Point; readonly lie: string };
+  } | null;
 }
 
 export interface Point {

@@ -133,6 +133,55 @@ class WorldGraphQlMutationsTest {
     }
 
     @Test
+    void canonicalPlayingHoleAndShotSettlementAreExposedOverGraphQl() {
+        WorldSession session = worldService.create(OWNER, 2026L, SMALL);
+        String golferId = session.world().activeGolferIds().get(0);
+        worldService.assignPlayer(OWNER, session.id(), golferId);
+
+        int guard = 0;
+        while (!worldService.hasPendingEvent(OWNER, session.id()) && guard++ < 60) {
+            worldService.advanceWeek(OWNER, session.id());
+        }
+        assertThat(worldService.hasPendingEvent(OWNER, session.id())).isTrue();
+
+        graphQlTester.document("""
+                        query($id: ID!){
+                          playingHole(id: $id){
+                            geometry { tee { x y } cup { x y } playableBoundary { x y } regions { surface boundary { x y } } }
+                            ball { position { x y } lie }
+                          }
+                        }
+                        """)
+                .variable("id", session.id()).execute()
+                .path("playingHole.geometry.playableBoundary").entityList(Object.class).satisfies(points ->
+                        assertThat(points).hasSizeGreaterThanOrEqualTo(3))
+                .path("playingHole.geometry.regions").entityList(Object.class).satisfies(regions ->
+                        assertThat(regions).isNotEmpty())
+                .path("playingHole.ball.lie").entity(String.class).isEqualTo("TEE_BOX");
+
+        double distance = worldService.currentSituation(OWNER, session.id()).distanceToPin();
+        graphQlTester.document("""
+                        mutation($id: ID!, $distance: Float!){
+                          playShot(id: $id, decision: {club: "DRIVER", targetDistance: $distance, strategy: "BALANCED"}){
+                            settlement {
+                              contact { position { x y } surface }
+                              recoveryPosition { x y }
+                              recoveryKind
+                              ball { position { x y } lie }
+                            }
+                          }
+                        }
+                        """)
+                .variable("id", session.id()).variable("distance", distance).execute()
+                .path("playShot.settlement.contact.surface").entity(String.class).satisfies(surface ->
+                        assertThat(surface).isNotBlank())
+                .path("playShot.settlement.recoveryKind").entity(String.class).satisfies(kind ->
+                        assertThat(kind).isNotBlank())
+                .path("playShot.settlement.ball.lie").entity(String.class).satisfies(lie ->
+                        assertThat(lie).isNotBlank());
+    }
+
+    @Test
     void playerPressureIsZeroInOpeningRoundsAndReadableDuringAnEvent() {
         WorldSession session = worldService.create(OWNER, 20L, SMALL);
         String golferId = session.world().activeGolferIds().get(0);

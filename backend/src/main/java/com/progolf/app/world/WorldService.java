@@ -892,7 +892,9 @@ public class WorldService {
         String courseType = required(ownerId, sessionId).world().currentEventScene()
                 .map(World.PendingEventScene::courseType)
                 .orElseGet(() -> event.classification().name());
-        return ApiMapper.playingHole(hole, pin, courseType);
+        var ball = holeNumber == null ? event.currentBallState()
+                : new com.progolf.sim.shot.BallState(hole.geometry().tee(), com.progolf.sim.spatial.Surface.TEE_BOX);
+        return ApiMapper.playingHole(hole, pin, courseType, ball);
     }
 
     /** The live field leaderboard for the player's event. */

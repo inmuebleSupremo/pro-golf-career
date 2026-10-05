@@ -3,10 +3,12 @@ package com.progolf.sim.play;
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.shot.Environment;
+import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.GolferState;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotContext;
 import com.progolf.sim.shot.ShotDecision;
+import com.progolf.sim.shot.ShotFrame;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.ShotResolver;
 import com.progolf.sim.shot.SimConstants;
@@ -43,6 +45,7 @@ public final class PlayableHole {
     private double remaining;
     private int strokes;
     private Surface lie = Surface.TEE_BOX;
+    private BallState ball;
     private boolean complete;
 
     public PlayableHole(int holeNumber, int par, Attributes attributes, GolferState state, HoleModel model,
@@ -56,6 +59,7 @@ public final class PlayableHole {
         this.coordinate = Objects.requireNonNull(coordinate, "coordinate");
         this.simPolicy = new StrategyPolicy(Objects.requireNonNull(simStrategy, "simStrategy"));
         this.remaining = model.startDistance();
+        this.ball = model.geometry() == null ? null : new BallState(model.geometry().tee(), Surface.TEE_BOX);
     }
 
     /** Whether the hole has been holed out (or hit the shot cap). */
@@ -79,26 +83,34 @@ public final class PlayableHole {
     /** Sims the current shot with the automatic policy. */
     public ShotOutcome simShot() {
         requireNotComplete();
-        return resolveOne(simPolicy.decide(remaining, lie, model.pinLateral(), attributes, par));
+        return resolveOne(simDecision());
     }
 
     /** Sims the rest of the hole with the automatic policy. */
     public void simHole() {
         while (!complete) {
-            resolveOne(simPolicy.decide(remaining, lie, model.pinLateral(), attributes, par));
+            resolveOne(simDecision());
         }
     }
 
     private ShotOutcome resolveOne(ShotDecision decision) {
         double preShotRemaining = remaining;
-        ShotContext context = new ShotContext(attributes, state, environment, remaining,
-                model.zoneProfileFor(remaining), decision, coordinate.withShot(shotNumber), lie, model.pinLateral());
+        ShotContext context = ball == null
+                ? new ShotContext(attributes, state, environment, remaining, model.zoneProfileFor(remaining), decision,
+                coordinate.withShot(shotNumber), lie, model.pinLateral())
+                : new ShotContext(attributes, state, environment, remaining, model.zoneProfileFor(remaining), decision,
+                coordinate.withShot(shotNumber), lie, localPinLateral(), ball, model.geometry(), model.cupPosition());
         ShotOutcome outcome = ShotResolver.resolveShot(context);
 
         strokes += outcome.strokes();
         lie = outcome.finalSurface();
         boolean holed;
-        if (outcome.hazardEntered()) {
+        if (outcome.settlement() != null) {
+            ball = outcome.settlement().ball();
+            lie = ball.lie();
+            remaining = ball.position().distanceTo(model.cupPosition());
+            holed = !outcome.hazardEntered() && remaining <= SimConstants.HOLED_THRESHOLD;
+        } else if (outcome.hazardEntered()) {
             // Penalty-hazard recovery, identical to RoundResolver so simmed == auto (spec: shot-resolution).
             if (outcome.finalSurface() == Surface.WATER) {
                 remaining = Math.min(preShotRemaining, outcome.distanceRemaining() + SimConstants.WATER_DROP_SETBACK);
@@ -121,6 +133,21 @@ public final class PlayableHole {
     /** Total strokes taken on the hole (final once complete). */
     public int strokes() {
         return strokes;
+    }
+
+    /** Current canonical next-shot origin, present for generated playoff holes. */
+    public BallState ballState() {
+        return ball;
+    }
+
+    private ShotDecision simDecision() {
+        return simPolicy.decide(remaining, lie, ball == null ? model.pinLateral() : localPinLateral(), attributes, par);
+    }
+
+    private double localPinLateral() {
+        ShotFrame frame = ShotFrame.towardGreenCentreReference(ball.position(), model.geometry().greenCenter(),
+                model.cupPosition());
+        return frame.lateralTo(model.cupPosition());
     }
 
     private void requireNotComplete() {

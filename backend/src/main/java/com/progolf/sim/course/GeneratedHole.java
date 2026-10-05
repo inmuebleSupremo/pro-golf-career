@@ -3,6 +3,8 @@ package com.progolf.sim.course;
 import com.progolf.sim.core.SplitMix64Rng;
 import com.progolf.sim.core.Seeds;
 import com.progolf.sim.shot.HoleModel;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The immutable generated geometry of a single hole (REQ-070). It carries a hole seed from which
@@ -20,7 +22,11 @@ public record GeneratedHole(
         boolean hasWater,
         boolean hasTrees,
         double elevationDelta,
-        long holeSeed) {
+        long holeSeed,
+        CourseGeometry geometry) {
+
+    /** Cached immutable setup variants, shared by every competitor using the same generated hole. */
+    private static final Map<GeometryVariantKey, CourseGeometry> SETUP_GEOMETRIES = new ConcurrentHashMap<>();
 
     public GeneratedHole {
         if (number < 1 || number > 18) {
@@ -32,6 +38,18 @@ public record GeneratedHole(
         if (length <= 0 || fairwayHalfWidth <= 0 || greenHalfWidth <= 0 || greenDepth <= 0) {
             throw new IllegalArgumentException("Hole dimensions must be positive");
         }
+        geometry = geometry == null
+                ? CanonicalGeometryGenerator.generate(length, fairwayHalfWidth, greenHalfWidth, greenDepth,
+                hasGreensideBunker, hasWater, hasTrees, holeSeed)
+                : geometry;
+    }
+
+    /** Source-compatible constructor for existing fixtures; production generation supplies the same derived geometry. */
+    public GeneratedHole(int number, int par, double length, double fairwayHalfWidth, double greenHalfWidth,
+                         double greenDepth, boolean hasGreensideBunker, boolean hasWater, boolean hasTrees,
+                         double elevationDelta, long holeSeed) {
+        this(number, par, length, fairwayHalfWidth, greenHalfWidth, greenDepth, hasGreensideBunker, hasWater,
+                hasTrees, elevationDelta, holeSeed, null);
     }
 
     /** Deterministically derives the active pin for {@code round} under the neutral setup (REQ-076). */
@@ -63,5 +81,32 @@ public record GeneratedHole(
     /** Returns the playable {@link HoleModel} for {@code round}, with that round's pin and setup applied. */
     public HoleModel forRound(int round, CourseSetup setup) {
         return new RoundHole(this, pinFor(round, setup), setup);
+    }
+
+    /** The active round cup in the same local coordinates as {@link #geometry()}. */
+    public Position2d cupFor(PinPosition pin) {
+        return new Position2d(geometry.greenCenter().x() + pin.lateralOffset(),
+                geometry.greenCenter().y() + pin.depthOffset());
+    }
+
+    /**
+     * Produces the setup-specific authoritative geometry. This deliberately regenerates the canonical
+     * shapes from scaled fairway and green cores, rather than uniformly stretching all x coordinates:
+     * {@link HoleZones} historically kept its rough, hazard, and recovery-envelope additions fixed.
+     */
+    CourseGeometry geometryForWidth(double widthScale) {
+        if (widthScale == 1.0) {
+            return geometry;
+        }
+        GeometryVariantKey key = new GeometryVariantKey(holeSeed, length, fairwayHalfWidth, greenHalfWidth,
+                greenDepth, hasGreensideBunker, hasWater, hasTrees, widthScale);
+        return SETUP_GEOMETRIES.computeIfAbsent(key, ignored -> CanonicalGeometryGenerator.generate(length,
+                fairwayHalfWidth * widthScale, greenHalfWidth * widthScale, greenDepth, hasGreensideBunker,
+                hasWater, hasTrees, holeSeed));
+    }
+
+    private record GeometryVariantKey(long holeSeed, double length, double fairwayHalfWidth, double greenHalfWidth,
+                                      double greenDepth, boolean bunker, boolean water, boolean trees,
+                                      double widthScale) {
     }
 }
