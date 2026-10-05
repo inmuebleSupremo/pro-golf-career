@@ -1,15 +1,27 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Handshake, UserPlus } from "lucide-react";
 
 import { Card, CardHeader } from "@/components/command/card";
 import { SpokeShell } from "@/components/career/spoke";
-import { usePendingStaff, usePlayerStaff } from "@/lib/api/manage";
+import { useAcknowledgeStaffReview, usePendingStaff, usePlayerStaff } from "@/lib/api/manage";
 
 /** Staff landing: two bento tiles into Manage (roster) and Hire (candidates). */
 export function StaffLanding({ id }: { id: string }) {
   const roster = usePlayerStaff(id).data?.playerStaff?.length ?? null;
-  const candidates = usePendingStaff(id).data?.pendingStaff?.length ?? null;
+  const candidatesQuery = usePendingStaff(id);
+  const candidates = candidatesQuery.data?.pendingStaff?.length ?? null;
+  const { mutate: acknowledgeStaffReview } = useAcknowledgeStaffReview(id);
+  const reviewRecorded = useRef(false);
+
+  // The candidate query is the landing's review context. Record completion only after it arrives successfully.
+  useEffect(() => {
+    if (candidatesQuery.isSuccess && !reviewRecorded.current) {
+      reviewRecorded.current = true;
+      acknowledgeStaffReview();
+    }
+  }, [acknowledgeStaffReview, candidatesQuery.isSuccess]);
 
   return (
     <SpokeShell title="Staff" description="Build and run your support team.">

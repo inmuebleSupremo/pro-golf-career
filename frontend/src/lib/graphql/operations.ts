@@ -120,6 +120,18 @@ export const CareerOverviewDocument = graphql(`
   }
 `);
 
+/** Current, aggregated career attention. Individual management spokes remain the decision owners. */
+export const CareerInboxDocument = graphql(`
+  query CareerInbox($id: ID!) {
+    careerInbox(id: $id) {
+      items {
+        kind
+        count
+      }
+    }
+  }
+`);
+
 /**
  * A completed season's off-season review — the end-of-season moment. `season` omitted reviews the most
  * recently completed season; null when none has completed yet. The headlines include the player's own
@@ -428,6 +440,20 @@ export const EnterEventDocument = graphql(`
 export const SetRestingDocument = graphql(`
   mutation SetResting($id: ID!, $resting: Boolean!) {
     setResting(id: $id, resting: $resting)
+  }
+`);
+
+/** Records the current season's Schedule review without changing any event entry or rest decision. */
+export const AcknowledgeScheduleReviewDocument = graphql(`
+  mutation AcknowledgeScheduleReview($id: ID!) {
+    acknowledgeScheduleReview(id: $id)
+  }
+`);
+
+/** Records this season's optional Staff review without changing candidates or staffing decisions. */
+export const AcknowledgeStaffReviewDocument = graphql(`
+  mutation AcknowledgeStaffReview($id: ID!) {
+    acknowledgeStaffReview(id: $id)
   }
 `);
 

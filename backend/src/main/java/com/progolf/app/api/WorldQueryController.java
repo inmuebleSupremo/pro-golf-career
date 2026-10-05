@@ -2,6 +2,7 @@ package com.progolf.app.api;
 
 import com.progolf.app.api.dto.AchievementDto;
 import com.progolf.app.api.dto.CareerGoalDto;
+import com.progolf.app.api.dto.CareerInboxDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
 import com.progolf.app.api.dto.PlayerDevelopmentDto;
 import com.progolf.app.api.dto.CurrentEventDto;
@@ -66,6 +67,11 @@ public class WorldQueryController {
             return List.of();
         }
         return ApiMapper.mapList(worldService.playerSchedule(owner, id), ApiMapper::schedule);
+    }
+
+    @QueryMapping
+    public CareerInboxDto careerInbox(@Argument String id) {
+        return worldService.careerInbox(AuthenticatedUser.requireId(), id);
     }
 
     @QueryMapping

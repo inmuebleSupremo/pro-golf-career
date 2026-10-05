@@ -48,6 +48,7 @@ function useInvalidatePlay(id: string) {
     queryClient.invalidateQueries({ queryKey: ["play", id] });
     queryClient.invalidateQueries({ queryKey: ["playingHole", id] });
     queryClient.invalidateQueries({ queryKey: ["career", id] });
+    queryClient.invalidateQueries({ queryKey: ["inbox", id] });
   };
 }
 

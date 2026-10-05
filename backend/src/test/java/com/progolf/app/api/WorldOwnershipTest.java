@@ -118,4 +118,16 @@ class WorldOwnershipTest {
                 .variable("id", worldId).execute()
                 .path("world.season").entity(Integer.class).isEqualTo(1);
     }
+
+    @Test
+    void inboxIsScopedToTheAuthenticatedOwner() {
+        String alice = freshUser();
+        String bob = freshUser();
+        WorldSession session = worldService.create(alice, 704L, SMALL);
+
+        authenticateAs(bob);
+        graphQlTester.document("query($id: ID!){ careerInbox(id: $id){ items { kind } } }")
+                .variable("id", session.id()).execute()
+                .errors().expect(error -> error.getErrorType() == ErrorType.NOT_FOUND);
+    }
 }

@@ -55,6 +55,18 @@ public class PlayerMutationController {
         return true;
     }
 
+    /** Records completion of the current season's Schedule review; it does not change schedule decisions. */
+    @MutationMapping
+    public boolean acknowledgeScheduleReview(@Argument String id) {
+        return worldService.acknowledgeScheduleReview(AuthenticatedUser.requireId(), id);
+    }
+
+    /** Records completion of the current season's optional Staff review without changing staff decisions. */
+    @MutationMapping
+    public boolean acknowledgeStaffReview(@Argument String id) {
+        return worldService.acknowledgeStaffReview(AuthenticatedUser.requireId(), id);
+    }
+
     @MutationMapping
     public boolean skipEvent(@Argument String id, @Argument long tournamentId) {
         worldService.skipEvent(AuthenticatedUser.requireId(), id, tournamentId);

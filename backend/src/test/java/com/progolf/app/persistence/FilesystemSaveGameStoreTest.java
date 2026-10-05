@@ -36,7 +36,7 @@ class FilesystemSaveGameStoreTest {
     private SaveGame gameFrom(World world, long seed, String id) {
         SaveMetadata meta = new SaveMetadata(id, Instant.now(), world.currentSeason(), world.currentWeek(),
                 world.playerGolferId().orElse(null));
-        return new SaveGame(seed, world.config(), world.snapshot(), meta);
+        return new SaveGame(seed, world.config(), world.snapshot(), meta, null, null);
     }
 
     @Test

@@ -13,6 +13,9 @@ type Query {
     "The player's reviewable schedule of eligible upcoming events (empty when no player is assigned)."
     playerSchedule(id: ID!): [ScheduleEntry!]!
 
+    "Current, actionable career attention for the human player; this read never changes career state."
+    careerInbox(id: ID!): CareerInbox!
+
     "The player's career goals with live progress (empty when none chosen)."
     careerGoals(id: ID!): [CareerGoal!]!
 
@@ -139,6 +142,12 @@ type Mutation {
     "Sets whether the player's golfer is resting (a blanket sit-out)."
     setResting(id: ID!, resting: Boolean!): Boolean!
 
+    "Records that the player completed the current season's Schedule review; it changes no schedule decision."
+    acknowledgeScheduleReview(id: ID!): Boolean!
+
+    "Records that the player reviewed this season's optional Staff candidates; it changes no staff decision."
+    acknowledgeStaffReview(id: ID!): Boolean!
+
     "Skips a specific upcoming event by tournament id for the player."
     skipEvent(id: ID!, tournamentId: Long!): Boolean!
 
@@ -225,6 +234,25 @@ type ScheduleEntry {
     location: String!
     "The host course's environment classification (e.g. PARKLAND, LINKS, DESERT) — drives scene imagery."
     courseType: String!
+}
+
+"A compact, current-state set of personal career attention items."
+type CareerInbox {
+    items: [CareerInboxItem!]!
+}
+
+"One aggregated attention source and the number of actionable underlying choices."
+type CareerInboxItem {
+    kind: CareerInboxKind!
+    count: Int!
+}
+
+enum CareerInboxKind {
+    SCHEDULE
+    DEVELOPMENT
+    SPONSORSHIP
+    EQUIPMENT
+    STAFF
 }
 
 type CalendarEntry {

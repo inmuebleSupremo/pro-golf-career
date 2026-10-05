@@ -69,6 +69,57 @@ class WorldPersistenceTest {
     }
 
     @Test
+    void inboxIsRecomputedFromTheRestoredCareerState() {
+        WorldSession session = service.create(OWNER, 41L, SMALL);
+        service.assignPlayer(OWNER, session.id(), session.world().activeGolferIds().get(0));
+        service.advanceSeason(OWNER, session.id());
+        var beforeSave = service.careerInbox(OWNER, session.id());
+        service.save(OWNER, session.id(), "inbox-slot");
+
+        WorldSession loaded = service.load(OWNER, "inbox-slot");
+        assertThat(service.careerInbox(OWNER, loaded.id())).isEqualTo(beforeSave);
+    }
+
+    @Test
+    void scheduleReviewAcknowledgementSurvivesLoadingButExpiresWithTheSeason() {
+        WorldSession session = service.create(OWNER, 42L, SMALL);
+        service.assignPlayer(OWNER, session.id(), session.world().activeGolferIds().get(0));
+        assertThat(service.careerInbox(OWNER, session.id()).items())
+                .extracting(item -> item.kind().name()).contains("SCHEDULE");
+
+        assertThat(service.acknowledgeScheduleReview(OWNER, session.id())).isTrue();
+        service.save(OWNER, session.id(), "acknowledged-schedule-slot");
+
+        WorldSession loaded = service.load(OWNER, "acknowledged-schedule-slot");
+        assertThat(service.careerInbox(OWNER, loaded.id()).items())
+                .extracting(item -> item.kind().name()).doesNotContain("SCHEDULE");
+
+        service.advanceSeason(OWNER, loaded.id());
+        assertThat(service.careerInbox(OWNER, loaded.id()).items())
+                .extracting(item -> item.kind().name()).contains("SCHEDULE");
+    }
+
+    @Test
+    void staffReviewAcknowledgementSurvivesLoadingButExpiresWithTheSeason() {
+        WorldSession session = service.create(OWNER, 43L, SMALL);
+        service.assignPlayer(OWNER, session.id(), session.world().activeGolferIds().get(0));
+        service.advanceSeason(OWNER, session.id());
+        assertThat(service.careerInbox(OWNER, session.id()).items())
+                .extracting(item -> item.kind().name()).contains("STAFF");
+
+        assertThat(service.acknowledgeStaffReview(OWNER, session.id())).isTrue();
+        service.save(OWNER, session.id(), "acknowledged-staff-slot");
+
+        WorldSession loaded = service.load(OWNER, "acknowledged-staff-slot");
+        assertThat(service.careerInbox(OWNER, loaded.id()).items())
+                .extracting(item -> item.kind().name()).doesNotContain("STAFF");
+
+        service.advanceSeason(OWNER, loaded.id());
+        assertThat(service.careerInbox(OWNER, loaded.id()).items())
+                .extracting(item -> item.kind().name()).contains("STAFF");
+    }
+
+    @Test
     void anActiveEquipmentDealSurvivesTheDisk() {
         WorldSession session = service.create(OWNER, 9L, SMALL);
         String golferId = session.world().activeGolferIds().get(0);
