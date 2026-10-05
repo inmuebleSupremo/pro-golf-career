@@ -9,6 +9,7 @@ import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.player.DecisionPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.shot.Environment;
+import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
@@ -103,6 +104,14 @@ public final class PlayableEvent {
      */
     public PinPosition currentPin() {
         return pinAt(situation().holeNumber());
+    }
+
+    /** The legal current ball state for presentation/API projection. */
+    public BallState currentBallState() {
+        if (phase == Phase.PLAYOFF) {
+            return currentPlayoffHole.ballState();
+        }
+        return currentRound.ballState();
     }
 
     /** The generated geometry of hole {@code holeNumber} (1..18) on this event's course. */

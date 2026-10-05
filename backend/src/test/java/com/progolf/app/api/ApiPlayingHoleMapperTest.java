@@ -10,8 +10,15 @@ import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.course.GeneratedHole;
 import com.progolf.sim.course.PinPosition;
+import com.progolf.sim.course.Position2d;
 import com.progolf.sim.play.ShotSituation;
+import com.progolf.sim.shot.BallState;
+import com.progolf.sim.shot.FactorBreakdown;
 import com.progolf.sim.shot.HoleModel;
+import com.progolf.sim.shot.RecoveryKind;
+import com.progolf.sim.shot.ShotContact;
+import com.progolf.sim.shot.ShotOutcome;
+import com.progolf.sim.shot.ShotSettlement;
 import com.progolf.sim.spatial.ShotZoneProfile;
 import com.progolf.sim.spatial.Surface;
 import org.junit.jupiter.api.Test;
@@ -50,6 +57,21 @@ class ApiPlayingHoleMapperTest {
         assertThat(dto.pinDepth()).isEqualTo(pin.depthOffset());
         assertThat(dto.courseType()).isEqualTo(CLASSIFICATION.name());
         assertThat(dto.layoutSeed()).isEqualTo(Long.toString(hole.holeSeed()));
+        assertThat(dto.geometry().tee().x()).isEqualTo(hole.geometry().tee().x());
+        assertThat(dto.geometry().tee().y()).isEqualTo(hole.geometry().tee().y());
+        assertThat(dto.geometry().cup().x()).isEqualTo(hole.cupFor(pin).x());
+        assertThat(dto.geometry().cup().y()).isEqualTo(hole.cupFor(pin).y());
+        assertThat(dto.geometry().playableBoundary()).hasSize(hole.geometry().playableBoundary().size());
+        assertThat(dto.geometry().regions()).hasSize(hole.geometry().regions().size());
+        for (int i = 0; i < hole.geometry().regions().size(); i++) {
+            var engine = hole.geometry().regions().get(i);
+            var mapped = dto.geometry().regions().get(i);
+            assertThat(mapped.surface()).isEqualTo(engine.surface().name());
+            assertThat(mapped.boundary()).extracting(p -> p.x(), p -> p.y())
+                    .containsExactlyElementsOf(engine.boundary().stream().map(p -> org.assertj.core.groups.Tuple.tuple(p.x(), p.y())).toList());
+        }
+        assertThat(dto.ball().position().x()).isEqualTo(hole.geometry().tee().x());
+        assertThat(dto.ball().lie()).isEqualTo(Surface.TEE_BOX.name());
     }
 
     @Test
@@ -104,5 +126,24 @@ class ApiPlayingHoleMapperTest {
                 assertThat(bandDto.regions().get(j).halfWidth()).isEqualTo(band.regions().get(j).outerHalfWidth());
             }
         }
+    }
+
+    @Test
+    void settlementProjectionPreservesContactRecoveryAndPlayableBall() {
+        Position2d contactPosition = new Position2d(42, 180);
+        Position2d recoveryPosition = new Position2d(35, 167);
+        BallState ball = new BallState(recoveryPosition, Surface.PRIMARY_ROUGH);
+        ShotSettlement settlement = new ShotSettlement(new ShotContact(contactPosition, Surface.WATER), recoveryPosition,
+                RecoveryKind.WATER_DROP, ball);
+        ShotOutcome outcome = new ShotOutcome(Surface.WATER, 185, 4, 120, true, 1, 2,
+                new FactorBreakdown(0, 0, 0, 0), settlement, false);
+
+        var dto = ApiMapper.shotOutcome(outcome);
+        assertThat(dto.settlement().contact().position().x()).isEqualTo(contactPosition.x());
+        assertThat(dto.settlement().contact().surface()).isEqualTo(Surface.WATER.name());
+        assertThat(dto.settlement().recoveryPosition().y()).isEqualTo(recoveryPosition.y());
+        assertThat(dto.settlement().recoveryKind()).isEqualTo(RecoveryKind.WATER_DROP.name());
+        assertThat(dto.settlement().ball().position().x()).isEqualTo(recoveryPosition.x());
+        assertThat(dto.settlement().ball().lie()).isEqualTo(Surface.PRIMARY_ROUGH.name());
     }
 }

@@ -65,7 +65,7 @@ const FULL = { intro: 1600, holeout: 1500, score: 2200, wipe: 800, shot: 1600 } 
 const REDUCED = { intro: 800, holeout: 400, score: 1600, wipe: 1, shot: 400 } as const;
 
 function toResolved(o: Outcome): ResolvedShot {
-  return { finalSurface: o.finalSurface, carry: o.carry, lateral: o.lateral, distanceRemaining: o.distanceRemaining };
+  return { finalSurface: o.finalSurface, carry: o.carry, lateral: o.lateral, distanceRemaining: o.distanceRemaining, settlement: o.settlement };
 }
 
 function usePrefersReducedMotion(): boolean {

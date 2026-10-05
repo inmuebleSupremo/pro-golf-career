@@ -63,7 +63,7 @@ class WorldSnapshotRoundTripTest {
     }
 
     @Test
-    void snapshotIsRejectedWhileAPlayerEventIsPending() {
+    void snapshotRejectsPendingEventRatherThanSilentlyDroppingBallState() {
         World world = World.create(3L, small());
         String id = world.activeGolferIds().get(0);
         world.assignPlayer(id);
@@ -72,7 +72,9 @@ class WorldSnapshotRoundTripTest {
             world.advanceWeek();
         }
         assertThat(world.hasPendingPlayerEvent()).isTrue();
-        assertThatThrownBy(world::snapshot).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(world::snapshot)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Cannot snapshot while a player event is pending");
     }
 
     @Test

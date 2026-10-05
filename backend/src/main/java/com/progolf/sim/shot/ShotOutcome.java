@@ -15,10 +15,18 @@ public record ShotOutcome(
         boolean hazardEntered,
         int penaltyStrokes,
         int strokes,
-        FactorBreakdown factors) {
+        FactorBreakdown factors,
+        ShotSettlement settlement,
+        boolean putt) {
 
     public ShotOutcome {
         Objects.requireNonNull(finalSurface, "finalSurface");
         Objects.requireNonNull(factors, "factors");
+    }
+
+    /** Compatibility constructor for unit fixtures and legacy zone resolution. */
+    public ShotOutcome(Surface finalSurface, double carry, double lateral, double distanceRemaining,
+                       boolean hazardEntered, int penaltyStrokes, int strokes, FactorBreakdown factors) {
+        this(finalSurface, carry, lateral, distanceRemaining, hazardEntered, penaltyStrokes, strokes, factors, null, false);
     }
 }

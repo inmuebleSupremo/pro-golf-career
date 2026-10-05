@@ -652,6 +652,44 @@ type PlayingHole {
     courseType: String!
     "The hole's stable seed as a string; the client derives reproducible cosmetic placement from it."
     layoutSeed: String!
+    "Authoritative yard-space terrain for this hole; SVG details remain client-owned."
+    geometry: PlayingGeometry!
+    "The legal position and lie from which the next shot will be played."
+    ball: BallState!
+}
+
+type Position {
+    x: Float!
+    y: Float!
+}
+
+type TerrainRegion {
+    surface: String!
+    boundary: [Position!]!
+}
+
+type PlayingGeometry {
+    tee: Position!
+    cup: Position!
+    playableBoundary: [Position!]!
+    regions: [TerrainRegion!]!
+}
+
+type BallState {
+    position: Position!
+    lie: String!
+}
+
+type ShotContact {
+    position: Position!
+    surface: String!
+}
+
+type ShotSettlement {
+    contact: ShotContact!
+    recoveryPosition: Position
+    recoveryKind: String!
+    ball: BallState!
 }
 
 type ShotSituation {
@@ -702,6 +740,7 @@ type ShotOutcome {
     hazardEntered: Boolean!
     penaltyStrokes: Int!
     strokes: Int!
+    settlement: ShotSettlement
 }
 
 "A player's shot decision. club and strategy are engine enum names (Club / Strategy)."

@@ -548,6 +548,7 @@ class WorldGraphQlApiTest {
         graphQlTester.document("""
                         query($id: ID!){
                           currentSituation(id: $id){ holeNumber }
+                          playingHole(id: $id){ holeNumber }
                           eventLeaderboard(id: $id){ position }
                           playerMadeCut(id: $id)
                           playerPressure(id: $id)
@@ -555,6 +556,7 @@ class WorldGraphQlApiTest {
                         """)
                 .variable("id", id).execute()
                 .path("currentSituation").valueIsNull()
+                .path("playingHole").valueIsNull()
                 .path("eventLeaderboard").entityList(Object.class).hasSize(0)
                 .path("playerMadeCut").valueIsNull()
                 .path("playerPressure").valueIsNull();
