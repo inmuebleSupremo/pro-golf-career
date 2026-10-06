@@ -9,6 +9,7 @@ import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotContext;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotFrame;
+import com.progolf.sim.shot.ShotAim;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.ShotResolver;
 import com.progolf.sim.shot.SimConstants;
@@ -98,8 +99,7 @@ public final class PlayableHole {
         ShotContext context = ball == null
                 ? new ShotContext(attributes, state, environment, remaining, model.zoneProfileFor(remaining), decision,
                 coordinate.withShot(shotNumber), lie, model.pinLateral())
-                : new ShotContext(attributes, state, environment, remaining, model.zoneProfileFor(remaining), decision,
-                coordinate.withShot(shotNumber), lie, localPinLateral(), ball, model.geometry(), model.cupPosition());
+                : spatialContext(decision);
         ShotOutcome outcome = ShotResolver.resolveShot(context);
 
         strokes += outcome.strokes();
@@ -146,13 +146,15 @@ public final class PlayableHole {
     }
 
     private ShotDecision simDecision() {
-        return simPolicy.decide(remaining, lie, ball == null ? model.pinLateral() : localPinLateral(), attributes, par);
+        if (ball == null) return simPolicy.decide(remaining, lie, model.pinLateral(), attributes, par);
+        ShotAim.Reference aim = ShotAim.forBall(model, ball, simPolicy.strategy());
+        return simPolicy.decide(remaining, lie, aim.pinLateral(), attributes, par);
     }
 
-    private double localPinLateral() {
-        ShotFrame frame = ShotFrame.towardGreenCentreReference(ball.position(), model.geometry().greenCenter(),
-                model.cupPosition());
-        return frame.lateralTo(model.cupPosition());
+    private ShotContext spatialContext(ShotDecision decision) {
+        ShotAim.Reference aim = ShotAim.forBall(model, ball, decision.strategy());
+        return new ShotContext(attributes, state, environment, remaining, model.zoneProfileFor(remaining), decision,
+                coordinate.withShot(shotNumber), lie, aim.pinLateral(), ball, model.geometry(), model.cupPosition(), aim.target());
     }
 
     private void requireNotComplete() {

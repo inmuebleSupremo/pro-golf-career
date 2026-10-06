@@ -250,7 +250,7 @@ public final class ShotResolver {
         Position2d cup = context.cupPosition();
         ShotFrame frame = raw.putt()
                 ? ShotFrame.toward(origin, cup)
-                : ShotFrame.towardGreenCentreReference(origin, context.geometry().greenCenter(), cup);
+                : ShotFrame.toward(origin, context.aimTarget());
         Position2d contactPosition = frame.project(raw.carry(), raw.lateral());
         Surface contactSurface = context.geometry().surfaceAt(contactPosition);
         ShotContact contact = new ShotContact(contactPosition, contactSurface);

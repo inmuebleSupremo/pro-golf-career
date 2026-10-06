@@ -84,12 +84,14 @@ public final class RoundResolver {
     private static ShotContext spatialContext(HoleModel hole, Attributes attributes, GolferState state,
                                               Environment environment, StrategyPolicy policy, double remainingDistance,
                                               Surface lie, SeedCoordinate holeCoordinate, int shotNo, BallState ball) {
-        ShotFrame frame = ShotFrame.towardGreenCentreReference(ball.position(), hole.geometry().greenCenter(),
-                hole.cupPosition());
-        double localPinLateral = frame.lateralTo(hole.cupPosition());
-        ShotDecision decision = policy.decide(remainingDistance, lie, localPinLateral, attributes, hole.par());
+        ShotAim.Reference aim = ShotAim.forBall(hole, ball, policy.strategy());
+        // The route target chooses the direction, while the existing club-only policy still chooses a normal
+        // advancing carry from distance-to-pin. Treating a semantic zone centre as a mandatory short club
+        // would add artificial shots until explicit Target/Aim controls exist.
+        ShotDecision decision = policy.decide(remainingDistance, lie, aim.pinLateral(), attributes, hole.par());
         return new ShotContext(attributes, state, environment, remainingDistance, hole.zoneProfileFor(remainingDistance),
-                decision, holeCoordinate.withShot(shotNo), lie, localPinLateral, ball, hole.geometry(), hole.cupPosition());
+                decision, holeCoordinate.withShot(shotNo), lie, aim.pinLateral(), ball, hole.geometry(), hole.cupPosition(),
+                aim.target());
     }
 
     /**

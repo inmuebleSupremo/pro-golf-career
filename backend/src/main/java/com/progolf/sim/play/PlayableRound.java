@@ -9,6 +9,7 @@ import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotContext;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotFrame;
+import com.progolf.sim.shot.ShotAim;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.ShotResolver;
 import com.progolf.sim.shot.ShotStatLine;
@@ -125,7 +126,8 @@ public final class PlayableRound {
     private ShotDecision simDecision() {
         HoleToPlay hole = holes.get(holeIndex);
         if (ball != null && hole.model().geometry() != null) {
-            return simPolicy.decide(remaining, lie, localPinLateral(hole), attributes, hole.par());
+            ShotAim.Reference aim = ShotAim.forBall(hole.model(), ball, simPolicy.strategy());
+            return simPolicy.decide(remaining, lie, aim.pinLateral(), attributes, hole.par());
         }
         return simPolicy.decide(remaining, lie, hole.model().pinLateral(), attributes, hole.par());
     }
@@ -240,14 +242,9 @@ public final class PlayableRound {
             return new ShotContext(attributes, state, hole.environment(), remaining, hole.model().zoneProfileFor(remaining),
                     decision, coord, lie, hole.model().pinLateral());
         }
+        ShotAim.Reference aim = ShotAim.forBall(hole.model(), ball, decision.strategy());
         return new ShotContext(attributes, state, hole.environment(), remaining, hole.model().zoneProfileFor(remaining),
-                decision, coord, lie, localPinLateral(hole), ball, hole.model().geometry(), hole.model().cupPosition());
-    }
-
-    private double localPinLateral(HoleToPlay hole) {
-        ShotFrame frame = ShotFrame.towardGreenCentreReference(ball.position(), hole.model().geometry().greenCenter(),
-                hole.model().cupPosition());
-        return frame.lateralTo(hole.model().cupPosition());
+                decision, coord, lie, aim.pinLateral(), ball, hole.model().geometry(), hole.model().cupPosition(), aim.target());
     }
 
     private static BallState initialBall(HoleToPlay hole) {

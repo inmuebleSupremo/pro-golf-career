@@ -1,6 +1,7 @@
 package com.progolf.sim.course;
 
 import com.progolf.sim.shot.HoleModel;
+import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.spatial.ShotZoneProfile;
 import java.util.Objects;
 
@@ -67,5 +68,10 @@ public final class RoundHole implements HoleModel {
     public Position2d cupPosition() {
         return new Position2d(geometry.greenCenter().x() + pin.lateralOffset(),
                 geometry.greenCenter().y() + pin.depthOffset());
+    }
+
+    @Override
+    public Position2d progressionTarget(Position2d ball, Strategy strategy) {
+        return hole.progressionTarget(ball, strategy, setup.widthScale());
     }
 }

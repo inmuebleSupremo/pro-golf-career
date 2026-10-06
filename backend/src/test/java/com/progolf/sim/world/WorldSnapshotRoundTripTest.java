@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.control.GoalType;
 import com.progolf.sim.core.Attribute;
+import com.progolf.sim.course.CourseGenConstants;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -34,6 +35,17 @@ class WorldSnapshotRoundTripTest {
         original.advanceSeason();
         restored.advanceSeason();
         assertThat(restored.snapshot()).as("restore-then-advance equals advance").isEqualTo(original.snapshot());
+    }
+
+    @Test
+    void newWorldAndItsSnapshotPinV3ForDeterministicRegeneration() {
+        World original = World.create(303L, small());
+        assertThat(original.courseGeneratorVersion()).isEqualTo(CourseGenConstants.V3_GENERATOR_VERSION);
+        assertThat(original.snapshot().courseGeneratorVersion()).isEqualTo(CourseGenConstants.V3_GENERATOR_VERSION);
+
+        World restored = World.restore(303L, small(), original.snapshot());
+        assertThat(restored.courseGeneratorVersion()).isEqualTo(CourseGenConstants.V3_GENERATOR_VERSION);
+        assertThat(restored.snapshot()).isEqualTo(original.snapshot());
     }
 
     @Test

@@ -23,7 +23,8 @@ public record GeneratedHole(
         boolean hasTrees,
         double elevationDelta,
         long holeSeed,
-        CourseGeometry geometry) {
+        CourseGeometry geometry,
+        HoleSpatialPlan spatialPlan) {
 
     /** Cached immutable setup variants, shared by every competitor using the same generated hole. */
     private static final Map<GeometryVariantKey, CourseGeometry> SETUP_GEOMETRIES = new ConcurrentHashMap<>();
@@ -49,7 +50,7 @@ public record GeneratedHole(
                          double greenDepth, boolean hasGreensideBunker, boolean hasWater, boolean hasTrees,
                          double elevationDelta, long holeSeed) {
         this(number, par, length, fairwayHalfWidth, greenHalfWidth, greenDepth, hasGreensideBunker, hasWater,
-                hasTrees, elevationDelta, holeSeed, null);
+                hasTrees, elevationDelta, holeSeed, null, null);
     }
 
     /** Deterministically derives the active pin for {@code round} under the neutral setup (REQ-076). */
@@ -98,11 +99,34 @@ public record GeneratedHole(
         if (widthScale == 1.0) {
             return geometry;
         }
+        if (spatialPlan != null) {
+            return geometry.withLateralScale(widthScale);
+        }
         GeometryVariantKey key = new GeometryVariantKey(holeSeed, length, fairwayHalfWidth, greenHalfWidth,
                 greenDepth, hasGreensideBunker, hasWater, hasTrees, widthScale);
         return SETUP_GEOMETRIES.computeIfAbsent(key, ignored -> CanonicalGeometryGenerator.generate(length,
                 fairwayHalfWidth * widthScale, greenHalfWidth * widthScale, greenDepth, hasGreensideBunker,
                 hasWater, hasTrees, holeSeed));
+    }
+
+    /** V3 progression target under the round's effective lateral setup; null keeps legacy green-centre behavior. */
+    Position2d progressionTarget(Position2d ball, com.progolf.sim.shot.Strategy strategy, double widthScale) {
+        if (spatialPlan == null) return null;
+        return spatialPlan.withLateralScale(widthScale).progressionTarget(ball, strategy);
+    }
+
+    /**
+     * Retains the historical record rendering for V1/V2 fingerprints. V3 intentionally includes its semantic
+     * plan so diagnostics can inspect it, but null legacy plans do not perturb the previously locked corpus.
+     */
+    @Override
+    public String toString() {
+        String legacy = "GeneratedHole[number=" + number + ", par=" + par + ", length=" + length
+                + ", fairwayHalfWidth=" + fairwayHalfWidth + ", greenHalfWidth=" + greenHalfWidth
+                + ", greenDepth=" + greenDepth + ", hasGreensideBunker=" + hasGreensideBunker + ", hasWater="
+                + hasWater + ", hasTrees=" + hasTrees + ", elevationDelta=" + elevationDelta + ", holeSeed="
+                + holeSeed + ", geometry=" + geometry;
+        return spatialPlan == null ? legacy + "]" : legacy + ", spatialPlan=" + spatialPlan + "]";
     }
 
     private record GeometryVariantKey(long holeSeed, double length, double fairwayHalfWidth, double greenHalfWidth,

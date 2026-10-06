@@ -25,6 +25,11 @@ public final class StrategyPolicy {
         this.strategy = strategy;
     }
 
+    /** Strategy used by this compatibility policy; route semantics remain independent of it. */
+    public Strategy strategy() {
+        return strategy;
+    }
+
     /** Chooses a club and centre-aimed target from a clean tee-box lie at a centre pin (convenience). */
     public ShotDecision decide(double remainingDistance) {
         return decide(remainingDistance, Surface.TEE_BOX, 0.0, NEUTRAL, 4);

@@ -42,4 +42,12 @@ public interface HoleModel {
     default Position2d cupPosition() {
         return null;
     }
+
+    /**
+     * Internal compatibility aim reference for a generated spatial hole. Legacy holes return {@code null},
+     * which preserves the green-centre frame. This is not a player-facing free-aim control.
+     */
+    default Position2d progressionTarget(Position2d ball, Strategy strategy) {
+        return null;
+    }
 }

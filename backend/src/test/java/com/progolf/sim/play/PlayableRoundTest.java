@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.course.Course;
+import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.shot.Club;
@@ -30,6 +31,11 @@ class PlayableRoundTest {
 
     private static Course course() {
         return CourseGenerator.generate(new SeedCoordinate(WORLD, 1, 1, 0, 0, 0, 0), EnvironmentClassification.PARKLAND);
+    }
+
+    private static Course v3Course() {
+        return CourseGenerator.generate(new SeedCoordinate(WORLD, 1, 101, 0, 0, 0, 0), EnvironmentClassification.PARKLAND,
+                CourseGenConstants.V3_GENERATOR_VERSION);
     }
 
     private static List<HoleToPlay> holesOf(Course course) {
@@ -100,6 +106,27 @@ class PlayableRoundTest {
         b.simRound();
         assertThat(a.totalStrokes()).isEqualTo(b.totalStrokes());
         assertThat(a.holeScores()).isEqualTo(b.holeScores());
+    }
+
+    @Test
+    void v3SimmedRoundMatchesAutomaticRouteProgressionAndManualShotRemainsPlayable() {
+        Course course = v3Course();
+        int automaticTotal = 0;
+        for (int hole = 1; hole <= 18; hole++) {
+            automaticTotal += RoundResolver.resolveHole(course.holeModel(hole, ROUND), Attributes.uniform(55),
+                    GolferState.fresh(), Environment.calm(), Strategy.BALANCED,
+                    new SeedCoordinate(WORLD, SEASON, TOURN, ROUND, FIELD_INDEX, hole, 0)).totalStrokes();
+        }
+        PlayableRound simulated = round(course);
+        simulated.simRound();
+        assertThat(simulated.totalStrokes()).isEqualTo(automaticTotal);
+
+        PlayableRound manual = round(course);
+        ShotSituation situation = manual.situation();
+        ShotOutcome outcome = manual.playShot(ShotDecision.straight(Club.DRIVER,
+                Math.min(situation.distanceToPin(), Club.DRIVER.baseDistance()), Strategy.BALANCED));
+        assertThat(outcome.settlement()).isNotNull();
+        assertThat(manual.ballState().lie()).isNotEqualTo(Surface.OUT_OF_BOUNDS);
     }
 
     @Test
