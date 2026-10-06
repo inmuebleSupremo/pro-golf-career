@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { gqlRequest } from "@/lib/api/graphql-client";
 import {
+  AcknowledgeStaffReviewDocument,
+  AcknowledgeScheduleReviewDocument,
   AcceptEquipmentDealDocument,
   AcceptSponsorshipDocument,
   BuyEquipmentDocument,
@@ -40,7 +42,28 @@ function useInvalidateManage(id: string) {
     queryClient.invalidateQueries({ queryKey: ["schedule", id] });
     queryClient.invalidateQueries({ queryKey: ["calendar", id] });
     queryClient.invalidateQueries({ queryKey: ["career", id] });
+    queryClient.invalidateQueries({ queryKey: ["inbox", id] });
   };
+}
+
+/** The Schedule page records a completed preseason review when it is left; this is not a generic Inbox action. */
+export function useAcknowledgeScheduleReview(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => gqlRequest(AcknowledgeScheduleReviewDocument, { id }),
+    networkMode: "always",
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["inbox", id] }),
+  });
+}
+
+/** The Staff landing acknowledges an optional candidate review; it is not a generic Inbox action. */
+export function useAcknowledgeStaffReview(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => gqlRequest(AcknowledgeStaffReviewDocument, { id }),
+    networkMode: "always",
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["inbox", id] }),
+  });
 }
 
 export function useSkipEvent(id: string) {
@@ -99,6 +122,7 @@ export function useSpendDevelopmentPoints(id: string) {
       queryClient.invalidateQueries({ queryKey: ["development", id] });
       queryClient.invalidateQueries({ queryKey: ["profile", id] });
       queryClient.invalidateQueries({ queryKey: ["development-report", id] });
+      queryClient.invalidateQueries({ queryKey: ["inbox", id] });
     },
   });
 }
@@ -119,6 +143,7 @@ function useInvalidateEquipment(id: string) {
   return () => {
     queryClient.invalidateQueries({ queryKey: ["equipment", id] });
     queryClient.invalidateQueries({ queryKey: ["profile", id] });
+    queryClient.invalidateQueries({ queryKey: ["inbox", id] });
   };
 }
 
@@ -178,6 +203,7 @@ function useInvalidateStaff(id: string) {
     queryClient.invalidateQueries({ queryKey: ["staff", id] });
     queryClient.invalidateQueries({ queryKey: ["roster", id] });
     queryClient.invalidateQueries({ queryKey: ["profile", id] });
+    queryClient.invalidateQueries({ queryKey: ["inbox", id] });
   };
 }
 
@@ -229,6 +255,7 @@ export function useAcceptSponsorship(id: string) {
       queryClient.invalidateQueries({ queryKey: ["sponsorships", id] });
       queryClient.invalidateQueries({ queryKey: ["sponsorship-status", id] });
       queryClient.invalidateQueries({ queryKey: ["profile", id] });
+      queryClient.invalidateQueries({ queryKey: ["inbox", id] });
     },
   });
 }

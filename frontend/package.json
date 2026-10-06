@@ -12,6 +12,7 @@
     "prebuild": "graphql-codegen --config codegen.ts",
     "pretypecheck": "graphql-codegen --config codegen.ts",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -47,6 +48,7 @@
     "prettier": "^3.9.5",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.3"
   }
 }

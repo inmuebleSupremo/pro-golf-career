@@ -10,8 +10,9 @@ package com.progolf.app.api.dto;
  * a back pin plays longer). {@code courseType} is the event's canonical scene token — the same token the scene
  * backdrop uses — which the client maps to a biome style, so the hole illustration always agrees with the
  * event's name, place, and photo. {@code layoutSeed} is the hole's stable
- * seed as a string (to survive JS 64-bit limits), from which the client synthesizes reproducible cosmetic
- * placement (hazard flanks, dogleg, vegetation).
+ * seed as a string (to survive JS 64-bit limits), from which the client may synthesize reproducible cosmetic
+ * decoration only. Gameplay terrain — including hazards, fairway shape, and green/fringe — comes exclusively
+ * from {@code geometry}.
  */
 public record PlayingHoleDto(
         int holeNumber,
@@ -27,5 +28,7 @@ public record PlayingHoleDto(
         double pinLateral,
         double pinDepth,
         String courseType,
-        String layoutSeed) {
+        String layoutSeed,
+        PlayingGeometryDto geometry,
+        BallStateDto ball) {
 }

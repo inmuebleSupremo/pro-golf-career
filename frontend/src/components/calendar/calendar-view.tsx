@@ -1,16 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { SpokeEmpty, useSpokeGate } from "@/components/career/spoke";
 import { SeasonCalendar, type CalendarEntry } from "@/components/calendar/season-calendar";
 import { useCareerOverview, usePlayerCalendar, usePlayerFitness } from "@/lib/api/queries";
-import { useSetResting } from "@/lib/api/manage";
+import { useAcknowledgeScheduleReview, useSetResting } from "@/lib/api/manage";
 
 export function CalendarView({ id }: { id: string }) {
   const query = usePlayerCalendar(id);
   const world = useCareerOverview(id).data?.world ?? null;
+  const { mutate: acknowledgeScheduleReview } = useAcknowledgeScheduleReview(id);
+  const leaveTimer = useRef<number | null>(null);
+
+  // A short delay cancels React Strict Mode's development-only setup/cleanup probe. The real route unmount
+  // then records that the player had the chance to review the authoritative Schedule screen.
+  useEffect(() => {
+    if (leaveTimer.current != null) {
+      window.clearTimeout(leaveTimer.current);
+      leaveTimer.current = null;
+    }
+    if (!query.isSuccess) return;
+    return () => {
+      leaveTimer.current = window.setTimeout(() => acknowledgeScheduleReview(), 0);
+    };
+  }, [acknowledgeScheduleReview, query.isSuccess]);
+
   const gate = useSpokeGate(query);
   if (gate) return gate;
 

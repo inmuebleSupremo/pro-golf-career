@@ -76,7 +76,8 @@ public record WorldSnapshot(
         List<EquipmentDeal> playerPendingEquipmentDeals,
         Map<Achievement, Integer> unlockedAchievements,
         Set<Integer> majorsWonThisSeason,
-        CareerRecordBook.Snapshot playerCareerRecords) {
+        CareerRecordBook.Snapshot playerCareerRecords,
+        Integer courseGeneratorVersion) {
 
     /** An archived season captured by id (its schedule is immutable; its results re-link on restore). */
     public record ArchiveSnapshot(int season, List<ScheduledTournament> schedule,

@@ -2,8 +2,10 @@ package com.progolf.app.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.progolf.app.api.dto.PositionDto;
 import com.progolf.app.world.WorldService;
 import com.progolf.app.world.WorldSession;
+import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.world.WorldConfig;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -130,6 +132,72 @@ class WorldGraphQlMutationsTest {
         graphQlTester.document("mutation($id: ID!){ completeEvent(id: $id){ hasPendingEvent } }")
                 .variable("id", session.id()).execute()
                 .path("completeEvent.hasPendingEvent").entity(Boolean.class).isEqualTo(false);
+    }
+
+    @Test
+    void canonicalPlayingHoleAndShotSettlementAreExposedOverGraphQl() {
+        WorldSession session = worldService.create(OWNER, 2026L, SMALL);
+        String golferId = session.world().activeGolferIds().get(0);
+        worldService.assignPlayer(OWNER, session.id(), golferId);
+
+        int guard = 0;
+        while (!worldService.hasPendingEvent(OWNER, session.id()) && guard++ < 60) {
+            worldService.advanceWeek(OWNER, session.id());
+        }
+        assertThat(worldService.hasPendingEvent(OWNER, session.id())).isTrue();
+
+        var event = session.world().playerEvent();
+        CourseGeometry currentEffectiveGeometry = event.currentEffectiveGeometry();
+        CourseGeometry prefetchedEffectiveGeometry = event.effectiveGeometry(2);
+        assertThat(currentEffectiveGeometry).isNotEqualTo(event.currentHole().geometry());
+        assertThat(prefetchedEffectiveGeometry).isNotEqualTo(event.holeGeometry(2).geometry());
+
+        var response = graphQlTester.document("""
+                        query($id: ID!){
+                          current: playingHole(id: $id){
+                            geometry { tee { x y } cup { x y } playableBoundary { x y } regions { surface boundary { x y } } }
+                            ball { position { x y } lie }
+                          }
+                          prefetched: playingHole(id: $id, hole: 2){
+                            geometry { playableBoundary { x y } regions { surface boundary { x y } } }
+                          }
+                        }
+                        """)
+                .variable("id", session.id()).execute();
+        response.path("current.geometry.playableBoundary").entityList(Object.class).satisfies(points ->
+                        assertThat(points).hasSizeGreaterThanOrEqualTo(3))
+                .path("current.geometry.regions").entityList(Object.class).satisfies(regions ->
+                        assertThat(regions).isNotEmpty())
+                .path("current.ball.lie").entity(String.class).isEqualTo("TEE_BOX")
+                .path("current.geometry.playableBoundary").entityList(PositionDto.class)
+                .satisfies(points -> assertThat(points).containsExactlyElementsOf(points(currentEffectiveGeometry)))
+                .path("prefetched.geometry.playableBoundary").entityList(PositionDto.class)
+                .satisfies(points -> assertThat(points).containsExactlyElementsOf(points(prefetchedEffectiveGeometry)));
+
+        double distance = worldService.currentSituation(OWNER, session.id()).distanceToPin();
+        graphQlTester.document("""
+                        mutation($id: ID!, $distance: Float!){
+                          playShot(id: $id, decision: {club: "DRIVER", targetDistance: $distance, strategy: "BALANCED"}){
+                            settlement {
+                              contact { position { x y } surface }
+                              recoveryPosition { x y }
+                              recoveryKind
+                              ball { position { x y } lie }
+                            }
+                          }
+                        }
+                        """)
+                .variable("id", session.id()).variable("distance", distance).execute()
+                .path("playShot.settlement.contact.surface").entity(String.class).satisfies(surface ->
+                        assertThat(surface).isNotBlank())
+                .path("playShot.settlement.recoveryKind").entity(String.class).satisfies(kind ->
+                        assertThat(kind).isNotBlank())
+                .path("playShot.settlement.ball.lie").entity(String.class).satisfies(lie ->
+                        assertThat(lie).isNotBlank());
+    }
+
+    private static List<PositionDto> points(CourseGeometry geometry) {
+        return geometry.playableBoundary().stream().map(point -> new PositionDto(point.x(), point.y())).toList();
     }
 
     @Test

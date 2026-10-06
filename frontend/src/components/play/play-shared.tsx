@@ -24,6 +24,12 @@ export type Outcome = {
   hazardEntered: boolean;
   penaltyStrokes: number;
   strokes: number;
+  settlement?: {
+    contact: { position: { x: number; y: number }; surface: string };
+    recoveryPosition?: { x: number; y: number } | null;
+    recoveryKind: string;
+    ball: { position: { x: number; y: number }; lie: string };
+  } | null;
 };
 
 export type LeaderboardRow = {

@@ -1,14 +1,14 @@
 # Run the whole game locally for E2E:  docker compose up --build
 # Frontend → http://localhost:3000   Backend → http://localhost:8080
-# Override the JWT secret via a root .env file (PROGOLF_JWT_SECRET=...) for anything real.
+# Set PROGOLF_JWT_SECRET in a root .env file before starting Compose.
 
 services:
   backend:
     build:
       context: ./backend
     environment:
-      # HS256 needs >= 32 chars. The default is a dev-only secret — override it.
-      PROGOLF_JWT_SECRET: ${PROGOLF_JWT_SECRET:-dev-only-insecure-secret-change-me-0123456789abcdef}
+      # HS256 needs >= 32 chars. Compose fails clearly if it is absent or empty.
+      PROGOLF_JWT_SECRET: "${PROGOLF_JWT_SECRET:?Set PROGOLF_JWT_SECRET in .env}"
       PROGOLF_USERS_DIR: /data/users
       PROGOLF_SAVES_DIR: /data/saves
     ports:

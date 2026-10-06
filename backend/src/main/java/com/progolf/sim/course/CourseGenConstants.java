@@ -10,8 +10,17 @@ public final class CourseGenConstants {
     private CourseGenConstants() {
     }
 
-    /** The current generator algorithm version. Reproducibility is defined as (seed + version). */
-    public static final int GENERATOR_VERSION = 1;
+    /** Retained historical generator. Reproducibility is defined as (seed + version). */
+    public static final int V1_GENERATOR_VERSION = 1;
+    /** First design-aware generator. */
+    public static final int V2_GENERATOR_VERSION = 2;
+    /** First route-, landing-zone-, and green-complex-aware generator. */
+    public static final int V3_GENERATOR_VERSION = 3;
+    /** Generator selected only when a new world is created. Restore always uses its persisted pin. */
+    public static final int CURRENT_GENERATOR_VERSION = V3_GENERATOR_VERSION;
+    /** @deprecated Use an explicit retained generator version. */
+    @Deprecated(forRemoval = false)
+    public static final int GENERATOR_VERSION = V1_GENERATOR_VERSION;
 
     // --- Par distribution (sums to par 72 over 18 holes) ---
     public static final int PAR3_COUNT = 4;

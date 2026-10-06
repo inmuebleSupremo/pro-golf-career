@@ -120,6 +120,18 @@ export const CareerOverviewDocument = graphql(`
   }
 `);
 
+/** Current, aggregated career attention. Individual management spokes remain the decision owners. */
+export const CareerInboxDocument = graphql(`
+  query CareerInbox($id: ID!) {
+    careerInbox(id: $id) {
+      items {
+        kind
+        count
+      }
+    }
+  }
+`);
+
 /**
  * A completed season's off-season review — the end-of-season moment. `season` omitted reviews the most
  * recently completed season; null when none has completed yet. The headlines include the player's own
@@ -431,6 +443,20 @@ export const SetRestingDocument = graphql(`
   }
 `);
 
+/** Records the current season's Schedule review without changing any event entry or rest decision. */
+export const AcknowledgeScheduleReviewDocument = graphql(`
+  mutation AcknowledgeScheduleReview($id: ID!) {
+    acknowledgeScheduleReview(id: $id)
+  }
+`);
+
+/** Records this season's optional Staff review without changing candidates or staffing decisions. */
+export const AcknowledgeStaffReviewDocument = graphql(`
+  mutation AcknowledgeStaffReview($id: ID!) {
+    acknowledgeStaffReview(id: $id)
+  }
+`);
+
 /** Sets the player's development focus — an ordered list of Attribute enum names. */
 export const SetDevelopmentFocusDocument = graphql(`
   mutation SetDevelopmentFocus($id: ID!, $focus: [String!]!) {
@@ -706,6 +732,13 @@ export const PlayingHoleDocument = graphql(`
       pinDepth
       courseType
       layoutSeed
+      geometry {
+        tee { x y }
+        cup { x y }
+        playableBoundary { x y }
+        regions { surface boundary { x y } }
+      }
+      ball { position { x y } lie }
     }
   }
 `);
@@ -721,6 +754,12 @@ export const PlayShotDocument = graphql(`
       hazardEntered
       penaltyStrokes
       strokes
+      settlement {
+        contact { position { x y } surface }
+        recoveryPosition { x y }
+        recoveryKind
+        ball { position { x y } lie }
+      }
     }
   }
 `);
@@ -736,6 +775,12 @@ export const SimShotDocument = graphql(`
       hazardEntered
       penaltyStrokes
       strokes
+      settlement {
+        contact { position { x y } surface }
+        recoveryPosition { x y }
+        recoveryKind
+        ball { position { x y } lie }
+      }
     }
   }
 `);

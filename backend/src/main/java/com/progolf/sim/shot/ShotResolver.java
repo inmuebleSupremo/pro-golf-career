@@ -4,6 +4,7 @@ import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.Rng;
 import com.progolf.sim.core.RngFactory;
+import com.progolf.sim.course.Position2d;
 import com.progolf.sim.spatial.Surface;
 import java.util.Objects;
 
@@ -49,7 +50,8 @@ public final class ShotResolver {
         // the ball rolls on the green, sheltered from wind and lie penalties, holing out near-certainly
         // from tap-in range (spec: shot-resolution putting). This is keyed on the lie (not the club) so it
         // covers long first putts too, which a distance-based club choice would clip to a full shot.
-        if (context.lie() == Surface.GREEN) {
+        if (context.lie() == Surface.GREEN
+                || (context.hasCanonicalGeometry() && context.lie() == Surface.FRINGE && context.pinDistance() <= 10.0)) {
             return resolvePutt(context, rng);
         }
 
@@ -177,7 +179,8 @@ public final class ShotResolver {
                 strategyMult - 1.0,                                         // strategy: >0 when aggressive
                 -(Math.abs(gLateral) + Math.abs(gDistance)) / 2.0 + 0.8);   // luck: >0 when better than expected
 
-        return new ShotOutcome(surface, carry, lateral, distanceRemaining, hazard, penalty, strokes, factors);
+        return spatialize(context,
+                new ShotOutcome(surface, carry, lateral, distanceRemaining, hazard, penalty, strokes, factors));
     }
 
     /**
@@ -232,7 +235,68 @@ public final class ShotResolver {
         double skill = (accNorm + proxNorm) / 2.0 - 0.5;
         FactorBreakdown factors = new FactorBreakdown(skill, 0.0, 0.0, made ? 0.5 : -0.5);
         // A putt stays on the green; carry/lateral are nominal (the round loop reads distanceRemaining).
-        return new ShotOutcome(Surface.GREEN, d - remainingAfter, 0.0, remainingAfter, false, 0, 1, factors);
+        return spatialize(context,
+                new ShotOutcome(Surface.GREEN, d - remainingAfter, 0.0, remainingAfter, false, 0, 1, factors,
+                        null, true));
+    }
+
+    /** Applies canonical contact/surface/recovery after the legacy sampler has produced carry and lateral. */
+    private static ShotOutcome spatialize(ShotContext context, ShotOutcome raw) {
+        if (!context.hasCanonicalGeometry()) {
+            return raw;
+        }
+        BallState preShot = context.ball();
+        Position2d origin = preShot.position();
+        Position2d cup = context.cupPosition();
+        ShotFrame frame = raw.putt()
+                ? ShotFrame.toward(origin, cup)
+                : ShotFrame.toward(origin, context.aimTarget());
+        Position2d contactPosition = frame.project(raw.carry(), raw.lateral());
+        Surface contactSurface = context.geometry().surfaceAt(contactPosition);
+        ShotContact contact = new ShotContact(contactPosition, contactSurface);
+        ShotSettlement settlement;
+        if (contactSurface == Surface.WATER) {
+            Position2d drop = waterDrop(context, contactPosition);
+            if (drop == null) {
+                settlement = new ShotSettlement(contact, preShot.position(), RecoveryKind.STROKE_AND_DISTANCE_FALLBACK,
+                        preShot);
+            } else {
+                settlement = new ShotSettlement(contact, drop, RecoveryKind.WATER_DROP,
+                        new BallState(drop, Surface.PRIMARY_ROUGH));
+            }
+        } else if (contactSurface == Surface.OUT_OF_BOUNDS) {
+            settlement = new ShotSettlement(contact, preShot.position(), RecoveryKind.OUT_OF_BOUNDS_REPLAY, preShot);
+        } else {
+            settlement = new ShotSettlement(contact, null, RecoveryKind.NONE,
+                    new BallState(contactPosition, contactSurface));
+        }
+        BallState playable = settlement.ball();
+        return new ShotOutcome(contactSurface, raw.carry(), raw.lateral(), playable.position().distanceTo(cup),
+                contactSurface.isHazard(), contactSurface.penaltyStrokes(), 1 + contactSurface.penaltyStrokes(),
+                raw.factors(), settlement, raw.putt());
+    }
+
+    /** Implements the specified tee-ward 15-yard start and 1-yard deterministic rough scan. */
+    private static Position2d waterDrop(ShotContext context, Position2d contact) {
+        Position2d pre = context.ball().position();
+        Position2d cup = context.cupPosition();
+        double dx = pre.x() - contact.x();
+        double dy = pre.y() - contact.y();
+        double distance = StrictMath.hypot(dx, dy);
+        if (distance < SimConstants.WATER_DROP_SETBACK) {
+            return null;
+        }
+        double ux = dx / distance;
+        double uy = dy / distance;
+        double preDistance = pre.distanceTo(cup);
+        for (double setback = SimConstants.WATER_DROP_SETBACK; setback <= distance; setback += 1.0) {
+            Position2d candidate = contact.plus(ux * setback, uy * setback);
+            if (context.geometry().surfaceAt(candidate) == Surface.PRIMARY_ROUGH
+                    && candidate.distanceTo(cup) <= preDistance) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
 

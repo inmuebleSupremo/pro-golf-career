@@ -18,6 +18,7 @@ import {
   type Point,
   type ResolvedShot,
 } from "@/lib/play/hole-geometry";
+import { CanonicalHole2d } from "@/components/play/canonical-hole-2d";
 
 /** A landing reaction's ring colour per surface effect. */
 const REACTION_COLOR: Record<"splash" | "sand" | "roll", string> = {
@@ -69,12 +70,17 @@ function Prim({ p }: { p: SvgPrim }) {
 const CANOPY = new Set<Vegetation>(["deciduous", "pine", "palm", "birch", "saguaro"]);
 
 /**
- * The parametric 2D hole schematic (spec: web-hole-visualization): draws a hole purely from its sim geometry
- * and biome kit — rough corridor, striped fairway, green, tee, seed-placed hazards and vegetation, and the pin
- * on its real side — with an optional truthful reach overlay and resolved-ball marker. Illustration colours
+ * The legacy parametric 2D hole schematic. `CanonicalHole2d` is selected whenever API geometry is available and
+ * draws gameplay terrain from its canonical regions; this component remains only for the migration fallback and
+ * decorative biome treatment. Illustration colours
  * come from the biome kit; the surrounding chrome uses the app's tokens.
  */
-export function Hole2d({ hole, ball, profile, className }: Hole2dProps) {
+export function Hole2d(props: Hole2dProps) {
+  if (props.hole.geometry) return <CanonicalHole2d {...props} />;
+  return <LegacyHole2d {...props} />;
+}
+
+function LegacyHole2d({ hole, ball, profile, className }: Hole2dProps) {
   const kit = BIOME_KITS[resolveBiome(hole.courseType)];
   const layout: HoleLayout = useMemo(() => projectHole(hole, kit), [hole, kit]);
 

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.control.GoalType;
 import com.progolf.sim.core.Attribute;
+import com.progolf.sim.course.CourseGenConstants;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -37,6 +38,17 @@ class WorldSnapshotRoundTripTest {
     }
 
     @Test
+    void newWorldAndItsSnapshotPinV3ForDeterministicRegeneration() {
+        World original = World.create(303L, small());
+        assertThat(original.courseGeneratorVersion()).isEqualTo(CourseGenConstants.V3_GENERATOR_VERSION);
+        assertThat(original.snapshot().courseGeneratorVersion()).isEqualTo(CourseGenConstants.V3_GENERATOR_VERSION);
+
+        World restored = World.restore(303L, small(), original.snapshot());
+        assertThat(restored.courseGeneratorVersion()).isEqualTo(CourseGenConstants.V3_GENERATOR_VERSION);
+        assertThat(restored.snapshot()).isEqualTo(original.snapshot());
+    }
+
+    @Test
     void restoreThenAdvanceEqualsAdvance_acrossSeasons() {
         World original = World.create(7L, small());
         original.advanceSeason();
@@ -63,7 +75,7 @@ class WorldSnapshotRoundTripTest {
     }
 
     @Test
-    void snapshotIsRejectedWhileAPlayerEventIsPending() {
+    void snapshotRejectsPendingEventRatherThanSilentlyDroppingBallState() {
         World world = World.create(3L, small());
         String id = world.activeGolferIds().get(0);
         world.assignPlayer(id);
@@ -72,7 +84,9 @@ class WorldSnapshotRoundTripTest {
             world.advanceWeek();
         }
         assertThat(world.hasPendingPlayerEvent()).isTrue();
-        assertThatThrownBy(world::snapshot).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(world::snapshot)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Cannot snapshot while a player event is pending");
     }
 
     @Test

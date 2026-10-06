@@ -7,7 +7,9 @@ import com.progolf.sim.control.GoalType;
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
+import com.progolf.sim.progression.DevelopmentPoints;
 import com.progolf.sim.world.WorldConfig;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -103,6 +105,7 @@ class WorldGraphQlApiTest {
         graphQlTester.document("""
                         query($id: ID!){
                           playerSchedule(id: $id){ tournamentId }
+                          careerInbox(id: $id){ items { kind count } }
                           careerGoals(id: $id){ type }
                           pendingSponsorships(id: $id){ sponsor }
                           hallOfFame(id: $id){ golferId }
@@ -110,9 +113,134 @@ class WorldGraphQlApiTest {
                         """)
                 .variable("id", id).execute()
                 .path("playerSchedule").entityList(Object.class).hasSize(0)
+                .path("careerInbox.items").entityList(Object.class).hasSize(0)
                 .path("careerGoals").entityList(Object.class).hasSize(0)
                 .path("pendingSponsorships").entityList(Object.class).hasSize(0)
                 .path("hallOfFame").entityList(Object.class).hasSize(0);
+    }
+
+    @Test
+    void careerInboxIsAReadOnlyProjectionThatUpdatesAsCareerStateChanges() {
+        WorldSession session = worldService.create(OWNER, 304L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Inbox", "Player", Nationality.USA, 20,
+                Archetype.ALL_ROUNDER);
+
+        List<CareerInboxRow> atSeasonStart = inboxRows(session.id());
+        int scheduled = worldService.playerSchedule(OWNER, session.id()).size();
+        org.assertj.core.api.Assertions.assertThat(scheduled).isPositive();
+        org.assertj.core.api.Assertions.assertThat(atSeasonStart).contains(new CareerInboxRow("SCHEDULE", scheduled));
+        org.assertj.core.api.Assertions.assertThat(worldService.status(OWNER, session.id()).week()).isEqualTo(1);
+
+        // Reading the Inbox makes no change, while moving past the opening-week planning moment removes it.
+        org.assertj.core.api.Assertions.assertThat(inboxRows(session.id())).isEqualTo(atSeasonStart);
+        worldService.playerSchedule(OWNER, session.id()).stream()
+                .filter(entry -> entry.week() == 1)
+                .forEach(entry -> worldService.skipEvent(OWNER, session.id(), entry.tournamentId()));
+        worldService.advanceWeek(OWNER, session.id());
+        org.assertj.core.api.Assertions.assertThat(worldService.status(OWNER, session.id()).week()).isGreaterThan(1);
+        org.assertj.core.api.Assertions.assertThat(inboxRows(session.id()))
+                .noneMatch(item -> item.kind().equals("SCHEDULE"));
+    }
+
+    @Test
+    void scheduleReviewAcknowledgementCompletesOnlyTheCurrentSeasonInboxItem() {
+        WorldSession session = worldService.create(OWNER, 306L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Schedule", "Reviewer", Nationality.USA, 20,
+                Archetype.ALL_ROUNDER);
+
+        org.assertj.core.api.Assertions.assertThat(inboxRows(session.id()))
+                .extracting(CareerInboxRow::kind).contains("SCHEDULE");
+
+        graphQlTester.document("mutation($id: ID!){ acknowledgeScheduleReview(id: $id) }")
+                .variable("id", session.id()).execute()
+                .path("acknowledgeScheduleReview").entity(Boolean.class).isEqualTo(true);
+
+        org.assertj.core.api.Assertions.assertThat(inboxRows(session.id()))
+                .extracting(CareerInboxRow::kind).doesNotContain("SCHEDULE");
+
+        worldService.advanceSeason(OWNER, session.id());
+        org.assertj.core.api.Assertions.assertThat(inboxRows(session.id()))
+                .extracting(CareerInboxRow::kind).contains("SCHEDULE");
+    }
+
+    @Test
+    void staffReviewAcknowledgementCompletesOnlyTheCurrentSeasonInboxItemWithoutChangingStaff() {
+        WorldSession session = worldService.create(OWNER, 307L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Staff", "Reviewer", Nationality.USA, 20,
+                Archetype.ALL_ROUNDER);
+        worldService.advanceSeason(OWNER, session.id());
+
+        var world = session.world();
+        String playerId = world.playerGolferId().orElseThrow();
+        var candidatesBefore = List.copyOf(world.pendingStaffOffers());
+        double fundsBefore = world.financialAccountOf(playerId).availableFunds();
+        int affordableCandidates = (int) candidatesBefore.stream()
+                .filter(candidate -> candidate.hiringCost() <= fundsBefore)
+                .count();
+        org.assertj.core.api.Assertions.assertThat(affordableCandidates).isPositive();
+        org.assertj.core.api.Assertions.assertThat(inboxRows(session.id()))
+                .contains(new CareerInboxRow("STAFF", affordableCandidates));
+
+        graphQlTester.document("mutation($id: ID!){ acknowledgeStaffReview(id: $id) }")
+                .variable("id", session.id()).execute()
+                .path("acknowledgeStaffReview").entity(Boolean.class).isEqualTo(true);
+
+        org.assertj.core.api.Assertions.assertThat(world.pendingStaffOffers()).isEqualTo(candidatesBefore);
+        org.assertj.core.api.Assertions.assertThat(world.financialAccountOf(playerId).availableFunds()).isEqualTo(fundsBefore);
+        org.assertj.core.api.Assertions.assertThat(inboxRows(session.id()))
+                .extracting(CareerInboxRow::kind).doesNotContain("STAFF");
+
+        worldService.advanceSeason(OWNER, session.id());
+        org.assertj.core.api.Assertions.assertThat(inboxRows(session.id()))
+                .extracting(CareerInboxRow::kind).contains("STAFF");
+    }
+
+    @Test
+    void careerInboxAggregatesOnlyCurrentlyActionableCareerState() {
+        WorldSession session = worldService.create(OWNER, 305L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Attention", "Player", Nationality.USA, 20,
+                Archetype.ALL_ROUNDER);
+        worldService.advanceSeason(OWNER, session.id());
+
+        List<CareerInboxRow> items = inboxRows(session.id());
+        org.assertj.core.api.Assertions.assertThat(items).extracting(CareerInboxRow::kind).doesNotHaveDuplicates();
+
+        var world = session.world();
+        String playerId = world.playerGolferId().orElseThrow();
+        double funds = world.financialAccountOf(playerId).availableFunds();
+        int schedule = world.currentWeek() == 1 ? world.playerSchedule().size() : 0;
+        int development = allocatableDevelopmentRaises(session).isEmpty() ? 0 : world.playerDevelopmentPoints();
+        int sponsorships = world.activeSponsorships().size() < world.maxConcurrentSponsorships()
+                ? world.pendingSponsorships().size() : 0;
+        int equipment = (int) world.pendingEquipmentOffers().stream().filter(item -> item.cost() <= funds).count()
+                + world.pendingEquipmentDeals().size();
+        int staff = (int) world.pendingStaffOffers().stream().filter(item -> item.hiringCost() <= funds).count();
+
+        assertInboxCount(items, "SCHEDULE", schedule);
+        assertInboxCount(items, "DEVELOPMENT", development);
+        assertInboxCount(items, "SPONSORSHIP", sponsorships);
+        assertInboxCount(items, "EQUIPMENT", equipment);
+        assertInboxCount(items, "STAFF", staff);
+    }
+
+    private List<CareerInboxRow> inboxRows(String id) {
+        return graphQlTester.document("query($id: ID!){ careerInbox(id: $id){ items { kind count } } }")
+                .variable("id", id).execute()
+                .path("careerInbox.items").entityList(CareerInboxRow.class).get();
+    }
+
+    /** A projection of the compact, current-state Inbox item returned by GraphQL. */
+    record CareerInboxRow(String kind, int count) {
+    }
+
+    private static void assertInboxCount(List<CareerInboxRow> items, String kind, int expectedCount) {
+        var matching = items.stream().filter(item -> item.kind().equals(kind)).toList();
+        if (expectedCount == 0) {
+            org.assertj.core.api.Assertions.assertThat(matching).isEmpty();
+        } else {
+            org.assertj.core.api.Assertions.assertThat(matching)
+                    .containsExactly(new CareerInboxRow(kind, expectedCount));
+        }
     }
 
     @Test
@@ -260,6 +388,61 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void appliedDevelopmentDisappearsFromInboxWhenNoFurtherRaiseIsAffordable() {
+        WorldSession session = worldService.create(OWNER, 551L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Inbox", "Developer", Nationality.USA, 19,
+                Archetype.ALL_ROUNDER);
+        worldService.advanceSeason(OWNER, session.id());
+
+        org.assertj.core.api.Assertions.assertThat(inboxRows(session.id()))
+                .extracting(CareerInboxRow::kind).contains("DEVELOPMENT");
+        List<Map<String, Object>> raises = allocatableDevelopmentRaises(session);
+        org.assertj.core.api.Assertions.assertThat(raises).isNotEmpty();
+
+        graphQlTester.document("""
+                        mutation($id: ID!, $raises: [AttributeRaiseInput!]!){
+                          spendDevelopmentPoints(id: $id, raises: $raises)
+                        }
+                        """)
+                .variable("id", session.id()).variable("raises", raises).execute()
+                .path("spendDevelopmentPoints").entity(Integer.class).satisfies(balance ->
+                        org.assertj.core.api.Assertions.assertThat(balance).isGreaterThanOrEqualTo(0));
+
+        org.assertj.core.api.Assertions.assertThat(allocatableDevelopmentRaises(session)).isEmpty();
+        org.assertj.core.api.Assertions.assertThat(inboxRows(session.id()))
+                .extracting(CareerInboxRow::kind).doesNotContain("DEVELOPMENT");
+    }
+
+    /** Matches the Development screen's valid +1 choices until no banked point can fund another one. */
+    private static List<Map<String, Object>> allocatableDevelopmentRaises(WorldSession session) {
+        var world = session.world();
+        var player = world.careerOf(world.playerGolferId().orElseThrow()).player();
+        int remaining = world.playerDevelopmentPoints();
+        Map<Attribute, Integer> raises = new java.util.EnumMap<>(Attribute.class);
+
+        boolean added;
+        do {
+            added = false;
+            for (Attribute attribute : Attribute.values()) {
+                int rating = player.attributes().get(attribute) + raises.getOrDefault(attribute, 0);
+                if (rating < player.potential().get(attribute)
+                        && remaining >= DevelopmentPoints.costToRaise(rating)) {
+                    raises.merge(attribute, 1, Integer::sum);
+                    remaining -= DevelopmentPoints.costToRaise(rating);
+                    added = true;
+                    break;
+                }
+            }
+        } while (added);
+
+        List<Map<String, Object>> inputs = new ArrayList<>();
+        for (Map.Entry<Attribute, Integer> raise : raises.entrySet()) {
+            inputs.add(Map.of("attribute", raise.getKey().name(), "points", raise.getValue()));
+        }
+        return inputs;
+    }
+
+    @Test
     void seasonReviewSummarisesTheJustCompletedSeason() {
         WorldSession session = worldService.create(OWNER, 550L, SMALL);
         worldService.createPlayer(OWNER, session.id(), "Rev", "Player", Nationality.USA, 20, Archetype.ALL_ROUNDER);
@@ -365,6 +548,7 @@ class WorldGraphQlApiTest {
         graphQlTester.document("""
                         query($id: ID!){
                           currentSituation(id: $id){ holeNumber }
+                          playingHole(id: $id){ holeNumber }
                           eventLeaderboard(id: $id){ position }
                           playerMadeCut(id: $id)
                           playerPressure(id: $id)
@@ -372,6 +556,7 @@ class WorldGraphQlApiTest {
                         """)
                 .variable("id", id).execute()
                 .path("currentSituation").valueIsNull()
+                .path("playingHole").valueIsNull()
                 .path("eventLeaderboard").entityList(Object.class).hasSize(0)
                 .path("playerMadeCut").valueIsNull()
                 .path("playerPressure").valueIsNull();

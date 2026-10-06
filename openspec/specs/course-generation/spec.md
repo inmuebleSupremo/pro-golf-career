@@ -5,17 +5,17 @@ TBD - created by archiving change add-course-domain. Update Purpose after archiv
 ## Requirements
 ### Requirement: Course Composition
 
-A Course SHALL consist of exactly eighteen Holes numbered 1 through 18. The Course's total par SHALL be derived from its holes and never stored independently. Hole ordering SHALL be immutable during tournament play.
+A design-aware generator version SHALL create its eighteen-hole composition from its deterministic course plan before individual hole geometry is generated. The plan's brief-derived bounded inputs SHALL guide existing scalar/terrain compilation, while `CourseGeometry` remains the authoritative surface representation for play.
 
-#### Scenario: Course has eighteen ordered holes
+#### Scenario: Planned composition guides generated holes
 
-- **WHEN** a Course is generated
-- **THEN** it SHALL contain exactly eighteen Holes numbered 1..18 with no gaps or duplicates
+- **WHEN** a design-aware course is generated
+- **THEN** every generated hole SHALL correspond in order and par to its course-plan brief and retain valid canonical geometry
 
-#### Scenario: Par is derived, not stored
+#### Scenario: Design does not replace spatial authority
 
-- **WHEN** a Course's total par is requested
-- **THEN** it SHALL equal the sum of its holes' pars, computed from the hole definitions
+- **WHEN** a generated hole is resolved during play
+- **THEN** surface classification and settlement SHALL continue to use canonical geometry rather than a design profile, plan, or brief
 
 ### Requirement: Hole Definition
 
@@ -47,17 +47,27 @@ Course generation SHALL express each hole's surface and hazard layout as the exi
 
 ### Requirement: Deterministic Generation
 
-A Course SHALL be generated deterministically from a seed obtained through the world seed hierarchy. Regenerating a Course from the same seed and generator version SHALL produce an identical Course. Generation SHALL NOT use any ambient randomness.
+A Course SHALL be generated deterministically from a seed obtained through the world seed hierarchy and an explicit supported generator version. Regenerating a Course from the same seed, environment classification, and generator version SHALL produce an identical Course, including its design profile/plan when that version supports them. Generation SHALL NOT use any ambient randomness. A current-version convenience path MAY be used only for new-world creation; restoration SHALL select the recorded version explicitly.
 
-#### Scenario: Same seed reproduces the same course
+#### Scenario: Same seed and version reproduce the same course
 
-- **WHEN** a Course is generated twice from the same seed and generator version
-- **THEN** the two Courses SHALL be identical in every generated field
+- **WHEN** a Course is generated twice from the same seed, environment classification, and supported generator version
+- **THEN** the two Courses, their canonical geometry, and their design profile/plan where applicable SHALL be identical
 
-#### Scenario: All randomness routes through the seed hierarchy
+#### Scenario: Historical version remains selectable
 
-- **WHEN** generation requires a random value
-- **THEN** it SHALL derive it from the world seed hierarchy, and SHALL NOT read any global or ambient random source
+- **WHEN** a supported historical generator version is requested
+- **THEN** generation SHALL use that retained implementation rather than the current generator implementation
+
+#### Scenario: Historical seed fixture remains exact
+
+- **WHEN** a retained V1 implementation is run for a checked-in historical seed/classification fixture
+- **THEN** its complete course record and canonical geometry SHALL exactly equal that fixture, independently of the current V2 implementation
+
+#### Scenario: Unknown version is rejected
+
+- **WHEN** generation or restoration requests an unsupported generator version
+- **THEN** it SHALL fail explicitly rather than silently substituting the latest implementation
 
 ### Requirement: Per-Round Pin Positions
 
@@ -91,4 +101,52 @@ Once a Course has been fixed for a tournament, its generated form SHALL NOT chan
 
 - **WHEN** a tournament is underway on a Course
 - **THEN** the Course's holes, surfaces, hazards, lengths, and elevation SHALL remain unchanged until the tournament completes
+
+### Requirement: Canonical Terrain Generation
+
+Course generation SHALL generate authoritative canonical geometry for every hole from the existing seed hierarchy and generator version. The geometry SHALL include a tee/start position, playable boundary, cup/green frame, and terrain regions required by the current surface catalogue. Existing coarse dimensions and round-specific pin generation SHALL remain available as compatibility/read-model data while canonical geometry is introduced.
+
+#### Scenario: Generated hole terrain is complete
+
+- **WHEN** a course generates a hole
+- **THEN** the hole SHALL include canonical geometry sufficient to determine the surface at every finite position and to identify tee and cup positions
+
+#### Scenario: Existing generation remains deterministic
+
+- **WHEN** two courses are generated from the same seed and generator version
+- **THEN** their canonical geometry and their existing hole dimensions SHALL be identical
+
+### Requirement: Canonical Geometry Migration Compatibility
+
+The course domain SHALL retain a compatibility path for existing `GeneratedHole` consumers and legacy zone-profile fixtures until generated production play has migrated to canonical terrain. New production terrain SHALL not be added exclusively through boolean hazard flags or `HoleZones` after canonical geometry is available.
+
+#### Scenario: Existing fixture can be adapted
+
+- **WHEN** a test supplies an existing one-dimensional hole fixture during migration
+- **THEN** the system SHALL be able to resolve it through the documented legacy adapter without requiring a full canonical course generator
+
+#### Scenario: Production holes do not need presentation synthesis
+
+- **WHEN** a generated production hole exposes a bunker, water, tree, fairway, or green region
+- **THEN** that gameplay terrain SHALL exist in its canonical geometry without requiring a frontend generator to invent its location
+
+### Requirement: Migration terrain-exposure fidelity
+
+For the current generated-course population, canonical terrain generation SHALL preserve a meaningful
+calibration envelope from the legacy generated `ShotZoneProfile` model while using genuinely two-dimensional,
+asymmetric landforms. In particular, fairway, green, fringe, bunker, water/tree recovery terrain, and the
+playable boundary SHALL have reachable exposure consistent with the current calibrated shot distribution.
+Canonical generation SHALL NOT silently replace legacy hazard/outer-boundary exposure with indefinitely safe
+rough or a decorative polygon too small or remote to affect normal miss patterns. This requirement is a
+migration compatibility constraint, not a permanent prescribed surface percentage for future course-design work.
+
+#### Scenario: Generated hazards remain reachable
+
+- **WHEN** a deterministic sample of current generated holes includes bunker, water, or tree flags
+- **THEN** its canonical polygons SHALL occupy tactically meaningful miss or landing areas within the playable boundary rather than being only decorative or unreachable terrain
+
+#### Scenario: Boundary retains meaningful risk
+
+- **WHEN** a sampled landing travels beyond the generated fairway/cut/rough envelope on a hole without a flanking hazard at that location
+- **THEN** canonical surface resolution SHALL eventually reach out of bounds rather than extending safe terrain indefinitely
 

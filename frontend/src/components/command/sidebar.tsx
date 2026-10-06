@@ -11,6 +11,7 @@ import {
   Flag,
   Globe,
   Handshake,
+  Inbox,
   LayoutDashboard,
   Medal,
   Newspaper,
@@ -24,6 +25,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useCareerInbox } from "@/lib/api/queries";
 
 type NavItem = {
   label: string;
@@ -39,21 +41,17 @@ type NavGroup = { label?: string; items: NavItem[] };
 // Every item routes to a real spoke page. (Leaderboard is intentionally absent — it is
 // live only inside an event, and the /play surface owns it.)
 const GROUPS: NavGroup[] = [
-  { items: [{ label: "Hub", icon: LayoutDashboard, path: "", exact: true }] },
+  {
+    items: [
+      { label: "Hub", icon: LayoutDashboard, path: "", exact: true },
+      { label: "Inbox", icon: Inbox, path: "/inbox" },
+    ],
+  },
   {
     label: "Compete",
     items: [
       { label: "Schedule", icon: CalendarDays, path: "/calendar" },
       { label: "Play Event", icon: Flag, path: "/play" },
-    ],
-  },
-  {
-    label: "World",
-    items: [
-      { label: "News", icon: Newspaper, path: "/news" },
-      { label: "Rankings", icon: Globe, path: "/rankings" },
-      { label: "Rivals", icon: Users, path: "/rivals" },
-      { label: "Records", icon: Award, path: "/records" },
     ],
   },
   {
@@ -76,11 +74,22 @@ const GROUPS: NavGroup[] = [
       { label: "Fitness", icon: Activity, path: "/fitness" },
     ],
   },
+  {
+    label: "World",
+    items: [
+      { label: "News", icon: Newspaper, path: "/news" },
+      { label: "Rankings", icon: Globe, path: "/rankings" },
+      { label: "Rivals", icon: Users, path: "/rivals" },
+      { label: "Records", icon: Award, path: "/records" },
+    ],
+  },
 ];
 
 export function Sidebar({ id }: { id: string }) {
   const pathname = usePathname();
   const base = `/career/${id}`;
+  const inbox = useCareerInbox(id);
+  const inboxCount = inbox.data?.careerInbox.items.length ?? 0;
 
   return (
     <aside className="border-border hidden w-64 shrink-0 flex-col gap-6 border-r bg-[var(--background)] p-4 lg:sticky lg:top-0 lg:flex lg:h-dvh">
@@ -89,8 +98,12 @@ export function Sidebar({ id }: { id: string }) {
           <Flag className="size-[1.15rem]" aria-hidden="true" />
         </span>
         <span className="leading-tight">
-          <span className="block text-[0.9375rem] font-bold tracking-[-0.02em]">Pro Golf Career</span>
-          <span className="text-subtle-foreground block text-[0.6875rem] font-medium">Command Centre</span>
+          <span className="block text-[0.9375rem] font-bold tracking-[-0.02em]">
+            Pro Golf Career
+          </span>
+          <span className="text-subtle-foreground block text-[0.6875rem] font-medium">
+            Command Centre
+          </span>
         </span>
       </Link>
 
@@ -103,7 +116,13 @@ export function Sidebar({ id }: { id: string }) {
               </p>
             )}
             {group.items.map((item) => (
-              <NavRow key={item.label} item={item} base={base} pathname={pathname} />
+              <NavRow
+                key={item.label}
+                item={item}
+                base={base}
+                pathname={pathname}
+                badge={item.path === "/inbox" ? inboxCount : undefined}
+              />
             ))}
           </div>
         ))}
@@ -112,7 +131,17 @@ export function Sidebar({ id }: { id: string }) {
   );
 }
 
-function NavRow({ item, base, pathname }: { item: NavItem; base: string; pathname: string }) {
+function NavRow({
+  item,
+  base,
+  pathname,
+  badge,
+}: {
+  item: NavItem;
+  base: string;
+  pathname: string;
+  badge?: number;
+}) {
   const Icon = item.icon;
   const rowClass =
     "group relative flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[0.84375rem] font-medium transition-colors duration-[var(--duration-base)]";
@@ -132,10 +161,18 @@ function NavRow({ item, base, pathname }: { item: NavItem; base: string; pathnam
       aria-current={active ? "page" : undefined}
     >
       {active && (
-        <span className="bg-primary absolute top-2 bottom-2 -left-4 w-[3px] rounded-r" aria-hidden="true" />
+        <span
+          className="bg-primary absolute top-2 bottom-2 -left-4 w-[3px] rounded-r"
+          aria-hidden="true"
+        />
       )}
       <Icon className="size-[1.0625rem] shrink-0" aria-hidden="true" />
       <span>{item.label}</span>
+      {badge ? (
+        <span className="bg-info/14 text-info ml-auto min-w-5 rounded-full px-1.5 py-0.5 text-center font-mono text-[0.6875rem] font-bold tabular-nums">
+          {badge}
+        </span>
+      ) : null}
     </Link>
   );
 }

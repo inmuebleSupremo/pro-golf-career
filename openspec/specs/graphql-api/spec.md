@@ -223,3 +223,65 @@ The API SHALL let the player switch the tournament loadout to an already-owned i
 - **WHEN** a client runs the select-loadout mutation with a category and name the player does not own
 - **THEN** the API SHALL return a bad-request-classified GraphQL error, not an opaque internal error
 
+### Requirement: Playing Hole Geometry Query
+
+The API SHALL expose a read-only query returning the geometry of a hole being played in the player's pending event, as an application DTO. The DTO SHALL carry the load-bearing facts needed to render the hole faithfully: the hole number and par, its length, its fairway and green dimensions, its elevation change, whether it carries a greenside bunker, water, and trees, the active round's pin lateral (and depth) offset, the host course's environment classification, and a stable layout seed for deterministic cosmetic placement. The query SHALL NOT mutate state, and no simulation-engine record SHALL appear as a GraphQL type.
+
+#### Scenario: A playing hole's geometry is returned
+
+- **WHEN** a client queries the geometry of a hole in the pending event
+- **THEN** the API SHALL return a DTO with the hole's par, length, fairway and green dimensions, elevation, hazard flags, active-round pin offset, course type, and layout seed
+
+#### Scenario: The pin reflects the active round
+
+- **WHEN** the geometry for the same hole is queried for two different rounds of the event
+- **THEN** the returned pin lateral (and depth) SHALL reflect each round's pin, while the hole's dimensions and hazard flags SHALL be identical across the rounds
+
+#### Scenario: No engine type leaks
+
+- **WHEN** the GraphQL schema is inspected for the playing-hole query
+- **THEN** its return type SHALL be an application DTO, not a simulation-engine record such as `GeneratedHole` or `PinPosition`
+
+#### Scenario: The layout seed is stable
+
+- **WHEN** the geometry for the same hole is queried in two separate sessions of the same world
+- **THEN** the returned layout seed SHALL be identical, so the client's synthesized layout is reproducible
+
+### Requirement: Reachable Surfaces On The Shot Situation
+
+The shot-situation projection SHALL additionally expose the current shot's reachable surface profile — the ordered distance bands the shot could find, each partitioned into lateral surface regions (a surface kind and its cumulative lateral extent from the centre outward) — as application DTO data, so the client can render a truthful shot-preview overlay rather than inventing reachable hazards. This SHALL be derived from the same reachable profile the simulation uses to resolve the shot, and SHALL NOT expose any engine record.
+
+#### Scenario: The shot situation carries its reachable surfaces
+
+- **WHEN** a client queries the current shot situation for a pending event
+- **THEN** the situation SHALL include an ordered list of reachable distance bands, each with its lateral surface regions, spanning the shot's reach range contiguously
+
+#### Scenario: Reachable surfaces match the resolver's profile
+
+- **WHEN** the reachable surfaces reported for a shot are compared to the profile the simulation resolves that shot against
+- **THEN** they SHALL describe the same surfaces, so a surface shown as reachable is one the shot could actually find
+
+### Requirement: Canonical Playing-Geometry Read Model
+
+The GraphQL API SHALL expose an authenticated, session-scoped read model for the current playable hole's **effective** canonical geometry and spatial state. The MVP SHALL add `PlayingHole.geometry` with `tee`, active `cup`, `playableBoundary`, and ordered `regions { surface, boundary }`; `PlayingHole.ball { position, lie }`; and `ShotOutcome.settlement { contact { position, surface }, recoveryPosition, recoveryKind, ball }`. Points SHALL be finite local-yard `{ x, y }` coordinates and all boundary/region lists SHALL use the canonical non-repeated, counter-clockwise polygon order. For an event with a non-neutral course setup, `PlayingHole.geometry` SHALL be the exact setup-specific geometry used by the active hole model for shot settlement. Existing coarse `PlayingHole` fields MAY remain as overview compatibility fields but SHALL NOT be a terrain-rendering source. It SHALL not expose simulation-engine records, SVG markup, rendering instructions, a path/corridor encoding, or a terrain-mutation API.
+
+#### Scenario: Current geometry is projected faithfully
+
+- **WHEN** a player queries the current playable hole during a pending event
+- **THEN** the response SHALL contain DTO geometry and spatial state that match the engine's effective canonical terrain and current playable ball state
+
+#### Scenario: Non-neutral setup geometry is projected faithfully
+
+- **WHEN** the pending event applies a non-neutral width setup
+- **THEN** the returned terrain regions and playable boundary SHALL match the setup-specific geometry used to resolve that hole
+
+#### Scenario: Geometry is absent off-event
+
+- **WHEN** a client queries canonical playing geometry without a pending playable event
+- **THEN** the API SHALL return an absent result according to the existing playable-event read convention and SHALL NOT fabricate terrain
+
+#### Scenario: Engine types remain isolated
+
+- **WHEN** the GraphQL schema and resolver signatures are inspected
+- **THEN** canonical geometry and ball state SHALL be represented only by application DTOs, not simulation-engine types
+

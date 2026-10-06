@@ -3,9 +3,13 @@ package com.progolf.sim.play;
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.shot.GolferState;
+import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.HoleStats;
+import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotContext;
 import com.progolf.sim.shot.ShotDecision;
+import com.progolf.sim.shot.ShotFrame;
+import com.progolf.sim.shot.ShotAim;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.ShotResolver;
 import com.progolf.sim.shot.ShotStatLine;
@@ -45,6 +49,7 @@ public final class PlayableRound {
     private int strokesThisHole;
     private int totalStrokes;
     private Surface lie = Surface.TEE_BOX;
+    private BallState ball;
     private final List<Integer> holeScores = new ArrayList<>();
     private final List<ShotOutcome> currentHoleShots = new ArrayList<>();
     private final List<PlayedHole> playedHoles = new ArrayList<>();
@@ -62,6 +67,7 @@ public final class PlayableRound {
         this.base = Objects.requireNonNull(base, "base");
         this.simPolicy = new StrategyPolicy(Objects.requireNonNull(simStrategy, "simStrategy"));
         this.remaining = this.holes.get(0).model().startDistance();
+        this.ball = initialBall(this.holes.get(0));
     }
 
     /** Whether all eighteen holes have been played. */
@@ -72,6 +78,12 @@ public final class PlayableRound {
     /** The current hole number (1-based). */
     public int currentHole() {
         return holeIndex + 1;
+    }
+
+    /** The exact setup-specific model currently used to resolve the active hole. */
+    public HoleModel currentHoleModel() {
+        requireNotComplete();
+        return holes.get(holeIndex).model();
     }
 
     /** The situation for the current shot. */
@@ -113,6 +125,10 @@ public final class PlayableRound {
     /** The automatic policy's decision for the current situation (lie + pin + attributes), matching the AI path. */
     private ShotDecision simDecision() {
         HoleToPlay hole = holes.get(holeIndex);
+        if (ball != null && hole.model().geometry() != null) {
+            ShotAim.Reference aim = ShotAim.forBall(hole.model(), ball, simPolicy.strategy());
+            return simPolicy.decide(remaining, lie, aim.pinLateral(), attributes, hole.par());
+        }
         return simPolicy.decide(remaining, lie, hole.model().pinLateral(), attributes, hole.par());
     }
 
@@ -120,8 +136,7 @@ public final class PlayableRound {
         HoleToPlay hole = holes.get(holeIndex);
         double preShotRemaining = remaining;
         SeedCoordinate coord = base.withHole(holeIndex + 1).withShot(shotNumber);
-        ShotContext context = new ShotContext(attributes, state, hole.environment(), remaining,
-                hole.model().zoneProfileFor(remaining), decision, coord, lie, hole.model().pinLateral());
+        ShotContext context = contextFor(hole, decision, coord);
         ShotOutcome outcome = ShotResolver.resolveShot(context);
 
         totalStrokes += outcome.strokes();
@@ -130,7 +145,12 @@ public final class PlayableRound {
         lie = outcome.finalSurface();
 
         boolean holed;
-        if (outcome.hazardEntered()) {
+        if (outcome.settlement() != null) {
+            ball = outcome.settlement().ball();
+            lie = ball.lie();
+            remaining = ball.position().distanceTo(hole.model().cupPosition());
+            holed = !outcome.hazardEntered() && remaining <= SimConstants.HOLED_THRESHOLD;
+        } else if (outcome.hazardEntered()) {
             // Penalty-hazard recovery, identical to RoundResolver so simmed == auto (spec: shot-resolution).
             if (outcome.finalSurface() == Surface.WATER) {
                 remaining = Math.min(preShotRemaining, outcome.distanceRemaining() + SimConstants.WATER_DROP_SETBACK);
@@ -162,6 +182,7 @@ public final class PlayableRound {
             shotNumber = 1;
             strokesThisHole = 0;
             lie = Surface.TEE_BOX;
+            ball = initialBall(holes.get(holeIndex));
         }
     }
 
@@ -209,5 +230,24 @@ public final class PlayableRound {
         if (isComplete()) {
             throw new IllegalStateException("the round is complete");
         }
+    }
+
+    /** Current authoritative state for API projection; null only for a legacy fixture-backed round. */
+    public BallState ballState() {
+        return ball;
+    }
+
+    private ShotContext contextFor(HoleToPlay hole, ShotDecision decision, SeedCoordinate coord) {
+        if (ball == null || hole.model().geometry() == null) {
+            return new ShotContext(attributes, state, hole.environment(), remaining, hole.model().zoneProfileFor(remaining),
+                    decision, coord, lie, hole.model().pinLateral());
+        }
+        ShotAim.Reference aim = ShotAim.forBall(hole.model(), ball, decision.strategy());
+        return new ShotContext(attributes, state, hole.environment(), remaining, hole.model().zoneProfileFor(remaining),
+                decision, coord, lie, aim.pinLateral(), ball, hole.model().geometry(), hole.model().cupPosition(), aim.target());
+    }
+
+    private static BallState initialBall(HoleToPlay hole) {
+        return hole.model().geometry() == null ? null : new BallState(hole.model().geometry().tee(), Surface.TEE_BOX);
     }
 }

@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { sceneBackdrop, type SceneBackdrop } from "@/lib/play/scene";
+import { applySceneFallback, sceneBackdrop, type SceneBackdrop } from "@/lib/play/scene";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
 import { PlayMode } from "@/components/play/play-mode";
 import {
@@ -69,8 +69,10 @@ export function PlayEvent({ id }: { id: string }) {
   const leaderboard = (data.eventLeaderboard as LeaderboardRow[]) ?? [];
   const scorecard = (data.playerScorecard as Scorecard | null) ?? null;
   const pressure = (data.playerPressure as number | null) ?? null;
-  const backdrop = sceneBackdrop(event?.courseType, event?.name);
   const { season, week } = data.world;
+  const activeRound =
+    scorecard?.roundNumber ?? Math.max(1, ...leaderboard.map((row) => row.roundsPlayed));
+  const backdrop = sceneBackdrop(event?.courseType, event?.name, { season, round: activeRound });
 
   if (!situation) {
     return (
@@ -145,7 +147,19 @@ function EventComplete({
 
   return (
     <div className="relative isolate -mx-5 -my-6 min-h-[calc(100dvh-8rem)] overflow-hidden md:-mx-7 md:-my-7">
-      <Image src={backdrop.src} alt="" fill priority sizes="100vw" className="object-cover object-center" />
+      <Image
+        src={backdrop.src}
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="object-cover object-center"
+        onError={
+          backdrop.fallbackSrc
+            ? (event) => applySceneFallback(event.currentTarget, backdrop.fallbackSrc!)
+            : undefined
+        }
+      />
       {/* Scrims: an even darken plus a bottom-weighted gradient keep the overlay legible over any scene. */}
       <div className="bg-background/45 absolute inset-0" />
       <div className="from-background via-background/40 absolute inset-0 bg-gradient-to-t to-transparent" />

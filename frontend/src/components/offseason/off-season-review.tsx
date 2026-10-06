@@ -6,9 +6,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, Sparkles, Trophy } from "luci
 
 import { Button } from "@/components/ui/button";
 import { SpokeMessage, useSpokeGate } from "@/components/career/spoke";
-import { TrainingSection } from "@/components/manage/training-section";
-import { HireStaffView } from "@/components/manage/hire-staff-view";
-import { useCareerOverview, useSeasonReview } from "@/lib/api/queries";
+import { useCareerInbox, useCareerOverview, useSeasonReview } from "@/lib/api/queries";
 import { formatMoney, ordinalPosition } from "@/lib/career/labels";
 import { humanize } from "@/lib/play/options";
 
@@ -42,18 +40,19 @@ type Review = {
 /**
  * The off-season moment (spec: player-experience — the end-of-season beat). Reached when the player
  * crosses a season boundary. It first *reviews* the season just completed — the golfer's own season and
- * the wider tour's — then doubles as the off-season *gateway*: spend the banked Development Points and
- * weigh the fresh staff candidates, before committing to the new season.
+ * the wider tour's. Any current career decisions remain in their authoritative management sections and are
+ * surfaced together in the Inbox after this retrospective review.
  */
 export function OffSeasonReview({ id }: { id: string }) {
   const router = useRouter();
   const query = useSeasonReview(id);
+  const inbox = useCareerInbox(id);
   const nextSeason = useCareerOverview(id).data?.world?.season ?? null;
 
   // The off-season review is a blocking moment: crossing the season boundary has already advanced the
   // world, so the review covers the command shell and locks body scroll while it's up — the sidebar and
-  // identity strip can't be reached behind it. The only way forward is to *accept* the new season (Begin
-  // Season), so the player can never navigate on and silently find themselves a year later. Mirrors the
+  // identity strip can't be reached behind it. The only way forward is to continue into the season, so the
+  // player can never navigate on and silently find themselves a year later. Mirrors the
   // immersive Play Mode surface (spec: player-experience — the end-of-season beat).
   useEffect(() => {
     const previous = document.body.style.overflow;
@@ -63,7 +62,9 @@ export function OffSeasonReview({ id }: { id: string }) {
     };
   }, []);
 
-  const gate = useSpokeGate(query);
+  const reviewGate = useSpokeGate(query);
+  const inboxGate = useSpokeGate(inbox);
+  const gate = reviewGate ?? inboxGate;
   if (gate) return <OffSeasonShell>{gate}</OffSeasonShell>;
 
   const review = (query.data?.seasonReview as Review | null) ?? null;
@@ -85,14 +86,16 @@ export function OffSeasonReview({ id }: { id: string }) {
   const tour = review.headlines.filter((h) => h.subjectGolferId !== player);
   const achievements = yours.filter((h) => h.type === "ACHIEVEMENT_UNLOCKED");
 
-  function begin() {
-    router.push(`/career/${id}`);
+  const inboxCount = inbox.data?.careerInbox.items.length ?? 0;
+
+  function continueCareer() {
+    router.push(inboxCount > 0 ? `/career/${id}/inbox` : `/career/${id}`);
     router.refresh();
   }
 
   return (
     <OffSeasonShell>
-      <Hero season={review.season} stats={review.stats} onBegin={begin} nextSeason={nextSeason} />
+      <Hero season={review.season} stats={review.stats} onContinue={continueCareer} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <YourSeason
@@ -103,9 +106,12 @@ export function OffSeasonReview({ id }: { id: string }) {
         <AroundTheTour headlines={tour} />
       </div>
 
-      <Gateway id={id} />
-
-      <BeginBar season={review.season} nextSeason={nextSeason} onBegin={begin} />
+      <BeginBar
+        season={review.season}
+        nextSeason={nextSeason}
+        inboxCount={inboxCount}
+        onContinue={continueCareer}
+      />
     </OffSeasonShell>
   );
 }
@@ -135,13 +141,11 @@ function OffSeasonShell({ children }: { children: React.ReactNode }) {
 function Hero({
   season,
   stats,
-  onBegin,
-  nextSeason,
+  onContinue,
 }: {
   season: number;
   stats: SeasonStat;
-  onBegin: () => void;
-  nextSeason: number | null;
+  onContinue: () => void;
 }) {
   const line =
     stats.events === 0
@@ -156,15 +160,17 @@ function Hero({
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[radial-gradient(120%_140%_at_50%_0%,color-mix(in_oklch,var(--gold),transparent_88%),transparent_60%)]"
       />
-      <p className="text-subtle-foreground relative font-mono text-xs tracking-[0.2em] uppercase">Off-Season</p>
+      <p className="text-subtle-foreground relative font-mono text-xs tracking-[0.2em] uppercase">
+        Off-Season
+      </p>
       <h1 className="relative mt-3 font-serif text-4xl font-medium tracking-[-0.02em] sm:text-5xl">
         Season {season}
         <span className="text-muted-foreground"> in review</span>
       </h1>
       <p className="text-muted-foreground relative mt-3 text-base">{line}</p>
       <div className="relative mt-6 flex justify-center">
-        <Button size="lg" onClick={onBegin}>
-          Begin Season {nextSeason ?? season + 1}
+        <Button size="lg" onClick={onContinue}>
+          Continue
           <ArrowRight className="size-4" aria-hidden="true" />
         </Button>
       </div>
@@ -204,7 +210,7 @@ function YourSeason({
           {achievements.map((g, i) => (
             <div
               key={i}
-              className="gold-metal text-[#3c2f12] flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
+              className="gold-metal flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[#3c2f12]"
             >
               <Trophy className="size-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 truncate">{g.headline}</span>
@@ -303,7 +309,10 @@ function AroundTheTour({ headlines }: { headlines: Headline[] }) {
       ) : (
         <ul className="flex flex-col">
           {top.map((h, i) => (
-            <li key={i} className="border-divider flex gap-3 border-t py-3 first:border-t-0 first:pt-0">
+            <li
+              key={i}
+              className="border-divider flex gap-3 border-t py-3 first:border-t-0 first:pt-0"
+            >
               <NewsChip type={h.type} />
               <p className="text-foreground min-w-0 text-sm leading-snug">{h.headline}</p>
             </li>
@@ -327,7 +336,10 @@ const NEWS_TONE: Record<string, { label: string; cls: string }> = {
 };
 
 function NewsChip({ type }: { type: string }) {
-  const tone = NEWS_TONE[type] ?? { label: type.replace(/_/g, " ").toLowerCase(), cls: "bg-surface-3 text-muted-foreground" };
+  const tone = NEWS_TONE[type] ?? {
+    label: type.replace(/_/g, " ").toLowerCase(),
+    cls: "bg-surface-3 text-muted-foreground",
+  };
   return (
     <span
       className={`mt-px h-fit shrink-0 rounded-md px-1.5 py-1 text-[0.6rem] font-bold tracking-wide uppercase ${tone.cls}`}
@@ -337,64 +349,31 @@ function NewsChip({ type }: { type: string }) {
   );
 }
 
-/* ------------------------------------------------------------ Gateway */
-
-function Gateway({ id }: { id: string }) {
-  const router = useRouter();
-  return (
-    <section className="flex flex-col gap-6">
-      <div className="flex items-center gap-4">
-        <div className="border-divider h-px flex-1 border-t" />
-        <span className="text-subtle-foreground text-xs font-bold tracking-[0.14em] uppercase">
-          Before you begin
-        </span>
-        <div className="border-divider h-px flex-1 border-t" />
-      </div>
-
-      <div className="border-border bg-surface rounded-xl border p-5 sm:p-6">
-        <GatewayHeading title="Development" subtitle="Spend the points this season banked." />
-        <div className="mt-5">
-          <TrainingSection id={id} onUnauthorized={() => router.push("/login")} showReport={false} />
-        </div>
-      </div>
-
-      <div className="border-border bg-surface rounded-xl border p-5 sm:p-6">
-        <HireStaffView id={id} />
-      </div>
-    </section>
-  );
-}
-
-function GatewayHeading({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-      <h2 className="text-[1.45rem] font-bold tracking-[-0.025em]">{title}</h2>
-      <span className="text-muted-foreground text-sm">{subtitle}</span>
-    </div>
-  );
-}
-
 /* --------------------------------------------------------- Begin bar */
 
 function BeginBar({
   season,
   nextSeason,
-  onBegin,
+  inboxCount,
+  onContinue,
 }: {
   season: number;
   nextSeason: number | null;
-  onBegin: () => void;
+  inboxCount: number;
+  onContinue: () => void;
 }) {
   return (
     <div className="border-border bg-surface/60 sticky bottom-4 z-[var(--z-sticky)] flex flex-wrap items-center justify-between gap-4 rounded-xl border px-5 py-4 backdrop-blur-md">
       <div className="flex flex-col">
         <span className="font-medium">Ready for Season {nextSeason ?? season + 1}?</span>
         <span className="text-muted-foreground text-sm">
-          You can always return to these decisions from the hub.
+          {inboxCount > 0
+            ? `${inboxCount} career ${inboxCount === 1 ? "item needs" : "items need"} your attention.`
+            : "You can always manage your career from the hub."}
         </span>
       </div>
-      <Button size="lg" onClick={onBegin}>
-        Begin Season {nextSeason ?? season + 1}
+      <Button size="lg" onClick={onContinue}>
+        Continue
         <ArrowRight className="size-4" aria-hidden="true" />
       </Button>
     </div>
@@ -427,10 +406,14 @@ function Panel({
 function Figure({ k, v, accent }: { k: string; v: string | number; accent?: boolean }) {
   return (
     <div className="border-border bg-background rounded-lg border p-3 text-center">
-      <div className={`text-xl font-bold tabular-nums tracking-[-0.02em] ${accent ? "text-primary" : ""}`}>
+      <div
+        className={`text-xl font-bold tracking-[-0.02em] tabular-nums ${accent ? "text-primary" : ""}`}
+      >
         {v}
       </div>
-      <div className="text-subtle-foreground mt-1 text-[0.65rem] font-semibold tracking-wide uppercase">{k}</div>
+      <div className="text-subtle-foreground mt-1 text-[0.65rem] font-semibold tracking-wide uppercase">
+        {k}
+      </div>
     </div>
   );
 }

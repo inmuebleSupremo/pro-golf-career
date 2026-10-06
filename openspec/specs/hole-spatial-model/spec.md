@@ -5,36 +5,38 @@ TBD - created by archiving change add-shot-resolution-core. Update Purpose after
 ## Requirements
 ### Requirement: Hybrid Spatial Representation
 
-A hole SHALL be authored and presentable in two dimensions but SHALL be *resolved* in one dimension. Shot resolution SHALL operate on a distance-to-pin value plus a lateral offset, and SHALL NOT require full 2D geometry queries. The 2D layout is for presentation and authoring only; it SHALL NOT be an input the shot engine depends upon.
+A generated production hole SHALL expose canonical two-dimensional terrain for gameplay and presentation. Shot sampling MAY retain a local carry/lateral frame, but production surface classification and playable settlement SHALL use canonical geometry at the sampled contact position. The frontend SHALL render gameplay landforms from that canonical geometry and SHALL NOT independently author, move, or reshape gameplay terrain.
 
-#### Scenario: Resolution needs no 2D geometry
+One-dimensional zone-band data remains permitted only through the separately defined bounded legacy compatibility seam; it SHALL NOT become the authority for new generated terrain or production settlement.
 
-- **WHEN** a shot is resolved
-- **THEN** the engine SHALL require only the 1D inputs (distance-to-pin, applicable zone bands, and lateral dispersion parameters) and SHALL NOT query 2D coordinates
+#### Scenario: Production resolution uses canonical terrain
 
-#### Scenario: 2D layout is presentation-only
+- **WHEN** a sampled shot contact is resolved on a generated production hole
+- **THEN** its surface and playable settlement SHALL be determined by canonical geometry at that contact position
 
-- **WHEN** the 2D layout of a hole changes without changing its 1D zone-band definitions
-- **THEN** resolved shot outcomes SHALL be unaffected
+#### Scenario: Presentation renders rather than authors terrain
+
+- **WHEN** a client renders a generated production hole
+- **THEN** its gameplay-relevant landforms SHALL derive from supplied canonical geometry and changes to that geometry SHALL be reflected in gameplay and presentation
+
+#### Scenario: Legacy zones remain bounded
+
+- **WHEN** an explicitly legacy fixture or compatibility caller supplies only one-dimensional zone bands
+- **THEN** it MAY resolve through the zone-band adapter without granting that adapter authority over new production terrain
 
 ### Requirement: Zone-Band Abstraction
 
-A **zone band** SHALL be the first-class contract between course generation and shot resolution. For a given shot context, the reachable landing area SHALL be described as an ordered set of bands along the shot line, each band declaring a distance interval, a lateral extent, and the surface (or hazard) that occupies it with an associated weight. Course generation produces zone bands; the shot engine consumes them and SHALL NOT infer surfaces by any other means.
+A **zone band** SHALL remain a valid compatibility representation for a legacy shot context while the spatial migration is in progress. Canonical geometry SHALL be the first-class contract between generated production courses and shot settlement. Any legacy profile SHALL remain contiguous and gap-free and SHALL map every sampled legacy landing to one surface, but new terrain features SHALL be expressed in canonical geometry rather than added to zone-band rules.
 
-#### Scenario: Bands fully partition the reachable line
+#### Scenario: Legacy bands remain valid
 
-- **WHEN** zone bands are defined for a shot context
-- **THEN** the bands SHALL cover the reachable distance range without unresolved gaps, so that every possible sampled landing maps to exactly one surface
+- **WHEN** a legacy shot context is resolved through the compatibility adapter
+- **THEN** its bands SHALL cover the reachable range without unresolved gaps and classify every sampled legacy landing
 
-#### Scenario: Surface determined solely by bands
+#### Scenario: New terrain is canonical
 
-- **WHEN** a landing distance and lateral offset are sampled
-- **THEN** the resulting surface SHALL be read from the matching zone band, and from no other source
-
-#### Scenario: Generation/resolution seam is explicit
-
-- **WHEN** a course is generated
-- **THEN** it SHALL emit zone-band definitions as its output contract, and the shot engine SHALL depend only on that contract, not on the generator's internal representation
+- **WHEN** a new production terrain feature such as a one-sided bunker or water hazard is introduced
+- **THEN** it SHALL be represented by canonical geometry and resolved by `surfaceAt(position)`, not by extending a symmetric zone band
 
 ### Requirement: Surface Catalogue
 
@@ -64,3 +66,26 @@ Lateral offset SHALL be resolved as a signed distance from the intended shot lin
 - **WHEN** a landing falls at a given distance band but its lateral offset exceeds the band's central surface extent
 - **THEN** the surface SHALL be taken from the appropriate across-line region of that band (e.g., rough or hazard flanking the fairway)
 
+### Requirement: Canonical projection preserves the legacy local shot frame
+
+For a canonical full shot, the resolver SHALL retain the legacy sampler's carry/lateral semantics in an explicit local frame. The frame origin SHALL be the current playable `BallState`; its forward axis SHALL point to the green-centre reference at the active cup's front/back depth; and positive lateral SHALL be golfer-right. The active cup's lateral coordinate SHALL be derived in that frame before strategy targeting is applied, so a pin offset neither rotates the frame nor gets applied twice. The existing sampled carry distribution SHALL remain measured against its legacy remaining-distance input. A canonical putt, whose distance is already measured directly to the physical cup, SHALL instead use a cup-facing local frame.
+
+#### Scenario: Tucked pin does not double-count its lateral offset
+
+- **WHEN** a full shot starts on the green-centre reference and its active cup is laterally offset
+- **THEN** zero sampled lateral displacement lands on the centre reference, and a local lateral displacement equal to the cup's frame-relative offset lands at the cup
+
+#### Scenario: Persistent off-centre ball establishes a new local frame
+
+- **WHEN** a playable ball settles left or right of the initial corridor and takes another full shot
+- **THEN** the next projection SHALL begin at that stored ball position and use its own ball-to-reference direction, without reapplying the previous miss as a global lateral offset
+
+#### Scenario: Legacy fixtures retain a migration seam
+
+- **WHEN** an existing test or explicitly legacy caller supplies only a one-dimensional hole model
+- **THEN** it MAY resolve through the zone-band adapter while preserving deterministic legacy behaviour
+
+#### Scenario: Two-dimensional layout is gameplay authority
+
+- **WHEN** canonical terrain changes in a generated production hole
+- **THEN** surface lookup and resulting shot settlement SHALL reflect that terrain change

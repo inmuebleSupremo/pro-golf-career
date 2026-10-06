@@ -1,8 +1,8 @@
 # Player Experience Definition — the complete-game target
 
-**Status:** target realised — engine + app-service layer + GraphQL API + auth + a full player-facing UI (last updated 2026-08-20). This document defines *what the finished game offers the player*, so every build slice can be measured against it and we never discover a hollow "make two decisions then watch a sim" experience. It **synthesises** the authoritative vision in `explore.md` (§1) into the player-facing decision + play surface; where the two ever disagree, `explore.md` wins. It is not itself an implementation.
+**Status:** the Version 1 career product is realised — engine + app-service layer + GraphQL API + auth + a full player-facing UI — while the Career Mode 2.5D golf experience remains an active, longer-term evolution (last updated 2026-10-06). This document defines *what the finished game offers the player*, so every build slice can be measured against it and we never discover a hollow "make two decisions then watch a sim" experience. It **synthesises** the authoritative vision in `explore.md` (§1) into the player-facing decision + play surface; where the two ever disagree, `explore.md` wins. It is not itself an implementation.
 
-> **Where we are (2026-08-20):** every decision surface below is **built in the framework-free engine, driven through `WorldService`, exposed over GraphQL, and now playable through a real Next.js UI** — create-your-golfer, shot-by-shot play (always skippable, with a 2D/2.5D hole layer), event-by-event scheduling, development, staff, equipment, sponsorship, self-chosen achievements, career records, and an end-of-season/off-season review. The **depth pass** put real substance behind the pillars: putting that holes out (realistic absolute scores ~par, not +90/round), shot-level stats, a scaled 640-golfer world, per-golfer **AI strategy variety**, and a two-phase **Hall-of-Fame election** — so Statistical realism (3), Emergent storytelling (4), and Meaningful risk (5) are mechanically real. The delivery pipeline that was "next" in the earlier draft is done: **persistence (filesystem save/load), the GraphQL API, JWT auth, and the React/Next UI all exist.** (Original intent named React/Vite; the UI was built with Next.js — see [`tech_stack.md`](tech_stack.md).) Remaining work is polish/breadth on the backlog ([`../info.txt`](../info.txt)), not a missing pillar.
+> **Where we are (2026-10-06):** every Version 1 decision surface below is **built in the framework-free engine, driven through `WorldService`, exposed over GraphQL, and now playable through a real Next.js UI** — create-your-golfer, shot-by-shot play (always skippable, with a 2D/2.5D hole layer), event-by-event scheduling, development, staff, equipment, sponsorship, self-chosen achievements, career records, and an end-of-season/off-season review. The **depth pass** put real substance behind the pillars: putting that holes out (realistic absolute scores ~par, not +90/round), shot-level stats, a scaled 640-golfer world, per-golfer **AI strategy variety**, and a two-phase **Hall-of-Fame election**. The delivery pipeline that was "next" in the earlier draft is done: **persistence (filesystem save/load), the GraphQL API, JWT auth, and the React/Next UI all exist.** (Original intent named React/Vite; the UI was built with Next.js — see [`tech_stack.md`](tech_stack.md).) The canonical spatial migration is complete, but it is an architectural foundation for a substantially richer golf world—not evidence that the visible golf gameplay is complete. The current direction is recorded in §9.
 
 ---
 
@@ -91,9 +91,9 @@ If a slice does not move at least one of these forward, it is infrastructure, no
 - **Pure engine, app wraps it** — gameplay logic stays in framework-free `sim.*`; the app/API/UI expose it (see `app-layer-roadmap`).
 - **Configure-then-advance for management; play-when-it-happens (skippable) for rounds.**
 
-## 7. Roadmap toward this target (re-sequenced)
+## 7. Version 1 delivery history (re-sequenced)
 
-Proving the *game* early took priority over more infrastructure. Items 1–5 are complete, plus a depth pass that made the mechanics real:
+Proving the *game* early took priority over more infrastructure. These delivered the Version 1 platform; they are not a claim that the Career Mode golf system has reached its long-term destination. Items 1–5 are complete, plus a depth pass that made the mechanics real:
 1. ✅ App shell · ✅ Player-control loop (development / sponsorship / rest — the first management decisions).
 2. ✅ **Playable round** — strategic shot selection (club/target/risk) shot-by-shot for the player's golfer, with sim/skip (`PlayableRound`/`PlayableEvent`). *The proof the game is real.*
 3. ✅ **Tournament structure & majors** *(engine)* — events differentiated by prestige (regular / signature / **major**), majors as cross-tour marquee events weighted into ranking points, prize, and legacy.
@@ -102,8 +102,7 @@ Proving the *game* early took priority over more infrastructure. Items 1–5 are
 6. ✅ **Depth pass** *(engine realism)* — closed the gaps that made decisions hollow or scores unreal: staff/equipment shot effects, economy stakes, a scaled 640-golfer world, shot-level stats, a **putting make-% model** (believable absolute scores), per-golfer **AI strategy variety**, and a two-phase **Hall-of-Fame election**. (Remaining Tier-3 calibration items are tracked separately.)
 7. ✅ **Persistence** — snapshot + filesystem save/load against the settled player-state (`SimSnapshotModule`).
 8. ✅ **GraphQL API → Auth → frontend → Docker** — delivered as an actual playable product (Spring GraphQL +
-   JWT auth + a Next.js App-Router UI + `docker compose`). Ongoing work is polish/breadth on the backlog
-   ([`../info.txt`](../info.txt)), not a missing pillar.
+   JWT auth + a Next.js App-Router UI + `docker compose`). Ongoing work is polish/breadth, not a missing pillar.
 
 ## 8. Confirmed decisions (locked 2026-07-10)
 
@@ -113,3 +112,45 @@ All five confirmed for V1:
 - **Career goals** — ✅ **Lightweight, self-chosen ambitions** (e.g., reach the top tour, win a major, world #1) that frame progress and legacy but **never gate** play (§1.6); surfaced by the narrative/stats layer.
 - **Scheduling depth** — ✅ The player **chooses which events to enter** from the calendar (not merely rest/play), weighing **entry requirements** and **fatigue/travel trade-offs** — a real season-planning decision (Pillars 1, 2, 5).
 - **Tours & majors** — ✅ The game **distinguishes tours and the events within them as real-life golf does.** The tour *ladder* is already modelled (Elite / Primary / Secondary / Development ≈ the tour tiers). This adds **event prestige *within* a tour, including MAJORS** — the pinnacle, cross-tour events that carry the most **ranking points, prize money, prestige, and career legacy**, and are the marquee accomplishments of §1.6. **This is an engine addition** (an event prestige/type — regular vs signature vs major — weighted into ranking/prize/legacy, with majors drawing the strongest fields across tours), not just player-facing exposure. It lands as its own slice within the tournament/scheduling breadth (see §7).
+
+## 9. Career Mode golf gameplay evolution
+
+This is the current strategic direction for the golf gameplay layer, not a feature proposal or an implementation plan. Substantial slices should be explored and specified through OpenSpec before work begins. The exact boundaries and order may change, but future work must build on authoritative spatial truth rather than recreating separate simulation and visual worlds.
+
+### Foundation complete: canonical course geometry and ball state
+
+The archived `canonical-course-geometry-and-ball-state` change established canonical 2D course geometry, persistent ball position, authoritative terrain lookup, settlement and recovery, backend/frontend geometry agreement, truthful next-shot origins, and deterministic spatial foundations.
+
+Before it, the effective flow was `calculate outcome → assign surface/result → frontend invents a visually convincing representation`. It is now `authoritative course space → actual ball position → authoritative surface/settlement → frontend renders the same golf world`.
+
+This solved a critical architectural blocker. It did **not** finish the course generator, shot controls, physical ball simulation, shot presentation, or green/putting system. Future work must extend this foundation and must not reintroduce separate visual and simulation geometry.
+
+### Transitional systems are not target designs
+
+The current conservative / balanced / aggressive human shot-decision model is retained as a compatibility and calibration guardrail during this transition. It is not the intended final human control surface, though similar dispositions may remain useful internally for AI risk preferences or decision-making.
+
+Likewise, the current procedural hole generator is the authoritative spatial platform rather than the final standard of course design; the current putting model is mainly probability/calibration driven rather than spatial green simulation; and current flight animation does not yet visualise authoritative physical shot flight.
+
+### Desired human decision surface
+
+Human play should increasingly be recognisable golf decision-making without becoming a reflex game: `club → target/aim → shot type → shot shape/trajectory → execution`. Examples such as a high-fade 7-iron, a controlled 56° pitch, a recovery punch/stinger, or a flop versus bump-and-run describe the direction only. They do not yet define controls, requirements, or implementation scope. Options should exist only where they create distinct gameplay consequences.
+
+### Major future workstreams and dependency direction
+
+1. **Stronger course and hole design/generation.** Explore believable archetypes, routing, doglegs, landing-zone strategy, hazards, risk/reward routes, fairway and green complexes, approach angles, recovery, course identity, biome influence, and coherent variation within and between courses.
+2. **Real human shot intent.** Replace abstract human risk selection with meaningful bag/club choices, target/aim, shot types, intentional shape, and trajectory where appropriate, bounded by lie and situation.
+3. **Ball flight and terrain response.** Model believable deterministic/stochastic differences in carry, launch, apex, spin, curvature, wind, landing angle, bounce, rollout, slope, firmness, surface, lie, golfer skill, and mishits. This should serve an indie game's credible golf simulation, not scientific aerodynamics for its own sake.
+4. **Authoritative shot-trace presentation.** Have the simulation describe its launch, path/curve, apex, landing, bounce, roll, and final settlement so the frontend animates that result rather than choosing a cosmetic flight independently.
+5. **Short game, greens, and putting.** Evolve toward a spatial subsystem with distinct chip/pitch/flop/bunker/fringe behaviour, landing and rollout, green boundaries, speed and contours, uphill/downhill pace, break, read/aim, variance, putt roll, and cup/lip interaction.
+
+The working dependency order is: canonical spatial foundation (complete) → stronger course/hole design → real club/target/shot intent → richer flight/landing/terrain response → authoritative shot-trace presentation → short-game/green/putting depth. Workstreams may overlap or be decomposed differently after exploration; this is not a release plan.
+
+### Principles for future slices
+
+- Prefer focused MVP progression over a giant rewrite; use OpenSpec/SDD and explore substantial systems before implementation.
+- Preserve determinism, automated calibration, the pure simulation architecture, and final manual gameplay E2E verification.
+- Keep the simulation authoritative and presentation truthful; prioritise recognisable, coherent golf over mathematical sophistication for its own sake.
+- Keep course generation flexible rather than freezing it around today's calibration distributions, and avoid abstractions that exist only for hypothetical future needs.
+- Shift human risk/reward toward actual golf choices rather than abstract strategy labels, while retaining the no-reflex/no-swing-meter guardrail.
+
+Canonical geometry is therefore only the early portion of the broader transformation: one of the most important blockers is solved, while much of the visible realism and golf-gameplay depth remains ahead.

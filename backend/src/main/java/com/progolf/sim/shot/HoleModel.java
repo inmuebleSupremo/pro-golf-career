@@ -1,6 +1,8 @@
 package com.progolf.sim.shot;
 
 import com.progolf.sim.spatial.ShotZoneProfile;
+import com.progolf.sim.course.CourseGeometry;
+import com.progolf.sim.course.Position2d;
 
 /**
  * The minimal hole geometry consumed by {@link RoundResolver}. Course generation (a separate change)
@@ -29,5 +31,23 @@ public interface HoleModel {
      */
     default double pinLateral() {
         return 0.0;
+    }
+
+    /** Canonical terrain for generated production holes; null keeps legacy fixtures on the bounded adapter. */
+    default CourseGeometry geometry() {
+        return null;
+    }
+
+    /** Active cup for a spatial hole; null when this is a legacy one-dimensional fixture. */
+    default Position2d cupPosition() {
+        return null;
+    }
+
+    /**
+     * Internal compatibility aim reference for a generated spatial hole. Legacy holes return {@code null},
+     * which preserves the green-centre frame. This is not a player-facing free-aim control.
+     */
+    default Position2d progressionTarget(Position2d ball, Strategy strategy) {
+        return null;
     }
 }

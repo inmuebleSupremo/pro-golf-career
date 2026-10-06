@@ -15,6 +15,12 @@ import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.ShotDecisionInput;
 import com.progolf.app.api.dto.ShotOutcomeDto;
 import com.progolf.app.api.dto.PlayingHoleDto;
+import com.progolf.app.api.dto.PlayingGeometryDto;
+import com.progolf.app.api.dto.PositionDto;
+import com.progolf.app.api.dto.TerrainRegionDto;
+import com.progolf.app.api.dto.BallStateDto;
+import com.progolf.app.api.dto.ShotContactDto;
+import com.progolf.app.api.dto.ShotSettlementDto;
 import com.progolf.app.api.dto.ShotSituationDto;
 import com.progolf.app.api.dto.SurfaceBandDto;
 import com.progolf.app.api.dto.SurfaceRegionDto;
@@ -32,7 +38,11 @@ import com.progolf.sim.equipment.EquipmentCharacteristics;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.media.NewsEvent;
 import com.progolf.sim.course.GeneratedHole;
+import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.PinPosition;
+import com.progolf.sim.course.Position2d;
+import com.progolf.sim.shot.BallState;
+import com.progolf.sim.shot.ShotSettlement;
 import com.progolf.sim.play.RoundScorecard;
 import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.spatial.ShotZoneProfile;
@@ -122,12 +132,23 @@ public final class ApiMapper {
      * web-hole-visualization). {@code courseType} is the event's canonical scene token (the same token the scene
      * backdrop uses), so the hole's biome illustration always agrees with the event's name, place, and photo.
      */
-    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType) {
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball) {
+        return playingHole(hole, pin, courseType, ball, hole.geometry());
+    }
+
+    /** Projects the effective setup-specific geometry used by the active playable hole. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
+                                             CourseGeometry geometry) {
         return new PlayingHoleDto(hole.number(), hole.par(), hole.length(),
                 hole.fairwayHalfWidth(), hole.greenHalfWidth(), hole.greenDepth(), hole.elevationDelta(),
                 hole.hasGreensideBunker(), hole.hasWater(), hole.hasTrees(),
                 pin.lateralOffset(), pin.depthOffset(),
-                courseType, Long.toString(hole.holeSeed()));
+                courseType, Long.toString(hole.holeSeed()), geometry(geometry, pin), ballState(ball));
+    }
+
+    /** Compatibility mapper for tests/readers not yet carrying a live ball. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType) {
+        return playingHole(hole, pin, courseType, new BallState(hole.geometry().tee(), com.progolf.sim.spatial.Surface.TEE_BOX));
     }
 
     public static SeasonStatDto seasonStat(SeasonStatistics s) {
@@ -154,7 +175,30 @@ public final class ApiMapper {
 
     public static ShotOutcomeDto shotOutcome(ShotOutcome o) {
         return new ShotOutcomeDto(o.finalSurface().name(), o.carry(), o.lateral(), o.distanceRemaining(),
-                o.hazardEntered(), o.penaltyStrokes(), o.strokes());
+                o.hazardEntered(), o.penaltyStrokes(), o.strokes(), settlement(o.settlement()));
+    }
+
+    private static PlayingGeometryDto geometry(CourseGeometry geometry, PinPosition pin) {
+        return new PlayingGeometryDto(point(geometry.tee()), point(new Position2d(
+                geometry.greenCenter().x() + pin.lateralOffset(), geometry.greenCenter().y() + pin.depthOffset())),
+                geometry.playableBoundary().stream().map(ApiMapper::point).toList(),
+                geometry.regions().stream().map(region -> new TerrainRegionDto(region.surface().name(),
+                        region.boundary().stream().map(ApiMapper::point).toList())).toList());
+    }
+
+    private static PositionDto point(Position2d point) {
+        return new PositionDto(point.x(), point.y());
+    }
+
+    private static BallStateDto ballState(BallState ball) {
+        return ball == null ? null : new BallStateDto(point(ball.position()), ball.lie().name());
+    }
+
+    private static ShotSettlementDto settlement(ShotSettlement settlement) {
+        return settlement == null ? null : new ShotSettlementDto(
+                new ShotContactDto(point(settlement.contact().position()), settlement.contact().surface().name()),
+                settlement.recoveryPosition() == null ? null : point(settlement.recoveryPosition()),
+                settlement.recoveryKind().name(), ballState(settlement.ball()));
     }
 
     // --- Input parsing (enum-valued arguments arrive as their names; a bad name throws

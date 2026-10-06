@@ -6,6 +6,7 @@ import { gqlRequest } from "@/lib/api/graphql-client";
 import {
   AchievementsDocument,
   CareerOverviewDocument,
+  CareerInboxDocument,
   CareerRecordsDocument,
   DevelopmentReportDocument,
   HallOfFameDocument,
@@ -35,6 +36,16 @@ export function useCareerOverview(id: string) {
     queryFn: () => gqlRequest(CareerOverviewDocument, { id }),
     // Never pause on perceived-offline (some embedded browsers report offline), and
     // don't retry a not-found session — surface the error immediately.
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The player's live, aggregated career attention — never a persisted notification feed. */
+export function useCareerInbox(id: string) {
+  return useQuery({
+    queryKey: ["inbox", id],
+    queryFn: () => gqlRequest(CareerInboxDocument, { id }),
     networkMode: "always",
     retry: false,
   });

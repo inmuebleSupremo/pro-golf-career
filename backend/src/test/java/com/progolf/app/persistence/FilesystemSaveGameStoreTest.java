@@ -4,12 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.world.World;
 import com.progolf.sim.world.WorldConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -36,7 +41,7 @@ class FilesystemSaveGameStoreTest {
     private SaveGame gameFrom(World world, long seed, String id) {
         SaveMetadata meta = new SaveMetadata(id, Instant.now(), world.currentSeason(), world.currentWeek(),
                 world.playerGolferId().orElse(null));
-        return new SaveGame(seed, world.config(), world.snapshot(), meta);
+        return new SaveGame(seed, world.config(), world.snapshot(), meta, null, null);
     }
 
     @Test
@@ -88,6 +93,22 @@ class FilesystemSaveGameStoreTest {
     }
 
     @Test
+    void aLegacyV2EnvelopeWithoutGeneratorProvenanceRestoresThroughV1() throws Exception {
+        store.save(OWNER, "legacy", gameFrom(World.create(77L, SMALL), 77L, "legacy"));
+        Path file = dir.resolve(OWNER).resolve("legacy.json");
+        SaveEnvelope current = mapper.readValue(Files.readString(file), SaveEnvelope.class);
+        ObjectNode payload = (ObjectNode) mapper.readTree(current.payload());
+        ((ObjectNode) payload.get("snapshot")).remove("courseGeneratorVersion");
+        String legacyPayload = mapper.writeValueAsString(payload);
+        Files.writeString(file, mapper.writeValueAsString(new SaveEnvelope(2, sha256(legacyPayload), legacyPayload)));
+
+        SaveGame loaded = store.load(OWNER, "legacy");
+        assertThat(loaded.snapshot().courseGeneratorVersion()).isNull();
+        assertThat(World.restore(loaded.seed(), loaded.config(), loaded.snapshot()).courseGeneratorVersion())
+                .isEqualTo(CourseGenConstants.V1_GENERATOR_VERSION);
+    }
+
+    @Test
     void loadingAMissingSaveReportsNotFound() {
         assertThatThrownBy(() -> store.load(OWNER, "nope")).isInstanceOf(SaveNotFoundException.class);
     }
@@ -126,5 +147,10 @@ class FilesystemSaveGameStoreTest {
 
         // An owner with nothing saved sees an empty list, not another owner's saves.
         assertThat(store.list("carol")).isEmpty();
+    }
+
+    private static String sha256(String value) throws NoSuchAlgorithmException {
+        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
     }
 }

@@ -3,6 +3,9 @@ package com.progolf.app.world;
 import com.progolf.app.api.dto.AttributeValueDto;
 import com.progolf.sim.achievement.Achievement;
 import com.progolf.app.api.dto.CalendarEntryDto;
+import com.progolf.app.api.dto.CareerInboxDto;
+import com.progolf.app.api.dto.CareerInboxItemDto;
+import com.progolf.app.api.dto.CareerInboxKind;
 import com.progolf.app.api.dto.CareerRecordsDto;
 import com.progolf.app.api.dto.CurrentEventDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
@@ -51,6 +54,7 @@ import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Identity;
 import com.progolf.sim.player.Nationality;
+import com.progolf.sim.progression.DevelopmentPoints;
 import com.progolf.sim.progression.ProgressionConstants;
 import com.progolf.sim.ranking.RankingSnapshot;
 import com.progolf.sim.ranking.RankingStanding;
@@ -97,6 +101,10 @@ public class WorldService {
     public static final String AUTOSAVE_ID = "autosave";
 
     private final ConcurrentMap<String, WorldSession> sessions = new ConcurrentHashMap<>();
+    /** Application-only completion of the Schedule review, keyed by session and scoped to one season. */
+    private final ConcurrentMap<String, Integer> scheduleReviewAcknowledgements = new ConcurrentHashMap<>();
+    /** Application-only completion of the optional Staff review, keyed by session and scoped to one season. */
+    private final ConcurrentMap<String, Integer> staffReviewAcknowledgements = new ConcurrentHashMap<>();
     private final SaveGameStore saveStore;
 
     public WorldService(SaveGameStore saveStore) {
@@ -128,7 +136,8 @@ public class WorldService {
         World world = session.world();
         SaveMetadata metadata = new SaveMetadata(saveId, Instant.now(), world.currentSeason(), world.currentWeek(),
                 world.playerGolferId().orElse(null));
-        saveStore.save(ownerId, saveId, new SaveGame(session.seed(), world.config(), world.snapshot(), metadata));
+        saveStore.save(ownerId, saveId, new SaveGame(session.seed(), world.config(), world.snapshot(), metadata,
+                scheduleReviewAcknowledgements.get(session.id()), staffReviewAcknowledgements.get(session.id())));
     }
 
     /** Loads one of the owner's saves into a new session they own and returns it (the world continues identically). */
@@ -138,6 +147,12 @@ public class WorldService {
         String sessionId = UUID.randomUUID().toString();
         WorldSession session = new WorldSession(sessionId, ownerId, game.seed(), world);
         sessions.put(sessionId, session);
+        if (game.scheduleReviewAcknowledgedSeason() != null) {
+            scheduleReviewAcknowledgements.put(sessionId, game.scheduleReviewAcknowledgedSeason());
+        }
+        if (game.staffReviewAcknowledgedSeason() != null) {
+            staffReviewAcknowledgements.put(sessionId, game.staffReviewAcknowledgedSeason());
+        }
         return session;
     }
 
@@ -213,6 +228,110 @@ public class WorldService {
     /** The player's reviewable eligible schedule (each event's prestige and entry status). */
     public List<PlayerScheduleEntry> playerSchedule(String ownerId, String sessionId) {
         return required(ownerId, sessionId).world().playerSchedule();
+    }
+
+    /**
+     * Records only that the player has completed the current season's Schedule review. This application-owned
+     * acknowledgement never changes schedule choices or simulation state and is intentionally not a general
+     * Inbox lifecycle model.
+     */
+    public boolean acknowledgeScheduleReview(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        if (world.playerGolferId().isEmpty() || world.currentWeek() != 1 || world.playerSchedule().isEmpty()) {
+            return false;
+        }
+        scheduleReviewAcknowledgements.put(sessionId, world.currentSeason());
+        return true;
+    }
+
+    /**
+     * Records only that the player has reviewed the current season's optional Staff candidates. This
+     * application-owned acknowledgement never changes candidates, staffing, funds, or simulation state.
+     */
+    public boolean acknowledgeStaffReview(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        if (world.playerGolferId().isEmpty()) {
+            return false;
+        }
+        String playerId = world.playerGolferId().orElseThrow();
+        double funds = world.financialAccountOf(playerId).availableFunds();
+        boolean hasAffordableCandidate = world.pendingStaffOffers().stream()
+                .anyMatch(candidate -> candidate.hiringCost() <= funds);
+        if (!hasAffordableCandidate) {
+            return false;
+        }
+        staffReviewAcknowledgements.put(sessionId, world.currentSeason());
+        return true;
+    }
+
+    /**
+     * The player's compact, current-state attention index (spec: career-inbox). This is deliberately an
+     * application projection rather than a simulation subsystem: it aggregates only decisions the owning
+     * career screens already govern and stores no Inbox/read state.
+     */
+    public CareerInboxDto careerInbox(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        if (world.playerGolferId().isEmpty()) {
+            return new CareerInboxDto(List.of());
+        }
+
+        String playerId = world.playerGolferId().orElseThrow();
+        double funds = world.financialAccountOf(playerId).availableFunds();
+        List<CareerInboxItemDto> items = new ArrayList<>();
+
+        int upcoming = (int) world.playerSchedule().stream()
+                .filter(entry -> entry.week() >= world.currentWeek())
+                .count();
+        boolean scheduleAcknowledged = Integer.valueOf(world.currentSeason())
+                .equals(scheduleReviewAcknowledgements.get(sessionId));
+        if (world.currentWeek() == 1 && upcoming > 0 && !scheduleAcknowledged) {
+            items.add(new CareerInboxItemDto(CareerInboxKind.SCHEDULE, upcoming));
+        }
+
+        int developmentPoints = world.playerDevelopmentPoints();
+        if (hasAllocatableDevelopment(world, playerId, developmentPoints)) {
+            items.add(new CareerInboxItemDto(CareerInboxKind.DEVELOPMENT, developmentPoints));
+        }
+
+        int sponsorships = world.pendingSponsorships().size();
+        if (sponsorships > 0 && world.activeSponsorships().size() < world.maxConcurrentSponsorships()) {
+            items.add(new CareerInboxItemDto(CareerInboxKind.SPONSORSHIP, sponsorships));
+        }
+
+        int equipment = (int) world.pendingEquipmentOffers().stream()
+                .filter(item -> item.cost() <= funds)
+                .count() + world.pendingEquipmentDeals().size();
+        if (equipment > 0) {
+            items.add(new CareerInboxItemDto(CareerInboxKind.EQUIPMENT, equipment));
+        }
+
+        int staff = (int) world.pendingStaffOffers().stream()
+                .filter(candidate -> candidate.hiringCost() <= funds)
+                .count();
+        boolean staffAcknowledged = Integer.valueOf(world.currentSeason())
+                .equals(staffReviewAcknowledgements.get(sessionId));
+        if (staff > 0 && !staffAcknowledged) {
+            items.add(new CareerInboxItemDto(CareerInboxKind.STAFF, staff));
+        }
+
+        return new CareerInboxDto(items);
+    }
+
+    /** Returns whether the player can make at least one valid Development decision with their banked points. */
+    private static boolean hasAllocatableDevelopment(World world, String playerId, int points) {
+        if (points <= 0) {
+            return false;
+        }
+        Career career = world.careerOf(playerId);
+        Attributes attributes = career.player().attributes();
+        Attributes potential = career.player().potential();
+        for (Attribute attribute : Attribute.values()) {
+            if (attributes.get(attribute) < potential.get(attribute)
+                    && points >= DevelopmentPoints.costToRaise(attributes.get(attribute))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -773,7 +892,10 @@ public class WorldService {
         String courseType = required(ownerId, sessionId).world().currentEventScene()
                 .map(World.PendingEventScene::courseType)
                 .orElseGet(() -> event.classification().name());
-        return ApiMapper.playingHole(hole, pin, courseType);
+        var geometry = event.effectiveGeometry(hole.number());
+        var ball = holeNumber == null ? event.currentBallState()
+                : new com.progolf.sim.shot.BallState(geometry.tee(), com.progolf.sim.spatial.Surface.TEE_BOX);
+        return ApiMapper.playingHole(hole, pin, courseType, ball, geometry);
     }
 
     /** The live field leaderboard for the player's event. */

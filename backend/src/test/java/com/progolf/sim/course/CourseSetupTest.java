@@ -27,6 +27,7 @@ class CourseSetupTest {
         for (int hole = 1; hole <= 18; hole++) {
             HoleModel baseline = course.holeModel(hole, 1);
             HoleModel standard = course.holeModel(hole, 1, CourseSetup.standard());
+            assertThat(standard.geometry()).isSameAs(course.holes().get(hole - 1).geometry());
             assertThat(standard.startDistance()).isEqualTo(baseline.startDistance());
             assertThat(standard.pinLateral()).isEqualTo(baseline.pinLateral());
             for (double d = 250; d >= 5; d -= 35) {
@@ -34,6 +35,24 @@ class CourseSetupTest {
                         .isEqualTo(baseline.zoneProfileFor(d));
             }
         }
+    }
+
+    @Test
+    void nonNeutralSetupExposesTheCanonicalGeometryUsedForSurfaceSettlement() {
+        GeneratedHole hole = course().holes().get(0);
+        HoleModel tightModel = hole.forRound(1, new CourseSetup(1.0, 1.0, 0.60));
+        CourseGeometry baseline = hole.geometry();
+        CourseGeometry effective = tightModel.geometry();
+
+        assertThat(effective).isNotEqualTo(baseline);
+        assertThat(hole.forRound(1, new CourseSetup(1.0, 1.0, 0.60)).geometry())
+                .isSameAs(effective);
+
+        Position2d changed = firstClassificationDifference(baseline, effective, hole.length());
+        // Shot settlement asks HoleModel.geometry() for its contact surface, so this is the exact terrain
+        // contract the resolver follows rather than a separate presentation-only width calculation.
+        assertThat(tightModel.geometry().surfaceAt(changed)).isEqualTo(effective.surfaceAt(changed));
+        assertThat(tightModel.geometry().surfaceAt(changed)).isNotEqualTo(baseline.surfaceAt(changed));
     }
 
     @Test
@@ -79,5 +98,17 @@ class CourseSetupTest {
             total += strokes - course.totalPar();
         }
         return total / rounds;
+    }
+
+    private static Position2d firstClassificationDifference(CourseGeometry first, CourseGeometry second, double length) {
+        for (double y = 0; y <= length + 60; y += 1.0) {
+            for (double x = -120; x <= 120; x += 1.0) {
+                Position2d point = new Position2d(x, y);
+                if (first.surfaceAt(point) != second.surfaceAt(point)) {
+                    return point;
+                }
+            }
+        }
+        throw new AssertionError("expected setup-specific geometry to alter at least one surface classification");
     }
 }

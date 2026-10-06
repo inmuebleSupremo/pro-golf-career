@@ -34,7 +34,7 @@ public record HoleStats(boolean fairwayEligible, boolean fairwayHit, boolean gre
         // surface — is the green). The approach that lands on the green is not itself a putt.
         int putts = 0;
         for (int j = 1; j < shots.size(); j++) {
-            if (shots.get(j - 1).finalSurface() == Surface.GREEN) {
+            if (shots.get(j).putt() || shots.get(j - 1).finalSurface() == Surface.GREEN) {
                 putts++;
             }
         }
