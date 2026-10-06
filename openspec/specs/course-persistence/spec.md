@@ -5,22 +5,17 @@ TBD - created by archiving change add-course-domain. Update Purpose after archiv
 ## Requirements
 ### Requirement: Courses Are Permanent Historical Assets
 
-A Course generated during a career SHALL become a permanent historical asset. Historical tournament results SHALL always reference the exact Course used, and that Course SHALL remain reproducible from its seed, environment classification, and recorded generator version. A generator version SHALL be retained or deliberately migrated under an explicitly approved compatibility policy for as long as supported saves/history can reference it.
+A Course generated during a career SHALL become a permanent historical asset. Historical tournament results SHALL always reference the exact Course used, and that Course SHALL remain reproducible from its seed, environment classification, and recorded generator version. For a V3 Course, deterministic regeneration SHALL reproduce its associated route, landing-zone, green-complex, and canonical geometry data under that recorded version. A generator version SHALL be retained or deliberately migrated under an explicitly approved compatibility policy for as long as supported saves/history can reference it.
 
-#### Scenario: Historical result uses its recorded generator version
+#### Scenario: Historical V3 course regenerates its semantic identity
 
-- **WHEN** a historical Course is reconstructed from a saved career
-- **THEN** it SHALL use the generator version recorded for that career/course pool rather than the latest generator version
+- **WHEN** a historical V3 Course is reconstructed from a saved career
+- **THEN** it SHALL use its recorded V3 generator and reproduce the same spatial semantics and canonical geometry rather than the latest generator's interpretation
 
-#### Scenario: World pin is unambiguous for the fixed course pool
+#### Scenario: Historical versions remain isolated
 
-- **WHEN** a current-world snapshot is restored
-- **THEN** its single world-level generator-version pin SHALL govern the complete fixed course pool, whose Course generator-version stamps SHALL agree with that pin
-
-#### Scenario: Version retirement is explicit
-
-- **WHEN** maintainers propose removing a historical generator version
-- **THEN** they SHALL provide a separately specified equivalent migration, continued compatibility adapter, or explicit support-retirement policy before removal
+- **WHEN** a newer generator implementation changes
+- **THEN** saved V1 and V2 course pools SHALL remain regenerated through their recorded historical implementations without fabricated V3 semantics
 
 ### Requirement: Course Revisions Do Not Invalidate History
 

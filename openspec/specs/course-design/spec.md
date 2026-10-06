@@ -33,31 +33,26 @@ Before individual holes are compiled, a design-aware Course SHALL generate an im
 
 ### Requirement: Lightweight hole briefs guide current generation
 
-Every design-aware `HoleBrief` SHALL express only currently actionable intent: ordered number, par, par-relative length band, strategic archetype, and inherited recovery intent. The generator SHALL translate that intent into bounded existing generation inputs before canonical geometry compilation. The brief SHALL NOT claim unimplemented routes, target zones, approach-side rules, bunker roles, green contours, or shot controls.
+Every design-aware `HoleBrief` SHALL express stable generation-facing intent: ordered number, par, par-relative length band, strategic archetype, and inherited recovery intent. V2 SHALL translate only its bounded scalar inputs before canonical geometry compilation. V3 MAY translate the same brief into route, landing-zone, approach-side, and green-complex semantics through the separately defined strategic-hole-routing capability. A brief itself SHALL not become canonical terrain, a player control, a named hazard-role model, or a shot-control model.
 
-#### Scenario: Brief compiles through canonical terrain
+#### Scenario: Version-appropriate brief compilation
 
-- **WHEN** a V2 hole brief is generated
-- **THEN** its bounded length, width, and current hazard/recovery inputs SHALL be compiled through the authoritative existing canonical geometry path
+- **WHEN** the same class of brief is compiled by V2 and V3
+- **THEN** V2 SHALL preserve its bounded scalar behavior while V3 MAY add only the approved semantic routing/green layer before canonical compilation
 
-#### Scenario: Future strategic detail is not fabricated
+#### Scenario: Brief does not overtake later systems
 
-- **WHEN** a brief is inspected before later routing and green-complex changes
-- **THEN** it SHALL not represent unimplemented detailed routes, hazard roles, or green-reading mechanics as present functionality
+- **WHEN** a V3 brief-derived semantic plan is inspected
+- **THEN** it SHALL not claim player free aim, club-specific targets, shot type/shape/trajectory, role-based hazards, contours, elevation, or spatial putting
 
 ### Requirement: Three archetypes have bounded present-day effects
 
-The design-aware generator SHALL support exactly the `POSITIONAL`, `BALANCED`, and `RISK_REWARD` strategic archetypes in this slice. `POSITIONAL` SHALL bias currently expressible length, width, recovery, and flanking-hazard inputs toward accuracy/recovery pressure; `BALANCED` SHALL use the neutral, profile-composed range; and `RISK_REWARD` SHALL bias eligible par 4s or par 5s toward a short/reachable current range with bounded miss-consequence exposure. These are distributional constraints over the locked deterministic corpus, not a claim that the current generator has multiple routes, chosen lay-ups, or named hazard roles.
+The design-aware generator SHALL support `POSITIONAL`, `BALANCED`, and `RISK_REWARD` strategic archetypes. V2 SHALL retain its existing bounded scalar expressions. V3 SHALL additionally map them to the constrained spatial meanings defined by strategic-hole-routing: positional controlled/preferred-side play with a safer inferior alternative where applicable, balanced neutral primary play, and an eligible risk/reward safe/aggressive spatial choice. No version SHALL imply a branch network, unrestricted doglegs, or player-selectable route controls.
 
-#### Scenario: Archetypes produce distinguishable current intent
+#### Scenario: V3 archetype remains bounded
 
-- **WHEN** the fixed design-aware corpus is generated
-- **THEN** positional briefs SHALL have the committed higher standard/long-band share and risk/reward briefs SHALL have the committed higher eligible short/reachable-opportunity share, with balanced briefs using the neutral range
-
-#### Scenario: Routing detail remains deferred
-
-- **WHEN** a risk/reward or positional brief is examined
-- **THEN** it SHALL not claim a player-selectable safe/carry route, prescribed landing zone, approach angle, or role-based hazard placement
+- **WHEN** the fixed V3 corpus is generated
+- **THEN** its archetype mappings SHALL satisfy the committed spatial-plan and feasibility contract without creating unapproved route or shot mechanics
 
 ### Requirement: Differentiation evidence is locked before tuning
 

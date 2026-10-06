@@ -5,24 +5,19 @@ TBD - created by archiving change add-shot-resolution-core. Update Purpose after
 ## Requirements
 ### Requirement: Hybrid Spatial Representation
 
-A generated production hole SHALL expose canonical two-dimensional terrain for gameplay and presentation. Shot sampling MAY retain a local carry/lateral frame, but production surface classification and playable settlement SHALL use canonical geometry at the sampled contact position. The frontend SHALL render gameplay landforms from that canonical geometry and SHALL NOT independently author, move, or reshape gameplay terrain.
+A generated production hole SHALL expose canonical two-dimensional terrain for gameplay and presentation. A version-supported generator MAY retain immutable route, landing-zone, green-complex, and progression-target semantics associated with the generated hole, but those semantics SHALL be planning metadata rather than a competing terrain representation. Shot sampling MAY retain a local carry/lateral frame, while production surface classification and playable settlement SHALL use canonical geometry at the sampled contact position. The frontend SHALL render gameplay landforms from that canonical geometry and SHALL NOT independently author, move, or reshape gameplay terrain.
 
 One-dimensional zone-band data remains permitted only through the separately defined bounded legacy compatibility seam; it SHALL NOT become the authority for new generated terrain or production settlement.
 
-#### Scenario: Production resolution uses canonical terrain
+#### Scenario: Semantic plan does not override a lie
 
-- **WHEN** a sampled shot contact is resolved on a generated production hole
-- **THEN** its surface and playable settlement SHALL be determined by canonical geometry at that contact position
+- **WHEN** a sampled V3 shot contact lands inside a semantic landing-zone extent but on a canonical non-fairway surface
+- **THEN** its resolved surface and settlement SHALL be determined by canonical geometry at that contact position
 
-#### Scenario: Presentation renders rather than authors terrain
+#### Scenario: Presentation remains canonical
 
-- **WHEN** a client renders a generated production hole
-- **THEN** its gameplay-relevant landforms SHALL derive from supplied canonical geometry and changes to that geometry SHALL be reflected in gameplay and presentation
-
-#### Scenario: Legacy zones remain bounded
-
-- **WHEN** an explicitly legacy fixture or compatibility caller supplies only one-dimensional zone bands
-- **THEN** it MAY resolve through the zone-band adapter without granting that adapter authority over new production terrain
+- **WHEN** a client renders a V3 generated production hole
+- **THEN** its gameplay landforms SHALL derive from supplied canonical geometry rather than recreating route, landing-zone, or green-complex geometry independently
 
 ### Requirement: Zone-Band Abstraction
 
