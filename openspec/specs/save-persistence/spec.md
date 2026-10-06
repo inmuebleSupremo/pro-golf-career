@@ -75,25 +75,25 @@ All serialization and storage code SHALL live in the application layer. The simu
 
 ### Requirement: Deterministic Spatial Continuity
 
-Canonical generated course geometry SHALL be restored by regeneration from the saved world seed, configuration, and generator version rather than by an independently mutable presentation copy. The current save scope SHALL remain unchanged: it does not persist a pending playable event. If a later save format adds an in-progress playable event, it SHALL persist the complete playable `BallState` and any unresolved spatial settlement required to resume at the same legal next-shot origin.
+Canonical generated course geometry SHALL be restored by regeneration from the saved world seed, configuration, and explicitly persisted course-generator version rather than by an independently mutable presentation copy. New saves SHALL record that provenance. A supported historical save lacking generator-version provenance SHALL restore through the documented historical V1 generator, never through the latest generator. The current save scope SHALL remain unchanged: it does not persist a pending playable event.
 
-#### Scenario: Restored geometry matches generated geometry
+#### Scenario: Version-pinned save restores its original geometry
 
-- **WHEN** a world is saved, loaded, and its course geometry is requested
-- **THEN** the restored geometry SHALL equal the geometry generated for the original world seed, configuration, and generator version
+- **WHEN** a world saved with an explicit supported generator version is loaded
+- **THEN** its course pool and canonical geometry SHALL be regenerated with that same version
 
-#### Scenario: Current saves do not claim mid-hole resume
+#### Scenario: Historical save without provenance preserves V1 venues
 
-- **WHEN** a save is written while the application has no supported pending-event snapshot
-- **THEN** the save contract SHALL not claim to preserve a mid-hole ball position
+- **WHEN** a supported pre-provenance save is loaded
+- **THEN** it SHALL use the documented V1 compatibility generator rather than the latest generator
 
-#### Scenario: Pending events are rejected rather than partially saved
+#### Scenario: Representative legacy disk fixture remains playable
 
-- **WHEN** a caller attempts to snapshot a world with a pending playable event
-- **THEN** the snapshot operation SHALL fail rather than silently omit the active `BallState` or settlement
+- **WHEN** a checked-in representative current-v2-envelope save fixture without generator provenance is loaded
+- **THEN** it SHALL restore a usable V1-pinned world with the fixture's historical venue identities and canonical geometry
 
-#### Scenario: A future event snapshot is spatially complete
+#### Scenario: Unsupported pinned version is rejected
 
-- **WHEN** a future save format persists an in-progress playable event
-- **THEN** loading it SHALL restore the exact playable ball position and lie from which the next shot would have begun
+- **WHEN** a save records a course-generator version the application no longer supports
+- **THEN** loading SHALL fail clearly before returning a partially regenerated world
 
