@@ -38,6 +38,7 @@ import com.progolf.sim.equipment.EquipmentCharacteristics;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.media.NewsEvent;
 import com.progolf.sim.course.GeneratedHole;
+import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.course.Position2d;
 import com.progolf.sim.shot.BallState;
@@ -132,11 +133,17 @@ public final class ApiMapper {
      * backdrop uses), so the hole's biome illustration always agrees with the event's name, place, and photo.
      */
     public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball) {
+        return playingHole(hole, pin, courseType, ball, hole.geometry());
+    }
+
+    /** Projects the effective setup-specific geometry used by the active playable hole. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
+                                             CourseGeometry geometry) {
         return new PlayingHoleDto(hole.number(), hole.par(), hole.length(),
                 hole.fairwayHalfWidth(), hole.greenHalfWidth(), hole.greenDepth(), hole.elevationDelta(),
                 hole.hasGreensideBunker(), hole.hasWater(), hole.hasTrees(),
                 pin.lateralOffset(), pin.depthOffset(),
-                courseType, Long.toString(hole.holeSeed()), geometry(hole, pin), ballState(ball));
+                courseType, Long.toString(hole.holeSeed()), geometry(geometry, pin), ballState(ball));
     }
 
     /** Compatibility mapper for tests/readers not yet carrying a live ball. */
@@ -171,10 +178,11 @@ public final class ApiMapper {
                 o.hazardEntered(), o.penaltyStrokes(), o.strokes(), settlement(o.settlement()));
     }
 
-    private static PlayingGeometryDto geometry(GeneratedHole hole, PinPosition pin) {
-        return new PlayingGeometryDto(point(hole.geometry().tee()), point(hole.cupFor(pin)),
-                hole.geometry().playableBoundary().stream().map(ApiMapper::point).toList(),
-                hole.geometry().regions().stream().map(region -> new TerrainRegionDto(region.surface().name(),
+    private static PlayingGeometryDto geometry(CourseGeometry geometry, PinPosition pin) {
+        return new PlayingGeometryDto(point(geometry.tee()), point(new Position2d(
+                geometry.greenCenter().x() + pin.lateralOffset(), geometry.greenCenter().y() + pin.depthOffset())),
+                geometry.playableBoundary().stream().map(ApiMapper::point).toList(),
+                geometry.regions().stream().map(region -> new TerrainRegionDto(region.surface().name(),
                         region.boundary().stream().map(ApiMapper::point).toList())).toList());
     }
 

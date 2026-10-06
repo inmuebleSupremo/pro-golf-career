@@ -2,6 +2,7 @@ package com.progolf.sim.play;
 
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.course.Course;
+import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.course.GeneratedHole;
@@ -99,6 +100,19 @@ public final class PlayableEvent {
     }
 
     /**
+     * The canonical terrain currently used by the resolver. Unlike {@link #currentHole()}, this includes
+     * the active event setup's width variant and is the geometry presentation must project.
+     */
+    public CourseGeometry currentEffectiveGeometry() {
+        requireActive();
+        return switch (phase) {
+            case ROUND -> currentRound.currentHoleModel().geometry();
+            case PLAYOFF -> currentPlayoffHole.model().geometry();
+            case DONE -> throw new IllegalStateException("the event is complete");
+        };
+    }
+
+    /**
      * The active pin for the hole the player is currently on, under this event's setup — the exact pin the
      * played {@link com.progolf.sim.shot.HoleModel} carries, so a rendered flag matches the resolved shot.
      */
@@ -117,6 +131,25 @@ public final class PlayableEvent {
     /** The generated geometry of hole {@code holeNumber} (1..18) on this event's course. */
     public GeneratedHole holeGeometry(int holeNumber) {
         return course.holes().get(holeNumber - 1);
+    }
+
+    /**
+     * The setup-specific canonical terrain for a hole in the active round/playoff, suitable for current-hole
+     * projection or prefetch. The active hole returns the exact model instance used by resolution; another
+     * hole is regenerated through the same immutable setup-variant cache.
+     */
+    public CourseGeometry effectiveGeometry(int holeNumber) {
+        requireActive();
+        if (holeNumber < 1 || holeNumber > 18) {
+            throw new IllegalArgumentException("hole number must be 1..18: " + holeNumber);
+        }
+        if (phase == Phase.ROUND && holeNumber == currentRound.currentHole()) {
+            return currentEffectiveGeometry();
+        }
+        if (phase == Phase.PLAYOFF && holeNumber == currentPlayoffHole.situation().holeNumber()) {
+            return currentEffectiveGeometry();
+        }
+        return course.holeModel(holeNumber, currentPinRound(), setup).geometry();
     }
 
     /** The active pin for hole {@code holeNumber} in the round currently in progress, under this event's setup. */

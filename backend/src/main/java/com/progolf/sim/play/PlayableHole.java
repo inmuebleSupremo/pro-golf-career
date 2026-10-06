@@ -140,6 +140,11 @@ public final class PlayableHole {
         return ball;
     }
 
+    /** The exact setup-specific model used to resolve this playoff hole. */
+    public HoleModel model() {
+        return model;
+    }
+
     private ShotDecision simDecision() {
         return simPolicy.decide(remaining, lie, ball == null ? model.pinLateral() : localPinLateral(), attributes, par);
     }
