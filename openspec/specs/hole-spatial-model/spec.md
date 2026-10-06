@@ -5,17 +5,24 @@ TBD - created by archiving change add-shot-resolution-core. Update Purpose after
 ## Requirements
 ### Requirement: Hybrid Spatial Representation
 
-A hole SHALL be authored and presentable in two dimensions but SHALL be *resolved* in one dimension. Shot resolution SHALL operate on a distance-to-pin value plus a lateral offset, and SHALL NOT require full 2D geometry queries. The 2D layout is for presentation and authoring only; it SHALL NOT be an input the shot engine depends upon.
+A generated production hole SHALL expose canonical two-dimensional terrain for gameplay and presentation. Shot sampling MAY retain a local carry/lateral frame, but production surface classification and playable settlement SHALL use canonical geometry at the sampled contact position. The frontend SHALL render gameplay landforms from that canonical geometry and SHALL NOT independently author, move, or reshape gameplay terrain.
 
-#### Scenario: Resolution needs no 2D geometry
+One-dimensional zone-band data remains permitted only through the separately defined bounded legacy compatibility seam; it SHALL NOT become the authority for new generated terrain or production settlement.
 
-- **WHEN** a shot is resolved
-- **THEN** the engine SHALL require only the 1D inputs (distance-to-pin, applicable zone bands, and lateral dispersion parameters) and SHALL NOT query 2D coordinates
+#### Scenario: Production resolution uses canonical terrain
 
-#### Scenario: 2D layout is presentation-only
+- **WHEN** a sampled shot contact is resolved on a generated production hole
+- **THEN** its surface and playable settlement SHALL be determined by canonical geometry at that contact position
 
-- **WHEN** the 2D layout of a hole changes without changing its 1D zone-band definitions
-- **THEN** resolved shot outcomes SHALL be unaffected
+#### Scenario: Presentation renders rather than authors terrain
+
+- **WHEN** a client renders a generated production hole
+- **THEN** its gameplay-relevant landforms SHALL derive from supplied canonical geometry and changes to that geometry SHALL be reflected in gameplay and presentation
+
+#### Scenario: Legacy zones remain bounded
+
+- **WHEN** an explicitly legacy fixture or compatibility caller supplies only one-dimensional zone bands
+- **THEN** it MAY resolve through the zone-band adapter without granting that adapter authority over new production terrain
 
 ### Requirement: Zone-Band Abstraction
 
@@ -82,4 +89,3 @@ For a canonical full shot, the resolver SHALL retain the legacy sampler's carry/
 
 - **WHEN** canonical terrain changes in a generated production hole
 - **THEN** surface lookup and resulting shot settlement SHALL reflect that terrain change
-
