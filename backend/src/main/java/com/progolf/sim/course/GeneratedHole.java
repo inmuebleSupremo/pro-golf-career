@@ -24,7 +24,8 @@ public record GeneratedHole(
         double elevationDelta,
         long holeSeed,
         CourseGeometry geometry,
-        HoleSpatialPlan spatialPlan) {
+        HoleSpatialPlan spatialPlan,
+        HazardPlan hazardPlan) {
 
     /** Cached immutable setup variants, shared by every competitor using the same generated hole. */
     private static final Map<GeometryVariantKey, CourseGeometry> SETUP_GEOMETRIES = new ConcurrentHashMap<>();
@@ -50,7 +51,15 @@ public record GeneratedHole(
                          double greenDepth, boolean hasGreensideBunker, boolean hasWater, boolean hasTrees,
                          double elevationDelta, long holeSeed) {
         this(number, par, length, fairwayHalfWidth, greenHalfWidth, greenDepth, hasGreensideBunker, hasWater,
-                hasTrees, elevationDelta, holeSeed, null, null);
+                hasTrees, elevationDelta, holeSeed, null, null, null);
+    }
+
+    /** Compatibility constructor for V3 callers; V4 supplies a semantic hazard plan. */
+    public GeneratedHole(int number, int par, double length, double fairwayHalfWidth, double greenHalfWidth,
+                         double greenDepth, boolean hasGreensideBunker, boolean hasWater, boolean hasTrees,
+                         double elevationDelta, long holeSeed, CourseGeometry geometry, HoleSpatialPlan spatialPlan) {
+        this(number, par, length, fairwayHalfWidth, greenHalfWidth, greenDepth, hasGreensideBunker, hasWater,
+                hasTrees, elevationDelta, holeSeed, geometry, spatialPlan, null);
     }
 
     /** Deterministically derives the active pin for {@code round} under the neutral setup (REQ-076). */
@@ -126,7 +135,9 @@ public record GeneratedHole(
                 + ", greenDepth=" + greenDepth + ", hasGreensideBunker=" + hasGreensideBunker + ", hasWater="
                 + hasWater + ", hasTrees=" + hasTrees + ", elevationDelta=" + elevationDelta + ", holeSeed="
                 + holeSeed + ", geometry=" + geometry;
-        return spatialPlan == null ? legacy + "]" : legacy + ", spatialPlan=" + spatialPlan + "]";
+        if (spatialPlan == null) return legacy + "]";
+        return hazardPlan == null ? legacy + ", spatialPlan=" + spatialPlan + "]"
+                : legacy + ", spatialPlan=" + spatialPlan + ", hazardPlan=" + hazardPlan + "]";
     }
 
     private record GeometryVariantKey(long holeSeed, double length, double fairwayHalfWidth, double greenHalfWidth,
