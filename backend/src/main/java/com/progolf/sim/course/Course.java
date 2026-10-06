@@ -9,7 +9,8 @@ import java.util.Objects;
  * from the holes and never stored. A Course contains no tournament state (REQ-083). It is reproducible
  * from its seed together with {@code generatorVersion} (REQ-082).
  */
-public record Course(CourseIdentity identity, List<GeneratedHole> holes, int generatorVersion) {
+public record Course(CourseIdentity identity, List<GeneratedHole> holes, int generatorVersion,
+                     CourseDesignProfile designProfile, CoursePlan coursePlan) {
 
     public Course {
         Objects.requireNonNull(identity, "identity");
@@ -24,6 +25,11 @@ public record Course(CourseIdentity identity, List<GeneratedHole> holes, int gen
                         + " has number " + holes.get(i).number());
             }
         }
+    }
+
+    /** Source-compatible V1/read-model constructor. V1 deliberately has no design profile or plan. */
+    public Course(CourseIdentity identity, List<GeneratedHole> holes, int generatorVersion) {
+        this(identity, holes, generatorVersion, null, null);
     }
 
     /** Total par, derived from the holes (never stored independently). */

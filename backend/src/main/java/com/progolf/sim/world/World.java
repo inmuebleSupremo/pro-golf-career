@@ -65,6 +65,7 @@ import com.progolf.sim.staff.SupportTeam;
 import com.progolf.sim.course.Course;
 import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.course.CourseGenerator;
+import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.play.PlayableEvent;
@@ -124,6 +125,7 @@ public final class World {
 
     private final long masterSeed;
     private final WorldConfig config;
+    private final int courseGeneratorVersion;
     private final WorldCalendar calendar;
 
     private final List<Course> coursePool = new ArrayList<>();
@@ -193,18 +195,27 @@ public final class World {
     private long nextTournamentId = 1;
     private int replenishCounter = 0;
 
-    private World(long masterSeed, WorldConfig config) {
+    private World(long masterSeed, WorldConfig config, int courseGeneratorVersion) {
+        if (!CourseGenerator.supports(courseGeneratorVersion)) {
+            throw new IllegalArgumentException("Unsupported course generator version: " + courseGeneratorVersion);
+        }
         this.masterSeed = masterSeed;
         this.config = config;
+        this.courseGeneratorVersion = courseGeneratorVersion;
         this.weatherSystem = new WeatherSystem(masterSeed);
         this.calendar = new WorldCalendar(config.weeksPerSeason(), WorldConstants.BASE_YEAR);
     }
 
     /** Creates and bootstraps a World from a master seed and configuration. */
     public static World create(long masterSeed, WorldConfig config) {
-        World world = new World(masterSeed, config);
+        World world = new World(masterSeed, config, CourseGenConstants.CURRENT_GENERATOR_VERSION);
         world.bootstrap();
         return world;
+    }
+
+    /** Generator provenance for this world's fixed course pool; not a player-facing configuration control. */
+    public int courseGeneratorVersion() {
+        return courseGeneratorVersion;
     }
 
     /** Regenerates the seed-derived course pool (identical for the same seed/config); used by bootstrap and restore. */
@@ -212,7 +223,7 @@ public final class World {
         EnvironmentClassification[] classes = EnvironmentClassification.values();
         for (int i = 0; i < config.coursePoolSize(); i++) {
             SeedCoordinate coord = new SeedCoordinate(masterSeed, 0, i, 0, 0, 0, 0);
-            coursePool.add(CourseGenerator.generate(coord, classes[i % classes.length]));
+            coursePool.add(CourseGenerator.generate(coord, classes[i % classes.length], courseGeneratorVersion));
         }
     }
 
@@ -261,12 +272,14 @@ public final class World {
                 staffPool.available(),
                 playerActiveEquipmentDeal, new ArrayList<>(playerPendingEquipmentDeals),
                 new EnumMap<>(unlockedAchievements), new LinkedHashSet<>(majorsWonThisSeason),
-                playerCareerRecords.snapshot());
+                playerCareerRecords.snapshot(), courseGeneratorVersion);
     }
 
     /** Rebuilds an identical world from a snapshot, regenerating the seed-derived parts (spec: world-snapshot). */
     public static World restore(long masterSeed, WorldConfig config, WorldSnapshot s) {
-        World w = new World(masterSeed, config);
+        int version = s.courseGeneratorVersion() == null
+                ? CourseGenConstants.V1_GENERATOR_VERSION : s.courseGeneratorVersion();
+        World w = new World(masterSeed, config, version);
         w.generateCoursePool();
         w.staffPool = StaffPool.restore(s.staffPool()); // hires mutate it, so restore rather than regenerate
         w.calendar.restoreTo(s.season(), s.week());
