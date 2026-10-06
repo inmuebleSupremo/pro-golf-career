@@ -263,12 +263,17 @@ The shot-situation projection SHALL additionally expose the current shot's reach
 
 ### Requirement: Canonical Playing-Geometry Read Model
 
-The GraphQL API SHALL expose an authenticated, session-scoped read model for the current playable hole's canonical geometry and spatial state. The MVP SHALL add `PlayingHole.geometry` with `tee`, active `cup`, `playableBoundary`, and ordered `regions { surface, boundary }`; `PlayingHole.ball { position, lie }`; and `ShotOutcome.settlement { contact { position, surface }, recoveryPosition, recoveryKind, ball }`. Points SHALL be finite local-yard `{ x, y }` coordinates and all boundary/region lists SHALL use the canonical non-repeated, counter-clockwise polygon order. Existing coarse `PlayingHole` fields MAY remain as overview compatibility fields but SHALL NOT be a terrain-rendering source. It SHALL not expose simulation-engine records, SVG markup, rendering instructions, a path/corridor encoding, or a terrain-mutation API.
+The GraphQL API SHALL expose an authenticated, session-scoped read model for the current playable hole's **effective** canonical geometry and spatial state. The MVP SHALL add `PlayingHole.geometry` with `tee`, active `cup`, `playableBoundary`, and ordered `regions { surface, boundary }`; `PlayingHole.ball { position, lie }`; and `ShotOutcome.settlement { contact { position, surface }, recoveryPosition, recoveryKind, ball }`. Points SHALL be finite local-yard `{ x, y }` coordinates and all boundary/region lists SHALL use the canonical non-repeated, counter-clockwise polygon order. For an event with a non-neutral course setup, `PlayingHole.geometry` SHALL be the exact setup-specific geometry used by the active hole model for shot settlement. Existing coarse `PlayingHole` fields MAY remain as overview compatibility fields but SHALL NOT be a terrain-rendering source. It SHALL not expose simulation-engine records, SVG markup, rendering instructions, a path/corridor encoding, or a terrain-mutation API.
 
 #### Scenario: Current geometry is projected faithfully
 
 - **WHEN** a player queries the current playable hole during a pending event
-- **THEN** the response SHALL contain DTO geometry and spatial state that match the engine's canonical terrain and current playable ball state
+- **THEN** the response SHALL contain DTO geometry and spatial state that match the engine's effective canonical terrain and current playable ball state
+
+#### Scenario: Non-neutral setup geometry is projected faithfully
+
+- **WHEN** the pending event applies a non-neutral width setup
+- **THEN** the returned terrain regions and playable boundary SHALL match the setup-specific geometry used to resolve that hole
 
 #### Scenario: Geometry is absent off-event
 
