@@ -6,7 +6,9 @@ import com.progolf.app.api.dto.PlayingHoleDto;
 import com.progolf.app.api.dto.ShotSituationDto;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.course.Course;
+import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.CourseGenerator;
+import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.course.GeneratedHole;
 import com.progolf.sim.course.PinPosition;
@@ -92,6 +94,20 @@ class ApiPlayingHoleMapperTest {
     }
 
     @Test
+    void playingHoleProjectsTheSetupSpecificGeometryUsedByTheHoleModel() {
+        GeneratedHole hole = course(4321L).holes().get(0);
+        CourseSetup tight = new CourseSetup(1.0, 1.0, 0.60);
+        HoleModel model = hole.forRound(1, tight);
+        PinPosition pin = hole.pinFor(1, tight);
+
+        PlayingHoleDto dto = ApiMapper.playingHole(hole, pin, CLASSIFICATION.name(),
+                new BallState(model.geometry().tee(), Surface.TEE_BOX), model.geometry());
+
+        assertGeometry(dto, model.geometry(), pin);
+        assertThat(model.geometry()).isNotEqualTo(hole.geometry());
+    }
+
+    @Test
     void layoutSeedIsStableAcrossSessions() {
         // Same world seed -> same generated course -> same hole seed -> same layout seed.
         GeneratedHole first = course(777L).holes().get(5);
@@ -145,5 +161,24 @@ class ApiPlayingHoleMapperTest {
         assertThat(dto.settlement().recoveryKind()).isEqualTo(RecoveryKind.WATER_DROP.name());
         assertThat(dto.settlement().ball().position().x()).isEqualTo(recoveryPosition.x());
         assertThat(dto.settlement().ball().lie()).isEqualTo(Surface.PRIMARY_ROUGH.name());
+    }
+
+    private static void assertGeometry(PlayingHoleDto dto, CourseGeometry geometry, PinPosition pin) {
+        assertThat(dto.geometry().tee().x()).isEqualTo(geometry.tee().x());
+        assertThat(dto.geometry().tee().y()).isEqualTo(geometry.tee().y());
+        assertThat(dto.geometry().cup().x()).isEqualTo(geometry.greenCenter().x() + pin.lateralOffset());
+        assertThat(dto.geometry().cup().y()).isEqualTo(geometry.greenCenter().y() + pin.depthOffset());
+        assertThat(dto.geometry().playableBoundary()).extracting(p -> p.x(), p -> p.y())
+                .containsExactlyElementsOf(geometry.playableBoundary().stream()
+                        .map(p -> org.assertj.core.groups.Tuple.tuple(p.x(), p.y())).toList());
+        assertThat(dto.geometry().regions()).hasSameSizeAs(geometry.regions());
+        for (int i = 0; i < geometry.regions().size(); i++) {
+            var engine = geometry.regions().get(i);
+            var mapped = dto.geometry().regions().get(i);
+            assertThat(mapped.surface()).isEqualTo(engine.surface().name());
+            assertThat(mapped.boundary()).extracting(p -> p.x(), p -> p.y())
+                    .containsExactlyElementsOf(engine.boundary().stream()
+                            .map(p -> org.assertj.core.groups.Tuple.tuple(p.x(), p.y())).toList());
+        }
     }
 }

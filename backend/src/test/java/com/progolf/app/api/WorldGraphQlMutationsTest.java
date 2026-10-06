@@ -2,8 +2,10 @@ package com.progolf.app.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.progolf.app.api.dto.PositionDto;
 import com.progolf.app.world.WorldService;
 import com.progolf.app.world.WorldSession;
+import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.world.WorldConfig;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -144,20 +146,33 @@ class WorldGraphQlMutationsTest {
         }
         assertThat(worldService.hasPendingEvent(OWNER, session.id())).isTrue();
 
-        graphQlTester.document("""
+        var event = session.world().playerEvent();
+        CourseGeometry currentEffectiveGeometry = event.currentEffectiveGeometry();
+        CourseGeometry prefetchedEffectiveGeometry = event.effectiveGeometry(2);
+        assertThat(currentEffectiveGeometry).isNotEqualTo(event.currentHole().geometry());
+        assertThat(prefetchedEffectiveGeometry).isNotEqualTo(event.holeGeometry(2).geometry());
+
+        var response = graphQlTester.document("""
                         query($id: ID!){
-                          playingHole(id: $id){
+                          current: playingHole(id: $id){
                             geometry { tee { x y } cup { x y } playableBoundary { x y } regions { surface boundary { x y } } }
                             ball { position { x y } lie }
                           }
+                          prefetched: playingHole(id: $id, hole: 2){
+                            geometry { playableBoundary { x y } regions { surface boundary { x y } } }
+                          }
                         }
                         """)
-                .variable("id", session.id()).execute()
-                .path("playingHole.geometry.playableBoundary").entityList(Object.class).satisfies(points ->
+                .variable("id", session.id()).execute();
+        response.path("current.geometry.playableBoundary").entityList(Object.class).satisfies(points ->
                         assertThat(points).hasSizeGreaterThanOrEqualTo(3))
-                .path("playingHole.geometry.regions").entityList(Object.class).satisfies(regions ->
+                .path("current.geometry.regions").entityList(Object.class).satisfies(regions ->
                         assertThat(regions).isNotEmpty())
-                .path("playingHole.ball.lie").entity(String.class).isEqualTo("TEE_BOX");
+                .path("current.ball.lie").entity(String.class).isEqualTo("TEE_BOX")
+                .path("current.geometry.playableBoundary").entityList(PositionDto.class)
+                .satisfies(points -> assertThat(points).containsExactlyElementsOf(points(currentEffectiveGeometry)))
+                .path("prefetched.geometry.playableBoundary").entityList(PositionDto.class)
+                .satisfies(points -> assertThat(points).containsExactlyElementsOf(points(prefetchedEffectiveGeometry)));
 
         double distance = worldService.currentSituation(OWNER, session.id()).distanceToPin();
         graphQlTester.document("""
@@ -179,6 +194,10 @@ class WorldGraphQlMutationsTest {
                         assertThat(kind).isNotBlank())
                 .path("playShot.settlement.ball.lie").entity(String.class).satisfies(lie ->
                         assertThat(lie).isNotBlank());
+    }
+
+    private static List<PositionDto> points(CourseGeometry geometry) {
+        return geometry.playableBoundary().stream().map(point -> new PositionDto(point.x(), point.y())).toList();
     }
 
     @Test

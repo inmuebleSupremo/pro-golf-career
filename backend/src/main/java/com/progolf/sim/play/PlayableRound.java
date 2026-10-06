@@ -5,6 +5,7 @@ import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.shot.GolferState;
 import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.HoleStats;
+import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotContext;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotFrame;
@@ -76,6 +77,12 @@ public final class PlayableRound {
     /** The current hole number (1-based). */
     public int currentHole() {
         return holeIndex + 1;
+    }
+
+    /** The exact setup-specific model currently used to resolve the active hole. */
+    public HoleModel currentHoleModel() {
+        requireNotComplete();
+        return holes.get(holeIndex).model();
     }
 
     /** The situation for the current shot. */
