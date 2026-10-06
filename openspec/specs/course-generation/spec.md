@@ -47,22 +47,17 @@ Course generation SHALL express each hole's surface and hazard layout as the exi
 
 ### Requirement: Deterministic Generation
 
-A Course SHALL be generated deterministically from a seed obtained through the world seed hierarchy and an explicit supported generator version. Regenerating a Course from the same seed, environment classification, and generator version SHALL produce an identical Course, canonical geometry, and all version-supported design/spatial semantics. Generation SHALL NOT use ambient randomness. A current-version convenience path MAY be used only for new-world creation; restoration SHALL select the recorded version explicitly.
+Course generation SHALL support retained V1, V2, V3, and V4 implementations selected only through an explicit generator version. V4 SHALL deterministically translate the existing course-design and V3 spatial inputs into a semantic hazard plan before compiling canonical hazard regions. V1/V2/V3 output and fixtures SHALL remain unchanged. New worlds SHALL select the configured current version, while restored worlds SHALL select their persisted pin; unsupported versions SHALL fail explicitly.
 
-#### Scenario: V3 course regenerates exactly
+#### Scenario: Same V4 inputs reproduce hazard intent and terrain
 
-- **WHEN** a V3 Course is generated twice from the same seed, environment classification, and explicit supported version
-- **THEN** its design plan, route/zone/green semantics, progression targets, and canonical geometry SHALL be identical
+- **WHEN** a V4 course is generated twice from the same seed, classification, design inputs, and version
+- **THEN** its hazard features and canonical terrain regions SHALL be identical
 
-#### Scenario: Historical generators are isolated
+#### Scenario: Historical generator output is isolated
 
-- **WHEN** the V3 generator is added or changed
-- **THEN** checked-in V1 and V2 seed fixtures SHALL still produce their exact historical course records and canonical geometry
-
-#### Scenario: Unknown generator version is rejected
-
-- **WHEN** generation or restoration requests an unsupported generator version
-- **THEN** it SHALL fail explicitly rather than silently substituting the latest implementation
+- **WHEN** a V1, V2, or V3 fixture is generated after V4 exists
+- **THEN** its historical output SHALL remain exact and SHALL not acquire V4 hazard features
 
 ### Requirement: Per-Round Pin Positions
 
@@ -144,4 +139,13 @@ migration compatibility constraint, not a permanent prescribed surface percentag
 
 - **WHEN** a sampled landing travels beyond the generated fairway/cut/rough envelope on a hole without a flanking hazard at that location
 - **THEN** canonical surface resolution SHALL eventually reach out of bounds rather than extending safe terrain indefinitely
+
+### Requirement: V4 hazards compile into canonical terrain
+
+V4 SHALL compile accepted semantic hazard features into existing canonical `TerrainRegion` polygons. The compiler SHALL use simple deterministic geometry, preserve the existing surface catalogue and canonical precedence contract, and avoid strategic-hazard overlap. Existing rotated ellipses SHALL remain sufficient by default; at most one narrow simple route-aligned polygon primitive MAY be added for a bounded lateral water feature.
+
+#### Scenario: Canonical renderer needs no authored hazard placement
+
+- **WHEN** a V4 hole has a role-based hazard
+- **THEN** its gameplay polygon SHALL be present in `CourseGeometry` without a frontend placement generator
 
