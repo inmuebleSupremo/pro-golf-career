@@ -16,8 +16,10 @@ public final class CourseGenConstants {
     public static final int V2_GENERATOR_VERSION = 2;
     /** First route-, landing-zone-, and green-complex-aware generator. */
     public static final int V3_GENERATOR_VERSION = 3;
+    /** First role-based hazard generator. */
+    public static final int V4_GENERATOR_VERSION = 4;
     /** Generator selected only when a new world is created. Restore always uses its persisted pin. */
-    public static final int CURRENT_GENERATOR_VERSION = V3_GENERATOR_VERSION;
+    public static final int CURRENT_GENERATOR_VERSION = V4_GENERATOR_VERSION;
     /** @deprecated Use an explicit retained generator version. */
     @Deprecated(forRemoval = false)
     public static final int GENERATOR_VERSION = V1_GENERATOR_VERSION;

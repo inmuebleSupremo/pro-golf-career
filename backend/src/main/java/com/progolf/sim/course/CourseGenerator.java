@@ -23,13 +23,14 @@ public final class CourseGenerator {
             case CourseGenConstants.V1_GENERATOR_VERSION -> generateV1(coordinate, classification);
             case CourseGenConstants.V2_GENERATOR_VERSION -> generateV2(coordinate, classification);
             case CourseGenConstants.V3_GENERATOR_VERSION -> generateV3(coordinate, classification);
+            case CourseGenConstants.V4_GENERATOR_VERSION -> generateV4(coordinate, classification);
             default -> throw new IllegalArgumentException("Unsupported course generator version: " + version);
         };
     }
 
     public static boolean supports(int version) {
         return version == CourseGenConstants.V1_GENERATOR_VERSION || version == CourseGenConstants.V2_GENERATOR_VERSION
-                || version == CourseGenConstants.V3_GENERATOR_VERSION;
+                || version == CourseGenConstants.V3_GENERATOR_VERSION || version == CourseGenConstants.V4_GENERATOR_VERSION;
     }
 
     /** Historical V1 implementation retained unchanged in behavior. */
@@ -143,6 +144,58 @@ public final class CourseGenerator {
             holes.add(generateV3Hole(brief, Seeds.deriveSeed(courseSeed, brief.number()), classification, plan.profile()));
         }
         return new Course(identity, holes, CourseGenConstants.V3_GENERATOR_VERSION, plan.profile(), plan);
+    }
+
+    private static Course generateV4(SeedCoordinate coordinate, EnvironmentClassification classification) {
+        long courseSeed = Seeds.forCoordinate(coordinate);
+        CoursePlan plan = CoursePlanGenerator.generate(courseSeed);
+        return generateV4(coordinate, classification, plan);
+    }
+
+    /** Package-private calibration seam for exercising V4 role/profile combinations. */
+    static Course generateV4(SeedCoordinate coordinate, EnvironmentClassification classification,
+                             CourseDesignProfile profile) {
+        return generateV4(coordinate, classification, CoursePlanGenerator.generate(Seeds.forCoordinate(coordinate), profile));
+    }
+
+    private static Course generateV4(SeedCoordinate coordinate, EnvironmentClassification classification, CoursePlan plan) {
+        long courseSeed = Seeds.forCoordinate(coordinate);
+        CourseIdentity identity = CourseNames.generate(courseSeed, classification);
+        List<GeneratedHole> holes = new ArrayList<>(18);
+        for (HoleBrief brief : plan.briefs()) {
+            holes.add(generateV4Hole(brief, Seeds.deriveSeed(courseSeed, brief.number()), classification, plan.profile()));
+        }
+        return new Course(identity, holes, CourseGenConstants.V4_GENERATOR_VERSION, plan.profile(), plan);
+    }
+
+    private static GeneratedHole generateV4Hole(HoleBrief brief, long holeSeed,
+                                                EnvironmentClassification classification, CourseDesignProfile profile) {
+        Rng rng = new SplitMix64Rng(holeSeed);
+        double[] range = parRange(brief.par());
+        double length = lengthForBand(rng, range[0], range[1], brief.lengthBand());
+        double widthMultiplier = switch (profile.widthTendency()) {
+            case GENEROUS -> 1.18;
+            case BALANCED -> 1.0;
+            case EXACTING -> 0.84;
+        };
+        widthMultiplier *= switch (brief.archetype()) {
+            case POSITIONAL -> 0.92;
+            case BALANCED -> 1.0;
+            case RISK_REWARD -> 0.97;
+        };
+        double fairwayHalf = Math.clamp(range(rng, CourseGenConstants.FAIRWAY_HALF_MIN,
+                CourseGenConstants.FAIRWAY_HALF_MAX) * widthMultiplier, 12.0, 28.0);
+        double greenHalf = range(rng, CourseGenConstants.GREEN_HALF_MIN, CourseGenConstants.GREEN_HALF_MAX);
+        double greenDepth = range(rng, CourseGenConstants.GREEN_DEPTH_MIN, CourseGenConstants.GREEN_DEPTH_MAX);
+        double elevation = (rng.nextDouble() * 2.0 - 1.0) * CourseGenConstants.ELEVATION_RANGE;
+        HoleSpatialPlan spatialPlan = V3HolePlanner.plan(brief, length, fairwayHalf, greenHalf, greenDepth, holeSeed);
+        HazardPlan hazardPlan = V4HazardPlanner.plan(brief, profile, classification, spatialPlan, holeSeed);
+        CourseGeometry geometry = CanonicalGeometryGenerator.generateV4(fairwayHalf, holeSeed, spatialPlan, hazardPlan);
+        boolean bunker = hazardPlan.features().stream().anyMatch(feature -> feature.surface() == com.progolf.sim.spatial.Surface.BUNKER);
+        boolean water = hazardPlan.features().stream().anyMatch(feature -> feature.surface() == com.progolf.sim.spatial.Surface.WATER);
+        boolean trees = hazardPlan.features().stream().anyMatch(feature -> feature.surface() == com.progolf.sim.spatial.Surface.TREES);
+        return new GeneratedHole(brief.number(), brief.par(), length, fairwayHalf, greenHalf, greenDepth,
+                bunker, water, trees, elevation, holeSeed, geometry, spatialPlan, hazardPlan);
     }
 
     private static GeneratedHole generateV3Hole(HoleBrief brief, long holeSeed,

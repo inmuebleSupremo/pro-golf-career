@@ -150,6 +150,144 @@ final class CanonicalGeometryGenerator {
                 distance -> boundaryWidth(plan, fairwayOuter, distance) + hazardExtra), regions);
     }
 
+    /** V4 compiler: semantic hazard features become canonical terrain while route/green geometry remains V3-shaped. */
+    static CourseGeometry generateV4(double fairwayHalf, long holeSeed, HoleSpatialPlan plan, HazardPlan hazards) {
+        CourseGeometry base = generateV3(fairwayHalf, false, false, false, holeSeed, plan);
+        List<TerrainRegion> regions = new ArrayList<>(base.regions());
+        List<TerrainRegion> strategicHazards = new ArrayList<>();
+        for (HazardFeature feature : hazards.features()) {
+            TerrainRegion region = compileV4Feature(feature, plan);
+            for (TerrainRegion prior : strategicHazards) {
+                if (TerrainRegion.strictlyOverlaps(prior.boundary(), region.boundary())) {
+                    throw new IllegalArgumentException("V4 strategic hazards may not overlap: " + prior.surface()
+                            + " and " + feature.surface() + " for " + feature.role());
+                }
+            }
+            strategicHazards.add(region);
+            regions.add(region);
+        }
+        CourseGeometry geometry = new CourseGeometry(base.tee(), base.greenCenter(), base.playableBoundary(), regions);
+        validateV4Feasibility(plan, geometry, strategicHazards);
+        return geometry;
+    }
+
+    private static TerrainRegion compileV4Feature(HazardFeature feature, HoleSpatialPlan plan) {
+        HazardFrame frame = frameFor(feature.anchor(), plan);
+        HazardEnvelope envelope = feature.envelope();
+        double forward = envelope.forwardOffset();
+        double lateral = 0.0;
+        switch (feature.side()) {
+            case LEFT -> lateral = -envelope.lateralOffset();
+            case RIGHT -> lateral = envelope.lateralOffset();
+            case FRONT -> forward = -envelope.lateralOffset();
+            case BACK -> forward = envelope.lateralOffset();
+        }
+        if (feature.anchor().type() == HazardAnchorType.GREEN_SIDE) {
+            GreenComplexPlan green = plan.greenComplex();
+            // Green guards sit beyond green/fringe support in their semantic direction, never across the core.
+            double clearance = Math.max(green.majorAxis(), green.minorAxis())
+                    + CourseGenConstants.GREEN_FRINGE_EXTRA + envelope.lateralRadius() + 1.0;
+            switch (feature.side()) {
+                case LEFT -> lateral = -clearance;
+                case RIGHT -> lateral = clearance;
+                case FRONT -> forward = -clearance;
+                case BACK -> forward = clearance;
+            }
+        }
+        Position2d center = frame.origin().plus(frame.unit().x() * forward + frame.right().x() * lateral,
+                frame.unit().y() * forward + frame.right().y() * lateral);
+        double rotation = StrictMath.atan2(frame.unit().y(), frame.unit().x());
+        int vertices = feature.surface() == Surface.WATER ? 14 : 10;
+        return region(feature.surface(), rotatedEllipse(center, envelope.longitudinalRadius(), envelope.lateralRadius(),
+                rotation, vertices));
+    }
+
+    private static HazardFrame frameFor(HazardAnchor anchor, HoleSpatialPlan plan) {
+        HoleRoute route = plan.route();
+        return switch (anchor.type()) {
+            case LANDING_ZONE -> {
+                LandingZone zone = plan.landingZones().stream().filter(candidate -> candidate.role() == anchor.landingZoneRole())
+                        .findFirst().orElseThrow(() -> new IllegalArgumentException("missing V4 landing-zone anchor"));
+                yield routeFrame(route, zone.center(route), zone.routeDistance());
+            }
+            case ROUTE_DISTANCE -> routeFrame(route, route.pointAt(anchor.routeDistance(), 0.0), anchor.routeDistance());
+            case DOGLEG_CORNER -> {
+                if (route.intermediateAnchors().isEmpty()) throw new IllegalArgumentException("turn guard without dogleg");
+                Position2d corner = route.intermediateAnchors().getFirst();
+                yield routeFrame(route, corner, route.teeOrigin().distanceTo(corner));
+            }
+            case GREEN_SIDE -> {
+                Position2d unit = route.finalUnit();
+                yield new HazardFrame(plan.greenCenter(), unit, new Position2d(unit.y(), -unit.x()));
+            }
+        };
+    }
+
+    private static HazardFrame routeFrame(HoleRoute route, Position2d origin, double distance) {
+        Position2d before = route.pointAt(Math.max(0.0, distance - 1.0), 0.0);
+        Position2d after = route.pointAt(Math.min(route.length(), distance + 1.0), 0.0);
+        double dx = after.x() - before.x();
+        double dy = after.y() - before.y();
+        double magnitude = StrictMath.hypot(dx, dy);
+        if (magnitude < 0.1) throw new IllegalArgumentException("invalid V4 route frame");
+        Position2d unit = new Position2d(dx / magnitude, dy / magnitude);
+        return new HazardFrame(origin, unit, new Position2d(unit.y(), -unit.x()));
+    }
+
+    private static void validateV4Feasibility(HoleSpatialPlan plan, CourseGeometry geometry,
+                                              List<TerrainRegion> strategicHazards) {
+        if (hazardSurface(geometry.surfaceAt(geometry.tee())) || hazardSurface(geometry.surfaceAt(geometry.greenCenter()))) {
+            throw new IllegalArgumentException("V4 hazard covers tee or green centre");
+        }
+        for (Position2d anchor : plan.route().points()) {
+            if (hazardSurface(geometry.surfaceAt(anchor))) throw new IllegalArgumentException("V4 hazard blocks route anchor");
+        }
+        for (LandingZone zone : plan.landingZones()) {
+            if (zone.role() != LandingZoneRole.PRIMARY && zone.role() != LandingZoneRole.SAFE) continue;
+            requireClearZoneCore(plan.route(), zone, geometry);
+        }
+        for (TerrainRegion water : strategicHazards.stream().filter(region -> region.surface() == Surface.WATER).toList()) {
+            if (!hasWaterRelief(water, geometry)) throw new IllegalArgumentException("V4 water lacks deterministic rough relief");
+        }
+    }
+
+    private static void requireClearZoneCore(HoleRoute route, LandingZone zone, CourseGeometry geometry) {
+        double forward = zone.depth() * 0.22;
+        double lateral = zone.halfWidth() * 0.22;
+        for (double f : List.of(-forward, 0.0, forward)) {
+            for (double l : List.of(-lateral, 0.0, lateral)) {
+                if (hazardSurface(geometry.surfaceAt(route.pointAt(zone.routeDistance() + f, zone.centreOffset() + l)))) {
+                    throw new IllegalArgumentException("V4 hazard occupies required " + zone.role() + " core");
+                }
+            }
+        }
+    }
+
+    private static boolean hasWaterRelief(TerrainRegion water, CourseGeometry geometry) {
+        double x = water.boundary().stream().mapToDouble(Position2d::x).average().orElseThrow();
+        double y = water.boundary().stream().mapToDouble(Position2d::y).average().orElseThrow();
+        Position2d contact = new Position2d(x, y);
+        Position2d tee = geometry.tee();
+        double dx = tee.x() - contact.x();
+        double dy = tee.y() - contact.y();
+        double distance = StrictMath.hypot(dx, dy);
+        if (distance < 15.0) return false;
+        double ux = dx / distance;
+        double uy = dy / distance;
+        for (double setback = 15.0; setback <= distance; setback += 1.0) {
+            if (geometry.surfaceAt(contact.plus(ux * setback, uy * setback)) == Surface.PRIMARY_ROUGH) return true;
+        }
+        return false;
+    }
+
+    private static boolean hazardSurface(Surface surface) {
+        return surface == Surface.BUNKER || surface == Surface.WATER || surface == Surface.TREES
+                || surface == Surface.RECOVERY_AREA;
+    }
+
+    private record HazardFrame(Position2d origin, Position2d unit, Position2d right) {
+    }
+
     private static double fairwayWidth(HoleSpatialPlan plan, double base, double routeDistance) {
         double width = base;
         for (LandingZone zone : plan.landingZones()) {

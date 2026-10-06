@@ -38,13 +38,13 @@ class WorldSnapshotRoundTripTest {
     }
 
     @Test
-    void newWorldAndItsSnapshotPinV3ForDeterministicRegeneration() {
+    void newWorldAndItsSnapshotPinV4ForDeterministicRegeneration() {
         World original = World.create(303L, small());
-        assertThat(original.courseGeneratorVersion()).isEqualTo(CourseGenConstants.V3_GENERATOR_VERSION);
-        assertThat(original.snapshot().courseGeneratorVersion()).isEqualTo(CourseGenConstants.V3_GENERATOR_VERSION);
+        assertThat(original.courseGeneratorVersion()).isEqualTo(CourseGenConstants.V4_GENERATOR_VERSION);
+        assertThat(original.snapshot().courseGeneratorVersion()).isEqualTo(CourseGenConstants.V4_GENERATOR_VERSION);
 
         World restored = World.restore(303L, small(), original.snapshot());
-        assertThat(restored.courseGeneratorVersion()).isEqualTo(CourseGenConstants.V3_GENERATOR_VERSION);
+        assertThat(restored.courseGeneratorVersion()).isEqualTo(CourseGenConstants.V4_GENERATOR_VERSION);
         assertThat(restored.snapshot()).isEqualTo(original.snapshot());
     }
 
