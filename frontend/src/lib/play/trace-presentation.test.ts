@@ -13,6 +13,14 @@ const trace: ShotTrace = {
   finalPoint: { x: 4, y: 126 },
 };
 
+const rollingTrace: ShotTrace = {
+  ...trace,
+  contact: { position: { x: 6, y: 142 }, surface: "FAIRWAY" },
+  roll: { from: { x: 6, y: 142 }, to: { x: 6, y: 146 } },
+  transition: null,
+  finalPoint: { x: 6, y: 146 },
+};
+
 describe("trace presentation", () => {
   it("keeps the completed trace target over a newly selected planning target", () => {
     expect(feedbackAimPoint(trace, { x: 0, y: 200 })).toEqual(trace.aimPoint);
@@ -25,6 +33,13 @@ describe("trace presentation", () => {
 
   it("labels recovery as a rule transition rather than a flight profile", () => {
     expect(transitionLabel(trace)).toBe("water drop");
+  });
+
+  it("keeps an authoritative roll distinct from recovery and client flight interpolation", () => {
+    expect(rollingTrace.roll?.from).toEqual(rollingTrace.contact.position);
+    expect(rollingTrace.roll?.to).toEqual(rollingTrace.finalPoint);
+    expect(transitionLabel(rollingTrace)).toBeNull();
+    expect(interpolatedContactPoint(rollingTrace, 1)).toEqual(rollingTrace.contact.position);
   });
 
   it("prevents retired synthetic-flight modules from returning to canonical play", () => {
@@ -44,5 +59,6 @@ describe("trace presentation", () => {
     expect(compatibilityEntry).not.toContain("shot-router");
     expect(canonicalRenderer).not.toContain("shot-router");
     expect(canonicalRenderer).not.toContain("shot-flight");
+    expect(canonicalRenderer).toContain("trace?.roll");
   });
 });

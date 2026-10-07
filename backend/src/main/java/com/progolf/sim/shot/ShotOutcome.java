@@ -39,4 +39,9 @@ public record ShotOutcome(
         this(finalSurface, carry, lateral, distanceRemaining, hazardEntered, penaltyStrokes, strokes, factors,
                 settlement, putt, null);
     }
+
+    /** Surface at first canonical contact; equals final surface for legacy/non-spatial outcomes. */
+    public Surface contactSurface() {
+        return settlement == null ? finalSurface : settlement.contact().surface();
+    }
 }

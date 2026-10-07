@@ -5,6 +5,7 @@ import com.progolf.app.api.dto.BallStrikeIntentInput;
 import com.progolf.app.api.dto.ShotSubmissionDto;
 import com.progolf.app.api.dto.ShotOutcomeDto;
 import com.progolf.app.api.dto.WorldStatusDto;
+import com.progolf.sim.shot.PuttIntent;
 import com.progolf.app.auth.AuthenticatedUser;
 import com.progolf.app.world.WorldService;
 import org.springframework.graphql.data.method.annotation.Argument;
@@ -29,6 +30,11 @@ public class PlayEventMutationController {
     public ShotSubmissionDto playShot(@Argument String id, @Argument BallStrikeIntentInput intent) {
         return ApiMapper.submission(worldService.playShot(AuthenticatedUser.requireId(), id,
                 ApiMapper.ballStrikeIntent(intent), intent.expectedShotRevision()));
+    }
+
+    @MutationMapping
+    public ShotSubmissionDto playPutt(@Argument String id, @Argument String expectedShotRevision) {
+        return ApiMapper.submission(worldService.playPutt(AuthenticatedUser.requireId(), id, new PuttIntent(), expectedShotRevision));
     }
 
     @MutationMapping

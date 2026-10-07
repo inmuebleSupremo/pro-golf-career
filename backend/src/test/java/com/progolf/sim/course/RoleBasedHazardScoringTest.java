@@ -48,9 +48,9 @@ class RoleBasedHazardScoringTest {
                                 anchor % 2 == 0 ? Strategy.BALANCED : Strategy.AGGRESSIVE,
                                 new SeedCoordinate(WORLD, 1, courseId, round, anchor, hole, 0));
                         assertThat(outcome.shots()).isNotEmpty().hasSizeLessThan(20);
-                        water += outcome.shots().stream().filter(shot -> shot.finalSurface() == com.progolf.sim.spatial.Surface.WATER).count();
-                        recovery += outcome.shots().stream().filter(shot -> shot.finalSurface() == com.progolf.sim.spatial.Surface.TREES
-                                || shot.finalSurface() == com.progolf.sim.spatial.Surface.RECOVERY_AREA).count();
+                        water += outcome.shots().stream().filter(shot -> shot.contactSurface() == com.progolf.sim.spatial.Surface.WATER).count();
+                        recovery += outcome.shots().stream().filter(shot -> shot.contactSurface() == com.progolf.sim.spatial.Surface.TREES
+                                || shot.contactSurface() == com.progolf.sim.spatial.Surface.RECOVERY_AREA).count();
                         strokes += outcome.totalStrokes();
                     }
                     int toPar = strokes - course.totalPar();

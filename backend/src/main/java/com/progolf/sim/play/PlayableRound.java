@@ -7,9 +7,12 @@ import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.AimPoint;
 import com.progolf.sim.shot.AimEnvelope;
 import com.progolf.sim.shot.BallStrikeIntent;
+import com.progolf.sim.shot.PuttIntent;
 import com.progolf.sim.shot.ClubId;
+import com.progolf.sim.shot.Club;
 import com.progolf.sim.shot.ClubSpec;
 import com.progolf.sim.shot.ShotGuidance;
+import com.progolf.sim.shot.ShotFamilyEligibility;
 import com.progolf.sim.shot.HoleStats;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotContext;
@@ -121,14 +124,25 @@ public final class PlayableRound {
         }
         Position2d target = new Position2d(intent.aimPoint().x(), intent.aimPoint().y());
         validateAim(target, holes.get(holeIndex).model().geometry());
+        ShotFamilyEligibility.Result eligibility = ShotFamilyEligibility.evaluate(lie, ClubSpec.of(intent.club()), intent.shotFamily());
+        if (!eligibility.allowed()) throw new IllegalArgumentException(eligibility.reason());
         double requestedCarry = ball.position().distanceTo(target);
         return resolveOne(ShotDecision.fromIntent(intent, requestedCarry, Strategy.BALANCED), target, true);
+    }
+
+    /** Deliberate entry point for the existing non-spatial putting model. */
+    public ShotOutcome playPutt(PuttIntent intent) {
+        requireNotComplete();
+        Objects.requireNonNull(intent, "intent");
+        if (lie != Surface.GREEN && lie != Surface.FRINGE) throw new IllegalArgumentException("putting is available only on green or fringe");
+        return resolveOne(puttDecision(), ball == null ? null : holes.get(holeIndex).model().cupPosition(), true);
     }
 
     /** Sims the current shot with the automatic policy. */
     public ShotOutcome simShot() {
         requireNotComplete();
-        return resolveOne(simDecision(), null, true);
+        SimShot shot = simShotPlan();
+        return resolveOne(shot.decision(), shot.aimTarget(), true);
     }
 
     /** Sims the rest of the current hole with the automatic policy. */
@@ -136,25 +150,37 @@ public final class PlayableRound {
         requireNotComplete();
         int hole = holeIndex;
         while (!isComplete() && holeIndex == hole) {
-            resolveOne(simDecision(), null, false);
+            SimShot shot = simShotPlan();
+            resolveOne(shot.decision(), shot.aimTarget(), false);
         }
     }
 
     /** Sims the rest of the round with the automatic policy. */
     public void simRound() {
         while (!isComplete()) {
-            resolveOne(simDecision(), null, false);
+            SimShot shot = simShotPlan();
+            resolveOne(shot.decision(), shot.aimTarget(), false);
         }
     }
 
     /** The automatic policy's decision for the current situation (lie + pin + attributes), matching the AI path. */
-    private ShotDecision simDecision() {
+    private SimShot simShotPlan() {
         HoleToPlay hole = holes.get(holeIndex);
         if (ball != null && hole.model().geometry() != null) {
-            ShotAim.Reference aim = ShotAim.forBall(hole.model(), ball, simPolicy.strategy());
-            return simPolicy.decide(remaining, lie, aim.pinLateral(), attributes, hole.par());
+            com.progolf.sim.shot.ShotIntent selected = simPolicy.decideShotIntent(hole.model(), ball, remaining, lie, attributes, hole.par());
+            if (selected instanceof PuttIntent) {
+                return new SimShot(puttDecision(), hole.model().cupPosition());
+            }
+            BallStrikeIntent intent = (BallStrikeIntent) selected;
+            Position2d aim = new Position2d(intent.aimPoint().x(), intent.aimPoint().y());
+            return new SimShot(ShotDecision.fromIntent(intent, ball.position().distanceTo(aim),
+                    simPolicy.executionStrategyFor(lie)), aim);
         }
-        return simPolicy.decide(remaining, lie, hole.model().pinLateral(), attributes, hole.par());
+        return new SimShot(simPolicy.decide(remaining, lie, hole.model().pinLateral(), attributes, hole.par()), null);
+    }
+
+    private ShotDecision puttDecision() {
+        return new ShotDecision(Club.PUTTER, remaining, 0.0, Strategy.BALANCED, ClubSpec.of(ClubId.PUTTER));
     }
 
     private ShotOutcome resolveOne(ShotDecision decision, Position2d humanAimTarget, boolean materializeTrace) {
@@ -295,7 +321,11 @@ public final class PlayableRound {
         return new ShotGuidance(pointFor(model, Strategy.CONSERVATIVE), pointFor(model, Strategy.BALANCED),
                 pointFor(model, Strategy.AGGRESSIVE), ClubSpec.all().stream().map(spec -> new ShotGuidance.ClubReach(
                 spec.id(), spec.label(), spec.baseCarry(), spec.baseCarry() * (SimConstants.REACH_FLOOR
-                        + SimConstants.REACH_SPAN * attributes.norm(spec.distanceAttribute())))).toList());
+                        + SimConstants.REACH_SPAN * attributes.norm(spec.distanceAttribute())),
+                java.util.Arrays.stream(com.progolf.sim.shot.ShotFamily.values()).map(family -> {
+                    ShotFamilyEligibility.Result eligibility = ShotFamilyEligibility.evaluate(lie, spec, family);
+                    return new ShotGuidance.FamilyAvailability(family, eligibility.allowed(), eligibility.reason());
+                }).toList())).toList());
     }
 
     private AimPoint pointFor(HoleModel model, Strategy strategy) {
@@ -306,4 +336,6 @@ public final class PlayableRound {
     private static BallState initialBall(HoleToPlay hole) {
         return hole.model().geometry() == null ? null : new BallState(hole.model().geometry().tee(), Surface.TEE_BOX);
     }
+
+    private record SimShot(ShotDecision decision, Position2d aimTarget) { }
 }

@@ -37,7 +37,7 @@ class CanonicalSettlementTest {
 
         ShotOutcome outcome = resolve(geometry);
 
-        assertThat(outcome.finalSurface()).isEqualTo(Surface.WATER);
+        assertThat(outcome.finalSurface()).isEqualTo(Surface.PRIMARY_ROUGH);
         assertThat(outcome.settlement().recoveryKind()).isEqualTo(RecoveryKind.WATER_DROP);
         assertThat(outcome.settlement().contact().surface()).isEqualTo(Surface.WATER);
         assertThat(outcome.settlement().ball().lie()).isEqualTo(Surface.PRIMARY_ROUGH);
@@ -49,7 +49,7 @@ class CanonicalSettlementTest {
     void outOfBoundsReplaysTheExactPreShotBallState() {
         ShotOutcome outcome = resolve(geometry(square(-100, -10, 100, 50), List.of()));
 
-        assertThat(outcome.finalSurface()).isEqualTo(Surface.OUT_OF_BOUNDS);
+        assertThat(outcome.finalSurface()).isEqualTo(Surface.TEE_BOX);
         assertThat(outcome.settlement().recoveryKind()).isEqualTo(RecoveryKind.OUT_OF_BOUNDS_REPLAY);
         assertThat(outcome.settlement().recoveryPosition()).isEqualTo(TEE);
         assertThat(outcome.settlement().ball()).isEqualTo(new BallState(TEE, Surface.TEE_BOX));

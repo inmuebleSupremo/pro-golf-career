@@ -5,6 +5,7 @@ import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.shot.Environment;
 import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.BallStrikeIntent;
+import com.progolf.sim.shot.PuttIntent;
 import com.progolf.sim.shot.AimEnvelope;
 import com.progolf.sim.shot.AimPoint;
 import com.progolf.sim.shot.GolferState;
@@ -12,6 +13,7 @@ import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotContext;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotFrame;
+import com.progolf.sim.shot.ShotFamilyEligibility;
 import com.progolf.sim.shot.ShotAim;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.ShotResolver;
@@ -91,20 +93,34 @@ public final class PlayableHole {
         if (ball == null || model.geometry() == null) throw new IllegalStateException("spatial intent requires canonical geometry");
         Position2d target = new Position2d(intent.aimPoint().x(), intent.aimPoint().y());
         validateAim(target);
+        ShotFamilyEligibility.Result eligibility = ShotFamilyEligibility.evaluate(lie,
+                com.progolf.sim.shot.ClubSpec.of(intent.club()), intent.shotFamily());
+        if (!eligibility.allowed()) throw new IllegalArgumentException(eligibility.reason());
         double requestedCarry = ball.position().distanceTo(target);
         return resolveOne(ShotDecision.fromIntent(intent, requestedCarry, Strategy.BALANCED), target, true);
+    }
+
+    /** Deliberate entry point for the existing non-spatial putting model. */
+    public ShotOutcome playPutt(PuttIntent intent) {
+        requireNotComplete();
+        Objects.requireNonNull(intent, "intent");
+        if (lie != Surface.GREEN && lie != Surface.FRINGE) throw new IllegalArgumentException("putting is available only on green or fringe");
+        return resolveOne(new ShotDecision(com.progolf.sim.shot.Club.PUTTER, remaining, 0.0, Strategy.BALANCED),
+                ball == null ? null : model.cupPosition(), true);
     }
 
     /** Sims the current shot with the automatic policy. */
     public ShotOutcome simShot() {
         requireNotComplete();
-        return resolveOne(simDecision(), null, true);
+        SimShot shot = simShotPlan();
+        return resolveOne(shot.decision(), shot.aimTarget(), true);
     }
 
     /** Sims the rest of the hole with the automatic policy. */
     public void simHole() {
         while (!complete) {
-            resolveOne(simDecision(), null, false);
+            SimShot shot = simShotPlan();
+            resolveOne(shot.decision(), shot.aimTarget(), false);
         }
     }
 
@@ -159,10 +175,16 @@ public final class PlayableHole {
         return model;
     }
 
-    private ShotDecision simDecision() {
-        if (ball == null) return simPolicy.decide(remaining, lie, model.pinLateral(), attributes, par);
-        ShotAim.Reference aim = ShotAim.forBall(model, ball, simPolicy.strategy());
-        return simPolicy.decide(remaining, lie, aim.pinLateral(), attributes, par);
+    private SimShot simShotPlan() {
+        if (ball == null) return new SimShot(simPolicy.decide(remaining, lie, model.pinLateral(), attributes, par), null);
+        com.progolf.sim.shot.ShotIntent selected = simPolicy.decideShotIntent(model, ball, remaining, lie, attributes, par);
+        if (selected instanceof PuttIntent) {
+            return new SimShot(new ShotDecision(com.progolf.sim.shot.Club.PUTTER, remaining, 0.0, Strategy.BALANCED), model.cupPosition());
+        }
+        BallStrikeIntent intent = (BallStrikeIntent) selected;
+        Position2d aim = new Position2d(intent.aimPoint().x(), intent.aimPoint().y());
+        return new SimShot(ShotDecision.fromIntent(intent, ball.position().distanceTo(aim),
+                simPolicy.executionStrategyFor(lie)), aim);
     }
 
 
@@ -190,4 +212,6 @@ public final class PlayableHole {
             throw new IllegalArgumentException("aim point is outside the planning envelope");
         }
     }
+
+    private record SimShot(ShotDecision decision, Position2d aimTarget) { }
 }
