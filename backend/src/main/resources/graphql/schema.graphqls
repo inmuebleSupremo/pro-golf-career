@@ -177,8 +177,8 @@ type Mutation {
 
     # --- Playable event (add-graphql-mutations) ---
 
-    "Plays the current shot in the player's event with a decision; returns the resolved outcome."
-    playShot(id: ID!, decision: ShotDecisionInput!): ShotOutcome!
+    "Plays the current shot from an individual club and canonical intended-contact point."
+    playShot(id: ID!, intent: BallStrikeIntentInput!): ShotSubmission!
 
     "Sims the current shot in the player's event; returns the resolved outcome."
     simShot(id: ID!): ShotOutcome!
@@ -704,7 +704,17 @@ type ShotSituation {
     maxReach: Float!
     "The reachable surface profile — ordered distance bands the shot could find — for a truthful shot-preview overlay."
     reachable: [SurfaceBand!]!
+    "Opaque concurrency token for this exact pending shot."
+    shotRevision: String!
+    aimEnvelope: AimEnvelope
+    guidance: ShotGuidance
 }
+
+type AimEnvelope { minX: Float!, maxX: Float!, minY: Float!, maxY: Float! }
+type AimPoint { x: Float!, y: Float! }
+type ClubReach { club: String!, label: String!, nominalCarry: Float!, normalReach: Float! }
+type ShotGuidance { safe: AimPoint!, primary: AimPoint!, aggressive: AimPoint!, clubs: [ClubReach!]! }
+type ShotSubmission { outcome: ShotOutcome, stale: Boolean! }
 
 "One distance band of a shot's reachable surface profile (spec: web-hole-visualization). Distances in yards."
 type SurfaceBand {
@@ -743,12 +753,11 @@ type ShotOutcome {
     settlement: ShotSettlement
 }
 
-"A player's shot decision. club and strategy are engine enum names (Club / Strategy)."
-input ShotDecisionInput {
+input AimPointInput { x: Float!, y: Float! }
+input BallStrikeIntentInput {
     club: String!
-    targetDistance: Float!
-    targetLateral: Float
-    strategy: String!
+    aimPoint: AimPointInput!
+    expectedShotRevision: String!
 }
 
 "A self-chosen career goal. type is a GoalType enum name; target defaults to 1 (boolean-style goal) when omitted."

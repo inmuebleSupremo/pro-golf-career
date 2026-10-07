@@ -1,6 +1,8 @@
 package com.progolf.app.api;
 
 import com.progolf.app.api.dto.ShotDecisionInput;
+import com.progolf.app.api.dto.BallStrikeIntentInput;
+import com.progolf.app.api.dto.ShotSubmissionDto;
 import com.progolf.app.api.dto.ShotOutcomeDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.auth.AuthenticatedUser;
@@ -24,9 +26,9 @@ public class PlayEventMutationController {
     }
 
     @MutationMapping
-    public ShotOutcomeDto playShot(@Argument String id, @Argument ShotDecisionInput decision) {
-        return ApiMapper.shotOutcome(
-                worldService.playShot(AuthenticatedUser.requireId(), id, ApiMapper.shotDecision(decision)));
+    public ShotSubmissionDto playShot(@Argument String id, @Argument BallStrikeIntentInput intent) {
+        return ApiMapper.submission(worldService.playShot(AuthenticatedUser.requireId(), id,
+                ApiMapper.ballStrikeIntent(intent), intent.expectedShotRevision()));
     }
 
     @MutationMapping

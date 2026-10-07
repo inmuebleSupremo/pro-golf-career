@@ -4,6 +4,12 @@ import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.shot.GolferState;
 import com.progolf.sim.shot.BallState;
+import com.progolf.sim.shot.AimPoint;
+import com.progolf.sim.shot.AimEnvelope;
+import com.progolf.sim.shot.BallStrikeIntent;
+import com.progolf.sim.shot.ClubId;
+import com.progolf.sim.shot.ClubSpec;
+import com.progolf.sim.shot.ShotGuidance;
 import com.progolf.sim.shot.HoleStats;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotContext;
@@ -17,6 +23,7 @@ import com.progolf.sim.shot.SimConstants;
 import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.shot.StrategyPolicy;
 import com.progolf.sim.spatial.Surface;
+import com.progolf.sim.course.Position2d;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -90,14 +97,32 @@ public final class PlayableRound {
     public ShotSituation situation() {
         requireNotComplete();
         HoleToPlay hole = holes.get(holeIndex);
+        if (ball == null || hole.model().geometry() == null) {
+            return new ShotSituation(holeIndex + 1, hole.par(), shotNumber, strokesThisHole,
+                    remaining, lie, hole.model().pinLateral(), hole.model().zoneProfileFor(remaining));
+        }
         return new ShotSituation(holeIndex + 1, hole.par(), shotNumber, strokesThisHole,
-                remaining, lie, hole.model().pinLateral(), hole.model().zoneProfileFor(remaining));
+                remaining, lie, hole.model().pinLateral(), hole.model().zoneProfileFor(remaining),
+                revision(), envelope(hole.model().geometry()), guidance(hole.model()));
     }
 
     /** Plays the current shot with the human's decision (club / target / risk). */
     public ShotOutcome playShot(ShotDecision decision) {
         requireNotComplete();
         return resolveOne(Objects.requireNonNull(decision, "decision"));
+    }
+
+    /** Plays a human-owned spatial intent. The submitted point, not route policy, chooses the shot frame. */
+    public ShotOutcome playShot(BallStrikeIntent intent) {
+        requireNotComplete();
+        Objects.requireNonNull(intent, "intent");
+        if (ball == null || holes.get(holeIndex).model().geometry() == null) {
+            throw new IllegalStateException("spatial intent requires canonical hole geometry");
+        }
+        Position2d target = new Position2d(intent.aimPoint().x(), intent.aimPoint().y());
+        validateAim(target, holes.get(holeIndex).model().geometry());
+        double requestedCarry = ball.position().distanceTo(target);
+        return resolveOne(ShotDecision.fromIntent(intent, requestedCarry, Strategy.BALANCED), target);
     }
 
     /** Sims the current shot with the automatic policy. */
@@ -133,10 +158,15 @@ public final class PlayableRound {
     }
 
     private ShotOutcome resolveOne(ShotDecision decision) {
+        return resolveOne(decision, null);
+    }
+
+
+    private ShotOutcome resolveOne(ShotDecision decision, Position2d humanAimTarget) {
         HoleToPlay hole = holes.get(holeIndex);
         double preShotRemaining = remaining;
         SeedCoordinate coord = base.withHole(holeIndex + 1).withShot(shotNumber);
-        ShotContext context = contextFor(hole, decision, coord);
+        ShotContext context = contextFor(hole, decision, coord, humanAimTarget);
         ShotOutcome outcome = ShotResolver.resolveShot(context);
 
         totalStrokes += outcome.strokes();
@@ -237,14 +267,45 @@ public final class PlayableRound {
         return ball;
     }
 
-    private ShotContext contextFor(HoleToPlay hole, ShotDecision decision, SeedCoordinate coord) {
+    private ShotContext contextFor(HoleToPlay hole, ShotDecision decision, SeedCoordinate coord, Position2d humanAimTarget) {
         if (ball == null || hole.model().geometry() == null) {
             return new ShotContext(attributes, state, hole.environment(), remaining, hole.model().zoneProfileFor(remaining),
                     decision, coord, lie, hole.model().pinLateral());
         }
-        ShotAim.Reference aim = ShotAim.forBall(hole.model(), ball, decision.strategy());
+        ShotAim.Reference aim = humanAimTarget == null
+                ? ShotAim.forBall(hole.model(), ball, decision.strategy())
+                : new ShotAim.Reference(humanAimTarget, 0.0, false);
         return new ShotContext(attributes, state, hole.environment(), remaining, hole.model().zoneProfileFor(remaining),
                 decision, coord, lie, aim.pinLateral(), ball, hole.model().geometry(), hole.model().cupPosition(), aim.target());
+    }
+
+    private static void validateAim(Position2d target, com.progolf.sim.course.CourseGeometry geometry) {
+        AimEnvelope envelope = envelope(geometry);
+        if (!envelope.contains(new AimPoint(target.x(), target.y()))) {
+            throw new IllegalArgumentException("aim point is outside the planning envelope");
+        }
+    }
+
+    private String revision() { return (holeIndex + 1) + ":" + shotNumber; }
+
+    private static AimEnvelope envelope(com.progolf.sim.course.CourseGeometry geometry) {
+        return new AimEnvelope(
+                geometry.playableBoundary().stream().mapToDouble(Position2d::x).min().orElseThrow() - 100.0,
+                geometry.playableBoundary().stream().mapToDouble(Position2d::x).max().orElseThrow() + 100.0,
+                geometry.playableBoundary().stream().mapToDouble(Position2d::y).min().orElseThrow() - 100.0,
+                geometry.playableBoundary().stream().mapToDouble(Position2d::y).max().orElseThrow() + 100.0);
+    }
+
+    private ShotGuidance guidance(HoleModel model) {
+        return new ShotGuidance(pointFor(model, Strategy.CONSERVATIVE), pointFor(model, Strategy.BALANCED),
+                pointFor(model, Strategy.AGGRESSIVE), ClubSpec.all().stream().map(spec -> new ShotGuidance.ClubReach(
+                spec.id(), spec.label(), spec.baseCarry(), spec.baseCarry() * (SimConstants.REACH_FLOOR
+                        + SimConstants.REACH_SPAN * attributes.norm(spec.distanceAttribute())))).toList());
+    }
+
+    private AimPoint pointFor(HoleModel model, Strategy strategy) {
+        Position2d point = ShotAim.forBall(model, ball, strategy).target();
+        return new AimPoint(point.x(), point.y());
     }
 
     private static BallState initialBall(HoleToPlay hole) {

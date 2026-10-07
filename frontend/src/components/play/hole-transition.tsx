@@ -30,6 +30,8 @@ export function StageHole({
   playbackProfile,
   phase,
   postHole,
+  aimPoint,
+  onAimPoint,
 }: {
   displayHole: HoleGeom | null;
   situation: Situation;
@@ -38,6 +40,8 @@ export function StageHole({
   playbackProfile: ShotPhysicsProfile | null;
   phase: SeqPhase;
   postHole: PostHoleSummary | null;
+  aimPoint: { x: number; y: number };
+  onAimPoint: (point: { x: number; y: number }) => void;
 }) {
   // Chrome (hole chip, pressure) rides with live play and the score beat, but yields to the intro overlay and
   // hides through the wipe so nothing shows over the swap.
@@ -47,7 +51,7 @@ export function StageHole({
     <>
       {displayHole ? (
         <div className="flex h-full w-full items-center justify-center">
-          <Hole2d hole={displayHole} ball={playbackShot} profile={playbackProfile} className="block max-h-full w-auto" />
+          <Hole2d hole={displayHole} ball={playbackShot} profile={playbackProfile} className="block max-h-full w-auto" aimPoint={aimPoint} onAimPoint={onAimPoint} />
         </div>
       ) : (
         <div className="bg-surface-3 aspect-[1/2] h-[70%] animate-pulse rounded-lg" />

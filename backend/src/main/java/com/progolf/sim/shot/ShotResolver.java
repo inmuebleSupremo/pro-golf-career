@@ -44,7 +44,7 @@ public final class ShotResolver {
         ShotDecision decision = context.decision();
         Environment env = context.environment();
         GolferState state = context.state();
-        Club club = decision.club();
+        ClubSpec club = decision.clubSpec();
 
         // A shot played from the green is a putt: it is resolved by a dedicated make-probability model —
         // the ball rolls on the green, sheltered from wind and lie penalties, holing out near-certainly
@@ -91,7 +91,7 @@ public final class ShotResolver {
         double equipmentDispersion = 1.0 - state.equipmentForgiveness();
 
         // Dispersion scales with the intended shot length: a short putt is far tighter than a full drive.
-        double maxReach = club.baseDistance() * (SimConstants.REACH_FLOOR + SimConstants.REACH_SPAN * distanceNorm)
+        double maxReach = club.baseCarry() * (SimConstants.REACH_FLOOR + SimConstants.REACH_SPAN * distanceNorm)
                 * equipmentReach;
         double shotDistance = Math.min(decision.targetDistance(), maxReach);
         // Per-club dispersion: the driver sprays wider off the tee, a wedge is a precision club.

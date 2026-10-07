@@ -12,5 +12,6 @@ import java.util.List;
  */
 public record ShotSituationDto(int holeNumber, int par, int shotNumber, int strokesThisHole,
                                double distanceToPin, String lie, double pinLateral,
-                               double minReach, double maxReach, List<SurfaceBandDto> reachable) {
+                               double minReach, double maxReach, List<SurfaceBandDto> reachable,
+                               String shotRevision, AimEnvelopeDto aimEnvelope, ShotGuidanceDto guidance) {
 }

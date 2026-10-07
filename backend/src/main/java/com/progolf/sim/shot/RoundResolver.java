@@ -85,13 +85,13 @@ public final class RoundResolver {
                                               Environment environment, StrategyPolicy policy, double remainingDistance,
                                               Surface lie, SeedCoordinate holeCoordinate, int shotNo, BallState ball) {
         ShotAim.Reference aim = ShotAim.forBall(hole, ball, policy.strategy());
-        // The route target chooses the direction, while the existing club-only policy still chooses a normal
-        // advancing carry from distance-to-pin. Treating a semantic zone centre as a mandatory short club
-        // would add artificial shots until explicit Target/Aim controls exist.
+        // The AI emits the shared intent. The old decision remains a strictly local compatibility adapter
+        // for calibrated carry/dispersion sampling until ShotDecision retirement.
+        BallStrikeIntent intent = policy.decideIntent(hole, ball, remainingDistance, lie, attributes, hole.par());
         ShotDecision decision = policy.decide(remainingDistance, lie, aim.pinLateral(), attributes, hole.par());
         return new ShotContext(attributes, state, environment, remainingDistance, hole.zoneProfileFor(remainingDistance),
                 decision, holeCoordinate.withShot(shotNo), lie, aim.pinLateral(), ball, hole.geometry(), hole.cupPosition(),
-                aim.target());
+                new com.progolf.sim.course.Position2d(intent.aimPoint().x(), intent.aimPoint().y()));
     }
 
     /**

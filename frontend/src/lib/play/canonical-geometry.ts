@@ -10,6 +10,7 @@ export interface CanonicalPlayingGeometry {
 
 export interface CanonicalRenderModel {
   readonly project: (point: Point) => Point;
+  readonly unproject: (point: Point) => Point;
   readonly playableBoundaryPath: string;
   readonly terrain: readonly { readonly surface: string; readonly path: string }[];
 }
@@ -34,9 +35,14 @@ export function canonicalRenderModel(
     x: viewport.padding + (point.x - minX) * scale,
     y: viewport.height - viewport.padding - (point.y - minY) * scale,
   });
+  const unproject = (point: Point): Point => ({
+    x: minX + (point.x - viewport.padding) / scale,
+    y: minY + (viewport.height - viewport.padding - point.y) / scale,
+  });
 
   return {
     project,
+    unproject,
     playableBoundaryPath: polygonPath(geometry.playableBoundary, project),
     terrain: geometry.regions.map((region) => ({ surface: region.surface, path: polygonPath(region.boundary, project) })),
   };

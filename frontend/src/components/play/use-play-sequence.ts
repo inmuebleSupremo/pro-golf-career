@@ -3,13 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { HoleGeom, ResolvedShot } from "@/lib/play/hole-geometry";
-import { shotRouterFromCarry, shotRouterFromGameInputs, type ShotPhysicsProfile } from "@/lib/play/shot-router";
+import { shotRouterFromCarry, type ShotPhysicsProfile } from "@/lib/play/shot-router";
 import type { LeaderboardRow, Outcome, Scorecard, Situation } from "@/components/play/play-shared";
 
 /** The player's raw shot inputs, present for a played shot and absent for a simmed one. */
 export interface ShotInputs {
   readonly club: string;
-  readonly strategy: string;
   readonly targetDistance: number;
 }
 
@@ -123,7 +122,7 @@ export function usePlaySequence({
     // from the carry when the server simmed it.
     setPlaybackProfile(
       inputs
-        ? shotRouterFromGameInputs(inputs.club, inputs.targetDistance, inputs.strategy)
+        ? shotRouterFromCarry(outcome.carry)
         : shotRouterFromCarry(outcome.carry),
     );
     setLastOutcome(outcome);

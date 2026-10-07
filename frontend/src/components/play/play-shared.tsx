@@ -14,6 +14,14 @@ export type Situation = {
   pinLateral: number;
   minReach: number;
   maxReach: number;
+  shotRevision: string;
+  aimEnvelope?: { minX: number; maxX: number; minY: number; maxY: number } | null;
+  guidance?: {
+    safe: { x: number; y: number };
+    primary: { x: number; y: number };
+    aggressive: { x: number; y: number };
+    clubs: { club: string; label: string; nominalCarry: number; normalReach: number }[];
+  } | null;
 };
 
 export type Outcome = {
@@ -73,6 +81,11 @@ export function ordinal(position: number): string {
 }
 
 export function defaultClub(s: Situation): string {
+  if (s.guidance?.clubs.length) {
+    return s.guidance.clubs.reduce((best, candidate) =>
+      Math.abs(candidate.nominalCarry - s.distanceToPin) < Math.abs(best.nominalCarry - s.distanceToPin) ? candidate : best,
+    ).club;
+  }
   if (s.lie.toUpperCase().includes("GREEN")) return "PUTTER";
   if (s.distanceToPin >= 220) return "DRIVER";
   if (s.distanceToPin >= 60) return "IRON";

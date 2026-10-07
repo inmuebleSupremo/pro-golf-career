@@ -13,6 +13,7 @@ import com.progolf.sim.shot.Environment;
 import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotDecision;
+import com.progolf.sim.shot.BallStrikeIntent;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.tournament.LeaderboardEntry;
@@ -175,6 +176,21 @@ public final class PlayableEvent {
                 : currentRound.playShot(decision);
         syncProgress();
         return outcome;
+    }
+
+    /** Public human-play seam: both round and playoff consume the same spatial intent. */
+    public synchronized ShotOutcome playShot(BallStrikeIntent intent) {
+        requireActive();
+        ShotOutcome outcome = phase == Phase.PLAYOFF ? currentPlayoffHole.playShot(intent) : currentRound.playShot(intent);
+        syncProgress();
+        return outcome;
+    }
+
+    /** Checks the snapshot revision while holding the event lock, preventing stale browser actions. */
+    public synchronized ShotSubmission playShot(BallStrikeIntent intent, String expectedRevision) {
+        requireActive();
+        if (!situation().shotRevision().equals(expectedRevision)) return ShotSubmission.staleResult();
+        return ShotSubmission.resolved(playShot(intent));
     }
 
     /** Sims the current shot with the automatic policy. */

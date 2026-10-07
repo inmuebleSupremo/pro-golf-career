@@ -34,6 +34,13 @@ const geometry: CanonicalPlayingGeometry = {
 };
 
 describe("canonicalRenderModel", () => {
+  it("round-trips off-centre canonical coordinates through the display mapping", () => {
+    const model = canonicalRenderModel(geometry);
+    const source = { x: 13.25, y: 171.5 };
+    expect(model.unproject(model.project(source))).toEqual(expect.objectContaining({
+      x: expect.closeTo(source.x, 8), y: expect.closeTo(source.y, 8),
+    }));
+  });
   it("projects every terrain path from the API geometry without inventing terrain", () => {
     const model = canonicalRenderModel(geometry);
 
