@@ -113,17 +113,18 @@ class WorldGraphQlMutationsTest {
         }
         assertThat(worldService.hasPendingEvent(OWNER, session.id())).as("player event should come up").isTrue();
 
-        double distance = worldService.currentSituation(OWNER, session.id()).distanceToPin();
+        var situation = worldService.currentSituation(OWNER, session.id());
+        var cup = session.world().playerEvent().currentEffectiveGeometry().greenCenter();
         graphQlTester.document("""
-                        mutation($id: ID!, $d: Float!){
-                          playShot(id: $id, decision: {club: "DRIVER", targetDistance: $d, strategy: "BALANCED"}){
-                            finalSurface strokes
+                        mutation($id: ID!, $x: Float!, $y: Float!, $revision: String!){
+                          playShot(id: $id, intent: {club: "DRIVER", aimPoint: {x: $x, y: $y}, expectedShotRevision: $revision}){
+                            outcome { finalSurface strokes }
                           }
                         }
                         """)
-                .variable("id", session.id()).variable("d", distance).execute()
-                .path("playShot.strokes").entity(Integer.class).satisfies(s -> assertThat(s).isGreaterThanOrEqualTo(1))
-                .path("playShot.finalSurface").entity(String.class).satisfies(s -> assertThat(s).isNotBlank());
+                .variable("id", session.id()).variable("x", cup.x()).variable("y", cup.y()).variable("revision", situation.shotRevision()).execute()
+                .path("playShot.outcome.strokes").entity(Integer.class).satisfies(s -> assertThat(s).isGreaterThanOrEqualTo(1))
+                .path("playShot.outcome.finalSurface").entity(String.class).satisfies(s -> assertThat(s).isNotBlank());
 
         graphQlTester.document("mutation($id: ID!){ simEvent(id: $id) }")
                 .variable("id", session.id()).execute()
@@ -174,25 +175,26 @@ class WorldGraphQlMutationsTest {
                 .path("prefetched.geometry.playableBoundary").entityList(PositionDto.class)
                 .satisfies(points -> assertThat(points).containsExactlyElementsOf(points(prefetchedEffectiveGeometry)));
 
-        double distance = worldService.currentSituation(OWNER, session.id()).distanceToPin();
+        var currentSituation = worldService.currentSituation(OWNER, session.id());
+        var cup = currentEffectiveGeometry.greenCenter();
         graphQlTester.document("""
-                        mutation($id: ID!, $distance: Float!){
-                          playShot(id: $id, decision: {club: "DRIVER", targetDistance: $distance, strategy: "BALANCED"}){
-                            settlement {
+                        mutation($id: ID!, $x: Float!, $y: Float!, $revision: String!){
+                          playShot(id: $id, intent: {club: "DRIVER", aimPoint: {x: $x, y: $y}, expectedShotRevision: $revision}){
+                            outcome { settlement {
                               contact { position { x y } surface }
                               recoveryPosition { x y }
                               recoveryKind
                               ball { position { x y } lie }
-                            }
+                            } }
                           }
                         }
                         """)
-                .variable("id", session.id()).variable("distance", distance).execute()
-                .path("playShot.settlement.contact.surface").entity(String.class).satisfies(surface ->
+                .variable("id", session.id()).variable("x", cup.x()).variable("y", cup.y()).variable("revision", currentSituation.shotRevision()).execute()
+                .path("playShot.outcome.settlement.contact.surface").entity(String.class).satisfies(surface ->
                         assertThat(surface).isNotBlank())
-                .path("playShot.settlement.recoveryKind").entity(String.class).satisfies(kind ->
+                .path("playShot.outcome.settlement.recoveryKind").entity(String.class).satisfies(kind ->
                         assertThat(kind).isNotBlank())
-                .path("playShot.settlement.ball.lie").entity(String.class).satisfies(lie ->
+                .path("playShot.outcome.settlement.ball.lie").entity(String.class).satisfies(lie ->
                         assertThat(lie).isNotBlank());
     }
 
@@ -374,7 +376,7 @@ class WorldGraphQlMutationsTest {
         String id = worldService.create(OWNER, 40L, SMALL).id();
         graphQlTester.document("""
                         mutation($id: ID!){
-                          playShot(id: $id, decision: {club: "DRIVER", targetDistance: 250, strategy: "BALANCED"}){ strokes }
+                          playShot(id: $id, intent: {club: "DRIVER", aimPoint: {x: 0, y: 250}, expectedShotRevision: "1:1"}){ stale }
                         }
                         """)
                 .variable("id", id).execute().errors()

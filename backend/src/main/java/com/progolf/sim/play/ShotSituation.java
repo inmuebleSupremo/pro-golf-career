@@ -2,6 +2,8 @@ package com.progolf.sim.play;
 
 import com.progolf.sim.spatial.ShotZoneProfile;
 import com.progolf.sim.spatial.Surface;
+import com.progolf.sim.shot.AimEnvelope;
+import com.progolf.sim.shot.ShotGuidance;
 
 /**
  * The information a human needs to decide the current shot (spec: playable-round): which hole and its par,
@@ -11,5 +13,11 @@ import com.progolf.sim.spatial.Surface;
  * with a club/target/risk decision. Immutable.
  */
 public record ShotSituation(int holeNumber, int par, int shotNumber, int strokesThisHole,
-                            double distanceToPin, Surface lie, double pinLateral, ShotZoneProfile reachable) {
+                            double distanceToPin, Surface lie, double pinLateral, ShotZoneProfile reachable,
+                            String shotRevision, AimEnvelope aimEnvelope, ShotGuidance guidance) {
+    public ShotSituation(int holeNumber, int par, int shotNumber, int strokesThisHole,
+                         double distanceToPin, Surface lie, double pinLateral, ShotZoneProfile reachable) {
+        this(holeNumber, par, shotNumber, strokesThisHole, distanceToPin, lie, pinLateral, reachable,
+                holeNumber + ":" + shotNumber, null, null);
+    }
 }

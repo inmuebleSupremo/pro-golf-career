@@ -675,6 +675,14 @@ export const PlayStateDocument = graphql(`
       pinLateral
       minReach
       maxReach
+      shotRevision
+      aimEnvelope { minX maxX minY maxY }
+      guidance {
+        safe { x y }
+        primary { x y }
+        aggressive { x y }
+        clubs { club label nominalCarry normalReach }
+      }
       reachable {
         startDistance
         endDistance
@@ -743,22 +751,25 @@ export const PlayingHoleDocument = graphql(`
   }
 `);
 
-/** Plays the current shot with a club/target/strategy decision; returns the outcome. */
+/** Plays the current shot with an individual club and literal canonical aim point. */
 export const PlayShotDocument = graphql(`
-  mutation PlayShot($id: ID!, $decision: ShotDecisionInput!) {
-    playShot(id: $id, decision: $decision) {
-      finalSurface
-      carry
-      lateral
-      distanceRemaining
-      hazardEntered
-      penaltyStrokes
-      strokes
-      settlement {
-        contact { position { x y } surface }
-        recoveryPosition { x y }
-        recoveryKind
-        ball { position { x y } lie }
+  mutation PlayShot($id: ID!, $intent: BallStrikeIntentInput!) {
+    playShot(id: $id, intent: $intent) {
+      stale
+      outcome {
+        finalSurface
+        carry
+        lateral
+        distanceRemaining
+        hazardEntered
+        penaltyStrokes
+        strokes
+        settlement {
+          contact { position { x y } surface }
+          recoveryPosition { x y }
+          recoveryKind
+          ball { position { x y } lie }
+        }
       }
     }
   }

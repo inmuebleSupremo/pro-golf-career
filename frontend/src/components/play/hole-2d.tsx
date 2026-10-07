@@ -53,6 +53,8 @@ export interface Hole2dProps {
   /** The shot router's physics profile shaping the playback flight; a default iron stands in when absent. */
   readonly profile?: ShotPhysicsProfile | null;
   readonly className?: string;
+  readonly aimPoint?: Point;
+  readonly onAimPoint?: (point: Point) => void;
 }
 
 /** A neutral stand-in profile when none was routed (defensive — the sequence always supplies one). */

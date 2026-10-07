@@ -4,6 +4,9 @@ import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.shot.Environment;
 import com.progolf.sim.shot.BallState;
+import com.progolf.sim.shot.BallStrikeIntent;
+import com.progolf.sim.shot.AimEnvelope;
+import com.progolf.sim.shot.AimPoint;
 import com.progolf.sim.shot.GolferState;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotContext;
@@ -16,6 +19,7 @@ import com.progolf.sim.shot.SimConstants;
 import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.shot.StrategyPolicy;
 import com.progolf.sim.spatial.Surface;
+import com.progolf.sim.course.Position2d;
 import java.util.Objects;
 
 /**
@@ -81,6 +85,16 @@ public final class PlayableHole {
         return resolveOne(Objects.requireNonNull(decision, "decision"));
     }
 
+    /** Human spatial intent path for sudden-death play. */
+    public ShotOutcome playShot(BallStrikeIntent intent) {
+        requireNotComplete();
+        if (ball == null || model.geometry() == null) throw new IllegalStateException("spatial intent requires canonical geometry");
+        Position2d target = new Position2d(intent.aimPoint().x(), intent.aimPoint().y());
+        validateAim(target);
+        double requestedCarry = ball.position().distanceTo(target);
+        return resolveOne(ShotDecision.fromIntent(intent, requestedCarry, Strategy.BALANCED), target);
+    }
+
     /** Sims the current shot with the automatic policy. */
     public ShotOutcome simShot() {
         requireNotComplete();
@@ -95,11 +109,15 @@ public final class PlayableHole {
     }
 
     private ShotOutcome resolveOne(ShotDecision decision) {
+        return resolveOne(decision, null);
+    }
+
+    private ShotOutcome resolveOne(ShotDecision decision, Position2d humanAimTarget) {
         double preShotRemaining = remaining;
         ShotContext context = ball == null
                 ? new ShotContext(attributes, state, environment, remaining, model.zoneProfileFor(remaining), decision,
                 coordinate.withShot(shotNumber), lie, model.pinLateral())
-                : spatialContext(decision);
+                : spatialContext(decision, humanAimTarget);
         ShotOutcome outcome = ShotResolver.resolveShot(context);
 
         strokes += outcome.strokes();
@@ -151,8 +169,10 @@ public final class PlayableHole {
         return simPolicy.decide(remaining, lie, aim.pinLateral(), attributes, par);
     }
 
-    private ShotContext spatialContext(ShotDecision decision) {
-        ShotAim.Reference aim = ShotAim.forBall(model, ball, decision.strategy());
+
+    private ShotContext spatialContext(ShotDecision decision, Position2d humanAimTarget) {
+        ShotAim.Reference aim = humanAimTarget == null ? ShotAim.forBall(model, ball, decision.strategy())
+                : new ShotAim.Reference(humanAimTarget, 0.0, false);
         return new ShotContext(attributes, state, environment, remaining, model.zoneProfileFor(remaining), decision,
                 coordinate.withShot(shotNumber), lie, aim.pinLateral(), ball, model.geometry(), model.cupPosition(), aim.target());
     }
@@ -160,6 +180,18 @@ public final class PlayableHole {
     private void requireNotComplete() {
         if (complete) {
             throw new IllegalStateException("the hole is complete");
+        }
+    }
+
+    private void validateAim(Position2d target) {
+        var boundary = model.geometry().playableBoundary();
+        AimEnvelope envelope = new AimEnvelope(
+                boundary.stream().mapToDouble(Position2d::x).min().orElseThrow() - 100.0,
+                boundary.stream().mapToDouble(Position2d::x).max().orElseThrow() + 100.0,
+                boundary.stream().mapToDouble(Position2d::y).min().orElseThrow() - 100.0,
+                boundary.stream().mapToDouble(Position2d::y).max().orElseThrow() + 100.0);
+        if (!envelope.contains(new AimPoint(target.x(), target.y()))) {
+            throw new IllegalArgumentException("aim point is outside the planning envelope");
         }
     }
 }

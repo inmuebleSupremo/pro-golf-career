@@ -59,6 +59,8 @@ import com.progolf.sim.progression.ProgressionConstants;
 import com.progolf.sim.ranking.RankingSnapshot;
 import com.progolf.sim.ranking.RankingStanding;
 import com.progolf.sim.shot.ShotDecision;
+import com.progolf.sim.shot.BallStrikeIntent;
+import com.progolf.sim.play.ShotSubmission;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
@@ -911,6 +913,11 @@ public class WorldService {
     /** Plays the current shot in the player's event with the human's decision (club / target / risk). */
     public ShotOutcome playShot(String ownerId, String sessionId, ShotDecision decision) {
         return playerEvent(ownerId, sessionId).playShot(decision);
+    }
+
+    /** Spatial human-shot entry point; stale revisions return without mutating event state. */
+    public ShotSubmission playShot(String ownerId, String sessionId, BallStrikeIntent intent, String expectedRevision) {
+        return playerEvent(ownerId, sessionId).playShot(intent, expectedRevision);
     }
 
     /** Sims the current shot in the player's event. */

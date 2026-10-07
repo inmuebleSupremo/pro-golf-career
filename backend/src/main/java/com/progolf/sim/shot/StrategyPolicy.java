@@ -2,6 +2,7 @@ package com.progolf.sim.shot;
 
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.spatial.Surface;
+import com.progolf.sim.course.Position2d;
 
 /**
  * A deterministic policy that derives a shot decision from the situation — the remaining distance, the
@@ -72,6 +73,19 @@ public final class StrategyPolicy {
         double target = Math.min(remainingDistance, club.baseDistance());
         double aim = pinAttackFraction(effective, remainingDistance) * pinLateral;
         return new ShotDecision(club, target, aim, effective);
+    }
+
+    /**
+     * AI policy's public decision output. Disposition remains policy-only; execution receives the same
+     * individual-club and canonical-point contract as human play.
+     */
+    public BallStrikeIntent decideIntent(HoleModel hole, BallState ball, double remainingDistance, Surface lie,
+                                         Attributes attributes, int par) {
+        ShotAim.Reference aim = ShotAim.forBall(hole, ball, strategy);
+        ShotDecision legacy = decide(remainingDistance, lie, aim.pinLateral(), attributes, par);
+        ClubSpec base = ClubSpec.forLegacy(legacy.club());
+        Position2d route = aim.target();
+        return new BallStrikeIntent(base.id(), new AimPoint(route.x(), route.y()));
     }
 
     /** From a difficult lie (deep rough / bunker / recovery / trees) the golfer plays conservatively. */

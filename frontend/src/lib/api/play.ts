@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { gqlRequest } from "@/lib/api/graphql-client";
-import type { ShotDecisionInput } from "@/lib/graphql/generated/graphql";
+import type { BallStrikeIntentInput } from "@/lib/graphql/generated/graphql";
 import {
   AdvanceSeasonDocument,
   AdvanceWeekDocument,
@@ -78,7 +78,7 @@ export function useAdvanceSeason(id: string) {
 export function usePlayShot(id: string) {
   const invalidate = useInvalidatePlay(id);
   return useMutation({
-    mutationFn: (decision: ShotDecisionInput) => gqlRequest(PlayShotDocument, { id, decision }),
+    mutationFn: (intent: BallStrikeIntentInput) => gqlRequest(PlayShotDocument, { id, intent }),
     networkMode: "always",
     onSuccess: invalidate,
   });

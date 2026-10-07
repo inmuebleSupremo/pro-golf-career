@@ -13,6 +13,12 @@ import com.progolf.app.api.dto.SaveDto;
 import com.progolf.app.api.dto.ScheduleEntryDto;
 import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.ShotDecisionInput;
+import com.progolf.app.api.dto.BallStrikeIntentInput;
+import com.progolf.app.api.dto.AimEnvelopeDto;
+import com.progolf.app.api.dto.AimPointDto;
+import com.progolf.app.api.dto.ClubReachDto;
+import com.progolf.app.api.dto.ShotGuidanceDto;
+import com.progolf.app.api.dto.ShotSubmissionDto;
 import com.progolf.app.api.dto.ShotOutcomeDto;
 import com.progolf.app.api.dto.PlayingHoleDto;
 import com.progolf.app.api.dto.PlayingGeometryDto;
@@ -53,6 +59,9 @@ import com.progolf.sim.shot.Club;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.Strategy;
+import com.progolf.sim.shot.AimPoint;
+import com.progolf.sim.shot.BallStrikeIntent;
+import com.progolf.sim.shot.ClubId;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
 import com.progolf.sim.statistics.SeasonStatistics;
@@ -114,7 +123,20 @@ public final class ApiMapper {
     public static ShotSituationDto situation(ShotSituation s) {
         return new ShotSituationDto(s.holeNumber(), s.par(), s.shotNumber(), s.strokesThisHole(),
                 s.distanceToPin(), s.lie().name(), s.pinLateral(),
-                s.reachable().minReach(), s.reachable().maxReach(), reachableBands(s.reachable()));
+                s.reachable().minReach(), s.reachable().maxReach(), reachableBands(s.reachable()), s.shotRevision(),
+                s.aimEnvelope() == null ? null : new AimEnvelopeDto(s.aimEnvelope().minX(), s.aimEnvelope().maxX(),
+                        s.aimEnvelope().minY(), s.aimEnvelope().maxY()), guidance(s));
+    }
+
+    private static ShotGuidanceDto guidance(ShotSituation situation) {
+        if (situation.guidance() == null) return null;
+        var g = situation.guidance();
+        return new ShotGuidanceDto(point(g.safe()), point(g.primary()), point(g.aggressive()), g.clubs().stream()
+                .map(c -> new ClubReachDto(c.club().name(), c.label(), c.nominalCarry(), c.normalReach())).toList());
+    }
+
+    public static ShotSubmissionDto submission(com.progolf.sim.play.ShotSubmission submission) {
+        return new ShotSubmissionDto(submission.outcome() == null ? null : shotOutcome(submission.outcome()), submission.stale());
     }
 
     /** Projects the reachable zone profile to ordered surface bands for a truthful shot-preview overlay. */
@@ -190,6 +212,10 @@ public final class ApiMapper {
         return new PositionDto(point.x(), point.y());
     }
 
+    private static AimPointDto point(AimPoint point) {
+        return new AimPointDto(point.x(), point.y());
+    }
+
     private static BallStateDto ballState(BallState ball) {
         return ball == null ? null : new BallStateDto(point(ball.position()), ball.lie().name());
     }
@@ -207,6 +233,11 @@ public final class ApiMapper {
     public static ShotDecision shotDecision(ShotDecisionInput in) {
         double lateral = in.targetLateral() != null ? in.targetLateral() : 0.0;
         return new ShotDecision(club(in.club()), in.targetDistance(), lateral, strategy(in.strategy()));
+    }
+
+    public static BallStrikeIntent ballStrikeIntent(BallStrikeIntentInput in) {
+        if (in == null || in.aimPoint() == null) throw new IllegalArgumentException("aimPoint is required");
+        return new BallStrikeIntent(ClubId.valueOf(in.club()), new AimPoint(in.aimPoint().x(), in.aimPoint().y()));
     }
 
     public static CareerGoal careerGoal(CareerGoalInput in) {

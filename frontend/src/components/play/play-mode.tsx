@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { CLUBS, STRATEGIES, humanize } from "@/lib/play/options";
+import { humanize } from "@/lib/play/options";
 import { StageHole } from "@/components/play/hole-transition";
 import { usePlaySequence, type ShotInputs } from "@/components/play/use-play-sequence";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
 import {
-  clampTarget,
   defaultClub,
   formatScore,
   Leaderboard,
@@ -66,6 +65,14 @@ export function PlayMode({
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<DrawerTab | null>(null);
+  const [aimState, setAimState] = useState(() => ({
+    revision: situation.shotRevision,
+    point: situation.guidance?.primary ?? { x: 0, y: 0 },
+  }));
+  const aimPoint = aimState.revision === situation.shotRevision
+    ? aimState.point
+    : situation.guidance?.primary ?? { x: 0, y: 0 };
+  const setAimPoint = (point: { x: number; y: number }) => setAimState({ revision: situation.shotRevision, point });
 
   // The client-side sequence: it owns what the stage shows and when the shot controls are locked, so the
   // between-hole ceremony (hole-out → score → wipe → intro) can play out over the server's instant advance.
@@ -109,6 +116,8 @@ export function PlayMode({
             playbackProfile={seq.playbackProfile}
             phase={seq.phase}
             postHole={seq.postHole}
+            aimPoint={aimPoint}
+            onAimPoint={setAimPoint}
           />
         </section>
 
@@ -127,6 +136,9 @@ export function PlayMode({
         key={`${situation.holeNumber}-${situation.shotNumber}`}
         id={id}
         situation={situation}
+        hole={hole}
+        aimPoint={aimPoint}
+        onAimPoint={setAimPoint}
         onShot={seq.onShotResolved}
         onSimJump={seq.onSimJump}
         lastOutcome={seq.lastOutcome}
@@ -207,6 +219,9 @@ function HudStat({ k, v, tone }: { k: string; v: string; tone?: string }) {
 function ActionDock({
   id,
   situation,
+  hole,
+  aimPoint,
+  onAimPoint,
   onShot,
   onSimJump,
   lastOutcome,
@@ -214,6 +229,9 @@ function ActionDock({
 }: {
   id: string;
   situation: Situation;
+  hole: HoleGeom | null;
+  aimPoint: { x: number; y: number };
+  onAimPoint: (point: { x: number; y: number }) => void;
   onShot: (outcome: Outcome, inputs?: ShotInputs) => void;
   onSimJump: () => void;
   lastOutcome: Outcome | null;
@@ -222,17 +240,21 @@ function ActionDock({
 }) {
   const play = usePlayShot(id);
   const [club, setClub] = useState(() => defaultClub(situation));
-  const [strategy, setStrategy] = useState("BALANCED");
-  const [target, setTarget] = useState(() => clampTarget(situation));
   const [formError, setFormError] = useState<string | null>(null);
-  const min = Math.floor(situation.minReach);
-  const max = Math.ceil(situation.maxReach);
+  const clubs = situation.guidance?.clubs ?? [];
+  const selectedClub = clubs.find((candidate) => candidate.club === club);
+  const origin = hole?.ball?.position ?? hole?.geometry?.tee ?? { x: 0, y: 0 };
+  const targetDistance = Math.hypot(aimPoint.x - origin.x, aimPoint.y - origin.y);
 
   async function onPlay() {
     setFormError(null);
     try {
-      const result = await play.mutateAsync({ club, targetDistance: target, strategy });
-      onShot(result.playShot, { club, strategy, targetDistance: target });
+      const result = await play.mutateAsync({ club, aimPoint, expectedShotRevision: situation.shotRevision });
+      if (result.playShot.stale || !result.playShot.outcome) {
+        setFormError("That shot plan is stale. Choose the target again.");
+        return;
+      }
+      onShot(result.playShot.outcome, { club, targetDistance });
     } catch {
       setFormError("Couldn't play that shot. Try again.");
     }
@@ -243,32 +265,34 @@ function ActionDock({
       <div className="mx-auto flex max-w-5xl flex-wrap items-end gap-x-3 gap-y-2.5">
         <DockField label="Club">
           <Select value={club} onChange={(e) => setClub(e.target.value)}>
-            {CLUBS.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
+            {clubs.map((candidate) => (
+              <option key={candidate.club} value={candidate.club}>
+                {candidate.label}
               </option>
             ))}
           </Select>
         </DockField>
-        <DockField label="Strategy">
-          <Select value={strategy} onChange={(e) => setStrategy(e.target.value)}>
-            {STRATEGIES.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </Select>
-        </DockField>
-        <DockField label={`Target · ${min}–${max}`}>
+        <DockField label="Target X">
           <Input
             type="number"
-            min={min}
-            max={max}
-            value={target}
-            onChange={(e) => setTarget(Number(e.target.value))}
+            value={aimPoint.x}
+            onChange={(e) => onAimPoint({ ...aimPoint, x: Number(e.target.value) })}
             className="w-24"
           />
         </DockField>
+        <DockField label="Target Y">
+          <Input type="number" value={aimPoint.y} onChange={(e) => onAimPoint({ ...aimPoint, y: Number(e.target.value) })} className="w-24" />
+        </DockField>
+        <div className="flex gap-1" aria-label="Nudge target">
+          <Button variant="secondary" size="sm" onClick={() => onAimPoint({ ...aimPoint, x: aimPoint.x - 5 })}>←</Button>
+          <Button variant="secondary" size="sm" onClick={() => onAimPoint({ ...aimPoint, y: aimPoint.y + 5 })}>↑</Button>
+          <Button variant="secondary" size="sm" onClick={() => onAimPoint({ ...aimPoint, y: aimPoint.y - 5 })}>↓</Button>
+          <Button variant="secondary" size="sm" onClick={() => onAimPoint({ ...aimPoint, x: aimPoint.x + 5 })}>→</Button>
+        </div>
+        <div className="text-muted-foreground text-xs" aria-live="polite">
+          Target {Math.round(targetDistance)} yds · {selectedClub ? `${Math.round(selectedClub.normalReach)} yd normal reach` : "club guidance unavailable"}
+        </div>
+        {situation.guidance ? <div className="flex gap-1"><Button variant="secondary" size="sm" onClick={() => onAimPoint(situation.guidance!.safe)}>Safe</Button><Button variant="secondary" size="sm" onClick={() => onAimPoint(situation.guidance!.primary)}>Primary</Button><Button variant="secondary" size="sm" onClick={() => onAimPoint(situation.guidance!.aggressive)}>Aggressive</Button></div> : null}
 
         <div className="order-last w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
           {formError ? (
