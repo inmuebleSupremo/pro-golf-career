@@ -17,7 +17,8 @@ public record ShotOutcome(
         int strokes,
         FactorBreakdown factors,
         ShotSettlement settlement,
-        boolean putt) {
+        boolean putt,
+        ShotTrace trace) {
 
     public ShotOutcome {
         Objects.requireNonNull(finalSurface, "finalSurface");
@@ -27,6 +28,15 @@ public record ShotOutcome(
     /** Compatibility constructor for unit fixtures and legacy zone resolution. */
     public ShotOutcome(Surface finalSurface, double carry, double lateral, double distanceRemaining,
                        boolean hazardEntered, int penaltyStrokes, int strokes, FactorBreakdown factors) {
-        this(finalSurface, carry, lateral, distanceRemaining, hazardEntered, penaltyStrokes, strokes, factors, null, false);
+        this(finalSurface, carry, lateral, distanceRemaining, hazardEntered, penaltyStrokes, strokes, factors,
+                null, false, null);
+    }
+
+    /** Compatibility constructor for callers that have settlement metadata but no observable trace. */
+    public ShotOutcome(Surface finalSurface, double carry, double lateral, double distanceRemaining,
+                       boolean hazardEntered, int penaltyStrokes, int strokes, FactorBreakdown factors,
+                       ShotSettlement settlement, boolean putt) {
+        this(finalSurface, carry, lateral, distanceRemaining, hazardEntered, penaltyStrokes, strokes, factors,
+                settlement, putt, null);
     }
 }

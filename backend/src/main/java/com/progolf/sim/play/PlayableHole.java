@@ -82,7 +82,7 @@ public final class PlayableHole {
     /** Plays the current shot with the human's decision (club / target / risk). */
     public ShotOutcome playShot(ShotDecision decision) {
         requireNotComplete();
-        return resolveOne(Objects.requireNonNull(decision, "decision"));
+        return resolveOne(Objects.requireNonNull(decision, "decision"), null, true);
     }
 
     /** Human spatial intent path for sudden-death play. */
@@ -92,33 +92,29 @@ public final class PlayableHole {
         Position2d target = new Position2d(intent.aimPoint().x(), intent.aimPoint().y());
         validateAim(target);
         double requestedCarry = ball.position().distanceTo(target);
-        return resolveOne(ShotDecision.fromIntent(intent, requestedCarry, Strategy.BALANCED), target);
+        return resolveOne(ShotDecision.fromIntent(intent, requestedCarry, Strategy.BALANCED), target, true);
     }
 
     /** Sims the current shot with the automatic policy. */
     public ShotOutcome simShot() {
         requireNotComplete();
-        return resolveOne(simDecision());
+        return resolveOne(simDecision(), null, true);
     }
 
     /** Sims the rest of the hole with the automatic policy. */
     public void simHole() {
         while (!complete) {
-            resolveOne(simDecision());
+            resolveOne(simDecision(), null, false);
         }
     }
 
-    private ShotOutcome resolveOne(ShotDecision decision) {
-        return resolveOne(decision, null);
-    }
-
-    private ShotOutcome resolveOne(ShotDecision decision, Position2d humanAimTarget) {
+    private ShotOutcome resolveOne(ShotDecision decision, Position2d humanAimTarget, boolean materializeTrace) {
         double preShotRemaining = remaining;
         ShotContext context = ball == null
                 ? new ShotContext(attributes, state, environment, remaining, model.zoneProfileFor(remaining), decision,
                 coordinate.withShot(shotNumber), lie, model.pinLateral())
                 : spatialContext(decision, humanAimTarget);
-        ShotOutcome outcome = ShotResolver.resolveShot(context);
+        ShotOutcome outcome = materializeTrace ? ShotResolver.resolveShotWithTrace(context) : ShotResolver.resolveShot(context);
 
         strokes += outcome.strokes();
         lie = outcome.finalSurface();

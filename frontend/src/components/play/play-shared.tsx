@@ -38,6 +38,14 @@ export type Outcome = {
     recoveryKind: string;
     ball: { position: { x: number; y: number }; lie: string };
   } | null;
+  trace?: {
+    club: string;
+    origin: { x: number; y: number };
+    aimPoint: { x: number; y: number };
+    contact: { position: { x: number; y: number }; surface: string };
+    transition?: { kind: string; from: { x: number; y: number }; to: { x: number; y: number } } | null;
+    finalPoint: { x: number; y: number };
+  } | null;
 };
 
 export type LeaderboardRow = {

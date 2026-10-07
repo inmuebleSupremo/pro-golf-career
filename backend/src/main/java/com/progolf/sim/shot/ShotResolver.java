@@ -32,7 +32,18 @@ public final class ShotResolver {
         Objects.requireNonNull(decision.strategy(), "strategy");
 
         Rng rng = RngFactory.forCoordinate(context.coordinate());
-        return resolveWith(context, rng);
+        return resolveWith(context, rng, false);
+    }
+
+    /** Resolves one observable shot and materializes only its already-computed canonical spatial facts. */
+    public static ShotOutcome resolveShotWithTrace(ShotContext context) {
+        Objects.requireNonNull(context, "context");
+        ShotDecision decision = Objects.requireNonNull(context.decision(), "decision");
+        Objects.requireNonNull(decision.club(), "club");
+        Objects.requireNonNull(decision.strategy(), "strategy");
+
+        Rng rng = RngFactory.forCoordinate(context.coordinate());
+        return resolveWith(context, rng, true);
     }
 
     /**
@@ -40,6 +51,11 @@ public final class ShotResolver {
      * identical per-shot code path rather than re-implementing it.
      */
     static ShotOutcome resolveWith(ShotContext context, Rng rng) {
+        return resolveWith(context, rng, false);
+    }
+
+    /** Shared core for summary and observable resolution; trace mode never changes sampling or settlement. */
+    static ShotOutcome resolveWith(ShotContext context, Rng rng, boolean materializeTrace) {
         Attributes attr = context.attributes();
         ShotDecision decision = context.decision();
         Environment env = context.environment();
@@ -52,7 +68,7 @@ public final class ShotResolver {
         // covers long first putts too, which a distance-based club choice would clip to a full shot.
         if (context.lie() == Surface.GREEN
                 || (context.hasCanonicalGeometry() && context.lie() == Surface.FRINGE && context.pinDistance() <= 10.0)) {
-            return resolvePutt(context, rng);
+            return resolvePutt(context, rng, materializeTrace);
         }
 
         // --- Steps 1-2: base attribute factors ---
@@ -180,7 +196,8 @@ public final class ShotResolver {
                 -(Math.abs(gLateral) + Math.abs(gDistance)) / 2.0 + 0.8);   // luck: >0 when better than expected
 
         return spatialize(context,
-                new ShotOutcome(surface, carry, lateral, distanceRemaining, hazard, penalty, strokes, factors));
+                new ShotOutcome(surface, carry, lateral, distanceRemaining, hazard, penalty, strokes, factors),
+                materializeTrace);
     }
 
     /**
@@ -189,7 +206,7 @@ public final class ShotResolver {
      * distance away. Make probability falls off with distance (in feet) and rises with putting accuracy;
      * a missed putt always leaves a distinct tap-in that converges toward the hole, so the round holes out.
      */
-    private static ShotOutcome resolvePutt(ShotContext context, Rng rng) {
+    private static ShotOutcome resolvePutt(ShotContext context, Rng rng, boolean materializeTrace) {
         Attributes attr = context.attributes();
         GolferState state = context.state();
         double d = context.pinDistance(); // yards to the hole
@@ -237,11 +254,11 @@ public final class ShotResolver {
         // A putt stays on the green; carry/lateral are nominal (the round loop reads distanceRemaining).
         return spatialize(context,
                 new ShotOutcome(Surface.GREEN, d - remainingAfter, 0.0, remainingAfter, false, 0, 1, factors,
-                        null, true));
+                        null, true), materializeTrace);
     }
 
     /** Applies canonical contact/surface/recovery after the legacy sampler has produced carry and lateral. */
-    private static ShotOutcome spatialize(ShotContext context, ShotOutcome raw) {
+    private static ShotOutcome spatialize(ShotContext context, ShotOutcome raw, boolean materializeTrace) {
         if (!context.hasCanonicalGeometry()) {
             return raw;
         }
@@ -271,9 +288,21 @@ public final class ShotResolver {
                     new BallState(contactPosition, contactSurface));
         }
         BallState playable = settlement.ball();
+        ShotTrace trace = materializeTrace ? trace(context, settlement) : null;
         return new ShotOutcome(contactSurface, raw.carry(), raw.lateral(), playable.position().distanceTo(cup),
                 contactSurface.isHazard(), contactSurface.penaltyStrokes(), 1 + contactSurface.penaltyStrokes(),
-                raw.factors(), settlement, raw.putt());
+                raw.factors(), settlement, raw.putt(), trace);
+    }
+
+    /** Builds a presentation projection from existing context and settlement facts without recalculation. */
+    private static ShotTrace trace(ShotContext context, ShotSettlement settlement) {
+        ShotContact contact = settlement.contact();
+        ShotTraceTransition transition = settlement.recoveryKind() == RecoveryKind.NONE ? null
+                : new ShotTraceTransition(settlement.recoveryKind(), contact.position(),
+                        Objects.requireNonNull(settlement.recoveryPosition(), "recovery position"));
+        Position2d aim = context.aimTarget();
+        return new ShotTrace(context.decision().clubSpec().id(), context.ball().position(),
+                new AimPoint(aim.x(), aim.y()), contact, transition, settlement.ball().position());
     }
 
     /** Implements the specified tee-ward 15-yard start and 1-yard deterministic rough scan. */

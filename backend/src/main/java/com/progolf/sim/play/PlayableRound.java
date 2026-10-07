@@ -109,7 +109,7 @@ public final class PlayableRound {
     /** Plays the current shot with the human's decision (club / target / risk). */
     public ShotOutcome playShot(ShotDecision decision) {
         requireNotComplete();
-        return resolveOne(Objects.requireNonNull(decision, "decision"));
+        return resolveOne(Objects.requireNonNull(decision, "decision"), null, true);
     }
 
     /** Plays a human-owned spatial intent. The submitted point, not route policy, chooses the shot frame. */
@@ -122,13 +122,13 @@ public final class PlayableRound {
         Position2d target = new Position2d(intent.aimPoint().x(), intent.aimPoint().y());
         validateAim(target, holes.get(holeIndex).model().geometry());
         double requestedCarry = ball.position().distanceTo(target);
-        return resolveOne(ShotDecision.fromIntent(intent, requestedCarry, Strategy.BALANCED), target);
+        return resolveOne(ShotDecision.fromIntent(intent, requestedCarry, Strategy.BALANCED), target, true);
     }
 
     /** Sims the current shot with the automatic policy. */
     public ShotOutcome simShot() {
         requireNotComplete();
-        return resolveOne(simDecision());
+        return resolveOne(simDecision(), null, true);
     }
 
     /** Sims the rest of the current hole with the automatic policy. */
@@ -136,14 +136,14 @@ public final class PlayableRound {
         requireNotComplete();
         int hole = holeIndex;
         while (!isComplete() && holeIndex == hole) {
-            resolveOne(simDecision());
+            resolveOne(simDecision(), null, false);
         }
     }
 
     /** Sims the rest of the round with the automatic policy. */
     public void simRound() {
         while (!isComplete()) {
-            resolveOne(simDecision());
+            resolveOne(simDecision(), null, false);
         }
     }
 
@@ -157,17 +157,12 @@ public final class PlayableRound {
         return simPolicy.decide(remaining, lie, hole.model().pinLateral(), attributes, hole.par());
     }
 
-    private ShotOutcome resolveOne(ShotDecision decision) {
-        return resolveOne(decision, null);
-    }
-
-
-    private ShotOutcome resolveOne(ShotDecision decision, Position2d humanAimTarget) {
+    private ShotOutcome resolveOne(ShotDecision decision, Position2d humanAimTarget, boolean materializeTrace) {
         HoleToPlay hole = holes.get(holeIndex);
         double preShotRemaining = remaining;
         SeedCoordinate coord = base.withHole(holeIndex + 1).withShot(shotNumber);
         ShotContext context = contextFor(hole, decision, coord, humanAimTarget);
-        ShotOutcome outcome = ShotResolver.resolveShot(context);
+        ShotOutcome outcome = materializeTrace ? ShotResolver.resolveShotWithTrace(context) : ShotResolver.resolveShot(context);
 
         totalStrokes += outcome.strokes();
         strokesThisHole += outcome.strokes();

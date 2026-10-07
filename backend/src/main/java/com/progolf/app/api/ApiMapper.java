@@ -27,6 +27,8 @@ import com.progolf.app.api.dto.TerrainRegionDto;
 import com.progolf.app.api.dto.BallStateDto;
 import com.progolf.app.api.dto.ShotContactDto;
 import com.progolf.app.api.dto.ShotSettlementDto;
+import com.progolf.app.api.dto.ShotTraceDto;
+import com.progolf.app.api.dto.ShotTraceTransitionDto;
 import com.progolf.app.api.dto.ShotSituationDto;
 import com.progolf.app.api.dto.SurfaceBandDto;
 import com.progolf.app.api.dto.SurfaceRegionDto;
@@ -49,6 +51,8 @@ import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.course.Position2d;
 import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.ShotSettlement;
+import com.progolf.sim.shot.ShotTrace;
+import com.progolf.sim.shot.ShotTraceTransition;
 import com.progolf.sim.play.RoundScorecard;
 import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.spatial.ShotZoneProfile;
@@ -197,7 +201,7 @@ public final class ApiMapper {
 
     public static ShotOutcomeDto shotOutcome(ShotOutcome o) {
         return new ShotOutcomeDto(o.finalSurface().name(), o.carry(), o.lateral(), o.distanceRemaining(),
-                o.hazardEntered(), o.penaltyStrokes(), o.strokes(), settlement(o.settlement()));
+                o.hazardEntered(), o.penaltyStrokes(), o.strokes(), settlement(o.settlement()), trace(o.trace()));
     }
 
     private static PlayingGeometryDto geometry(CourseGeometry geometry, PinPosition pin) {
@@ -225,6 +229,17 @@ public final class ApiMapper {
                 new ShotContactDto(point(settlement.contact().position()), settlement.contact().surface().name()),
                 settlement.recoveryPosition() == null ? null : point(settlement.recoveryPosition()),
                 settlement.recoveryKind().name(), ballState(settlement.ball()));
+    }
+
+    private static ShotTraceDto trace(ShotTrace trace) {
+        return trace == null ? null : new ShotTraceDto(trace.clubId().name(), point(trace.origin()),
+                point(trace.intendedAimPoint()), new ShotContactDto(point(trace.contact().position()),
+                trace.contact().surface().name()), transition(trace.transition()), point(trace.finalPoint()));
+    }
+
+    private static ShotTraceTransitionDto transition(ShotTraceTransition transition) {
+        return transition == null ? null : new ShotTraceTransitionDto(transition.kind().name(), point(transition.from()),
+                point(transition.to()));
     }
 
     // --- Input parsing (enum-valued arguments arrive as their names; a bad name throws

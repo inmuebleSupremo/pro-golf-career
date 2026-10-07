@@ -180,12 +180,20 @@ class WorldGraphQlMutationsTest {
         graphQlTester.document("""
                         mutation($id: ID!, $x: Float!, $y: Float!, $revision: String!){
                           playShot(id: $id, intent: {club: "DRIVER", aimPoint: {x: $x, y: $y}, expectedShotRevision: $revision}){
-                            outcome { settlement {
-                              contact { position { x y } surface }
-                              recoveryPosition { x y }
-                              recoveryKind
-                              ball { position { x y } lie }
-                            } }
+                            outcome {
+                              settlement {
+                                contact { position { x y } surface }
+                                recoveryPosition { x y }
+                                recoveryKind
+                                ball { position { x y } lie }
+                              }
+                              trace {
+                                club origin { x y } aimPoint { x y }
+                                contact { position { x y } surface }
+                                transition { kind from { x y } to { x y } }
+                                finalPoint { x y }
+                              }
+                            }
                           }
                         }
                         """)
@@ -195,7 +203,24 @@ class WorldGraphQlMutationsTest {
                 .path("playShot.outcome.settlement.recoveryKind").entity(String.class).satisfies(kind ->
                         assertThat(kind).isNotBlank())
                 .path("playShot.outcome.settlement.ball.lie").entity(String.class).satisfies(lie ->
-                        assertThat(lie).isNotBlank());
+                        assertThat(lie).isNotBlank())
+                .path("playShot.outcome.trace.club").entity(String.class).isEqualTo("DRIVER")
+                .path("playShot.outcome.trace.origin.x").entity(Double.class).isEqualTo(0.0)
+                .path("playShot.outcome.trace.aimPoint.x").entity(Double.class).isEqualTo(cup.x())
+                .path("playShot.outcome.trace.finalPoint.x").entity(Double.class)
+                .satisfies(point -> assertThat(point).isFinite());
+
+        graphQlTester.document("""
+                        mutation($id: ID!, $x: Float!, $y: Float!, $revision: String!){
+                          playShot(id: $id, intent: {club: "DRIVER", aimPoint: {x: $x, y: $y}, expectedShotRevision: $revision}){
+                            stale outcome { trace { club } }
+                          }
+                        }
+                        """)
+                .variable("id", session.id()).variable("x", cup.x()).variable("y", cup.y())
+                .variable("revision", currentSituation.shotRevision()).execute()
+                .path("playShot.stale").entity(Boolean.class).isEqualTo(true)
+                .path("playShot.outcome").valueIsNull();
     }
 
     private static List<PositionDto> points(CourseGeometry geometry) {
