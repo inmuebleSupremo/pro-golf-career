@@ -9,6 +9,7 @@ import {
   AdvanceWeekDocument,
   CompleteEventDocument,
   PlayingHoleDocument,
+  PlayPuttDocument,
   PlayShotDocument,
   PlayStateDocument,
   SimEventDocument,
@@ -79,6 +80,15 @@ export function usePlayShot(id: string) {
   const invalidate = useInvalidatePlay(id);
   return useMutation({
     mutationFn: (intent: BallStrikeIntentInput) => gqlRequest(PlayShotDocument, { id, intent }),
+    networkMode: "always",
+    onSuccess: invalidate,
+  });
+}
+
+export function usePlayPutt(id: string) {
+  const invalidate = useInvalidatePlay(id);
+  return useMutation({
+    mutationFn: (expectedShotRevision: string) => gqlRequest(PlayPuttDocument, { id, expectedShotRevision }),
     networkMode: "always",
     onSuccess: invalidate,
   });

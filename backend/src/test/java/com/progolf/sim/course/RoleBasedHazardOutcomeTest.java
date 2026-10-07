@@ -54,8 +54,8 @@ class RoleBasedHazardOutcomeTest {
     }
 
     private static int contacts(RoundOutcome outcome) {
-        return (int) outcome.shots().stream().filter(shot -> shot.finalSurface() == Surface.BUNKER
-                || shot.finalSurface() == Surface.WATER || shot.finalSurface() == Surface.TREES
-                || shot.finalSurface() == Surface.RECOVERY_AREA).count();
+        return (int) outcome.shots().stream().filter(shot -> shot.contactSurface() == Surface.BUNKER
+                || shot.contactSurface() == Surface.WATER || shot.contactSurface() == Surface.TREES
+                || shot.contactSurface() == Surface.RECOVERY_AREA).count();
     }
 }

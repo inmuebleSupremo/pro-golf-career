@@ -60,7 +60,7 @@ class WaterDropTest {
         PlayableHole hole = playable(hazardHole(Surface.WATER));
 
         assertThat(hole.situation().distanceToPin()).isEqualTo(TEE_DISTANCE);
-        assertThat(hole.simShot().finalSurface()).isEqualTo(Surface.WATER);
+        assertThat(hole.simShot().finalSurface()).isEqualTo(Surface.PRIMARY_ROUGH);
 
         // The drop advances the ball toward the hole (not a replay from the tee) and lands in rough.
         ShotSituation afterDrop = hole.situation();
@@ -72,12 +72,12 @@ class WaterDropTest {
     void outOfBoundsReplaysFromThePreviousSpot() {
         PlayableHole hole = playable(hazardHole(Surface.OUT_OF_BOUNDS));
 
-        assertThat(hole.simShot().finalSurface()).isEqualTo(Surface.OUT_OF_BOUNDS);
+        assertThat(hole.simShot().finalSurface()).isEqualTo(Surface.TEE_BOX);
 
         // Stroke-and-distance: the next shot is played from the same spot, losing the distance.
         ShotSituation afterOob = hole.situation();
         assertThat(afterOob.distanceToPin()).isEqualTo(TEE_DISTANCE);
-        assertThat(afterOob.lie()).isEqualTo(Surface.OUT_OF_BOUNDS);
+        assertThat(afterOob.lie()).isEqualTo(Surface.TEE_BOX);
     }
 
     @Test

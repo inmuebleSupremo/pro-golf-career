@@ -180,6 +180,9 @@ type Mutation {
     "Plays the current shot from an individual club and canonical intended-contact point."
     playShot(id: ID!, intent: BallStrikeIntentInput!): ShotSubmission!
 
+    "Uses the existing dedicated, non-spatial putting model from green or fringe."
+    playPutt(id: ID!, expectedShotRevision: String!): ShotSubmission!
+
     "Sims the current shot in the player's event; returns the resolved outcome."
     simShot(id: ID!): ShotOutcome!
 
@@ -698,8 +701,15 @@ type ShotTrace {
     origin: Position!
     aimPoint: AimPoint!
     contact: ShotContact!
+    roll: ShotTraceRoll
     transition: ShotTraceTransition
     finalPoint: Position!
+}
+
+"One authoritative post-contact ground-response endpoint, distinct from rules recovery."
+type ShotTraceRoll {
+    from: Position!
+    to: Position!
 }
 
 "A rules recovery or replay, explicitly distinct from ball flight."
@@ -729,7 +739,8 @@ type ShotSituation {
 
 type AimEnvelope { minX: Float!, maxX: Float!, minY: Float!, maxY: Float! }
 type AimPoint { x: Float!, y: Float! }
-type ClubReach { club: String!, label: String!, nominalCarry: Float!, normalReach: Float! }
+type ShotFamilyAvailability { family: String!, available: Boolean!, reason: String }
+type ClubReach { club: String!, label: String!, nominalCarry: Float!, normalReach: Float!, families: [ShotFamilyAvailability!]! }
 type ShotGuidance { safe: AimPoint!, primary: AimPoint!, aggressive: AimPoint!, clubs: [ClubReach!]! }
 type ShotSubmission { outcome: ShotOutcome, stale: Boolean! }
 
@@ -775,6 +786,7 @@ input AimPointInput { x: Float!, y: Float! }
 input BallStrikeIntentInput {
     club: String!
     aimPoint: AimPointInput!
+    shotFamily: String
     expectedShotRevision: String!
 }
 

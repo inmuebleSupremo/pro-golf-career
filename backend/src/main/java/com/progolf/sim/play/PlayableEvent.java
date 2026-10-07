@@ -14,6 +14,7 @@ import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.BallStrikeIntent;
+import com.progolf.sim.shot.PuttIntent;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.tournament.LeaderboardEntry;
@@ -191,6 +192,15 @@ public final class PlayableEvent {
         requireActive();
         if (!situation().shotRevision().equals(expectedRevision)) return ShotSubmission.staleResult();
         return ShotSubmission.resolved(playShot(intent));
+    }
+
+    /** Checks revision and resolves the existing dedicated putting route. */
+    public synchronized ShotSubmission playPutt(PuttIntent intent, String expectedRevision) {
+        requireActive();
+        if (!situation().shotRevision().equals(expectedRevision)) return ShotSubmission.staleResult();
+        ShotOutcome outcome = phase == Phase.PLAYOFF ? currentPlayoffHole.playPutt(intent) : currentRound.playPutt(intent);
+        syncProgress();
+        return ShotSubmission.resolved(outcome);
     }
 
     /** Sims the current shot with the automatic policy. */

@@ -67,9 +67,13 @@ public final class ShotResolver {
         // from tap-in range (spec: shot-resolution putting). This is keyed on the lie (not the club) so it
         // covers long first putts too, which a distance-based club choice would clip to a full shot.
         if (context.lie() == Surface.GREEN
-                || (context.hasCanonicalGeometry() && context.lie() == Surface.FRINGE && context.pinDistance() <= 10.0)) {
+                || (context.lie() == Surface.FRINGE && decision.club() == Club.PUTTER)) {
             return resolvePutt(context, rng, materializeTrace);
         }
+
+        ShotExecutionProfile profile = ShotExecutionProfile.derive(context.lie(), club, decision.shotFamily(), attr, env);
+        // External ball-strike entry points validate eligibility before creating this compatibility decision.
+        // Legacy fixture/background decisions remain resolvable while their adapter retirement is in progress.
 
         // --- Steps 1-2: base attribute factors ---
         double lateralFactor = attributeFactor(attr, club.lateralAttribute());   // higher skill -> larger -> less sigma
@@ -108,7 +112,7 @@ public final class ShotResolver {
 
         // Dispersion scales with the intended shot length: a short putt is far tighter than a full drive.
         double maxReach = club.baseCarry() * (SimConstants.REACH_FLOOR + SimConstants.REACH_SPAN * distanceNorm)
-                * equipmentReach;
+                * equipmentReach * profile.effectiveCarryCapMultiplier();
         double shotDistance = Math.min(decision.targetDistance(), maxReach);
         // Per-club dispersion: the driver sprays wider off the tee, a wedge is a precision club.
         double baseLateral = SimConstants.LATERAL_DISPERSION_FRACTION * shotDistance * club.lateralDispersion()
@@ -123,12 +127,13 @@ public final class ShotResolver {
         double managementFactor = 1.0 + managementNorm * SimConstants.MANAGEMENT_DISPERSION_RELIEF;
 
         double sigmaLateral = baseLateral / lateralFactor / managementFactor
-                * strategyMult * pressureMult * fatigueSigmaMult * injurySigmaMult * crossMult * lieMult * equipmentDispersion;
+                * strategyMult * pressureMult * fatigueSigmaMult * injurySigmaMult * crossMult * lieMult * equipmentDispersion
+                * profile.lateralDispersionMultiplier();
         // Feel (equipment) tightens distance dispersion — better proximity/touch (spec: equipment-influence);
         // neutral at 0.
         double sigmaDistance = baseDistanceDispersion / distanceFactor / managementFactor
                 * strategyMult * pressureMult * fatigueSigmaMult * injurySigmaMult * lieMult * equipmentDispersion
-                * (1.0 - state.equipmentFeel());
+                * (1.0 - state.equipmentFeel()) * profile.distanceDispersionMultiplier();
 
         // Mean carry: bounded by reachable distance; reduced by headwind and fatigue; aided by distance skill.
         double meanCarry = shotDistance;
@@ -153,7 +158,7 @@ public final class ShotResolver {
         double mishitProbability = SimConstants.BASE_MISHIT_PROBABILITY
                 * (1.0 - SimConstants.MISHIT_MANAGEMENT_RELIEF * managementNorm)
                 * (1.0 - state.strategicSupport())
-                * (1.0 + (1.0 - env.lieQuality()) * 0.5);
+                * (1.0 + (1.0 - env.lieQuality()) * 0.5) * profile.mishitMultiplier();
         double errorMultiplier = 1.0;
         double meanAdjustment = 0.0;
         if (extremeRoll < mishitProbability) {
@@ -197,7 +202,7 @@ public final class ShotResolver {
 
         return spatialize(context,
                 new ShotOutcome(surface, carry, lateral, distanceRemaining, hazard, penalty, strokes, factors),
-                materializeTrace);
+                materializeTrace, profile);
     }
 
     /**
@@ -254,11 +259,12 @@ public final class ShotResolver {
         // A putt stays on the green; carry/lateral are nominal (the round loop reads distanceRemaining).
         return spatialize(context,
                 new ShotOutcome(Surface.GREEN, d - remainingAfter, 0.0, remainingAfter, false, 0, 1, factors,
-                        null, true), materializeTrace);
+                        null, true), materializeTrace, null);
     }
 
     /** Applies canonical contact/surface/recovery after the legacy sampler has produced carry and lateral. */
-    private static ShotOutcome spatialize(ShotContext context, ShotOutcome raw, boolean materializeTrace) {
+    private static ShotOutcome spatialize(ShotContext context, ShotOutcome raw, boolean materializeTrace,
+                                          ShotExecutionProfile profile) {
         if (!context.hasCanonicalGeometry()) {
             return raw;
         }
@@ -272,6 +278,7 @@ public final class ShotResolver {
         Surface contactSurface = context.geometry().surfaceAt(contactPosition);
         ShotContact contact = new ShotContact(contactPosition, contactSurface);
         ShotSettlement settlement;
+        ShotTraceRoll roll = null;
         if (contactSurface == Surface.WATER) {
             Position2d drop = waterDrop(context, contactPosition);
             if (drop == null) {
@@ -284,25 +291,38 @@ public final class ShotResolver {
         } else if (contactSurface == Surface.OUT_OF_BOUNDS) {
             settlement = new ShotSettlement(contact, preShot.position(), RecoveryKind.OUT_OF_BOUNDS_REPLAY, preShot);
         } else {
+            Position2d finalPosition = contactPosition;
+            if (profile != null) {
+                double rollYards = profile.rollYardsOn(contactSurface);
+                if (rollYards > 0) {
+                    Position2d candidate = frame.project(raw.carry() + rollYards, raw.lateral());
+                    // The first slice deliberately permits only one endpoint on the same classified landing
+                    // surface. Crossing a terrain boundary is not traversal: settle conservatively at contact.
+                    if (context.geometry().surfaceAt(candidate) == contactSurface) {
+                        finalPosition = candidate;
+                        roll = new ShotTraceRoll(contactPosition, candidate);
+                    }
+                }
+            }
             settlement = new ShotSettlement(contact, null, RecoveryKind.NONE,
-                    new BallState(contactPosition, contactSurface));
+                    new BallState(finalPosition, context.geometry().surfaceAt(finalPosition)));
         }
         BallState playable = settlement.ball();
-        ShotTrace trace = materializeTrace ? trace(context, settlement) : null;
-        return new ShotOutcome(contactSurface, raw.carry(), raw.lateral(), playable.position().distanceTo(cup),
+        ShotTrace trace = materializeTrace ? trace(context, settlement, roll) : null;
+        return new ShotOutcome(playable.lie(), raw.carry(), raw.lateral(), playable.position().distanceTo(cup),
                 contactSurface.isHazard(), contactSurface.penaltyStrokes(), 1 + contactSurface.penaltyStrokes(),
                 raw.factors(), settlement, raw.putt(), trace);
     }
 
     /** Builds a presentation projection from existing context and settlement facts without recalculation. */
-    private static ShotTrace trace(ShotContext context, ShotSettlement settlement) {
+    private static ShotTrace trace(ShotContext context, ShotSettlement settlement, ShotTraceRoll roll) {
         ShotContact contact = settlement.contact();
         ShotTraceTransition transition = settlement.recoveryKind() == RecoveryKind.NONE ? null
                 : new ShotTraceTransition(settlement.recoveryKind(), contact.position(),
                         Objects.requireNonNull(settlement.recoveryPosition(), "recovery position"));
         Position2d aim = context.aimTarget();
         return new ShotTrace(context.decision().clubSpec().id(), context.ball().position(),
-                new AimPoint(aim.x(), aim.y()), contact, transition, settlement.ball().position());
+                new AimPoint(aim.x(), aim.y()), contact, roll, transition, settlement.ball().position());
     }
 
     /** Implements the specified tee-ward 15-yard start and 1-yard deterministic rough scan. */

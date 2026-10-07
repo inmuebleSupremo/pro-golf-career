@@ -681,7 +681,7 @@ export const PlayStateDocument = graphql(`
         safe { x y }
         primary { x y }
         aggressive { x y }
-        clubs { club label nominalCarry normalReach }
+        clubs { club label nominalCarry normalReach families { family available reason } }
       }
       reachable {
         startDistance
@@ -775,6 +775,26 @@ export const PlayShotDocument = graphql(`
           origin { x y }
           aimPoint { x y }
           contact { position { x y } surface }
+          roll { from { x y } to { x y } }
+          transition { kind from { x y } to { x y } }
+          finalPoint { x y }
+        }
+      }
+    }
+  }
+`);
+
+/** Uses the existing non-spatial putting model from green or fringe. */
+export const PlayPuttDocument = graphql(`
+  mutation PlayPutt($id: ID!, $expectedShotRevision: String!) {
+    playPutt(id: $id, expectedShotRevision: $expectedShotRevision) {
+      stale
+      outcome {
+        finalSurface carry lateral distanceRemaining hazardEntered penaltyStrokes strokes
+        settlement { contact { position { x y } surface } recoveryPosition { x y } recoveryKind ball { position { x y } lie } }
+        trace {
+          club origin { x y } aimPoint { x y } contact { position { x y } surface }
+          roll { from { x y } to { x y } }
           transition { kind from { x y } to { x y } }
           finalPoint { x y }
         }
@@ -805,6 +825,7 @@ export const SimShotDocument = graphql(`
         origin { x y }
         aimPoint { x y }
         contact { position { x y } surface }
+        roll { from { x y } to { x y } }
         transition { kind from { x y } to { x y } }
         finalPoint { x y }
       }

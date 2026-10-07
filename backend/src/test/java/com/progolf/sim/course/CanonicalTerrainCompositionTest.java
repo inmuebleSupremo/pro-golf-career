@@ -33,7 +33,7 @@ class CanonicalTerrainCompositionTest {
                     Attributes.uniform(88), new GolferState(0.35, 0, 0, 0, 0, 0, 0, 0, 0), Environment.calm(),
                     Strategy.AGGRESSIVE, new SeedCoordinate(999L, 2, 88, round, hole, 9, 0));
             for (var shot : outcome.shots()) {
-                surfaces.merge(shot.finalSurface(), 1, Integer::sum);
+                surfaces.merge(shot.contactSurface(), 1, Integer::sum);
                 penalties += shot.penaltyStrokes();
             }
         }

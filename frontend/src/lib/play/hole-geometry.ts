@@ -46,6 +46,7 @@ export interface ResolvedShot {
     readonly origin: Point;
     readonly aimPoint: Point;
     readonly contact: { readonly position: Point; readonly surface: string };
+    readonly roll?: { readonly from: Point; readonly to: Point } | null;
     readonly transition?: { readonly kind: string; readonly from: Point; readonly to: Point } | null;
     readonly finalPoint: Point;
   } | null;

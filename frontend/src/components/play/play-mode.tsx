@@ -29,6 +29,7 @@ import {
 } from "@/components/play/play-shared";
 import {
   usePlayShot,
+  usePlayPutt,
   useSimEvent,
   useSimHole,
   useSimRound,
@@ -238,22 +239,36 @@ function ActionDock({
   locked: boolean;
 }) {
   const play = usePlayShot(id);
+  const putt = usePlayPutt(id);
   const [club, setClub] = useState(() => defaultClub(situation));
+  const [technique, setTechnique] = useState("FULL");
   const [formError, setFormError] = useState<string | null>(null);
   const clubs = situation.guidance?.clubs ?? [];
   const selectedClub = clubs.find((candidate) => candidate.club === club);
+  const playableClubs = clubs.filter((candidate) => candidate.families.some((family) => family.available));
+  const puttingAvailable = situation.lie === "GREEN" || situation.lie === "FRINGE";
+  const puttRoute = situation.lie === "GREEN" || technique === "PUTT";
+  const techniques = puttRoute && situation.lie === "GREEN"
+    ? [{ family: "PUTT", available: true, reason: null }]
+    : [
+      ...(puttingAvailable ? [{ family: "PUTT", available: true, reason: null }] : []),
+      ...(selectedClub?.families ?? []),
+    ];
   const origin = hole?.ball?.position ?? hole?.geometry?.tee ?? { x: 0, y: 0 };
   const targetDistance = Math.hypot(aimPoint.x - origin.x, aimPoint.y - origin.y);
+  const landingTarget = technique === "PITCH" || technique === "CHIP";
 
   async function onPlay() {
     setFormError(null);
     try {
-      const result = await play.mutateAsync({ club, aimPoint, expectedShotRevision: situation.shotRevision });
-      if (result.playShot.stale || !result.playShot.outcome) {
+      const submission = puttRoute
+        ? (await putt.mutateAsync(situation.shotRevision)).playPutt
+        : (await play.mutateAsync({ club, aimPoint, shotFamily: technique, expectedShotRevision: situation.shotRevision })).playShot;
+      if (submission.stale || !submission.outcome) {
         setFormError("That shot plan is stale. Choose the target again.");
         return;
       }
-      onShot(result.playShot.outcome);
+      onShot(submission.outcome);
     } catch {
       setFormError("Couldn't play that shot. Try again.");
     }
@@ -262,34 +277,43 @@ function ActionDock({
   return (
     <footer className="border-border bg-surface/70 border-t px-4 py-3 backdrop-blur-md md:px-6">
       <div className="mx-auto flex max-w-5xl flex-wrap items-end gap-x-3 gap-y-2.5">
-        <DockField label="Club">
+        {!puttRoute ? <DockField label="Club">
           <Select value={club} onChange={(e) => setClub(e.target.value)}>
-            {clubs.map((candidate) => (
+            {playableClubs.map((candidate) => (
               <option key={candidate.club} value={candidate.club}>
                 {candidate.label}
               </option>
             ))}
           </Select>
+        </DockField> : null}
+        <DockField label="Technique">
+          <Select value={puttRoute && situation.lie === "GREEN" ? "PUTT" : technique} onChange={(e) => setTechnique(e.target.value)} disabled={situation.lie === "GREEN"}>
+            {techniques.map((candidate) => (
+              <option key={candidate.family} value={candidate.family} disabled={!candidate.available}>
+                {humanize(candidate.family)}{candidate.reason ? ` — ${candidate.reason}` : ""}
+              </option>
+            ))}
+          </Select>
         </DockField>
-        <DockField label="Target X">
+        {!puttRoute ? <DockField label={landingTarget ? "Landing X" : "Target X"}>
           <Input
             type="number"
             value={aimPoint.x}
             onChange={(e) => onAimPoint({ ...aimPoint, x: Number(e.target.value) })}
             className="w-24"
           />
-        </DockField>
-        <DockField label="Target Y">
+        </DockField> : null}
+        {!puttRoute ? <DockField label={landingTarget ? "Landing Y" : "Target Y"}>
           <Input type="number" value={aimPoint.y} onChange={(e) => onAimPoint({ ...aimPoint, y: Number(e.target.value) })} className="w-24" />
-        </DockField>
-        <div className="flex gap-1" aria-label="Nudge target">
+        </DockField> : null}
+        {!puttRoute ? <div className="flex gap-1" aria-label="Nudge target">
           <Button variant="secondary" size="sm" onClick={() => onAimPoint({ ...aimPoint, x: aimPoint.x - 5 })}>←</Button>
           <Button variant="secondary" size="sm" onClick={() => onAimPoint({ ...aimPoint, y: aimPoint.y + 5 })}>↑</Button>
           <Button variant="secondary" size="sm" onClick={() => onAimPoint({ ...aimPoint, y: aimPoint.y - 5 })}>↓</Button>
           <Button variant="secondary" size="sm" onClick={() => onAimPoint({ ...aimPoint, x: aimPoint.x + 5 })}>→</Button>
-        </div>
+        </div> : null}
         <div className="text-muted-foreground text-xs" aria-live="polite">
-          Target {Math.round(targetDistance)} yds · {selectedClub ? `${Math.round(selectedClub.normalReach)} yd normal reach` : "club guidance unavailable"}
+          {puttRoute ? "Putting uses the existing make-and-leave model" : `${landingTarget ? "Landing target" : "Target"} ${Math.round(targetDistance)} yds · ${selectedClub ? `${Math.round(selectedClub.normalReach)} yd normal reach` : "club guidance unavailable"}`}
         </div>
         {situation.guidance ? <div className="flex gap-1"><Button variant="secondary" size="sm" onClick={() => onAimPoint(situation.guidance!.safe)}>Safe</Button><Button variant="secondary" size="sm" onClick={() => onAimPoint(situation.guidance!.primary)}>Primary</Button><Button variant="secondary" size="sm" onClick={() => onAimPoint(situation.guidance!.aggressive)}>Aggressive</Button></div> : null}
 
@@ -304,8 +328,8 @@ function ActionDock({
         </div>
 
         <SimMenu id={id} onShot={onShot} onSimJump={onSimJump} disabled={locked} />
-        <Button size="lg" onClick={onPlay} disabled={play.isPending || locked}>
-          {play.isPending ? "Playing…" : "Play shot"}
+        <Button size="lg" onClick={onPlay} disabled={play.isPending || putt.isPending || locked}>
+          {play.isPending || putt.isPending ? "Playing…" : puttRoute ? "Putt" : "Play shot"}
         </Button>
       </div>
     </footer>

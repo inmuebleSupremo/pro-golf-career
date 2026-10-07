@@ -5,18 +5,30 @@ import java.util.Objects;
 
 /**
  * The authoritative spatial facts of one observable shot. It intentionally describes endpoints and a
- * rules transition only; it does not claim uncomputed ballistic flight, bounce, roll, or timing.
+ * rules transition, plus an optional calculated endpoint-only ground response. It does not claim uncomputed
+ * ballistic flight, bounce, or timing.
  */
 public record ShotTrace(ClubId clubId, Position2d origin, AimPoint intendedAimPoint, ShotContact contact,
-                        ShotTraceTransition transition, Position2d finalPoint) {
+                        ShotTraceRoll roll, ShotTraceTransition transition, Position2d finalPoint) {
     public ShotTrace {
         Objects.requireNonNull(clubId, "clubId");
         Objects.requireNonNull(origin, "origin");
         Objects.requireNonNull(intendedAimPoint, "intendedAimPoint");
         Objects.requireNonNull(contact, "contact");
         Objects.requireNonNull(finalPoint, "finalPoint");
-        if (transition == null && !finalPoint.equals(contact.position())) {
-            throw new IllegalArgumentException("a moved final point requires a trace transition");
+        if (roll != null && transition != null) throw new IllegalArgumentException("roll and recovery are exclusive");
+        if (roll != null && !roll.from().equals(contact.position())) throw new IllegalArgumentException("roll starts at contact");
+        if (transition == null && roll == null && !finalPoint.equals(contact.position())) {
+            throw new IllegalArgumentException("a moved final point requires a roll or trace transition");
         }
+        if (roll != null && !finalPoint.equals(roll.to())) throw new IllegalArgumentException("roll endpoint is final point");
+        if (transition != null && !finalPoint.equals(transition.to())) {
+            throw new IllegalArgumentException("recovery endpoint is final point");
+        }
+    }
+
+    public ShotTrace(ClubId clubId, Position2d origin, AimPoint intendedAimPoint, ShotContact contact,
+                     ShotTraceTransition transition, Position2d finalPoint) {
+        this(clubId, origin, intendedAimPoint, contact, null, transition, finalPoint);
     }
 }

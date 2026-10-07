@@ -84,14 +84,18 @@ public final class RoundResolver {
     private static ShotContext spatialContext(HoleModel hole, Attributes attributes, GolferState state,
                                               Environment environment, StrategyPolicy policy, double remainingDistance,
                                               Surface lie, SeedCoordinate holeCoordinate, int shotNo, BallState ball) {
-        ShotAim.Reference aim = ShotAim.forBall(hole, ball, policy.strategy());
-        // The AI emits the shared intent. The old decision remains a strictly local compatibility adapter
-        // for calibrated carry/dispersion sampling until ShotDecision retirement.
-        BallStrikeIntent intent = policy.decideIntent(hole, ball, remainingDistance, lie, attributes, hole.par());
-        ShotDecision decision = policy.decide(remainingDistance, lie, aim.pinLateral(), attributes, hole.par());
+        // The AI emits the shared intent. The compatibility shape is derived solely from that intent.
+        ShotIntent intent = policy.decideShotIntent(hole, ball, remainingDistance, lie, attributes, hole.par());
+        if (intent instanceof PuttIntent) {
+            return new ShotContext(attributes, state, environment, remainingDistance, hole.zoneProfileFor(remainingDistance),
+                    new ShotDecision(Club.PUTTER, remainingDistance, 0.0, Strategy.BALANCED), holeCoordinate.withShot(shotNo),
+                    lie, 0.0, ball, hole.geometry(), hole.cupPosition(), hole.cupPosition());
+        }
+        BallStrikeIntent strike = (BallStrikeIntent) intent;
+        com.progolf.sim.course.Position2d aim = new com.progolf.sim.course.Position2d(strike.aimPoint().x(), strike.aimPoint().y());
+        ShotDecision decision = ShotDecision.fromIntent(strike, ball.position().distanceTo(aim), policy.executionStrategyFor(lie));
         return new ShotContext(attributes, state, environment, remainingDistance, hole.zoneProfileFor(remainingDistance),
-                decision, holeCoordinate.withShot(shotNo), lie, aim.pinLateral(), ball, hole.geometry(), hole.cupPosition(),
-                new com.progolf.sim.course.Position2d(intent.aimPoint().x(), intent.aimPoint().y()));
+                decision, holeCoordinate.withShot(shotNo), lie, 0.0, ball, hole.geometry(), hole.cupPosition(), aim);
     }
 
     /**

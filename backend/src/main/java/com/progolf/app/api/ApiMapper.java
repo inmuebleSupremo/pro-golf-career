@@ -14,6 +14,8 @@ import com.progolf.app.api.dto.ScheduleEntryDto;
 import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.ShotDecisionInput;
 import com.progolf.app.api.dto.BallStrikeIntentInput;
+import com.progolf.app.api.dto.ShotFamilyAvailabilityDto;
+import com.progolf.app.api.dto.ShotTraceRollDto;
 import com.progolf.app.api.dto.AimEnvelopeDto;
 import com.progolf.app.api.dto.AimPointDto;
 import com.progolf.app.api.dto.ClubReachDto;
@@ -66,6 +68,7 @@ import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.shot.AimPoint;
 import com.progolf.sim.shot.BallStrikeIntent;
 import com.progolf.sim.shot.ClubId;
+import com.progolf.sim.shot.ShotFamily;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
 import com.progolf.sim.statistics.SeasonStatistics;
@@ -136,7 +139,8 @@ public final class ApiMapper {
         if (situation.guidance() == null) return null;
         var g = situation.guidance();
         return new ShotGuidanceDto(point(g.safe()), point(g.primary()), point(g.aggressive()), g.clubs().stream()
-                .map(c -> new ClubReachDto(c.club().name(), c.label(), c.nominalCarry(), c.normalReach())).toList());
+                .map(c -> new ClubReachDto(c.club().name(), c.label(), c.nominalCarry(), c.normalReach(), c.families().stream()
+                        .map(f -> new ShotFamilyAvailabilityDto(f.family().name(), f.available(), f.reason())).toList())).toList());
     }
 
     public static ShotSubmissionDto submission(com.progolf.sim.play.ShotSubmission submission) {
@@ -234,7 +238,11 @@ public final class ApiMapper {
     private static ShotTraceDto trace(ShotTrace trace) {
         return trace == null ? null : new ShotTraceDto(trace.clubId().name(), point(trace.origin()),
                 point(trace.intendedAimPoint()), new ShotContactDto(point(trace.contact().position()),
-                trace.contact().surface().name()), transition(trace.transition()), point(trace.finalPoint()));
+                trace.contact().surface().name()), roll(trace.roll()), transition(trace.transition()), point(trace.finalPoint()));
+    }
+
+    private static ShotTraceRollDto roll(com.progolf.sim.shot.ShotTraceRoll roll) {
+        return roll == null ? null : new ShotTraceRollDto(point(roll.from()), point(roll.to()));
     }
 
     private static ShotTraceTransitionDto transition(ShotTraceTransition transition) {
@@ -252,7 +260,8 @@ public final class ApiMapper {
 
     public static BallStrikeIntent ballStrikeIntent(BallStrikeIntentInput in) {
         if (in == null || in.aimPoint() == null) throw new IllegalArgumentException("aimPoint is required");
-        return new BallStrikeIntent(ClubId.valueOf(in.club()), new AimPoint(in.aimPoint().x(), in.aimPoint().y()));
+        ShotFamily family = in.shotFamily() == null ? ShotFamily.FULL : ShotFamily.valueOf(in.shotFamily());
+        return new BallStrikeIntent(ClubId.valueOf(in.club()), new AimPoint(in.aimPoint().x(), in.aimPoint().y()), family);
     }
 
     public static CareerGoal careerGoal(CareerGoalInput in) {

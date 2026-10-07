@@ -79,6 +79,8 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint }:
   const finalPoint = trace ? model.project(trace.finalPoint) : model.project(hole.ball?.position ?? geometry.tee);
   const transitionFrom = trace?.transition ? model.project(trace.transition.from) : null;
   const transitionTo = trace?.transition ? model.project(trace.transition.to) : null;
+  const rollFrom = trace?.roll ? model.project(trace.roll.from) : null;
+  const rollTo = trace?.roll ? model.project(trace.roll.to) : null;
   const movingBall = trace && progress < 1
     ? model.project(interpolatedContactPoint(trace, progress))
     : null;
@@ -118,6 +120,11 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint }:
     {transitionFrom && transitionTo && recoveryLabel ? <>
       <path d={`M${transitionFrom.x} ${transitionFrom.y} L${transitionTo.x} ${transitionTo.y}`} stroke="#fff" strokeWidth="1.2" strokeDasharray="3 2" opacity=".9" />
       <text x={(transitionFrom.x + transitionTo.x) / 2 + 3} y={(transitionFrom.y + transitionTo.y) / 2 - 3} fill="#fff" fontSize="5">{recoveryLabel}</text>
+    </> : null}
+
+    {rollFrom && rollTo ? <>
+      <path d={`M${rollFrom.x} ${rollFrom.y} L${rollTo.x} ${rollTo.y}`} stroke="var(--accent)" strokeWidth="1.3" strokeDasharray="2 1" opacity=".95" />
+      <text x={(rollFrom.x + rollTo.x) / 2 + 3} y={(rollFrom.y + rollTo.y) / 2 - 3} fill="var(--accent)" fontSize="5">Roll</text>
     </> : null}
 
     {(!trace || !finalMatchesContact) ? <><circle cx={finalPoint.x} cy={finalPoint.y} r="3" fill="#fff" stroke="#c99" strokeWidth=".6" />

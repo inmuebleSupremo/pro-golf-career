@@ -60,6 +60,7 @@ import com.progolf.sim.ranking.RankingSnapshot;
 import com.progolf.sim.ranking.RankingStanding;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.BallStrikeIntent;
+import com.progolf.sim.shot.PuttIntent;
 import com.progolf.sim.play.ShotSubmission;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
@@ -918,6 +919,11 @@ public class WorldService {
     /** Spatial human-shot entry point; stale revisions return without mutating event state. */
     public ShotSubmission playShot(String ownerId, String sessionId, BallStrikeIntent intent, String expectedRevision) {
         return playerEvent(ownerId, sessionId).playShot(intent, expectedRevision);
+    }
+
+    /** Dedicated non-spatial putting route; stale revisions return without mutating event state. */
+    public ShotSubmission playPutt(String ownerId, String sessionId, PuttIntent intent, String expectedRevision) {
+        return playerEvent(ownerId, sessionId).playPutt(intent, expectedRevision);
     }
 
     /** Sims the current shot in the player's event. */
