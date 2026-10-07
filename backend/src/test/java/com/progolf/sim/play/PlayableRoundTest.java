@@ -9,6 +9,9 @@ import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.shot.Club;
+import com.progolf.sim.shot.ClubId;
+import com.progolf.sim.shot.AimPoint;
+import com.progolf.sim.shot.BallStrikeIntent;
 import com.progolf.sim.shot.Environment;
 import com.progolf.sim.shot.GolferState;
 import com.progolf.sim.shot.RoundResolver;
@@ -96,6 +99,22 @@ class PlayableRoundTest {
         pr.simRound(); // finish the rest
         assertThat(pr.isComplete()).isTrue();
         assertThat(pr.holeScores()).hasSize(18);
+    }
+
+    @Test
+    void visibleHumanAndAiShotsMaterializeTracesWhileBulkSimulationDoesNot() {
+        PlayableRound human = round(course());
+        var cup = human.currentHoleModel().cupPosition();
+        ShotOutcome humanOutcome = human.playShot(new BallStrikeIntent(ClubId.DRIVER, new AimPoint(cup.x(), cup.y())));
+        assertThat(humanOutcome.trace()).isNotNull();
+        assertThat(humanOutcome.trace().intendedAimPoint()).isEqualTo(new AimPoint(cup.x(), cup.y()));
+
+        PlayableRound visibleAi = round(course());
+        assertThat(visibleAi.simShot().trace()).isNotNull();
+
+        PlayableRound background = round(course());
+        background.simHole();
+        assertThat(background.playedHoles().getFirst().shots()).allSatisfy(shot -> assertThat(shot.trace()).isNull());
     }
 
     @Test

@@ -770,6 +770,14 @@ export const PlayShotDocument = graphql(`
           recoveryKind
           ball { position { x y } lie }
         }
+        trace {
+          club
+          origin { x y }
+          aimPoint { x y }
+          contact { position { x y } surface }
+          transition { kind from { x y } to { x y } }
+          finalPoint { x y }
+        }
       }
     }
   }
@@ -791,6 +799,14 @@ export const SimShotDocument = graphql(`
         recoveryPosition { x y }
         recoveryKind
         ball { position { x y } lie }
+      }
+      trace {
+        club
+        origin { x y }
+        aimPoint { x y }
+        contact { position { x y } surface }
+        transition { kind from { x y } to { x y } }
+        finalPoint { x y }
       }
     }
   }

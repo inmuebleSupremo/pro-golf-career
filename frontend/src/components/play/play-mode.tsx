@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { humanize } from "@/lib/play/options";
 import { StageHole } from "@/components/play/hole-transition";
-import { usePlaySequence, type ShotInputs } from "@/components/play/use-play-sequence";
+import { usePlaySequence } from "@/components/play/use-play-sequence";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
 import {
   defaultClub,
@@ -113,7 +113,6 @@ export function PlayMode({
             situation={seq.displaySituation}
             pressure={pressure}
             playbackShot={seq.playbackShot}
-            playbackProfile={seq.playbackProfile}
             phase={seq.phase}
             postHole={seq.postHole}
             aimPoint={aimPoint}
@@ -232,7 +231,7 @@ function ActionDock({
   hole: HoleGeom | null;
   aimPoint: { x: number; y: number };
   onAimPoint: (point: { x: number; y: number }) => void;
-  onShot: (outcome: Outcome, inputs?: ShotInputs) => void;
+  onShot: (outcome: Outcome) => void;
   onSimJump: () => void;
   lastOutcome: Outcome | null;
   /** True through every transitional phase — the controls are disabled so the sequence can't be broken. */
@@ -254,7 +253,7 @@ function ActionDock({
         setFormError("That shot plan is stale. Choose the target again.");
         return;
       }
-      onShot(result.playShot.outcome, { club, targetDistance });
+      onShot(result.playShot.outcome);
     } catch {
       setFormError("Couldn't play that shot. Try again.");
     }

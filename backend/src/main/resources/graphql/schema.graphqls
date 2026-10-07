@@ -692,6 +692,23 @@ type ShotSettlement {
     ball: BallState!
 }
 
+"Authoritative spatial facts for one observable shot; it contains no simulated trajectory physics."
+type ShotTrace {
+    club: String!
+    origin: Position!
+    aimPoint: AimPoint!
+    contact: ShotContact!
+    transition: ShotTraceTransition
+    finalPoint: Position!
+}
+
+"A rules recovery or replay, explicitly distinct from ball flight."
+type ShotTraceTransition {
+    kind: String!
+    from: Position!
+    to: Position!
+}
+
 type ShotSituation {
     holeNumber: Int!
     par: Int!
@@ -751,6 +768,7 @@ type ShotOutcome {
     penaltyStrokes: Int!
     strokes: Int!
     settlement: ShotSettlement
+    trace: ShotTrace
 }
 
 input AimPointInput { x: Float!, y: Float! }

@@ -7,10 +7,11 @@ package com.progolf.app.api.dto;
  * {@code sim.shot.ShotOutcome}; the engine's internal {@code FactorBreakdown} is not exposed.
  */
 public record ShotOutcomeDto(String finalSurface, double carry, double lateral, double distanceRemaining,
-                             boolean hazardEntered, int penaltyStrokes, int strokes, ShotSettlementDto settlement) {
+                             boolean hazardEntered, int penaltyStrokes, int strokes, ShotSettlementDto settlement,
+                             ShotTraceDto trace) {
 
     public ShotOutcomeDto(String finalSurface, double carry, double lateral, double distanceRemaining,
                           boolean hazardEntered, int penaltyStrokes, int strokes) {
-        this(finalSurface, carry, lateral, distanceRemaining, hazardEntered, penaltyStrokes, strokes, null);
+        this(finalSurface, carry, lateral, distanceRemaining, hazardEntered, penaltyStrokes, strokes, null, null);
     }
 }

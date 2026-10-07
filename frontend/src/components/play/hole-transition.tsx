@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import { humanize } from "@/lib/play/options";
 import { Hole2d } from "@/components/play/hole-2d";
 import { PostHoleOverlay, PreHoleOverlay } from "@/components/play/hole-overlays";
-import type { ShotPhysicsProfile } from "@/lib/play/shot-router";
 import type { HoleGeom, ResolvedShot } from "@/lib/play/hole-geometry";
 import type { PostHoleSummary, SeqPhase } from "@/components/play/use-play-sequence";
 import type { Situation } from "@/components/play/play-shared";
@@ -27,7 +26,6 @@ export function StageHole({
   situation,
   pressure,
   playbackShot,
-  playbackProfile,
   phase,
   postHole,
   aimPoint,
@@ -37,7 +35,6 @@ export function StageHole({
   situation: Situation;
   pressure: number | null;
   playbackShot: ResolvedShot | null;
-  playbackProfile: ShotPhysicsProfile | null;
   phase: SeqPhase;
   postHole: PostHoleSummary | null;
   aimPoint: { x: number; y: number };
@@ -51,7 +48,7 @@ export function StageHole({
     <>
       {displayHole ? (
         <div className="flex h-full w-full items-center justify-center">
-          <Hole2d hole={displayHole} ball={playbackShot} profile={playbackProfile} className="block max-h-full w-auto" aimPoint={aimPoint} onAimPoint={onAimPoint} />
+          <Hole2d hole={displayHole} ball={playbackShot} className="block max-h-full w-auto" aimPoint={aimPoint} onAimPoint={onAimPoint} />
         </div>
       ) : (
         <div className="bg-surface-3 aspect-[1/2] h-[70%] animate-pulse rounded-lg" />

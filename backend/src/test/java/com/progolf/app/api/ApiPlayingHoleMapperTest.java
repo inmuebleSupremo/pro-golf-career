@@ -21,6 +21,8 @@ import com.progolf.sim.shot.RecoveryKind;
 import com.progolf.sim.shot.ShotContact;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.ShotSettlement;
+import com.progolf.sim.shot.ShotTrace;
+import com.progolf.sim.shot.ShotTraceTransition;
 import com.progolf.sim.spatial.ShotZoneProfile;
 import com.progolf.sim.spatial.Surface;
 import org.junit.jupiter.api.Test;
@@ -151,8 +153,11 @@ class ApiPlayingHoleMapperTest {
         BallState ball = new BallState(recoveryPosition, Surface.PRIMARY_ROUGH);
         ShotSettlement settlement = new ShotSettlement(new ShotContact(contactPosition, Surface.WATER), recoveryPosition,
                 RecoveryKind.WATER_DROP, ball);
+        ShotTrace trace = new ShotTrace(com.progolf.sim.shot.ClubId.SEVEN_IRON, new Position2d(0, 0),
+                new com.progolf.sim.shot.AimPoint(40, 180), settlement.contact(),
+                new ShotTraceTransition(RecoveryKind.WATER_DROP, contactPosition, recoveryPosition), recoveryPosition);
         ShotOutcome outcome = new ShotOutcome(Surface.WATER, 185, 4, 120, true, 1, 2,
-                new FactorBreakdown(0, 0, 0, 0), settlement, false);
+                new FactorBreakdown(0, 0, 0, 0), settlement, false, trace);
 
         var dto = ApiMapper.shotOutcome(outcome);
         assertThat(dto.settlement().contact().position().x()).isEqualTo(contactPosition.x());
@@ -161,6 +166,25 @@ class ApiPlayingHoleMapperTest {
         assertThat(dto.settlement().recoveryKind()).isEqualTo(RecoveryKind.WATER_DROP.name());
         assertThat(dto.settlement().ball().position().x()).isEqualTo(recoveryPosition.x());
         assertThat(dto.settlement().ball().lie()).isEqualTo(Surface.PRIMARY_ROUGH.name());
+        assertThat(dto.trace().club()).isEqualTo("SEVEN_IRON");
+        assertThat(dto.trace().aimPoint().x()).isEqualTo(40);
+        assertThat(dto.trace().contact().position().y()).isEqualTo(contactPosition.y());
+        assertThat(dto.trace().transition().kind()).isEqualTo(RecoveryKind.WATER_DROP.name());
+        assertThat(dto.trace().finalPoint()).isEqualTo(dto.settlement().ball().position());
+
+        ShotContact cupContact = new ShotContact(new Position2d(0, 200), Surface.GREEN);
+        BallState holedBall = new BallState(cupContact.position(), Surface.GREEN);
+        ShotSettlement holed = new ShotSettlement(cupContact, null, RecoveryKind.NONE, holedBall);
+        ShotTrace holeOutTrace = new ShotTrace(com.progolf.sim.shot.ClubId.SEVEN_IRON,
+                new Position2d(0, 0), new com.progolf.sim.shot.AimPoint(0, 200), cupContact,
+                null, cupContact.position());
+        ShotOutcome holeOut = new ShotOutcome(Surface.GREEN, 200, 0, 0, false, 0, 1,
+                new FactorBreakdown(0, 0, 0, 0), holed, false, holeOutTrace);
+        assertThat(ApiMapper.shotOutcome(holeOut).trace().finalPoint().y()).isEqualTo(200);
+
+        ShotOutcome summaryOnly = new ShotOutcome(Surface.PRIMARY_ROUGH, 120, 4, 80, false, 0, 1,
+                new FactorBreakdown(0, 0, 0, 0), settlement, false);
+        assertThat(ApiMapper.shotOutcome(summaryOnly).trace()).isNull();
     }
 
     private static void assertGeometry(PlayingHoleDto dto, CourseGeometry geometry, PinPosition pin) {
