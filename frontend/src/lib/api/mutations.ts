@@ -17,6 +17,7 @@ export interface CreateCareerInput {
   nationality: string;
   archetype: string;
   startAge: number;
+  handedness?: string;
 }
 
 export interface CreatedGolfer extends CreateCareerInput {
@@ -52,6 +53,7 @@ export function useCreateCareer() {
         nationality: input.nationality,
         startAge: input.startAge,
         archetype: input.archetype,
+        handedness: input.handedness,
       });
 
       const saveId = `career-${crypto.randomUUID()}`;

@@ -2,6 +2,7 @@ package com.progolf.sim.player;
 
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
+import com.progolf.sim.core.Handedness;
 import com.progolf.sim.shot.GolferState;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,7 @@ public final class Player {
 
     private final String id;
     private final Identity identity;
+    private final Handedness handedness;
     private Attributes attributes;
     private final Attributes potential;
     private final PlayerState state;
@@ -27,10 +29,15 @@ public final class Player {
     private final List<AttributeChange> attributeChanges = new ArrayList<>();
 
     public Player(String id, Identity identity, Attributes attributes, Attributes potential) {
+        this(id, identity, attributes, potential, Handedness.RIGHT);
+    }
+
+    public Player(String id, Identity identity, Attributes attributes, Attributes potential, Handedness handedness) {
         this.id = Objects.requireNonNull(id, "id");
         this.identity = Objects.requireNonNull(identity, "identity");
         this.attributes = Objects.requireNonNull(attributes, "attributes");
         this.potential = Objects.requireNonNull(potential, "potential");
+        this.handedness = handedness == null ? Handedness.RIGHT : handedness;
         this.state = PlayerState.fresh();
         this.status = CareerStatus.CREATED;
     }
@@ -48,6 +55,7 @@ public final class Player {
     public Identity identity() {
         return identity;
     }
+    public Handedness handedness() { return handedness; }
 
     /** The referenced permanent attributes (single source of truth). */
     public Attributes attributes() {
@@ -93,22 +101,23 @@ public final class Player {
     }
 
     /** An immutable capture of a Player's full state (spec: world-snapshot). */
-    public record Snapshot(String id, Identity identity, Attributes attributes, Attributes potential,
+    public record Snapshot(String id, Identity identity, Attributes attributes, Attributes potential, Handedness handedness,
                            CareerStatus status, List<AttributeChange> attributeChanges,
                            PlayerState.Snapshot state) {
         public Snapshot {
             attributeChanges = List.copyOf(attributeChanges);
+            handedness = handedness == null ? Handedness.RIGHT : handedness;
         }
     }
 
     /** Captures this Player. */
     public Snapshot snapshot() {
-        return new Snapshot(id, identity, attributes, potential, status, attributeChanges, state.snapshot());
+        return new Snapshot(id, identity, attributes, potential, handedness, status, attributeChanges, state.snapshot());
     }
 
     /** Rebuilds a Player from a snapshot, bypassing the guarded transition machine (net-new reconstruction). */
     public static Player restore(Snapshot s) {
-        Player p = new Player(s.id(), s.identity(), s.attributes(), s.potential());
+        Player p = new Player(s.id(), s.identity(), s.attributes(), s.potential(), s.handedness());
         p.status = s.status();
         p.attributeChanges.addAll(s.attributeChanges());
         p.restoreState(s.state());

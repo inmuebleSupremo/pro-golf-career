@@ -16,6 +16,7 @@ import {
   PlayerDevelopmentFocusDocument,
   PlayerFitnessDocument,
   PlayerProfileDocument,
+  PinPlacementStatusDocument,
   RecordsDocument,
   SeasonReviewDocument,
   WorldRankingsDocument,
@@ -36,6 +37,16 @@ export function useCareerOverview(id: string) {
     queryFn: () => gqlRequest(CareerOverviewDocument, { id }),
     // Never pause on perceived-offline (some embedded browsers report offline), and
     // don't retry a not-found session — surface the error immediately.
+    networkMode: "always",
+    retry: false,
+  });
+}
+
+/** The safe-boundary status for explicit corrected pin placement adoption. */
+export function usePinPlacementStatus(id: string) {
+  return useQuery({
+    queryKey: ["pin-placement", id],
+    queryFn: () => gqlRequest(PinPlacementStatusDocument, { id }),
     networkMode: "always",
     retry: false,
   });

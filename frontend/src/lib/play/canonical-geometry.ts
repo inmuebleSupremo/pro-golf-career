@@ -15,6 +15,18 @@ export interface CanonicalRenderModel {
   readonly terrain: readonly { readonly surface: string; readonly path: string }[];
 }
 
+/** Projects a canonical flow vector into a unit SVG direction; canonical +Y is screen-up. */
+export function projectCanonicalFlow(
+  origin: Point,
+  flow: Point,
+  project: (point: Point) => Point,
+): Point {
+  const from = project(origin);
+  const toward = project({ x: origin.x + flow.x, y: origin.y + flow.y });
+  const length = Math.hypot(toward.x - from.x, toward.y - from.y) || 1;
+  return { x: (toward.x - from.x) / length, y: (toward.y - from.y) / length };
+}
+
 /** Builds the canonical-only terrain model used by the SVG renderer. No seed or local landform generation enters this path. */
 export function canonicalRenderModel(
   geometry: CanonicalPlayingGeometry,

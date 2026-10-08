@@ -7,6 +7,7 @@ import {
   AcknowledgeStaffReviewDocument,
   AcknowledgeScheduleReviewDocument,
   AcceptEquipmentDealDocument,
+  AdoptV5PinPlacementDocument,
   AcceptSponsorshipDocument,
   BuyEquipmentDocument,
   EnterEventDocument,
@@ -94,6 +95,16 @@ export function useSetResting(id: string) {
     mutationFn: (resting: boolean) => gqlRequest(SetRestingDocument, { id, resting }),
     networkMode: "always",
     onSuccess: invalidate,
+  });
+}
+
+/** Explicit, idempotent adoption of V5 for future unstarted events at a clean boundary. */
+export function useAdoptV5PinPlacement(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => gqlRequest(AdoptV5PinPlacementDocument, { id }),
+    networkMode: "always",
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pin-placement", id] }),
   });
 }
 

@@ -15,6 +15,8 @@ import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.ShotDecisionInput;
 import com.progolf.app.api.dto.BallStrikeIntentInput;
 import com.progolf.app.api.dto.ShotFamilyAvailabilityDto;
+import com.progolf.app.api.dto.ShotShapeAvailabilityDto;
+import com.progolf.app.api.dto.AirbornePointDto;
 import com.progolf.app.api.dto.ShotTraceRollDto;
 import com.progolf.app.api.dto.AimEnvelopeDto;
 import com.progolf.app.api.dto.AimPointDto;
@@ -23,6 +25,7 @@ import com.progolf.app.api.dto.ShotGuidanceDto;
 import com.progolf.app.api.dto.ShotSubmissionDto;
 import com.progolf.app.api.dto.ShotOutcomeDto;
 import com.progolf.app.api.dto.PlayingHoleDto;
+import com.progolf.app.api.dto.EffectiveWindDto;
 import com.progolf.app.api.dto.PlayingGeometryDto;
 import com.progolf.app.api.dto.PositionDto;
 import com.progolf.app.api.dto.TerrainRegionDto;
@@ -51,6 +54,7 @@ import com.progolf.sim.course.GeneratedHole;
 import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.course.Position2d;
+import com.progolf.sim.shot.WindVector;
 import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.ShotSettlement;
 import com.progolf.sim.shot.ShotTrace;
@@ -69,6 +73,7 @@ import com.progolf.sim.shot.AimPoint;
 import com.progolf.sim.shot.BallStrikeIntent;
 import com.progolf.sim.shot.ClubId;
 import com.progolf.sim.shot.ShotFamily;
+import com.progolf.sim.shot.ShotShape;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
 import com.progolf.sim.statistics.SeasonStatistics;
@@ -140,7 +145,8 @@ public final class ApiMapper {
         var g = situation.guidance();
         return new ShotGuidanceDto(point(g.safe()), point(g.primary()), point(g.aggressive()), g.clubs().stream()
                 .map(c -> new ClubReachDto(c.club().name(), c.label(), c.nominalCarry(), c.normalReach(), c.families().stream()
-                        .map(f -> new ShotFamilyAvailabilityDto(f.family().name(), f.available(), f.reason())).toList())).toList());
+                        .map(f -> new ShotFamilyAvailabilityDto(f.family().name(), f.available(), f.reason(), f.shapes().stream()
+                                .map(s -> new ShotShapeAvailabilityDto(s.shape().name(), s.available(), s.reason())).toList())).toList())).toList());
     }
 
     public static ShotSubmissionDto submission(com.progolf.sim.play.ShotSubmission submission) {
@@ -169,11 +175,29 @@ public final class ApiMapper {
     /** Projects the effective setup-specific geometry used by the active playable hole. */
     public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
                                              CourseGeometry geometry) {
+        return playingHole(hole, pin, courseType, ball, geometry, legacyCup(geometry, pin), new WindVector(0.0, 0.0));
+    }
+
+    /** Projects the effective setup-specific geometry and resolver-effective canonical wind for the active hole. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
+                                             CourseGeometry geometry, WindVector wind) {
+        return playingHole(hole, pin, courseType, ball, geometry, legacyCup(geometry, pin), wind);
+    }
+
+    /** Projects a policy-resolved cup rather than reconstructing it from legacy offsets. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
+                                             CourseGeometry geometry, Position2d cup) {
+        return playingHole(hole, pin, courseType, ball, geometry, cup, new WindVector(0.0, 0.0));
+    }
+
+    /** Projects the policy-resolved cup and resolver-effective canonical wind used by the active hole. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
+                                             CourseGeometry geometry, Position2d cup, WindVector wind) {
         return new PlayingHoleDto(hole.number(), hole.par(), hole.length(),
                 hole.fairwayHalfWidth(), hole.greenHalfWidth(), hole.greenDepth(), hole.elevationDelta(),
                 hole.hasGreensideBunker(), hole.hasWater(), hole.hasTrees(),
                 pin.lateralOffset(), pin.depthOffset(),
-                courseType, Long.toString(hole.holeSeed()), geometry(geometry, pin), ballState(ball));
+                courseType, Long.toString(hole.holeSeed()), geometry(geometry, cup), ballState(ball), effectiveWind(wind));
     }
 
     /** Compatibility mapper for tests/readers not yet carrying a live ball. */
@@ -208,12 +232,16 @@ public final class ApiMapper {
                 o.hazardEntered(), o.penaltyStrokes(), o.strokes(), settlement(o.settlement()), trace(o.trace()));
     }
 
-    private static PlayingGeometryDto geometry(CourseGeometry geometry, PinPosition pin) {
-        return new PlayingGeometryDto(point(geometry.tee()), point(new Position2d(
-                geometry.greenCenter().x() + pin.lateralOffset(), geometry.greenCenter().y() + pin.depthOffset())),
+    private static PlayingGeometryDto geometry(CourseGeometry geometry, Position2d cup) {
+        return new PlayingGeometryDto(point(geometry.tee()), point(cup),
                 geometry.playableBoundary().stream().map(ApiMapper::point).toList(),
                 geometry.regions().stream().map(region -> new TerrainRegionDto(region.surface().name(),
                         region.boundary().stream().map(ApiMapper::point).toList())).toList());
+    }
+
+    private static Position2d legacyCup(CourseGeometry geometry, PinPosition pin) {
+        return new Position2d(geometry.greenCenter().x() + pin.lateralOffset(),
+                geometry.greenCenter().y() + pin.depthOffset());
     }
 
     private static PositionDto point(Position2d point) {
@@ -228,6 +256,10 @@ public final class ApiMapper {
         return ball == null ? null : new BallStateDto(point(ball.position()), ball.lie().name());
     }
 
+    private static EffectiveWindDto effectiveWind(WindVector wind) {
+        return new EffectiveWindDto(wind.x(), wind.y(), StrictMath.hypot(wind.x(), wind.y()), "EFFECTIVE_YARDS");
+    }
+
     private static ShotSettlementDto settlement(ShotSettlement settlement) {
         return settlement == null ? null : new ShotSettlementDto(
                 new ShotContactDto(point(settlement.contact().position()), settlement.contact().surface().name()),
@@ -238,7 +270,8 @@ public final class ApiMapper {
     private static ShotTraceDto trace(ShotTrace trace) {
         return trace == null ? null : new ShotTraceDto(trace.clubId().name(), point(trace.origin()),
                 point(trace.intendedAimPoint()), new ShotContactDto(point(trace.contact().position()),
-                trace.contact().surface().name()), roll(trace.roll()), transition(trace.transition()), point(trace.finalPoint()));
+                trace.contact().surface().name()), trace.airbornePath().stream()
+                .map(p -> new AirbornePointDto(p.progress(), point(p.position()), p.height())).toList(), roll(trace.roll()), transition(trace.transition()), point(trace.finalPoint()));
     }
 
     private static ShotTraceRollDto roll(com.progolf.sim.shot.ShotTraceRoll roll) {
@@ -261,7 +294,8 @@ public final class ApiMapper {
     public static BallStrikeIntent ballStrikeIntent(BallStrikeIntentInput in) {
         if (in == null || in.aimPoint() == null) throw new IllegalArgumentException("aimPoint is required");
         ShotFamily family = in.shotFamily() == null ? ShotFamily.FULL : ShotFamily.valueOf(in.shotFamily());
-        return new BallStrikeIntent(ClubId.valueOf(in.club()), new AimPoint(in.aimPoint().x(), in.aimPoint().y()), family);
+        ShotShape shape = in.shotShape() == null ? ShotShape.STRAIGHT : ShotShape.valueOf(in.shotShape());
+        return new BallStrikeIntent(ClubId.valueOf(in.club()), new AimPoint(in.aimPoint().x(), in.aimPoint().y()), family, shape);
     }
 
     public static CareerGoal careerGoal(CareerGoalInput in) {

@@ -6,6 +6,7 @@ import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Identity;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.player.Player;
+import com.progolf.sim.core.Handedness;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.progression.Maturity;
 import java.time.LocalDate;
@@ -33,6 +34,11 @@ public final class GolferFactory {
     public static ProfessionalGolfer createHuman(String id, String firstName, String lastName,
                                                  Nationality nationality, int startAge, Archetype archetype,
                                                  int referenceYear) {
+        return createHuman(id, firstName, lastName, nationality, startAge, archetype, referenceYear, Handedness.RIGHT);
+    }
+    public static ProfessionalGolfer createHuman(String id, String firstName, String lastName,
+                                                 Nationality nationality, int startAge, Archetype archetype,
+                                                 int referenceYear, Handedness handedness) {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(nationality, "nationality");
         Objects.requireNonNull(archetype, "archetype");
@@ -46,7 +52,7 @@ public final class GolferFactory {
         LocalDate dob = LocalDate.of(referenceYear - startAge, 1, 1);
         Identity identity = new Identity(firstName, lastName, nationality, dob, archetype);
 
-        Player player = new Player(id, identity, attributes, potential);
+        Player player = new Player(id, identity, attributes, potential, handedness);
         player.activate(); // CREATED -> ACTIVE
 
         return ProfessionalGolfer.human(id, player, "career-" + id);

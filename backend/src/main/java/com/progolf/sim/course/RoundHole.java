@@ -16,16 +16,23 @@ public final class RoundHole implements HoleModel {
     private final PinPosition pin;
     private final CourseSetup setup;
     private final CourseGeometry geometry;
+    private final Position2d cup;
 
     RoundHole(GeneratedHole hole, PinPosition pin) {
         this(hole, pin, CourseSetup.standard());
     }
 
     RoundHole(GeneratedHole hole, PinPosition pin, CourseSetup setup) {
+        this(hole, pin, setup, null);
+    }
+
+    RoundHole(GeneratedHole hole, PinPosition pin, CourseSetup setup, Position2d cup) {
         this.hole = Objects.requireNonNull(hole, "hole");
         this.pin = Objects.requireNonNull(pin, "pin");
         this.setup = Objects.requireNonNull(setup, "setup");
         this.geometry = hole.geometryForWidth(setup.widthScale());
+        this.cup = cup == null ? new Position2d(geometry.greenCenter().x() + pin.lateralOffset(),
+                geometry.greenCenter().y() + pin.depthOffset()) : cup;
     }
 
     /** The hole this round-model is derived from. */
@@ -66,8 +73,7 @@ public final class RoundHole implements HoleModel {
 
     @Override
     public Position2d cupPosition() {
-        return new Position2d(geometry.greenCenter().x() + pin.lateralOffset(),
-                geometry.greenCenter().y() + pin.depthOffset());
+        return cup;
     }
 
     @Override

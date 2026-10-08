@@ -26,6 +26,7 @@ import com.progolf.app.api.dto.RecordDto;
 import com.progolf.app.api.dto.SeasonReviewDto;
 import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.WorldStatusDto;
+import com.progolf.app.api.dto.PinPlacementStatusDto;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
 import com.progolf.app.persistence.SaveMetadata;
@@ -200,6 +201,20 @@ public class WorldService {
                 world.activePopulationSize(), world.hasPendingPlayerEvent(), world.playerEventAwaitingCompletion());
     }
 
+    /** Owner-authorized status for the one-way future-event pin-policy adoption. */
+    public PinPlacementStatusDto pinPlacementStatus(String ownerId, String id) {
+        var status = required(ownerId, id).world().pinPlacementMigrationStatus();
+        return new PinPlacementStatusDto(status.defaultVersion().name(), status.legacyScheduledEvents(),
+                status.canAdoptV5());
+    }
+
+    /** Explicitly adopts V5 for eligible future scheduled events, then persists the clean-boundary change. */
+    public PinPlacementStatusDto adoptV5PinPlacement(String ownerId, String id) {
+        required(ownerId, id).world().adoptV5PinPlacementForFutureEvents();
+        autosave(ownerId, id);
+        return pinPlacementStatus(ownerId, id);
+    }
+
     // --- Player control (spec: player-control): the human guides one designated golfer ---
 
     /** Whether a session has a designated (human-controlled) player golfer. */
@@ -215,7 +230,13 @@ public class WorldService {
     /** Creates a custom golfer (identity + archetype build) as the session's player; returns its id. */
     public String createPlayer(String ownerId, String sessionId, String firstName, String lastName,
                                Nationality nationality, int startAge, Archetype archetype) {
-        return required(ownerId, sessionId).world().createPlayer(firstName, lastName, nationality, startAge, archetype);
+        return createPlayer(ownerId, sessionId, firstName, lastName, nationality, startAge, archetype,
+                com.progolf.sim.core.Handedness.RIGHT);
+    }
+    public String createPlayer(String ownerId, String sessionId, String firstName, String lastName,
+                               Nationality nationality, int startAge, Archetype archetype,
+                               com.progolf.sim.core.Handedness handedness) {
+        return required(ownerId, sessionId).world().createPlayer(firstName, lastName, nationality, startAge, archetype, handedness);
     }
 
     /** Sets the player's development focus (attribute priority) in a session. */
@@ -424,7 +445,7 @@ public class WorldService {
         }
 
         return new PlayerProfileDto(id, identity.firstName(), identity.lastName(),
-                identity.nationality().name(), career.age(), identity.archetype().name(),
+                identity.nationality().name(), career.age(), identity.archetype().name(), career.player().handedness().name(),
                 worldRanking, finances.tournamentEarnings(), finances.availableFunds(), tour,
                 stats.events(), stats.wins(), stats.topTens(), career.isRetired(), attributes);
     }
@@ -898,7 +919,8 @@ public class WorldService {
         var geometry = event.effectiveGeometry(hole.number());
         var ball = holeNumber == null ? event.currentBallState()
                 : new com.progolf.sim.shot.BallState(geometry.tee(), com.progolf.sim.spatial.Surface.TEE_BOX);
-        return ApiMapper.playingHole(hole, pin, courseType, ball, geometry);
+        return ApiMapper.playingHole(hole, pin, courseType, ball, geometry, event.cupAt(hole.number()),
+                event.effectiveWindForHole(hole.number()));
     }
 
     /** The live field leaderboard for the player's event. */

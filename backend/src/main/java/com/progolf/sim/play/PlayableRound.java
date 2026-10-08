@@ -27,6 +27,7 @@ import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.shot.StrategyPolicy;
 import com.progolf.sim.spatial.Surface;
 import com.progolf.sim.course.Position2d;
+import com.progolf.sim.core.Handedness;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -52,6 +53,7 @@ public final class PlayableRound {
     private final List<HoleToPlay> holes;
     private final SeedCoordinate base;
     private final StrategyPolicy simPolicy;
+    private final Handedness handedness;
 
     private int holeIndex;        // 0-based; == HOLES when the round is complete
     private int shotNumber = 1;   // 1-based within the current hole
@@ -67,6 +69,10 @@ public final class PlayableRound {
 
     public PlayableRound(Attributes attributes, GolferState state, List<HoleToPlay> holes,
                          SeedCoordinate base, Strategy simStrategy) {
+        this(attributes, state, holes, base, simStrategy, Handedness.RIGHT);
+    }
+    public PlayableRound(Attributes attributes, GolferState state, List<HoleToPlay> holes,
+                         SeedCoordinate base, Strategy simStrategy, Handedness handedness) {
         this.attributes = Objects.requireNonNull(attributes, "attributes");
         this.state = Objects.requireNonNull(state, "state");
         Objects.requireNonNull(holes, "holes");
@@ -76,6 +82,7 @@ public final class PlayableRound {
         this.holes = List.copyOf(holes);
         this.base = Objects.requireNonNull(base, "base");
         this.simPolicy = new StrategyPolicy(Objects.requireNonNull(simStrategy, "simStrategy"));
+        this.handedness = handedness == null ? Handedness.RIGHT : handedness;
         this.remaining = this.holes.get(0).model().startDistance();
         this.ball = initialBall(this.holes.get(0));
     }
@@ -297,7 +304,7 @@ public final class PlayableRound {
                 ? ShotAim.forBall(hole.model(), ball, decision.strategy())
                 : new ShotAim.Reference(humanAimTarget, 0.0, false);
         return new ShotContext(attributes, state, hole.environment(), remaining, hole.model().zoneProfileFor(remaining),
-                decision, coord, lie, aim.pinLateral(), ball, hole.model().geometry(), hole.model().cupPosition(), aim.target());
+                decision, coord, lie, aim.pinLateral(), ball, hole.model().geometry(), hole.model().cupPosition(), aim.target(), handedness);
     }
 
     private static void validateAim(Position2d target, com.progolf.sim.course.CourseGeometry geometry) {
@@ -324,7 +331,11 @@ public final class PlayableRound {
                         + SimConstants.REACH_SPAN * attributes.norm(spec.distanceAttribute())),
                 java.util.Arrays.stream(com.progolf.sim.shot.ShotFamily.values()).map(family -> {
                     ShotFamilyEligibility.Result eligibility = ShotFamilyEligibility.evaluate(lie, spec, family);
-                    return new ShotGuidance.FamilyAvailability(family, eligibility.allowed(), eligibility.reason());
+                    return new ShotGuidance.FamilyAvailability(family, eligibility.allowed(), eligibility.reason(),
+                            java.util.Arrays.stream(com.progolf.sim.shot.ShotShape.values()).map(shape -> {
+                                var result = com.progolf.sim.shot.ShotShapeEligibility.evaluate(family, shape);
+                                return new ShotGuidance.ShapeAvailability(shape, result.allowed(), result.reason());
+                            }).toList());
                 }).toList())).toList());
     }
 

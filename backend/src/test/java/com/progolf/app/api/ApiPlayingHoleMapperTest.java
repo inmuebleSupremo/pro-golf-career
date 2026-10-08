@@ -23,6 +23,7 @@ import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.ShotSettlement;
 import com.progolf.sim.shot.ShotTrace;
 import com.progolf.sim.shot.ShotTraceTransition;
+import com.progolf.sim.shot.WindVector;
 import com.progolf.sim.spatial.ShotZoneProfile;
 import com.progolf.sim.spatial.Surface;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,19 @@ class ApiPlayingHoleMapperTest {
         }
         assertThat(dto.ball().position().x()).isEqualTo(hole.geometry().tee().x());
         assertThat(dto.ball().lie()).isEqualTo(Surface.TEE_BOX.name());
+    }
+
+    @Test
+    void playingHoleProjectsSignedEffectiveWindWithoutGeographicRelabeling() {
+        GeneratedHole hole = course(1234L).holes().get(0);
+        PinPosition pin = hole.pinFor(1);
+        PlayingHoleDto dto = ApiMapper.playingHole(hole, pin, CLASSIFICATION.name(),
+                new BallState(hole.geometry().tee(), Surface.TEE_BOX), hole.geometry(), new WindVector(3, -4));
+
+        assertThat(dto.effectiveWind().x()).isEqualTo(3);
+        assertThat(dto.effectiveWind().y()).isEqualTo(-4);
+        assertThat(dto.effectiveWind().magnitude()).isEqualTo(5);
+        assertThat(dto.effectiveWind().unit()).isEqualTo("EFFECTIVE_YARDS");
     }
 
     @Test

@@ -33,9 +33,11 @@ public class PlayerMutationController {
 
     @MutationMapping
     public String createPlayer(@Argument String id, @Argument String firstName, @Argument String lastName,
-                               @Argument String nationality, @Argument int startAge, @Argument String archetype) {
+                               @Argument String nationality, @Argument int startAge, @Argument String archetype,
+                               @Argument String handedness) {
         return worldService.createPlayer(AuthenticatedUser.requireId(), id, firstName, lastName,
-                ApiMapper.nationality(nationality), startAge, ApiMapper.archetype(archetype));
+                ApiMapper.nationality(nationality), startAge, ApiMapper.archetype(archetype),
+                handedness == null ? com.progolf.sim.core.Handedness.RIGHT : com.progolf.sim.core.Handedness.valueOf(handedness));
     }
 
     @MutationMapping
