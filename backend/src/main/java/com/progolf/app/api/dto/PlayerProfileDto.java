@@ -15,6 +15,7 @@ public record PlayerProfileDto(
         String nationality,
         int age,
         String archetype,
+        String handedness,
         Integer worldRanking,
         double careerEarnings,
         double availableFunds,

@@ -1482,12 +1482,16 @@ public final class World {
      */
     public String createPlayer(String firstName, String lastName, Nationality nationality, int startAge,
                                Archetype archetype) {
+        return createPlayer(firstName, lastName, nationality, startAge, archetype, com.progolf.sim.core.Handedness.RIGHT);
+    }
+    public String createPlayer(String firstName, String lastName, Nationality nationality, int startAge,
+                               Archetype archetype, com.progolf.sim.core.Handedness handedness) {
         if (playerControl != null) {
             throw new IllegalStateException("A player has already been assigned to this world");
         }
         String id = "player-" + Long.toUnsignedString(masterSeed, 16);
         ProfessionalGolfer golfer = GolferFactory.createHuman(id, firstName, lastName, nationality, startAge,
-                archetype, WorldConstants.BASE_YEAR);
+                archetype, WorldConstants.BASE_YEAR, handedness);
         admit(golfer, TourTier.DEVELOPMENT);
         assignPlayer(id);
         return id;

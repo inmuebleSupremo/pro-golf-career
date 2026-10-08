@@ -70,6 +70,14 @@ public final class SimConstants {
     public static final double HEADWIND_MEAN_WEIGHT = 0.70;
     public static final double TAILWIND_MEAN_WEIGHT = 0.50;
     public static final double CROSSWIND_SIGMA_WEIGHT = 0.15;
+    /** Deterministic lateral wind displacement, intentionally lower than the uncertainty calibration. */
+    public static final double CROSSWIND_DRIFT_WEIGHT = 0.35;
+    /** Small skill-scaled execution cost for working the ball; no fixed carry penalty or new progression stat. */
+    public static final double SHAPE_EXECUTION_SIGMA_WEIGHT = 0.22;
+    /** Peak curve as a fraction of carry; it is zero at launch and authoritative first contact. */
+    public static final double SHAPE_CURVE_FRACTION = 0.045;
+    /** Resolver-derived visual apex, not a player control or full aerodynamic simulation. */
+    public static final double FLIGHT_APEX_FRACTION = 0.12;
     public static final double PRESSURE_SIGMA_WEIGHT = 0.50;
     public static final double FATIGUE_SIGMA_WEIGHT = 0.60;
     public static final double FATIGUE_MEAN_WEIGHT = 0.10;

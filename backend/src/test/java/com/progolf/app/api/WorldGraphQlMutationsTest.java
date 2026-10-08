@@ -158,9 +158,11 @@ class WorldGraphQlMutationsTest {
                           current: playingHole(id: $id){
                             geometry { tee { x y } cup { x y } playableBoundary { x y } regions { surface boundary { x y } } }
                             ball { position { x y } lie }
+                            effectiveWind { x y magnitude unit }
                           }
                           prefetched: playingHole(id: $id, hole: 2){
                             geometry { playableBoundary { x y } regions { surface boundary { x y } } }
+                            effectiveWind { x y magnitude unit }
                           }
                         }
                         """)
@@ -170,10 +172,21 @@ class WorldGraphQlMutationsTest {
                 .path("current.geometry.regions").entityList(Object.class).satisfies(regions ->
                         assertThat(regions).isNotEmpty())
                 .path("current.ball.lie").entity(String.class).isEqualTo("TEE_BOX")
+                .path("current.effectiveWind.x").entity(Double.class)
+                .isEqualTo(event.effectiveWindForHole(1).x())
+                .path("current.effectiveWind.y").entity(Double.class)
+                .isEqualTo(event.effectiveWindForHole(1).y())
+                .path("current.effectiveWind.magnitude").entity(Double.class)
+                .isEqualTo(StrictMath.hypot(event.effectiveWindForHole(1).x(), event.effectiveWindForHole(1).y()))
+                .path("current.effectiveWind.unit").entity(String.class).isEqualTo("EFFECTIVE_YARDS")
                 .path("current.geometry.playableBoundary").entityList(PositionDto.class)
                 .satisfies(points -> assertThat(points).containsExactlyElementsOf(points(currentEffectiveGeometry)))
                 .path("prefetched.geometry.playableBoundary").entityList(PositionDto.class)
-                .satisfies(points -> assertThat(points).containsExactlyElementsOf(points(prefetchedEffectiveGeometry)));
+                .satisfies(points -> assertThat(points).containsExactlyElementsOf(points(prefetchedEffectiveGeometry)))
+                .path("prefetched.effectiveWind.x").entity(Double.class)
+                .isEqualTo(event.effectiveWindForHole(2).x())
+                .path("prefetched.effectiveWind.y").entity(Double.class)
+                .isEqualTo(event.effectiveWindForHole(2).y());
 
         var currentSituation = worldService.currentSituation(OWNER, session.id());
         var cup = currentEffectiveGeometry.greenCenter();

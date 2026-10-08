@@ -215,7 +215,13 @@ public class WorldService {
     /** Creates a custom golfer (identity + archetype build) as the session's player; returns its id. */
     public String createPlayer(String ownerId, String sessionId, String firstName, String lastName,
                                Nationality nationality, int startAge, Archetype archetype) {
-        return required(ownerId, sessionId).world().createPlayer(firstName, lastName, nationality, startAge, archetype);
+        return createPlayer(ownerId, sessionId, firstName, lastName, nationality, startAge, archetype,
+                com.progolf.sim.core.Handedness.RIGHT);
+    }
+    public String createPlayer(String ownerId, String sessionId, String firstName, String lastName,
+                               Nationality nationality, int startAge, Archetype archetype,
+                               com.progolf.sim.core.Handedness handedness) {
+        return required(ownerId, sessionId).world().createPlayer(firstName, lastName, nationality, startAge, archetype, handedness);
     }
 
     /** Sets the player's development focus (attribute priority) in a session. */
@@ -424,7 +430,7 @@ public class WorldService {
         }
 
         return new PlayerProfileDto(id, identity.firstName(), identity.lastName(),
-                identity.nationality().name(), career.age(), identity.archetype().name(),
+                identity.nationality().name(), career.age(), identity.archetype().name(), career.player().handedness().name(),
                 worldRanking, finances.tournamentEarnings(), finances.availableFunds(), tour,
                 stats.events(), stats.wins(), stats.topTens(), career.isRetired(), attributes);
     }
@@ -898,7 +904,7 @@ public class WorldService {
         var geometry = event.effectiveGeometry(hole.number());
         var ball = holeNumber == null ? event.currentBallState()
                 : new com.progolf.sim.shot.BallState(geometry.tee(), com.progolf.sim.spatial.Surface.TEE_BOX);
-        return ApiMapper.playingHole(hole, pin, courseType, ball, geometry);
+        return ApiMapper.playingHole(hole, pin, courseType, ball, geometry, event.effectiveWindForHole(hole.number()));
     }
 
     /** The live field leaderboard for the player's event. */

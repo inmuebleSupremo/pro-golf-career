@@ -12,5 +12,10 @@ public record ShotGuidance(AimPoint safe, AimPoint primary, AimPoint aggressive,
             this(club, label, nominalCarry, normalReach, List.of());
         }
     }
-    public record FamilyAvailability(ShotFamily family, boolean available, String reason) { }
+    public record FamilyAvailability(ShotFamily family, boolean available, String reason,
+                                     List<ShapeAvailability> shapes) {
+        public FamilyAvailability { shapes = shapes == null ? List.of() : List.copyOf(shapes); }
+        public FamilyAvailability(ShotFamily family, boolean available, String reason) { this(family, available, reason, List.of()); }
+    }
+    public record ShapeAvailability(ShotShape shape, boolean available, String reason) { }
 }

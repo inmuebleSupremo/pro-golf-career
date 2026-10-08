@@ -90,12 +90,15 @@ public record PlayingConditions(
         // `+ 0.0` normalizes a possible -0.0 (0 wind times a negative cosine) so calm maps exactly to
         // Environment.calm(); it leaves every other value unchanged.
         double headWind = effective * StrictMath.cos(theta) + 0.0;
-        double crossWind = Math.abs(effective * StrictMath.sin(theta)) * WeatherConstants.CROSSWIND_SCALE;
+        double crossWind = effective * StrictMath.sin(theta) * WeatherConstants.CROSSWIND_SCALE + 0.0;
         double lieQuality = clamp(
                 1.0 - rain * WeatherConstants.RAIN_LIE_PENALTY
                         - (1.0 - groundFirmness) * WeatherConstants.SOFT_LIE_PENALTY,
                 WeatherConstants.LIE_FLOOR, 1.0);
-        return new Environment(headWind, crossWind, lieQuality);
+        // +x is golfer-right and +y is down the legacy green-centre reference; the resolver rotates this
+        // vector against each submitted AimPoint axis before applying deterministic drift or uncertainty.
+        double windY = -headWind;
+        return new Environment(new com.progolf.sim.shot.WindVector(crossWind, windY == 0.0 ? 0.0 : windY), lieQuality);
     }
 
     /**

@@ -18,6 +18,7 @@ import com.progolf.sim.shot.RoundResolver;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.Strategy;
+import com.progolf.sim.shot.StrategyPolicy;
 import com.progolf.sim.spatial.Surface;
 import java.util.ArrayList;
 import java.util.List;
@@ -115,6 +116,24 @@ class PlayableRoundTest {
         PlayableRound background = round(course());
         background.simHole();
         assertThat(background.playedHoles().getFirst().shots()).allSatisfy(shot -> assertThat(shot.trace()).isNull());
+    }
+
+    @Test
+    void equivalentHumanAndAiIntentsUseTheSameResolverAndProduceTheSameVisibleOutcome() {
+        Course course = course();
+        PlayableRound human = round(course);
+        ShotSituation situation = human.situation();
+        BallStrikeIntent aiIntent = (BallStrikeIntent) new StrategyPolicy(Strategy.BALANCED).decideShotIntent(
+                human.currentHoleModel(), human.ballState(), situation.distanceToPin(), situation.lie(),
+                Attributes.uniform(55), situation.par());
+        ShotOutcome humanOutcome = human.playShot(aiIntent);
+
+        PlayableRound ai = round(course);
+        ShotOutcome aiOutcome = ai.simShot();
+
+        assertThat(humanOutcome).isEqualTo(aiOutcome);
+        assertThat(humanOutcome.trace()).isNotNull();
+        assertThat(aiOutcome.trace()).isNotNull();
     }
 
     @Test

@@ -9,12 +9,13 @@ import java.util.Objects;
  * ballistic flight, bounce, or timing.
  */
 public record ShotTrace(ClubId clubId, Position2d origin, AimPoint intendedAimPoint, ShotContact contact,
-                        ShotTraceRoll roll, ShotTraceTransition transition, Position2d finalPoint) {
+                        java.util.List<AirbornePoint> airbornePath, ShotTraceRoll roll, ShotTraceTransition transition, Position2d finalPoint) {
     public ShotTrace {
         Objects.requireNonNull(clubId, "clubId");
         Objects.requireNonNull(origin, "origin");
         Objects.requireNonNull(intendedAimPoint, "intendedAimPoint");
         Objects.requireNonNull(contact, "contact");
+        airbornePath = airbornePath == null ? java.util.List.of() : java.util.List.copyOf(airbornePath);
         Objects.requireNonNull(finalPoint, "finalPoint");
         if (roll != null && transition != null) throw new IllegalArgumentException("roll and recovery are exclusive");
         if (roll != null && !roll.from().equals(contact.position())) throw new IllegalArgumentException("roll starts at contact");
@@ -29,6 +30,6 @@ public record ShotTrace(ClubId clubId, Position2d origin, AimPoint intendedAimPo
 
     public ShotTrace(ClubId clubId, Position2d origin, AimPoint intendedAimPoint, ShotContact contact,
                      ShotTraceTransition transition, Position2d finalPoint) {
-        this(clubId, origin, intendedAimPoint, contact, null, transition, finalPoint);
+        this(clubId, origin, intendedAimPoint, contact, java.util.List.of(), null, transition, finalPoint);
     }
 }

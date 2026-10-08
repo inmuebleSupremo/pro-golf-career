@@ -11,12 +11,13 @@ import java.util.Objects;
  * callers create it only through {@link #fromIntent(BallStrikeIntent, double, Strategy)}.
  */
 public record ShotDecision(Club club, double targetDistance, double targetLateral, Strategy strategy, ClubSpec clubSpec,
-                           ShotFamily shotFamily) {
+                           ShotFamily shotFamily, ShotShape shotShape) {
 
     public ShotDecision {
         Objects.requireNonNull(club, "club");
         Objects.requireNonNull(strategy, "strategy");
         Objects.requireNonNull(shotFamily, "shotFamily");
+        Objects.requireNonNull(shotShape, "shotShape");
         if (clubSpec == null) clubSpec = ClubSpec.forLegacy(club);
         if (!Double.isFinite(targetDistance) || targetDistance < 0) {
             throw new IllegalArgumentException("targetDistance must be finite and >= 0: " + targetDistance);
@@ -27,11 +28,16 @@ public record ShotDecision(Club club, double targetDistance, double targetLatera
     }
 
     public ShotDecision(Club club, double targetDistance, double targetLateral, Strategy strategy) {
-        this(club, targetDistance, targetLateral, strategy, ClubSpec.forLegacy(club), ShotFamily.FULL);
+        this(club, targetDistance, targetLateral, strategy, ClubSpec.forLegacy(club), ShotFamily.FULL, ShotShape.STRAIGHT);
     }
 
     public ShotDecision(Club club, double targetDistance, double targetLateral, Strategy strategy, ClubSpec clubSpec) {
-        this(club, targetDistance, targetLateral, strategy, clubSpec, ShotFamily.FULL);
+        this(club, targetDistance, targetLateral, strategy, clubSpec, ShotFamily.FULL, ShotShape.STRAIGHT);
+    }
+
+    public ShotDecision(Club club, double targetDistance, double targetLateral, Strategy strategy, ClubSpec clubSpec,
+                        ShotFamily shotFamily) {
+        this(club, targetDistance, targetLateral, strategy, clubSpec, shotFamily, ShotShape.STRAIGHT);
     }
 
     /** A decision aimed straight down the line (no lateral aim offset). */
@@ -41,6 +47,6 @@ public record ShotDecision(Club club, double targetDistance, double targetLatera
 
     public static ShotDecision fromIntent(BallStrikeIntent intent, double requestedCarry, Strategy executionStrategy) {
         ClubSpec spec = ClubSpec.of(intent.club());
-        return new ShotDecision(spec.family(), requestedCarry, 0.0, executionStrategy, spec, intent.shotFamily());
+        return new ShotDecision(spec.family(), requestedCarry, 0.0, executionStrategy, spec, intent.shotFamily(), intent.shotShape());
     }
 }
