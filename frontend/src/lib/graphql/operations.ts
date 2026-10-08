@@ -41,6 +41,7 @@ export const CreatePlayerDocument = graphql(`
     $nationality: String!
     $startAge: Int!
     $archetype: String!
+    $handedness: String
   ) {
     createPlayer(
       id: $id
@@ -49,6 +50,7 @@ export const CreatePlayerDocument = graphql(`
       nationality: $nationality
       startAge: $startAge
       archetype: $archetype
+      handedness: $handedness
     )
   }
 `);
@@ -235,6 +237,7 @@ export const PlayerProfileDocument = graphql(`
       nationality
       age
       archetype
+      handedness
       worldRanking
       careerEarnings
       availableFunds
@@ -681,7 +684,7 @@ export const PlayStateDocument = graphql(`
         safe { x y }
         primary { x y }
         aggressive { x y }
-        clubs { club label nominalCarry normalReach families { family available reason } }
+        clubs { club label nominalCarry normalReach families { family available reason shapes { shape available reason } } }
       }
       reachable {
         startDistance
@@ -740,6 +743,7 @@ export const PlayingHoleDocument = graphql(`
       pinDepth
       courseType
       layoutSeed
+      effectiveWind { x y magnitude unit }
       geometry {
         tee { x y }
         cup { x y }
@@ -775,6 +779,7 @@ export const PlayShotDocument = graphql(`
           origin { x y }
           aimPoint { x y }
           contact { position { x y } surface }
+          airbornePath { progress position { x y } height }
           roll { from { x y } to { x y } }
           transition { kind from { x y } to { x y } }
           finalPoint { x y }
@@ -794,6 +799,7 @@ export const PlayPuttDocument = graphql(`
         settlement { contact { position { x y } surface } recoveryPosition { x y } recoveryKind ball { position { x y } lie } }
         trace {
           club origin { x y } aimPoint { x y } contact { position { x y } surface }
+          airbornePath { progress position { x y } height }
           roll { from { x y } to { x y } }
           transition { kind from { x y } to { x y } }
           finalPoint { x y }
@@ -825,6 +831,7 @@ export const SimShotDocument = graphql(`
         origin { x y }
         aimPoint { x y }
         contact { position { x y } surface }
+        airbornePath { progress position { x y } height }
         roll { from { x y } to { x y } }
         transition { kind from { x y } to { x y } }
         finalPoint { x y }
