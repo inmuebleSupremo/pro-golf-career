@@ -1,6 +1,7 @@
 package com.progolf.sim.tournament;
 
 import com.progolf.sim.course.Course;
+import com.progolf.sim.course.PinPlacementVersion;
 import java.time.LocalDate;
 import java.util.Objects;
 
@@ -19,7 +20,8 @@ public record TournamentDefinition(
         LocalDate scheduledDate,
         long worldSeed,
         long seasonId,
-        long tournamentId) {
+        long tournamentId,
+        PinPlacementVersion pinPlacementVersion) {
 
     public TournamentDefinition {
         Objects.requireNonNull(name, "name");
@@ -30,6 +32,7 @@ public record TournamentDefinition(
         Objects.requireNonNull(prizeStructure, "prizeStructure");
         Objects.requireNonNull(format, "format");
         Objects.requireNonNull(scheduledDate, "scheduledDate");
+        Objects.requireNonNull(pinPlacementVersion, "pinPlacementVersion");
     }
 
     /**
@@ -40,6 +43,15 @@ public record TournamentDefinition(
                                 PrizeStructure prizeStructure, TournamentFormat format, LocalDate scheduledDate,
                                 long worldSeed, long seasonId, long tournamentId) {
         this(name, course, tier, EventPrestige.REGULAR, entryRequirements, prizeStructure, format,
-                scheduledDate, worldSeed, seasonId, tournamentId);
+                scheduledDate, worldSeed, seasonId, tournamentId, PinPlacementVersion.LEGACY_V1);
+    }
+
+    /** Source-compatible constructor for historical standalone fixtures. */
+    public TournamentDefinition(String name, Course course, Tier tier, EventPrestige prestige,
+                                EntryRequirements entryRequirements, PrizeStructure prizeStructure,
+                                TournamentFormat format, LocalDate scheduledDate, long worldSeed,
+                                long seasonId, long tournamentId) {
+        this(name, course, tier, prestige, entryRequirements, prizeStructure, format, scheduledDate,
+                worldSeed, seasonId, tournamentId, PinPlacementVersion.LEGACY_V1);
     }
 }

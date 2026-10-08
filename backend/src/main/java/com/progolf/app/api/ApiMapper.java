@@ -169,11 +169,19 @@ public final class ApiMapper {
     /** Projects the effective setup-specific geometry used by the active playable hole. */
     public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
                                              CourseGeometry geometry) {
+        return playingHole(hole, pin, courseType, ball, geometry,
+                new Position2d(geometry.greenCenter().x() + pin.lateralOffset(),
+                        geometry.greenCenter().y() + pin.depthOffset()));
+    }
+
+    /** Projects a policy-resolved cup rather than reconstructing it from legacy offsets. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
+                                             CourseGeometry geometry, Position2d cup) {
         return new PlayingHoleDto(hole.number(), hole.par(), hole.length(),
                 hole.fairwayHalfWidth(), hole.greenHalfWidth(), hole.greenDepth(), hole.elevationDelta(),
                 hole.hasGreensideBunker(), hole.hasWater(), hole.hasTrees(),
                 pin.lateralOffset(), pin.depthOffset(),
-                courseType, Long.toString(hole.holeSeed()), geometry(geometry, pin), ballState(ball));
+                courseType, Long.toString(hole.holeSeed()), geometry(geometry, cup), ballState(ball));
     }
 
     /** Compatibility mapper for tests/readers not yet carrying a live ball. */
@@ -208,9 +216,8 @@ public final class ApiMapper {
                 o.hazardEntered(), o.penaltyStrokes(), o.strokes(), settlement(o.settlement()), trace(o.trace()));
     }
 
-    private static PlayingGeometryDto geometry(CourseGeometry geometry, PinPosition pin) {
-        return new PlayingGeometryDto(point(geometry.tee()), point(new Position2d(
-                geometry.greenCenter().x() + pin.lateralOffset(), geometry.greenCenter().y() + pin.depthOffset())),
+    private static PlayingGeometryDto geometry(CourseGeometry geometry, Position2d cup) {
+        return new PlayingGeometryDto(point(geometry.tee()), point(cup),
                 geometry.playableBoundary().stream().map(ApiMapper::point).toList(),
                 geometry.regions().stream().map(region -> new TerrainRegionDto(region.surface().name(),
                         region.boundary().stream().map(ApiMapper::point).toList())).toList());

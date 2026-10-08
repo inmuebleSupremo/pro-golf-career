@@ -73,6 +73,10 @@ public record GeneratedHole(
      * green edge; the RNG draw is identical regardless of setup, so a setup only scales the offsets.
      */
     public PinPosition pinFor(int round, CourseSetup setup) {
+        return legacyPinFor(round, setup);
+    }
+
+    private PinPosition legacyPinFor(int round, CourseSetup setup) {
         SplitMix64Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, round));
         double depth = (rng.nextDouble() * 2.0 - 1.0) * CourseGenConstants.PIN_DEPTH_RANGE * setup.pinAggression();
         // The flag stays on the (width-scaled) green: aggression tucks it toward the edge but never past it.
@@ -90,7 +94,49 @@ public record GeneratedHole(
 
     /** Returns the playable {@link HoleModel} for {@code round}, with that round's pin and setup applied. */
     public HoleModel forRound(int round, CourseSetup setup) {
-        return new RoundHole(this, pinFor(round, setup), setup);
+        return forRound(round, setup, PinPlacementVersion.LEGACY_V1);
+    }
+
+    /** Returns the playable model under an explicit pin-placement policy. */
+    public HoleModel forRound(int round, CourseSetup setup, PinPlacementVersion pinPlacementVersion) {
+        CourseGeometry effectiveGeometry = geometryForWidth(setup.widthScale());
+        PinPlacement placement = pinPlacementFor(round, setup, effectiveGeometry, pinPlacementVersion);
+        return new RoundHole(this, placement.pin(), setup, placement.cup());
+    }
+
+    /** Resolves the presentation intent and authoritative cup from one explicit policy. */
+    public PinPlacement pinPlacementFor(int round, CourseSetup setup, PinPlacementVersion pinPlacementVersion) {
+        return pinPlacementFor(round, setup, geometryForWidth(setup.widthScale()), pinPlacementVersion);
+    }
+
+    private PinPlacement pinPlacementFor(int round, CourseSetup setup, CourseGeometry effectiveGeometry,
+                                         PinPlacementVersion pinPlacementVersion) {
+        if (pinPlacementVersion == PinPlacementVersion.LEGACY_V1) {
+            PinPosition pin = legacyPinFor(round, setup);
+            return new PinPlacement(pin, new Position2d(effectiveGeometry.greenCenter().x() + pin.lateralOffset(),
+                    effectiveGeometry.greenCenter().y() + pin.depthOffset()));
+        }
+        PinPosition intent = legacyPinFor(round, setup); // exactly the historical two deterministic draws
+        Position2d forward = localApproachDirection(setup.widthScale());
+        Position2d right = new Position2d(forward.y(), -forward.x());
+        Position2d center = effectiveGeometry.greenCenter();
+        Position2d intended = center.plus(forward.x() * intent.depthOffset() + right.x() * intent.lateralOffset(),
+                forward.y() * intent.depthOffset() + right.y() * intent.lateralOffset());
+        Position2d cup = GreenPinGeometry.projectIntoEligibleGreen(effectiveGeometry, center, intended);
+        // The public pin metadata and the scoring depth use the resolved location, not the rejected intent.
+        // That keeps presentation, start-distance semantics, and the active effective geometry coherent.
+        double dx = cup.x() - center.x();
+        double dy = cup.y() - center.y();
+        PinPosition resolved = new PinPosition(dx * forward.x() + dy * forward.y(),
+                dx * right.x() + dy * right.y());
+        return new PinPlacement(resolved, cup);
+    }
+
+    private Position2d localApproachDirection(double widthScale) {
+        if (spatialPlan == null) {
+            return new Position2d(0.0, 1.0);
+        }
+        return spatialPlan.withLateralScale(widthScale).greenComplex().approachDirection();
     }
 
     /** The active round cup in the same local coordinates as {@link #geometry()}. */

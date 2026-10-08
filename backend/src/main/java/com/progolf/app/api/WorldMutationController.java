@@ -2,6 +2,7 @@ package com.progolf.app.api;
 
 import com.progolf.app.api.dto.WorldConfigInput;
 import com.progolf.app.api.dto.WorldStatusDto;
+import com.progolf.app.api.dto.PinPlacementStatusDto;
 import com.progolf.app.auth.AuthenticatedUser;
 import com.progolf.app.world.WorldService;
 import com.progolf.app.world.WorldSession;
@@ -45,5 +46,11 @@ public class WorldMutationController {
         String owner = AuthenticatedUser.requireId();
         worldService.advanceWeek(owner, id);
         return worldService.status(owner, id);
+    }
+
+    /** One-way, explicit adoption for future unstarted events only. */
+    @MutationMapping
+    public PinPlacementStatusDto adoptV5PinPlacement(@Argument String id) {
+        return worldService.adoptV5PinPlacement(AuthenticatedUser.requireId(), id);
     }
 }

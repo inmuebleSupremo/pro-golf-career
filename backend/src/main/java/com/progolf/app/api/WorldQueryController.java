@@ -28,6 +28,7 @@ import com.progolf.app.api.dto.SponsorshipOfferDto;
 import com.progolf.app.api.dto.SponsorshipStatusDto;
 import com.progolf.app.api.dto.StaffMemberDto;
 import com.progolf.app.api.dto.WorldStatusDto;
+import com.progolf.app.api.dto.PinPlacementStatusDto;
 import com.progolf.app.auth.AuthenticatedUser;
 import com.progolf.app.world.WorldService;
 import com.progolf.sim.achievement.Achievement;
@@ -57,6 +58,11 @@ public class WorldQueryController {
     @QueryMapping
     public WorldStatusDto world(@Argument String id) {
         return worldService.status(AuthenticatedUser.requireId(), id);
+    }
+
+    @QueryMapping
+    public PinPlacementStatusDto pinPlacementStatus(@Argument String id) {
+        return worldService.pinPlacementStatus(AuthenticatedUser.requireId(), id);
     }
 
     @QueryMapping

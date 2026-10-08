@@ -120,6 +120,28 @@ export const CareerOverviewDocument = graphql(`
   }
 `);
 
+/** The explicit, future-only V5 adoption state for a loaded career. */
+export const PinPlacementStatusDocument = graphql(`
+  query PinPlacementStatus($id: ID!) {
+    pinPlacementStatus(id: $id) {
+      defaultVersion
+      legacyScheduledEvents
+      canAdoptV5
+    }
+  }
+`);
+
+/** One-way adoption of corrected flags for future unstarted events only. */
+export const AdoptV5PinPlacementDocument = graphql(`
+  mutation AdoptV5PinPlacement($id: ID!) {
+    adoptV5PinPlacement(id: $id) {
+      defaultVersion
+      legacyScheduledEvents
+      canAdoptV5
+    }
+  }
+`);
+
 /** Current, aggregated career attention. Individual management spokes remain the decision owners. */
 export const CareerInboxDocument = graphql(`
   query CareerInbox($id: ID!) {

@@ -65,6 +65,7 @@ import com.progolf.sim.staff.SupportTeam;
 import com.progolf.sim.course.Course;
 import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.course.CourseGenerator;
+import com.progolf.sim.course.PinPlacementVersion;
 import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.player.ProfessionalGolfer;
@@ -126,6 +127,7 @@ public final class World {
     private final long masterSeed;
     private final WorldConfig config;
     private final int courseGeneratorVersion;
+    private PinPlacementVersion defaultPinPlacementVersion;
     private final WorldCalendar calendar;
 
     private final List<Course> coursePool = new ArrayList<>();
@@ -202,6 +204,7 @@ public final class World {
         this.masterSeed = masterSeed;
         this.config = config;
         this.courseGeneratorVersion = courseGeneratorVersion;
+        this.defaultPinPlacementVersion = PinPlacementVersion.V5_EFFECTIVE_GREEN;
         this.weatherSystem = new WeatherSystem(masterSeed);
         this.calendar = new WorldCalendar(config.weeksPerSeason(), WorldConstants.BASE_YEAR);
     }
@@ -216,6 +219,44 @@ public final class World {
     /** Generator provenance for this world's fixed course pool; not a player-facing configuration control. */
     public int courseGeneratorVersion() {
         return courseGeneratorVersion;
+    }
+
+    /** Policy that will be pinned to tournaments scheduled after the current boundary. */
+    public PinPlacementVersion defaultPinPlacementVersion() {
+        return defaultPinPlacementVersion;
+    }
+
+    /** The explicit-adoption state; completed archives are intentionally not counted or mutable here. */
+    public PinPlacementMigrationStatus pinPlacementMigrationStatus() {
+        int legacy = (int) schedule.stream()
+                .filter(this::isUnstarted)
+                .filter(event -> event.pinPlacementVersion() == PinPlacementVersion.LEGACY_V1).count();
+        return new PinPlacementMigrationStatus(defaultPinPlacementVersion, legacy, pendingEvent == null);
+    }
+
+    /**
+     * Explicitly adopts the corrected policy only for the current/future unstarted schedule. The command is
+     * intentionally unavailable while interactive event state exists, is deterministic, and is idempotent.
+     */
+    public void adoptV5PinPlacementForFutureEvents() {
+        if (pendingEvent != null) {
+            throw new IllegalStateException("Cannot change pin placement while a player event is pending");
+        }
+        if (defaultPinPlacementVersion == PinPlacementVersion.V5_EFFECTIVE_GREEN
+                && schedule.stream().filter(this::isUnstarted)
+                .allMatch(event -> event.pinPlacementVersion() == PinPlacementVersion.V5_EFFECTIVE_GREEN)) {
+            return;
+        }
+        List<ScheduledTournament> migrated = schedule.stream().map(event -> isUnstarted(event)
+                ? new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
+                event.tournamentId(), PinPlacementVersion.V5_EFFECTIVE_GREEN) : event).toList();
+        defaultPinPlacementVersion = PinPlacementVersion.V5_EFFECTIVE_GREEN;
+        schedule = new ArrayList<>(migrated);
+    }
+
+    /** Current-season events remain in the schedule after resolution for calendar/history reads. */
+    private boolean isUnstarted(ScheduledTournament event) {
+        return seasonResults.stream().noneMatch(result -> result.tournamentId() == event.tournamentId());
     }
 
     /** Regenerates the seed-derived course pool (identical for the same seed/config); used by bootstrap and restore. */
@@ -272,7 +313,7 @@ public final class World {
                 staffPool.available(),
                 playerActiveEquipmentDeal, new ArrayList<>(playerPendingEquipmentDeals),
                 new EnumMap<>(unlockedAchievements), new LinkedHashSet<>(majorsWonThisSeason),
-                playerCareerRecords.snapshot(), courseGeneratorVersion);
+                playerCareerRecords.snapshot(), courseGeneratorVersion, defaultPinPlacementVersion);
     }
 
     /** Rebuilds an identical world from a snapshot, regenerating the seed-derived parts (spec: world-snapshot). */
@@ -280,6 +321,8 @@ public final class World {
         int version = s.courseGeneratorVersion() == null
                 ? CourseGenConstants.V1_GENERATOR_VERSION : s.courseGeneratorVersion();
         World w = new World(masterSeed, config, version);
+        w.defaultPinPlacementVersion = s.defaultPinPlacementVersion() == null
+                ? PinPlacementVersion.LEGACY_V1 : s.defaultPinPlacementVersion();
         w.generateCoursePool();
         w.staffPool = StaffPool.restore(s.staffPool()); // hires mutate it, so restore rather than regenerate
         w.calendar.restoreTo(s.season(), s.week());
@@ -319,7 +362,9 @@ public final class World {
         for (TournamentResult.Snapshot r : s.seasonResults()) {
             w.seasonResults.add(r.restore(w.golfers));
         }
-        w.schedule = new ArrayList<>(s.schedule());
+        w.schedule = s.schedule().stream().map(event -> event.pinPlacementVersion() == null
+                ? new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
+                event.tournamentId(), PinPlacementVersion.LEGACY_V1) : event).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         w.announcedProspects.addAll(s.announcedProspects());
         // 6) Player-control state (null/empty for an autonomous world).
         if (s.playerControl() != null) {
@@ -624,7 +669,7 @@ public final class World {
                 nameFor(event), course, tier, event.prestige(),
                 new EntryRequirements(config.fieldSize(), true),
                 PrizeStructure.forEvent(tier, event.prestige(), cutSize), format, date,
-                masterSeed, season, event.tournamentId());
+                masterSeed, season, event.tournamentId(), event.pinPlacementVersion());
 
         // Weather is generated before play from the course's climate and the point in the season; the
         // whole field plays under the same per-round conditions (REQ-228/231/232).
@@ -1180,7 +1225,8 @@ public final class World {
                 case TOUR_CHAMPIONSHIP -> marqueeCourseIndex(EventPrestige.TOUR_CHAMPIONSHIP, p.tier().ordinal());
                 default -> (int) (nextTournamentId % coursePool.size());
             };
-            generated.add(new ScheduledTournament(p.week(), p.tier(), courseIndex, p.prestige(), nextTournamentId++));
+            generated.add(new ScheduledTournament(p.week(), p.tier(), courseIndex, p.prestige(), nextTournamentId++,
+                    defaultPinPlacementVersion));
         }
         return generated;
     }
@@ -1209,7 +1255,8 @@ public final class World {
                 int courseIndex = (int) (nextTournamentId % coursePool.size());
                 // The first events of each tour's season are its elevated signature events (spec: event-prestige).
                 EventPrestige prestige = e < signature ? EventPrestige.SIGNATURE : EventPrestige.REGULAR;
-                generated.add(new ScheduledTournament(week, tier, courseIndex, prestige, nextTournamentId++));
+                generated.add(new ScheduledTournament(week, tier, courseIndex, prestige, nextTournamentId++,
+                        defaultPinPlacementVersion));
             }
         }
         // Cross-tour majors: the season's marquee events, spread across the calendar, contested by the
@@ -1221,7 +1268,7 @@ public final class World {
             // world-schedule permanent venues); the running id still advances so regular indices are unchanged.
             int courseIndex = marqueeCourseIndex(EventPrestige.MAJOR, m);
             generated.add(new ScheduledTournament(week, TourTier.PRO, courseIndex, EventPrestige.MAJOR,
-                    nextTournamentId++));
+                    nextTournamentId++, defaultPinPlacementVersion));
         }
         return generated;
     }
