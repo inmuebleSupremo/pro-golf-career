@@ -73,6 +73,23 @@ class ShotFamilyResolutionTest {
     }
 
     @Test
+    void fullControlledAndBunkerRetainNoConfiguredRollWhilePitchAndChipStayBounded() {
+        Attributes attributes = Attributes.uniform(60);
+        ShotExecutionProfile full = ShotExecutionProfile.derive(Surface.FAIRWAY, ClubSpec.of(ClubId.SEVEN_IRON),
+                ShotFamily.FULL, attributes, Environment.calm());
+        ShotExecutionProfile controlled = ShotExecutionProfile.derive(Surface.FAIRWAY, ClubSpec.of(ClubId.SEVEN_IRON),
+                ShotFamily.CONTROLLED, attributes, Environment.calm());
+        ShotExecutionProfile bunker = ShotExecutionProfile.derive(Surface.BUNKER, ClubSpec.of(ClubId.SAND_WEDGE),
+                ShotFamily.BUNKER, attributes, Environment.calm());
+
+        assertThat(full.rollYardsOn(Surface.FAIRWAY)).isZero();
+        assertThat(controlled.rollYardsOn(Surface.FAIRWAY)).isZero();
+        assertThat(bunker.rollYardsOn(Surface.BUNKER)).isZero();
+        assertThat(resolve(ShotFamily.FULL).trace().roll()).isNull();
+        assertThat(resolve(ShotFamily.CONTROLLED).trace().roll()).isNull();
+    }
+
+    @Test
     void aiKeepsTheEstablishedCloseFringePuttPathAndUsesFamilyBearingStrikesElsewhere() {
         CourseGeometry geometry = new CourseGeometry(TEE, CUP, square(-150, -10, 150, 200),
                 List.of(new TerrainRegion(Surface.FAIRWAY, square(-150, -10, 150, 200))));

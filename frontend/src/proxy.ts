@@ -9,7 +9,9 @@ import { ACCESS_COOKIE, REFRESH_COOKIE } from "@/lib/auth/cookie-names";
  * the job of the /api/graphql route (the authoritative boundary). Not a security
  * gate: a present-but-invalid cookie passes here and is rejected at the API.
  */
-const PUBLIC_PATHS = ["/", "/login", "/register", "/scenes"];
+const PUBLIC_PATHS = ["/", "/login", "/register", "/scenes",
+  ...(process.env.NODE_ENV === "development" ? ["/dev/wind-preview"] : []),
+];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || (p !== "/" && pathname.startsWith(p + "/")));

@@ -72,6 +72,13 @@ public final class ShotResolver {
         }
 
         ShotExecutionProfile profile = ShotExecutionProfile.derive(context.lie(), club, decision.shotFamily(), attr, env);
+        ShotFamilyEligibility.Result shapeEligibility = ShotShapeEligibility.evaluate(decision.shotFamily(), decision.shotShape());
+        if (!shapeEligibility.allowed()) throw new IllegalArgumentException(shapeEligibility.reason());
+        ShotFrame windFrame = context.hasCanonicalGeometry()
+                ? ShotFrame.toward(context.ball().position(), context.aimTarget())
+                : ShotFrame.toward(new Position2d(0, 0), new Position2d(0, 1));
+        double headWind = env.wind().against(windFrame);
+        double crossWind = env.wind().rightward(windFrame);
         // External ball-strike entry points validate eligibility before creating this compatibility decision.
         // Legacy fixture/background decisions remain resolvable while their adapter retirement is in progress.
 
@@ -102,7 +109,8 @@ public final class ShotResolver {
         // Playing through a recovering injury widens dispersion (spec: shot-resolution injury-impairment).
         // Physical — applied raw, NOT softened by mental support — and neutral at 0.
         double injurySigmaMult = 1.0 + state.injuryImpairment() * SimConstants.INJURY_SIGMA_WEIGHT;
-        double crossMult = 1.0 + Math.abs(env.crossWind()) * SimConstants.CROSSWIND_SIGMA_WEIGHT * (1.0 - windResist);
+        // Wind uncertainty is distinct from its deterministic endpoint displacement below.
+        double crossMult = 1.0 + Math.abs(crossWind) * SimConstants.CROSSWIND_SIGMA_WEIGHT * (1.0 - windResist);
         double lieMult = 1.0 + (1.0 - env.lieQuality()) * SimConstants.LIE_SIGMA_WEIGHT;
 
         // Equipment: forgiveness tightens dispersion, power extends reach (spec: equipment-influence).
@@ -126,9 +134,12 @@ public final class ShotResolver {
         // course management moved a golfer's score by essentially nothing and was not worth developing.
         double managementFactor = 1.0 + managementNorm * SimConstants.MANAGEMENT_DISPERSION_RELIEF;
 
+        double shapeExecution = decision.shotShape() == ShotShape.STRAIGHT ? 1.0
+                : 1.0 + SimConstants.SHAPE_EXECUTION_SIGMA_WEIGHT * (1.0 - state.equipmentWorkability())
+                * (1.0 - attr.norm(club.lateralAttribute()));
         double sigmaLateral = baseLateral / lateralFactor / managementFactor
                 * strategyMult * pressureMult * fatigueSigmaMult * injurySigmaMult * crossMult * lieMult * equipmentDispersion
-                * profile.lateralDispersionMultiplier();
+                * profile.lateralDispersionMultiplier() * shapeExecution;
         // Feel (equipment) tightens distance dispersion — better proximity/touch (spec: equipment-influence);
         // neutral at 0.
         double sigmaDistance = baseDistanceDispersion / distanceFactor / managementFactor
@@ -137,7 +148,6 @@ public final class ShotResolver {
 
         // Mean carry: bounded by reachable distance; reduced by headwind and fatigue; aided by distance skill.
         double meanCarry = shotDistance;
-        double headWind = env.headWind();
         if (headWind > 0) {
             meanCarry -= headWind * (1.0 - windResist) * SimConstants.HEADWIND_MEAN_WEIGHT;
         } else {
@@ -171,7 +181,9 @@ public final class ShotResolver {
         double gLateral = rng.nextGaussian();
         double gDistance = rng.nextGaussian();
 
-        double lateral = decision.targetLateral() + gLateral * sigmaLateral * errorMultiplier;
+        // Deterministic wind drift is applied once, separately from wind uncertainty and ordinary execution error.
+        double windDrift = crossWind * (1.0 - windResist) * SimConstants.CROSSWIND_DRIFT_WEIGHT;
+        double lateral = decision.targetLateral() + windDrift + gLateral * sigmaLateral * errorMultiplier;
         double carry = meanCarry + meanAdjustment + gDistance * sigmaDistance * errorMultiplier;
 
         // --- Step 6: safety net (bounds unrealistic samples; never floors to a good outcome) ---
@@ -274,7 +286,8 @@ public final class ShotResolver {
         ShotFrame frame = raw.putt()
                 ? ShotFrame.toward(origin, cup)
                 : ShotFrame.toward(origin, context.aimTarget());
-        Position2d contactPosition = frame.project(raw.carry(), raw.lateral());
+        FlightSolution flight = raw.putt() ? null : flight(context, frame, raw, profile);
+        Position2d contactPosition = flight == null ? frame.project(raw.carry(), raw.lateral()) : flight.firstContact();
         Surface contactSurface = context.geometry().surfaceAt(contactPosition);
         ShotContact contact = new ShotContact(contactPosition, contactSurface);
         ShotSettlement settlement;
@@ -308,21 +321,30 @@ public final class ShotResolver {
                     new BallState(finalPosition, context.geometry().surfaceAt(finalPosition)));
         }
         BallState playable = settlement.ball();
-        ShotTrace trace = materializeTrace ? trace(context, settlement, roll) : null;
+        ShotTrace trace = materializeTrace ? trace(context, settlement, roll, flight) : null;
         return new ShotOutcome(playable.lie(), raw.carry(), raw.lateral(), playable.position().distanceTo(cup),
                 contactSurface.isHazard(), contactSurface.penaltyStrokes(), 1 + contactSurface.penaltyStrokes(),
                 raw.factors(), settlement, raw.putt(), trace);
     }
 
     /** Builds a presentation projection from existing context and settlement facts without recalculation. */
-    private static ShotTrace trace(ShotContext context, ShotSettlement settlement, ShotTraceRoll roll) {
+    private static FlightSolution flight(ShotContext context, ShotFrame frame, ShotOutcome raw, ShotExecutionProfile profile) {
+        ShotShape shape = context.decision().shotShape();
+        double sign = FlightSolution.shapeCurveSign(context.handedness(), shape);
+        double curve = sign * raw.carry() * SimConstants.SHAPE_CURVE_FRACTION;
+        double apex = raw.carry() * (profile == null ? SimConstants.FLIGHT_APEX_FRACTION
+                : SimConstants.FLIGHT_APEX_FRACTION * (context.decision().shotFamily() == ShotFamily.PITCH ? 0.7 : 1.0));
+        return new FlightSolution(frame, raw.carry(), raw.lateral(), curve, apex);
+    }
+
+    private static ShotTrace trace(ShotContext context, ShotSettlement settlement, ShotTraceRoll roll, FlightSolution flight) {
         ShotContact contact = settlement.contact();
         ShotTraceTransition transition = settlement.recoveryKind() == RecoveryKind.NONE ? null
                 : new ShotTraceTransition(settlement.recoveryKind(), contact.position(),
                         Objects.requireNonNull(settlement.recoveryPosition(), "recovery position"));
         Position2d aim = context.aimTarget();
         return new ShotTrace(context.decision().clubSpec().id(), context.ball().position(),
-                new AimPoint(aim.x(), aim.y()), contact, roll, transition, settlement.ball().position());
+                new AimPoint(aim.x(), aim.y()), contact, flight == null ? java.util.List.of() : flight.samples(), roll, transition, settlement.ball().position());
     }
 
     /** Implements the specified tee-ward 15-yard start and 1-yard deterministic rough scan. */

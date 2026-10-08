@@ -1,6 +1,7 @@
 package com.progolf.sim.shot;
 
 import com.progolf.sim.core.Attributes;
+import com.progolf.sim.core.Handedness;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.Position2d;
@@ -33,7 +34,8 @@ public record ShotContext(
         BallState ball,
         CourseGeometry geometry,
         Position2d cupPosition,
-        Position2d aimTarget) {
+        Position2d aimTarget,
+        Handedness handedness) {
 
     public ShotContext {
         Objects.requireNonNull(attributes, "attributes");
@@ -43,6 +45,7 @@ public record ShotContext(
         Objects.requireNonNull(decision, "decision");
         Objects.requireNonNull(coordinate, "coordinate");
         Objects.requireNonNull(lie, "lie");
+        handedness = handedness == null ? Handedness.RIGHT : handedness;
         if (!Double.isFinite(pinDistance) || pinDistance < 0) {
             throw new IllegalArgumentException("pinDistance must be finite and >= 0: " + pinDistance);
         }
@@ -59,7 +62,7 @@ public record ShotContext(
     public ShotContext(Attributes attributes, GolferState state, Environment environment, double pinDistance,
                        ShotZoneProfile zoneProfile, ShotDecision decision, SeedCoordinate coordinate, Surface lie) {
         this(attributes, state, environment, pinDistance, zoneProfile, decision, coordinate, lie, 0.0,
-                null, null, null, null);
+                null, null, null, null, Handedness.RIGHT);
     }
 
     /**
@@ -70,7 +73,7 @@ public record ShotContext(
     public ShotContext(Attributes attributes, GolferState state, Environment environment, double pinDistance,
                        ShotZoneProfile zoneProfile, ShotDecision decision, SeedCoordinate coordinate) {
         this(attributes, state, environment, pinDistance, zoneProfile, decision, coordinate, Surface.TEE_BOX, 0.0,
-                null, null, null, null);
+                null, null, null, null, Handedness.RIGHT);
     }
 
     /** Legacy full constructor retained for fixtures while canonical migration is in progress. */
@@ -78,7 +81,7 @@ public record ShotContext(
                        ShotZoneProfile zoneProfile, ShotDecision decision, SeedCoordinate coordinate, Surface lie,
                        double pinLateral) {
         this(attributes, state, environment, pinDistance, zoneProfile, decision, coordinate, lie, pinLateral,
-                null, null, null, null);
+                null, null, null, null, Handedness.RIGHT);
     }
 
     /** Pre-V3 spatial constructor retained for fixtures; it uses the established green-centre reference. */
@@ -86,7 +89,15 @@ public record ShotContext(
                        ShotZoneProfile zoneProfile, ShotDecision decision, SeedCoordinate coordinate, Surface lie,
                        double pinLateral, BallState ball, CourseGeometry geometry, Position2d cupPosition) {
         this(attributes, state, environment, pinDistance, zoneProfile, decision, coordinate, lie, pinLateral, ball,
-                geometry, cupPosition, ball == null ? null : new Position2d(geometry.greenCenter().x(), cupPosition.y()));
+                geometry, cupPosition, ball == null ? null : new Position2d(geometry.greenCenter().x(), cupPosition.y()), Handedness.RIGHT);
+    }
+
+    public ShotContext(Attributes attributes, GolferState state, Environment environment, double pinDistance,
+                       ShotZoneProfile zoneProfile, ShotDecision decision, SeedCoordinate coordinate, Surface lie,
+                       double pinLateral, BallState ball, CourseGeometry geometry, Position2d cupPosition,
+                       Position2d aimTarget) {
+        this(attributes, state, environment, pinDistance, zoneProfile, decision, coordinate, lie, pinLateral, ball,
+                geometry, cupPosition, aimTarget, Handedness.RIGHT);
     }
 
     public boolean hasCanonicalGeometry() {

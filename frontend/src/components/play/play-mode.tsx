@@ -12,6 +12,7 @@ import { humanize } from "@/lib/play/options";
 import { StageHole } from "@/components/play/hole-transition";
 import { usePlaySequence } from "@/components/play/use-play-sequence";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
+import { buildBallStrikeIntent } from "@/lib/play/intent";
 import {
   defaultClub,
   formatScore,
@@ -242,6 +243,7 @@ function ActionDock({
   const putt = usePlayPutt(id);
   const [club, setClub] = useState(() => defaultClub(situation));
   const [technique, setTechnique] = useState("FULL");
+  const [shape, setShape] = useState("STRAIGHT");
   const [formError, setFormError] = useState<string | null>(null);
   const clubs = situation.guidance?.clubs ?? [];
   const selectedClub = clubs.find((candidate) => candidate.club === club);
@@ -257,13 +259,15 @@ function ActionDock({
   const origin = hole?.ball?.position ?? hole?.geometry?.tee ?? { x: 0, y: 0 };
   const targetDistance = Math.hypot(aimPoint.x - origin.x, aimPoint.y - origin.y);
   const landingTarget = technique === "PITCH" || technique === "CHIP";
+  const selectedTechnique = selectedClub?.families.find((candidate) => candidate.family === technique);
+  const shapes = selectedTechnique?.shapes ?? [{ shape: "STRAIGHT", available: true, reason: null }];
 
   async function onPlay() {
     setFormError(null);
     try {
       const submission = puttRoute
         ? (await putt.mutateAsync(situation.shotRevision)).playPutt
-        : (await play.mutateAsync({ club, aimPoint, shotFamily: technique, expectedShotRevision: situation.shotRevision })).playShot;
+        : (await play.mutateAsync(buildBallStrikeIntent(club, aimPoint, technique, shape, situation.shotRevision))).playShot;
       if (submission.stale || !submission.outcome) {
         setFormError("That shot plan is stale. Choose the target again.");
         return;
@@ -295,6 +299,13 @@ function ActionDock({
             ))}
           </Select>
         </DockField>
+        {!puttRoute ? <DockField label="Flight shape">
+          <Select value={shape} onChange={(e) => setShape(e.target.value)}>
+            {shapes.map((candidate) => <option key={candidate.shape} value={candidate.shape} disabled={!candidate.available}>
+              {humanize(candidate.shape)}{candidate.reason ? ` — ${candidate.reason}` : ""}
+            </option>)}
+          </Select>
+        </DockField> : null}
         {!puttRoute ? <DockField label={landingTarget ? "Landing X" : "Target X"}>
           <Input
             type="number"

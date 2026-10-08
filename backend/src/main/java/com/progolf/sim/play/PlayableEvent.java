@@ -10,6 +10,7 @@ import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.player.DecisionPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.shot.Environment;
+import com.progolf.sim.shot.WindVector;
 import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.ShotDecision;
@@ -162,6 +163,17 @@ public final class PlayableEvent {
     /** The host course's environment classification (biome), for presentation styling. */
     public EnvironmentClassification classification() {
         return course.identity().classification();
+    }
+
+    /**
+     * The resolver-effective signed wind flow for a hole in the active round. This retains the established
+     * synthetic per-hole orientation mapping; it is a canonical local flow, not a geographic bearing.
+     */
+    public WindVector effectiveWindForHole(int holeNumber) {
+        if (holeNumber < 1 || holeNumber > 18) {
+            throw new IllegalArgumentException("hole number must be 1..18: " + holeNumber);
+        }
+        return weather.conditionsForRound(currentPinRound()).environmentForHole(holeNumber, exposure).wind();
     }
 
     /** The round whose pin is live — the playoff round during a playoff, otherwise the round in play. */
@@ -333,7 +345,8 @@ public final class PlayableEvent {
         // pre-round standings — preserving simmed==auto fidelity.
         var playerState = player.player().toGolferState(tournament.pressureFor(playerFieldIndex, roundNo));
         Strategy roundStrategy = tournament.roundStrategyFor(playerFieldIndex, roundNo);
-        this.currentRound = new PlayableRound(player.player().attributes(), playerState, holes, base, roundStrategy);
+        this.currentRound = new PlayableRound(player.player().attributes(), playerState, holes, base, roundStrategy,
+                player.player().handedness());
         this.phase = Phase.ROUND;
     }
 

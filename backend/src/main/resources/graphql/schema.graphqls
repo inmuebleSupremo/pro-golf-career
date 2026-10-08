@@ -131,7 +131,7 @@ type Mutation {
     assignPlayer(id: ID!, golferId: ID!): Boolean!
 
     "Creates a custom human golfer (nationality/archetype as enum names) as the session's player; returns its id."
-    createPlayer(id: ID!, firstName: String!, lastName: String!, nationality: String!, startAge: Int!, archetype: String!): ID!
+    createPlayer(id: ID!, firstName: String!, lastName: String!, nationality: String!, startAge: Int!, archetype: String!, handedness: String): ID!
 
     "Sets the player's development focus (an ordered list of Attribute enum names)."
     setDevelopmentFocus(id: ID!, focus: [String!]!): Boolean!
@@ -394,6 +394,7 @@ type PlayerProfile {
     nationality: String!
     age: Int!
     archetype: String!
+    handedness: String!
     "World ranking position; null when the golfer is unranked."
     worldRanking: Int
     careerEarnings: Float!
@@ -659,6 +660,8 @@ type PlayingHole {
     geometry: PlayingGeometry!
     "The legal position and lie from which the next shot will be played."
     ball: BallState!
+    "Effective local wind flow after weather, exposure, and synthetic orientation conversion."
+    effectiveWind: EffectiveWind!
 }
 
 type Position {
@@ -695,16 +698,21 @@ type ShotSettlement {
     ball: BallState!
 }
 
-"Authoritative spatial facts for one observable shot; it contains no simulated trajectory physics."
+"Authoritative spatial facts for one observable shot; airborne points are sampled from the resolver-owned path."
 type ShotTrace {
     club: String!
     origin: Position!
     aimPoint: AimPoint!
     contact: ShotContact!
+    airbornePath: [AirbornePoint!]!
     roll: ShotTraceRoll
     transition: ShotTraceTransition
     finalPoint: Position!
 }
+type AirbornePoint { progress: Float!, position: Position!, height: Float! }
+
+"Read-only signed wind flow in canonical hole coordinates; it describes where air moves toward, not a compass bearing."
+type EffectiveWind { x: Float!, y: Float!, magnitude: Float!, unit: String! }
 
 "One authoritative post-contact ground-response endpoint, distinct from rules recovery."
 type ShotTraceRoll {
@@ -739,7 +747,8 @@ type ShotSituation {
 
 type AimEnvelope { minX: Float!, maxX: Float!, minY: Float!, maxY: Float! }
 type AimPoint { x: Float!, y: Float! }
-type ShotFamilyAvailability { family: String!, available: Boolean!, reason: String }
+type ShotShapeAvailability { shape: String!, available: Boolean!, reason: String }
+type ShotFamilyAvailability { family: String!, available: Boolean!, reason: String, shapes: [ShotShapeAvailability!]! }
 type ClubReach { club: String!, label: String!, nominalCarry: Float!, normalReach: Float!, families: [ShotFamilyAvailability!]! }
 type ShotGuidance { safe: AimPoint!, primary: AimPoint!, aggressive: AimPoint!, clubs: [ClubReach!]! }
 type ShotSubmission { outcome: ShotOutcome, stale: Boolean! }
@@ -787,6 +796,7 @@ input BallStrikeIntentInput {
     club: String!
     aimPoint: AimPointInput!
     shotFamily: String
+    shotShape: String
     expectedShotRevision: String!
 }
 

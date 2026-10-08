@@ -20,6 +20,7 @@ export interface HoleGeom {
   readonly pinDepth: number;
   readonly courseType: string;
   readonly layoutSeed: string;
+  readonly effectiveWind: { readonly x: number; readonly y: number; readonly magnitude: number; readonly unit: string };
   readonly geometry?: {
     readonly tee: Point;
     readonly cup: Point;
@@ -46,6 +47,7 @@ export interface ResolvedShot {
     readonly origin: Point;
     readonly aimPoint: Point;
     readonly contact: { readonly position: Point; readonly surface: string };
+    readonly airbornePath?: readonly { readonly progress: number; readonly position: Point; readonly height: number }[];
     readonly roll?: { readonly from: Point; readonly to: Point } | null;
     readonly transition?: { readonly kind: string; readonly from: Point; readonly to: Point } | null;
     readonly finalPoint: Point;

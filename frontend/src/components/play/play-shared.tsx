@@ -21,7 +21,8 @@ export type Situation = {
     primary: { x: number; y: number };
     aggressive: { x: number; y: number };
     clubs: { club: string; label: string; nominalCarry: number; normalReach: number;
-      families: { family: string; available: boolean; reason?: string | null }[] }[];
+      families: { family: string; available: boolean; reason?: string | null;
+        shapes: { shape: string; available: boolean; reason?: string | null }[] }[] }[];
   } | null;
 };
 
@@ -44,6 +45,7 @@ export type Outcome = {
     origin: { x: number; y: number };
     aimPoint: { x: number; y: number };
     contact: { position: { x: number; y: number }; surface: string };
+    airbornePath?: { progress: number; position: { x: number; y: number }; height: number }[];
     roll?: { from: { x: number; y: number }; to: { x: number; y: number } } | null;
     transition?: { kind: string; from: { x: number; y: number }; to: { x: number; y: number } } | null;
     finalPoint: { x: number; y: number };

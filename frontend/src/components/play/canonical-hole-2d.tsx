@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 
 import { BIOME_KITS, resolveBiome } from "@/lib/play/biomes";
 import { canonicalRenderModel } from "@/lib/play/canonical-geometry";
 import type { Point } from "@/lib/play/hole-geometry";
-import { feedbackAimPoint, interpolatedContactPoint, transitionLabel } from "@/lib/play/trace-presentation";
+import { feedbackAimPoint, isAimPointInteractionLocked, tracePlaybackDurationMs, tracePlaybackFrame, tracePlaybackStatus, transitionLabel } from "@/lib/play/trace-presentation";
 import type { Hole2dProps } from "@/components/play/hole-2d";
+import { WindDisplay } from "@/components/play/wind-display";
 
 const W = 220;
 const H = 440;
 const PAD = 16;
-const PLAYBACK_MS = 650;
 
 const fills = (surface: string, kit: (typeof BIOME_KITS)[keyof typeof BIOME_KITS]) => {
   switch (surface) {
@@ -31,7 +31,7 @@ const fills = (surface: string, kit: (typeof BIOME_KITS)[keyof typeof BIOME_KITS
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
     const sync = () => setReduced(query.matches);
     sync();
@@ -60,7 +60,7 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint }:
     const start = (started: number) => {
       setProgress(0);
       const advance = (now: number) => {
-      const next = Math.min(1, (now - started) / PLAYBACK_MS);
+      const next = Math.min(1, (now - started) / tracePlaybackDurationMs(trace));
       setProgress(next);
       if (next < 1) frame = requestAnimationFrame(advance);
       };
@@ -81,21 +81,21 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint }:
   const transitionTo = trace?.transition ? model.project(trace.transition.to) : null;
   const rollFrom = trace?.roll ? model.project(trace.roll.from) : null;
   const rollTo = trace?.roll ? model.project(trace.roll.to) : null;
-  const movingBall = trace && progress < 1
-    ? model.project(interpolatedContactPoint(trace, progress))
-    : null;
+  const playback = trace ? tracePlaybackFrame(trace, progress) : null;
+  const movingBall = playback && !playback.finalVisible ? model.project(playback.point) : null;
   const contactEffect = trace?.contact.surface === "WATER" ? "#dff1ff"
     : trace?.contact.surface === "BUNKER" ? kit.sandStroke : "#ffffff";
   const finalMatchesContact = trace != null && trace.finalPoint.x === trace.contact.position.x
     && trace.finalPoint.y === trace.contact.position.y;
 
   function selectTarget(event: PointerEvent<SVGSVGElement>) {
-    if (!onAimPoint || !svgRef.current || trace) return;
+    if (!onAimPoint || !svgRef.current || isAimPointInteractionLocked(trace != null)) return;
     const rect = svgRef.current.getBoundingClientRect();
     onAimPoint(model.unproject({ x: (event.clientX - rect.left) * W / rect.width, y: (event.clientY - rect.top) * H / rect.height }));
   }
 
   const recoveryLabel = transitionLabel(trace);
+  const playbackStatus = tracePlaybackStatus(trace, playback);
   return <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className={className} role="img"
     aria-label={`Hole ${hole.holeNumber}, par ${hole.par}, canonical terrain${trace ? `, ${trace.club} shot result` : ""}`}
     onPointerDown={selectTarget}>
@@ -104,30 +104,35 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint }:
     <path d={model.playableBoundaryPath} fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="1" />
     <rect x={tee.x - 7} y={tee.y - 3} width="14" height="6" rx="2" fill={kit.tee} />
     <circle cx={cup.x} cy={cup.y} r="2" fill="#111" /><path d={`M${cup.x} ${cup.y} v-13 l7 2.5 -7 2.5z`} fill="#e23b3b" />
+    <WindDisplay wind={hole.effectiveWind} model={model} tee={geometry.tee} />
 
     {traceTarget && contact ? <path d={`M${traceTarget.x} ${traceTarget.y} L${contact.x} ${contact.y}`} stroke="var(--accent)" strokeWidth="1" strokeDasharray="2 2" opacity=".75" /> : null}
     {traceTarget ? <TargetMarker point={traceTarget} label="Intended target" /> : null}
     {planningTarget ? <TargetMarker point={planningTarget} label="Selected target" /> : null}
 
     {trace && contact ? <>
-      <path d={`M${model.project(trace.origin).x} ${model.project(trace.origin).y} L${contact.x} ${contact.y}`} stroke="#ffffff" strokeWidth="1.1" strokeDasharray="3 3" opacity=".65" />
+      <path d={(trace.airbornePath?.length ?? 0) > 0 ? `M${trace.airbornePath!.map((point) => `${model.project(point.position).x} ${model.project(point.position).y}`).join(" L")}` : `M${model.project(trace.origin).x} ${model.project(trace.origin).y} L${contact.x} ${contact.y}`} stroke="#ffffff" strokeWidth="1.1" strokeDasharray="3 3" opacity=".65" />
       {movingBall ? <circle cx={movingBall.x} cy={movingBall.y} r="3" fill="#fff" stroke="#c99" strokeWidth=".6" /> : null}
       <circle cx={contact.x} cy={contact.y} r="6" fill="none" stroke={contactEffect} strokeWidth="1.5" opacity=".9" />
       <circle cx={contact.x} cy={contact.y} r="2.4" fill="#fff" />
       <text x={contact.x + 5} y={contact.y - 5} fill="#fff" fontSize="5">{finalMatchesContact ? "Contact / ball" : "Contact"}</text>
     </> : null}
 
-    {transitionFrom && transitionTo && recoveryLabel ? <>
+    {transitionFrom && transitionTo && recoveryLabel && (playback?.phase === "transition" || playback?.phase === "final") ? <>
       <path d={`M${transitionFrom.x} ${transitionFrom.y} L${transitionTo.x} ${transitionTo.y}`} stroke="#fff" strokeWidth="1.2" strokeDasharray="3 2" opacity=".9" />
       <text x={(transitionFrom.x + transitionTo.x) / 2 + 3} y={(transitionFrom.y + transitionTo.y) / 2 - 3} fill="#fff" fontSize="5">{recoveryLabel}</text>
     </> : null}
 
-    {rollFrom && rollTo ? <>
+    {rollFrom && rollTo && (playback?.phase === "roll" || playback?.phase === "final") ? <>
       <path d={`M${rollFrom.x} ${rollFrom.y} L${rollTo.x} ${rollTo.y}`} stroke="var(--accent)" strokeWidth="1.3" strokeDasharray="2 1" opacity=".95" />
       <text x={(rollFrom.x + rollTo.x) / 2 + 3} y={(rollFrom.y + rollTo.y) / 2 - 3} fill="var(--accent)" fontSize="5">Roll</text>
     </> : null}
 
-    {(!trace || !finalMatchesContact) ? <><circle cx={finalPoint.x} cy={finalPoint.y} r="3" fill="#fff" stroke="#c99" strokeWidth=".6" />
+    {playbackStatus ? <text x={PAD} y={H - PAD} fill="var(--accent)" fontSize="6" fontWeight="700">
+      {playbackStatus}
+    </text> : null}
+
+    {(!trace || playback?.finalVisible) && (!trace || !finalMatchesContact) ? <><circle cx={finalPoint.x} cy={finalPoint.y} r="3" fill="#fff" stroke="#c99" strokeWidth=".6" />
       {trace ? <text x={finalPoint.x + 5} y={finalPoint.y + 6} fill="#fff" fontSize="5">Ball</text> : null}</> : null}
   </svg>;
 }

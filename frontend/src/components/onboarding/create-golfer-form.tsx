@@ -36,6 +36,7 @@ const schema = z.object({
     .int()
     .min(MIN_START_AGE, ageRange)
     .max(MAX_START_AGE, ageRange),
+  handedness: z.enum(["RIGHT", "LEFT"]),
 });
 type Values = z.infer<typeof schema>;
 
@@ -58,6 +59,7 @@ export function CreateGolferForm() {
       nationality: "",
       archetype: "",
       startAge: DEFAULT_START_AGE,
+      handedness: "RIGHT",
     },
   });
 
@@ -88,6 +90,12 @@ export function CreateGolferForm() {
           <Input {...register("lastName")} autoComplete="family-name" />
         </Field>
       </div>
+      <Field id="handedness" label="Playing hand">
+        <Select {...register("handedness")}>
+          <option value="RIGHT">Right-handed</option>
+          <option value="LEFT">Left-handed</option>
+        </Select>
+      </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field id="nationality" label="Nationality" error={errors.nationality?.message}>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalRenderModel, type CanonicalPlayingGeometry } from "./canonical-geometry";
+import { canonicalRenderModel, projectCanonicalFlow, type CanonicalPlayingGeometry } from "./canonical-geometry";
 
 const geometry: CanonicalPlayingGeometry = {
   tee: { x: 0, y: 0 },
@@ -85,5 +85,15 @@ describe("canonicalRenderModel", () => {
     expect(model.playableBoundaryPath).not.toEqual(
       canonicalRenderModel(geometry).playableBoundaryPath,
     );
+  });
+
+  it("projects canonical wind flow toward the matching SVG direction without implying a compass", () => {
+    const model = canonicalRenderModel(geometry);
+    expect(projectCanonicalFlow(geometry.tee, { x: 1, y: 0 }, model.project)).toEqual({
+      x: expect.closeTo(1, 8), y: expect.closeTo(0, 8),
+    });
+    expect(projectCanonicalFlow(geometry.tee, { x: 0, y: 1 }, model.project)).toEqual({
+      x: expect.closeTo(0, 8), y: expect.closeTo(-1, 8),
+    });
   });
 });

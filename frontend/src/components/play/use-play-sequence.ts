@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { HoleGeom, ResolvedShot } from "@/lib/play/hole-geometry";
+import { clearResultPresentation, completeNonHolingPlayback, showResolvedShot } from "@/lib/play/playback-presentation";
 import type { LeaderboardRow, Outcome, Scorecard, Situation } from "@/components/play/play-shared";
 
 /**
@@ -87,8 +88,7 @@ export function usePlaySequence({
   const D = reduced ? REDUCED : FULL;
 
   const [phase, setPhase] = useState<SeqPhase>("intro");
-  const [playbackShot, setPlaybackShot] = useState<ResolvedShot | null>(null);
-  const [lastOutcome, setLastOutcome] = useState<Outcome | null>(null);
+  const [resultPresentation, setResultPresentation] = useState(() => clearResultPresentation<ResolvedShot, Outcome>());
   const [shotAnimating, setShotAnimating] = useState(false);
   // The finishing hole, snapshotted while the ceremony holds over the server's advance.
   const [frozen, setFrozen] = useState(false);
@@ -107,8 +107,7 @@ export function usePlaySequence({
   // A single resolved shot (played or simmed). A holed shot opens the between-hole ceremony, snapshotting the
   // hole it finished; any other shot just plays back while the controls stay locked for trace feedback.
   const onShotResolved = useCallback((outcome: Outcome) => {
-    setPlaybackShot(toResolved(outcome));
-    setLastOutcome(outcome);
+    setResultPresentation(showResolvedShot(toResolved(outcome), outcome));
     if (outcome.distanceRemaining <= 0) {
       setFrozenHole(holeRef.current);
       setFrozenSit(sitRef.current);
@@ -122,8 +121,7 @@ export function usePlaySequence({
   // A multi-hole sim jumped the state forward — skip the ceremony, drop the finished hole's ball, and greet the
   // landed hole with its intro.
   const onSimJump = useCallback(() => {
-    setPlaybackShot(null);
-    setLastOutcome(null);
+    setResultPresentation(clearResultPresentation());
     setShotAnimating(false);
     setFrozen(false);
     setPhase("intro");
@@ -148,8 +146,7 @@ export function usePlaySequence({
       // the sweep — move on to its pre-hole intro.
       const swap = setTimeout(() => {
         setFrozen(false);
-        setPlaybackShot(null);
-        setLastOutcome(null);
+        setResultPresentation(clearResultPresentation());
       }, Math.max(1, D.wipe / 2));
       const done = setTimeout(() => setPhase("intro"), D.wipe);
       return () => {
@@ -163,7 +160,11 @@ export function usePlaySequence({
   // Release the result-playback lock after a non-holing shot has played out.
   useEffect(() => {
     if (!shotAnimating) return;
-    const t = setTimeout(() => setShotAnimating(false), D.shot);
+    const t = setTimeout(() => {
+      setShotAnimating(false);
+      // Preserve textual feedback, but release the completed visual trace so canonical targeting is usable again.
+      setResultPresentation((presentation) => completeNonHolingPlayback(presentation));
+    }, D.shot);
     return () => clearTimeout(t);
   }, [shotAnimating, D.shot]);
 
@@ -194,9 +195,9 @@ export function usePlaySequence({
     phase,
     displayHole,
     displaySituation,
-    playbackShot,
+    playbackShot: resultPresentation.playbackShot,
     postHole,
-    lastOutcome,
+    lastOutcome: resultPresentation.lastOutcome,
     locked,
     onShotResolved,
     onSimJump,

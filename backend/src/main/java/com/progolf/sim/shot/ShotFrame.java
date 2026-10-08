@@ -80,4 +80,6 @@ public final class ShotFrame {
         Objects.requireNonNull(position, "position");
         return (position.x() - origin.x()) * forwardY - (position.y() - origin.y()) * forwardX;
     }
+    public double forwardX() { return forwardX; }
+    public double forwardY() { return forwardY; }
 }
