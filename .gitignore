@@ -29,6 +29,9 @@ dist-ssr/
 
 # ---- Save games (default local saves dir) ----
 saves/
+# The authenticated Next.js route is source code, not persisted save data.
+!frontend/src/app/(app)/(standard)/saves/
+!frontend/src/app/(app)/(standard)/saves/*.tsx
 
 # ---- User accounts (default local users dir) ----
 users/
