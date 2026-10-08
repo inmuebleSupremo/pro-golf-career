@@ -2,7 +2,6 @@
 
 ## Purpose
 An autonomous world can be captured as an immutable snapshot at a clean boundary and rebuilt into an identical world, such that continuing the restored world matches continuing the original. This is the capturability foundation for save/load (the serialization format and files are a separate app-layer concern).
-
 ## Requirements
 ### Requirement: World Capturable As An Immutable Snapshot
 
@@ -45,3 +44,23 @@ Continuing a restored world SHALL be indistinguishable from continuing the origi
 
 - **WHEN** a world is snapshotted, rebuilt from that snapshot, and both the original and the rebuilt world are advanced by the same number of steps
 - **THEN** the two worlds SHALL be observably identical afterward
+
+### Requirement: Explicit Future Pin-Policy Adoption
+
+A player-controlled world at a clean event boundary SHALL support an explicit, atomic adoption of V5 pin placement for future unstarted scheduled events. The snapshot SHALL retain both the world default for future schedule generation and the per-event policy provenance needed to distinguish migrated future events from completed history. Snapshots lacking this provenance SHALL restore with legacy semantics.
+
+#### Scenario: Adoption changes only future unstarted events
+
+- **WHEN** an eligible existing career explicitly adopts V5 with no pending playable event
+- **THEN** its future unstarted scheduled events and future schedule default SHALL become V5
+- **AND THEN** completed results, archived schedules, course-generator provenance, career progression, and prior seed-derived history SHALL remain unchanged
+
+#### Scenario: Adoption is unavailable mid-event
+
+- **WHEN** a playable event is pending
+- **THEN** V5 adoption SHALL be rejected without changing world state
+
+#### Scenario: Repeated adoption is idempotent
+
+- **WHEN** a career already adopted V5 requests adoption again at a clean boundary
+- **THEN** it SHALL make no further state change and consume no random draws

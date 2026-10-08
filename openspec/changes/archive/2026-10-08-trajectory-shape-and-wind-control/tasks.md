@@ -54,7 +54,7 @@
 
 ## External integration blocker (out of scope for this change)
 
-- [ ] B.1 Before integrating this feature, create and complete a separate effective-cup-placement OpenSpec change in
+- [x] B.1 Before integrating this feature, create and complete a separate effective-cup-placement OpenSpec change in
   an isolated worktree. It must require setup-specific GREEN cup classification, minimum playable green-edge
   clearance, geometry-aware pin placement, preserved front/back and tucked-pin difficulty, deterministic retained
   generator/save compatibility, actual-tournament-setup corpus regressions, practical hole completion, and scoring /

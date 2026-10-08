@@ -131,7 +131,7 @@ The resolver SHALL support trace materialization without changing sampling, geom
 - **THEN** carry, lateral, contact, settlement, penalties, score, final ball state, and random consumption SHALL be equal
 - **AND THEN** only trace presence and its resolver-derived samples may differ.
 
-### Requirement: Bounded authoritative airborne representation
+### Requirement: No speculative trajectory physics
 The resolver and trace MAY represent deterministic shape curvature, derived height, and aim-relative directional-wind response only through an authoritative `FlightSolution` and its derived samples. They SHALL NOT claim or calculate launch velocity, spin, bounce, slope, firmness, terrain crossing effects, time-of-flight, forced carry, tree collision, obstacle collision, player-controlled trajectory, or full aerodynamic physics.
 
 #### Scenario: Airborne path does not become collision physics

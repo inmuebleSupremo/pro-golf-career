@@ -30,3 +30,8 @@
 
 - [x] 5.1 Run the focused and full backend suite, reporting the known WaterDrop baseline separately.
 - [x] 5.2 Run `openspec validate valid-effective-pin-placement --strict --no-interactive`, then manually check that course generation, setup, tournament lifecycle, persistence, and GraphQL deltas make one consistent versioning and migration contract.
+
+## Deferred manual follow-up
+
+Manual legacy-career migration UI E2E is intentionally deferred. Automated migration coverage and the accepted
+new-career/combined-gameplay E2E checks do not constitute this separate manual acceptance.

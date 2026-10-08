@@ -111,3 +111,29 @@ If a future save format persists a pending shot intent, it SHALL persist its int
 - **WHEN** a current save is written during normal world play
 - **THEN** it does not depend on an unvalidated in-flight GraphQL intent object.
 
+### Requirement: Backward-Compatible Pin-Policy Provenance
+
+Save persistence SHALL serialize the world's future pin-placement default and each persisted scheduled/archived event's policy provenance without serializing duplicate cup coordinates or terrain polygons. A supported save made before this provenance existed SHALL deserialize all existing/default policy values as `LEGACY_V1`, not the latest policy. An explicitly migrated or newly created V5 world SHALL restore its policy choices exactly.
+
+#### Scenario: Legacy save does not silently adopt V5
+
+- **WHEN** a save lacking pin-policy fields is loaded
+- **THEN** it SHALL retain legacy pin behaviour until the owner explicitly adopts V5 at a permitted boundary
+
+#### Scenario: Migrated future schedule survives save/load
+
+- **WHEN** a V5-adopted career is saved and loaded before one of its future scheduled events begins
+- **THEN** that event and schedules generated later SHALL retain V5 while historical events retain their recorded legacy policy
+
+### Requirement: Handedness save compatibility
+Player handedness SHALL be persisted and restored with player identity. Snapshots created before handedness exists SHALL load deterministically as `RIGHT` without changing unrelated player, career, world, or pending-event state. Observable `ShotTrace` airborne paths remain immediate result data and SHALL NOT introduce trace-history or replay persistence.
+
+#### Scenario: Historical save defaults handedness safely
+- **WHEN** a compatible existing save lacks a handedness field
+- **THEN** loading it SHALL restore the player as `RIGHT`
+- **AND THEN** the save's unrelated world and player values SHALL retain their existing meanings.
+
+#### Scenario: Trace does not become save history
+- **WHEN** an observable shot returns an airborne trace path
+- **THEN** no completed-shot trace history or replay persistence SHALL be required to save or load the world.
+
