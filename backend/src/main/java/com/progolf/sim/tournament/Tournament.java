@@ -348,7 +348,7 @@ public final class Tournament {
         double exposure = definition.course().identity().classification().exposure() * setup.windScale();
         int strokes = 0;
         for (int hole = 1; hole <= 18; hole++) {
-            HoleModel model = definition.course().holeModel(hole, roundNo, setup);
+            HoleModel model = definition.course().holeModel(hole, roundNo, setup, definition.pinPlacementVersion());
             SeedCoordinate coord = new SeedCoordinate(
                     definition.worldSeed(), definition.seasonId(), definition.tournamentId(),
                     roundNo, s.fieldIndex(), hole, 0);
@@ -577,7 +577,7 @@ public final class Tournament {
                                        CourseSetup setup, TournamentEntry e, int holeNumber, int playoffRound) {
         ProfessionalGolfer g = e.golfer();
         Strategy strategy = g.policy().map(DecisionPolicy::defaultStrategy).orElse(Strategy.BALANCED);
-        HoleModel model = definition.course().holeModel(holeNumber, playoffRound, setup);
+        HoleModel model = definition.course().holeModel(holeNumber, playoffRound, setup, definition.pinPlacementVersion());
         SeedCoordinate coord = new SeedCoordinate(
                 definition.worldSeed(), definition.seasonId(), definition.tournamentId(),
                 playoffRound, e.fieldIndex(), holeNumber, 0);

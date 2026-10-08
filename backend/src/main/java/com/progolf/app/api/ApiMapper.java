@@ -175,17 +175,29 @@ public final class ApiMapper {
     /** Projects the effective setup-specific geometry used by the active playable hole. */
     public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
                                              CourseGeometry geometry) {
-        return playingHole(hole, pin, courseType, ball, geometry, new WindVector(0.0, 0.0));
+        return playingHole(hole, pin, courseType, ball, geometry, legacyCup(geometry, pin), new WindVector(0.0, 0.0));
     }
 
     /** Projects the effective setup-specific geometry and resolver-effective canonical wind for the active hole. */
     public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
                                              CourseGeometry geometry, WindVector wind) {
+        return playingHole(hole, pin, courseType, ball, geometry, legacyCup(geometry, pin), wind);
+    }
+
+    /** Projects a policy-resolved cup rather than reconstructing it from legacy offsets. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
+                                             CourseGeometry geometry, Position2d cup) {
+        return playingHole(hole, pin, courseType, ball, geometry, cup, new WindVector(0.0, 0.0));
+    }
+
+    /** Projects the policy-resolved cup and resolver-effective canonical wind used by the active hole. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
+                                             CourseGeometry geometry, Position2d cup, WindVector wind) {
         return new PlayingHoleDto(hole.number(), hole.par(), hole.length(),
                 hole.fairwayHalfWidth(), hole.greenHalfWidth(), hole.greenDepth(), hole.elevationDelta(),
                 hole.hasGreensideBunker(), hole.hasWater(), hole.hasTrees(),
                 pin.lateralOffset(), pin.depthOffset(),
-                courseType, Long.toString(hole.holeSeed()), geometry(geometry, pin), ballState(ball), effectiveWind(wind));
+                courseType, Long.toString(hole.holeSeed()), geometry(geometry, cup), ballState(ball), effectiveWind(wind));
     }
 
     /** Compatibility mapper for tests/readers not yet carrying a live ball. */
@@ -220,12 +232,16 @@ public final class ApiMapper {
                 o.hazardEntered(), o.penaltyStrokes(), o.strokes(), settlement(o.settlement()), trace(o.trace()));
     }
 
-    private static PlayingGeometryDto geometry(CourseGeometry geometry, PinPosition pin) {
-        return new PlayingGeometryDto(point(geometry.tee()), point(new Position2d(
-                geometry.greenCenter().x() + pin.lateralOffset(), geometry.greenCenter().y() + pin.depthOffset())),
+    private static PlayingGeometryDto geometry(CourseGeometry geometry, Position2d cup) {
+        return new PlayingGeometryDto(point(geometry.tee()), point(cup),
                 geometry.playableBoundary().stream().map(ApiMapper::point).toList(),
                 geometry.regions().stream().map(region -> new TerrainRegionDto(region.surface().name(),
                         region.boundary().stream().map(ApiMapper::point).toList())).toList());
+    }
+
+    private static Position2d legacyCup(CourseGeometry geometry, PinPosition pin) {
+        return new Position2d(geometry.greenCenter().x() + pin.lateralOffset(),
+                geometry.greenCenter().y() + pin.depthOffset());
     }
 
     private static PositionDto point(Position2d point) {

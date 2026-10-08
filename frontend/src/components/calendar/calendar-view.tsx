@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SpokeEmpty, useSpokeGate } from "@/components/career/spoke";
 import { SeasonCalendar, type CalendarEntry } from "@/components/calendar/season-calendar";
-import { useCareerOverview, usePlayerCalendar, usePlayerFitness } from "@/lib/api/queries";
-import { useAcknowledgeScheduleReview, useSetResting } from "@/lib/api/manage";
+import { useCareerOverview, usePinPlacementStatus, usePlayerCalendar, usePlayerFitness } from "@/lib/api/queries";
+import { useAcknowledgeScheduleReview, useAdoptV5PinPlacement, useSetResting } from "@/lib/api/manage";
 
 export function CalendarView({ id }: { id: string }) {
   const query = usePlayerCalendar(id);
@@ -38,6 +38,7 @@ export function CalendarView({ id }: { id: string }) {
   return (
     <div className="flex flex-col gap-4">
       <AvailabilityBar id={id} />
+      <PinPlacementBar id={id} />
 
       {entries.length === 0 ? (
         <SpokeEmpty>No events on the calendar yet.</SpokeEmpty>
@@ -50,6 +51,37 @@ export function CalendarView({ id }: { id: string }) {
           playedCount={playedCount}
         />
       )}
+    </div>
+  );
+}
+
+/** A narrow career-management affordance; it never changes an active or completed event. */
+function PinPlacementBar({ id }: { id: string }) {
+  const status = usePinPlacementStatus(id);
+  const adopt = useAdoptV5PinPlacement(id);
+  if (!status.data) return null;
+  const policy = status.data.pinPlacementStatus;
+  const legacy = policy.defaultVersion === "LEGACY_V1";
+  return (
+    <div className="border-border bg-surface flex flex-wrap items-center justify-between gap-4 rounded-lg border px-5 py-4">
+      <div className="flex flex-col gap-0.5">
+        <span className="font-medium">{legacy ? "Historical flag placement" : "Corrected flag placement"}</span>
+        <span className="text-muted-foreground text-sm">
+          {legacy
+            ? `${policy.legacyScheduledEvents} future event${policy.legacyScheduledEvents === 1 ? "" : "s"} still use historical pins.`
+            : "Future events use effective-green flag placement; completed events remain unchanged."}
+        </span>
+      </div>
+      {legacy ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => adopt.mutate()}
+          disabled={!policy.canAdoptV5 || adopt.isPending}
+        >
+          {policy.canAdoptV5 ? "Adopt corrected pins" : "Finish current event first"}
+        </Button>
+      ) : null}
     </div>
   );
 }

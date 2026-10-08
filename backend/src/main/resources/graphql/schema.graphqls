@@ -10,6 +10,9 @@ type Query {
     "Read-only status of a world session by id."
     world(id: ID!): WorldStatus
 
+    "The owner's future-event pin-placement policy and whether explicit V5 adoption is currently safe."
+    pinPlacementStatus(id: ID!): PinPlacementStatus!
+
     "The player's reviewable schedule of eligible upcoming events (empty when no player is assigned)."
     playerSchedule(id: ID!): [ScheduleEntry!]!
 
@@ -125,6 +128,9 @@ type Mutation {
     "Advances a session by one week; returns the new status."
     advanceWeek(id: ID!): WorldStatus!
 
+    "Explicitly adopts corrected V5 pin placement for future unstarted events at a clean event boundary."
+    adoptV5PinPlacement(id: ID!): PinPlacementStatus!
+
     # --- Player control (add-graphql-mutations). Enum args use engine enum names. ---
 
     "Designates an existing golfer as the human-controlled player."
@@ -218,6 +224,15 @@ type WorldStatus {
     hasPendingEvent: Boolean!
     "True when the pending event has been played to its end and only awaits completion (the finish-event window)."
     pendingEventFinished: Boolean!
+}
+
+type PinPlacementStatus {
+    "LEGACY_V1 for historical careers, or V5_EFFECTIVE_GREEN for corrected future events."
+    defaultVersion: String!
+    "Current-season unstarted events that still retain historical placement provenance."
+    legacyScheduledEvents: Int!
+    "False only while an active playable event prevents a safe boundary migration."
+    canAdoptV5: Boolean!
 }
 
 type Golfer {

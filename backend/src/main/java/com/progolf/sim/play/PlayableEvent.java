@@ -7,6 +7,7 @@ import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.course.GeneratedHole;
 import com.progolf.sim.course.PinPosition;
+import com.progolf.sim.course.PinPlacementVersion;
 import com.progolf.sim.player.DecisionPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.shot.Environment;
@@ -54,6 +55,7 @@ public final class PlayableEvent {
     private final Strategy simStrategy;
     private final double exposure;
     private final CourseSetup setup;
+    private final PinPlacementVersion pinPlacementVersion;
 
     private Phase phase;
     private int currentRoundNo;
@@ -83,6 +85,7 @@ public final class PlayableEvent {
         // The event's course setup (from the tournament) scales pins/width via holeModel and wind via exposure,
         // identically to the automatic path, so a simmed event matches the auto result (spec: course-setup).
         this.setup = tournament.setup();
+        this.pinPlacementVersion = tournament.definition().pinPlacementVersion();
         this.exposure = course.identity().classification().exposure() * setup.windScale();
         beginRound(1);
     }
@@ -152,12 +155,17 @@ public final class PlayableEvent {
         if (phase == Phase.PLAYOFF && holeNumber == currentPlayoffHole.situation().holeNumber()) {
             return currentEffectiveGeometry();
         }
-        return course.holeModel(holeNumber, currentPinRound(), setup).geometry();
+        return course.holeModel(holeNumber, currentPinRound(), setup, pinPlacementVersion).geometry();
     }
 
     /** The active pin for hole {@code holeNumber} in the round currently in progress, under this event's setup. */
     public PinPosition pinAt(int holeNumber) {
-        return holeGeometry(holeNumber).pinFor(currentPinRound(), setup);
+        return holeGeometry(holeNumber).pinPlacementFor(currentPinRound(), setup, pinPlacementVersion).pin();
+    }
+
+    /** The authoritative V5/legacy cup coordinate used by resolution and presentation for a hole. */
+    public com.progolf.sim.course.Position2d cupAt(int holeNumber) {
+        return course.holeModel(holeNumber, currentPinRound(), setup, pinPlacementVersion).cupPosition();
     }
 
     /** The host course's environment classification (biome), for presentation styling. */
@@ -334,7 +342,7 @@ public final class PlayableEvent {
         PlayingConditions conditions = weather.conditionsForRound(roundNo);
         List<HoleToPlay> holes = new ArrayList<>(18);
         for (int hole = 1; hole <= 18; hole++) {
-            HoleModel model = course.holeModel(hole, roundNo, setup);
+            HoleModel model = course.holeModel(hole, roundNo, setup, pinPlacementVersion);
             int par = course.holes().get(hole - 1).par();
             Environment env = conditions.environmentForHole(hole, exposure);
             holes.add(new HoleToPlay(model, par, env));
@@ -433,7 +441,7 @@ public final class PlayableEvent {
         if (playerInPlayoff()) {
             int holeNumber = tournament.playoffHoleNumber();
             long playoffRound = tournament.playoffRound();
-            HoleModel model = course.holeModel(holeNumber, (int) playoffRound, setup);
+            HoleModel model = course.holeModel(holeNumber, (int) playoffRound, setup, pinPlacementVersion);
             int par = course.holes().get(holeNumber - 1).par();
             Environment env = weather.conditionsForRound((int) playoffRound).environmentForHole(holeNumber, exposure);
             SeedCoordinate coord =

@@ -24,6 +24,7 @@ import com.progolf.sim.staff.SupportTeam;
 import com.progolf.sim.statistics.StatisticsArchive;
 import com.progolf.sim.tour.TourSystem;
 import com.progolf.sim.tournament.TournamentResult;
+import com.progolf.sim.course.PinPlacementVersion;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -77,7 +78,8 @@ public record WorldSnapshot(
         Map<Achievement, Integer> unlockedAchievements,
         Set<Integer> majorsWonThisSeason,
         CareerRecordBook.Snapshot playerCareerRecords,
-        Integer courseGeneratorVersion) {
+        Integer courseGeneratorVersion,
+        PinPlacementVersion defaultPinPlacementVersion) {
 
     /** An archived season captured by id (its schedule is immutable; its results re-link on restore). */
     public record ArchiveSnapshot(int season, List<ScheduledTournament> schedule,

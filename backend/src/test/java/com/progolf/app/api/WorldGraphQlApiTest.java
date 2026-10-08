@@ -100,6 +100,20 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void pinPlacementStatusAndExplicitAdoptionAreOwnerScoped() {
+        String id = worldService.create(OWNER, 203L, SMALL).id();
+        graphQlTester.document("query($id: ID!){ pinPlacementStatus(id: $id){ defaultVersion legacyScheduledEvents canAdoptV5 } }")
+                .variable("id", id).execute()
+                .path("pinPlacementStatus.defaultVersion").entity(String.class).isEqualTo("V5_EFFECTIVE_GREEN")
+                .path("pinPlacementStatus.canAdoptV5").entity(Boolean.class).isEqualTo(true);
+
+        graphQlTester.document("mutation($id: ID!){ adoptV5PinPlacement(id: $id){ defaultVersion legacyScheduledEvents } }")
+                .variable("id", id).execute()
+                .path("adoptV5PinPlacement.defaultVersion").entity(String.class).isEqualTo("V5_EFFECTIVE_GREEN")
+                .path("adoptV5PinPlacement.legacyScheduledEvents").entity(Integer.class).isEqualTo(0);
+    }
+
+    @Test
     void readModelIsEmptyForAWorldWithoutAPlayer() {
         String id = worldService.create(OWNER, 303L, SMALL).id();
         graphQlTester.document("""

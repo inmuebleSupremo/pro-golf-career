@@ -26,6 +26,7 @@ import com.progolf.app.api.dto.RecordDto;
 import com.progolf.app.api.dto.SeasonReviewDto;
 import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.WorldStatusDto;
+import com.progolf.app.api.dto.PinPlacementStatusDto;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
 import com.progolf.app.persistence.SaveMetadata;
@@ -198,6 +199,20 @@ public class WorldService {
         World world = session.world();
         return new WorldStatusDto(session.id(), world.currentSeason(), world.currentWeek(),
                 world.activePopulationSize(), world.hasPendingPlayerEvent(), world.playerEventAwaitingCompletion());
+    }
+
+    /** Owner-authorized status for the one-way future-event pin-policy adoption. */
+    public PinPlacementStatusDto pinPlacementStatus(String ownerId, String id) {
+        var status = required(ownerId, id).world().pinPlacementMigrationStatus();
+        return new PinPlacementStatusDto(status.defaultVersion().name(), status.legacyScheduledEvents(),
+                status.canAdoptV5());
+    }
+
+    /** Explicitly adopts V5 for eligible future scheduled events, then persists the clean-boundary change. */
+    public PinPlacementStatusDto adoptV5PinPlacement(String ownerId, String id) {
+        required(ownerId, id).world().adoptV5PinPlacementForFutureEvents();
+        autosave(ownerId, id);
+        return pinPlacementStatus(ownerId, id);
     }
 
     // --- Player control (spec: player-control): the human guides one designated golfer ---
@@ -904,7 +919,8 @@ public class WorldService {
         var geometry = event.effectiveGeometry(hole.number());
         var ball = holeNumber == null ? event.currentBallState()
                 : new com.progolf.sim.shot.BallState(geometry.tee(), com.progolf.sim.spatial.Surface.TEE_BOX);
-        return ApiMapper.playingHole(hole, pin, courseType, ball, geometry, event.effectiveWindForHole(hole.number()));
+        return ApiMapper.playingHole(hole, pin, courseType, ball, geometry, event.cupAt(hole.number()),
+                event.effectiveWindForHole(hole.number()));
     }
 
     /** The live field leaderboard for the player's event. */

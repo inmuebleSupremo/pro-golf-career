@@ -48,9 +48,14 @@ public record Course(CourseIdentity identity, List<GeneratedHole> holes, int gen
 
     /** The playable {@link HoleModel} for a hole (1..18) in a round, under the event's course setup. */
     public HoleModel holeModel(int holeNumber, int round, CourseSetup setup) {
+        return holeModel(holeNumber, round, setup, PinPlacementVersion.LEGACY_V1);
+    }
+
+    /** The playable model under an explicitly versioned flag-placement policy. */
+    public HoleModel holeModel(int holeNumber, int round, CourseSetup setup, PinPlacementVersion pinPlacementVersion) {
         if (holeNumber < 1 || holeNumber > 18) {
             throw new IllegalArgumentException("Hole number must be 1..18: " + holeNumber);
         }
-        return holes.get(holeNumber - 1).forRound(round, setup);
+        return holes.get(holeNumber - 1).forRound(round, setup, pinPlacementVersion);
     }
 }
