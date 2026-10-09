@@ -707,6 +707,7 @@ export const PlayStateDocument = graphql(`
         primary { x y }
         aggressive { x y }
         clubs { club label nominalCarry normalReach families { family available reason shapes { shape available reason } } }
+        strategicOptions { role aimPoint { x y } suggestedClub suggestedFamily routeSummary exposureSummary }
       }
       reachable {
         startDistance

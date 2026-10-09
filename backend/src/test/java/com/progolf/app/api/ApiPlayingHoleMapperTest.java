@@ -11,14 +11,19 @@ import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.course.GeneratedHole;
+import com.progolf.sim.course.LandingZoneRole;
 import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.course.Position2d;
 import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.shot.BallState;
+import com.progolf.sim.shot.AimPoint;
+import com.progolf.sim.shot.ClubId;
 import com.progolf.sim.shot.FactorBreakdown;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.RecoveryKind;
 import com.progolf.sim.shot.ShotContact;
+import com.progolf.sim.shot.ShotFamily;
+import com.progolf.sim.shot.ShotGuidance;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.ShotSettlement;
 import com.progolf.sim.shot.ShotTrace;
@@ -158,6 +163,29 @@ class ApiPlayingHoleMapperTest {
                 assertThat(bandDto.regions().get(j).halfWidth()).isEqualTo(band.regions().get(j).outerHalfWidth());
             }
         }
+    }
+
+    @Test
+    void situationProjectsBackendAuthoredStrategicOptionsAdditively() {
+        GeneratedHole hole = course(2468L).holes().get(0);
+        HoleModel model = hole.forRound(1);
+        ShotGuidance guidance = new ShotGuidance(new AimPoint(0, 200), new AimPoint(0, 240), new AimPoint(0, 280),
+                java.util.List.of(), java.util.List.of(new ShotGuidance.StrategicOption(LandingZoneRole.AGGRESSIVE,
+                        new AimPoint(18, 280), ClubId.DRIVER, ShotFamily.FULL, "Shorter next shot",
+                        "Higher landing exposure")));
+        ShotSituation situation = new ShotSituation(hole.number(), hole.par(), 1, 0, 280, Surface.TEE_BOX,
+                model.pinLateral(), model.zoneProfileFor(280), "1:1", null, guidance);
+
+        ShotSituationDto dto = ApiMapper.situation(situation);
+
+        assertThat(dto.guidance().primary().y()).isEqualTo(240);
+        assertThat(dto.guidance().strategicOptions()).singleElement().satisfies(option -> {
+            assertThat(option.role()).isEqualTo("AGGRESSIVE");
+            assertThat(option.aimPoint().x()).isEqualTo(18);
+            assertThat(option.suggestedClub()).isEqualTo("DRIVER");
+            assertThat(option.suggestedFamily()).isEqualTo("FULL");
+            assertThat(option.exposureSummary()).isEqualTo("Higher landing exposure");
+        });
     }
 
     @Test

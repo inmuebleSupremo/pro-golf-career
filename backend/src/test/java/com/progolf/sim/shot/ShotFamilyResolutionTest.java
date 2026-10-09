@@ -23,14 +23,14 @@ class ShotFamilyResolutionTest {
     void eligibilitySeparatesInvalidTechniqueFromDifficultButLegalLie() {
         assertThat(ShotFamilyEligibility.evaluate(Surface.BUNKER, ClubSpec.of(ClubId.SAND_WEDGE), ShotFamily.BUNKER).allowed())
                 .isTrue();
-        assertThat(ShotFamilyEligibility.evaluate(Surface.BUNKER, ClubSpec.of(ClubId.GAP_WEDGE), ShotFamily.FULL).allowed())
-                .isFalse();
+        assertThat(ShotFamilyEligibility.evaluate(Surface.BUNKER, ClubSpec.of(ClubId.GAP_WEDGE), ShotFamily.FULL))
+                .isEqualTo(new ShotFamilyEligibility.Result(false, "Bunker shots require BUNKER technique"));
         assertThat(ShotFamilyEligibility.evaluate(Surface.FAIRWAY, ClubSpec.of(ClubId.GAP_WEDGE), ShotFamily.BUNKER).allowed())
                 .isFalse();
         assertThat(ShotFamilyEligibility.evaluate(Surface.DEEP_ROUGH, ClubSpec.of(ClubId.SIX_IRON), ShotFamily.FULL).allowed())
                 .isTrue();
-        assertThat(ShotFamilyEligibility.evaluate(Surface.TREES, ClubSpec.of(ClubId.DRIVER), ShotFamily.FULL).allowed())
-                .isFalse();
+        assertThat(ShotFamilyEligibility.evaluate(Surface.TREES, ClubSpec.of(ClubId.DRIVER), ShotFamily.FULL))
+                .isEqualTo(new ShotFamilyEligibility.Result(false, "Long clubs are unsuitable from this recovery lie"));
     }
 
     @Test

@@ -13,8 +13,8 @@ import { StageHole } from "@/components/play/hole-transition";
 import { usePlaySequence } from "@/components/play/use-play-sequence";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
 import { buildBallStrikeIntent } from "@/lib/play/intent";
+import { shotSubmissionFeedback } from "@/lib/play/shot-feedback";
 import {
-  defaultClub,
   formatScore,
   Leaderboard,
   OutcomeNote,
@@ -26,6 +26,7 @@ import {
   type LeaderboardRow,
   type Outcome,
   type Scorecard,
+  validShotSelection,
   type Situation,
 } from "@/components/play/play-shared";
 import {
@@ -241,26 +242,34 @@ function ActionDock({
 }) {
   const play = usePlayShot(id);
   const putt = usePlayPutt(id);
-  const [club, setClub] = useState(() => defaultClub(situation));
-  const [technique, setTechnique] = useState("FULL");
-  const [shape, setShape] = useState("STRAIGHT");
+  const [requestedSelection, setRequestedSelection] = useState(() => validShotSelection(situation));
   const [formError, setFormError] = useState<string | null>(null);
   const clubs = situation.guidance?.clubs ?? [];
+  // Re-derive on every server situation so a stale browser selection is never submitted.
+  const selection = validShotSelection(situation, requestedSelection);
+  const { club, technique, shape } = selection;
   const selectedClub = clubs.find((candidate) => candidate.club === club);
-  const playableClubs = clubs.filter((candidate) => candidate.families.some((family) => family.available));
+  const playableClubs = clubs.filter((candidate) => candidate.families.some((family) =>
+    family.available && family.shapes.some((candidateShape) => candidateShape.available)));
   const puttingAvailable = situation.lie === "GREEN" || situation.lie === "FRINGE";
   const puttRoute = situation.lie === "GREEN" || technique === "PUTT";
   const techniques = puttRoute && situation.lie === "GREEN"
     ? [{ family: "PUTT", available: true, reason: null }]
     : [
       ...(puttingAvailable ? [{ family: "PUTT", available: true, reason: null }] : []),
-      ...(selectedClub?.families ?? []),
+      ...(selectedClub?.families.filter((candidate) => candidate.available
+        && candidate.shapes.some((candidateShape) => candidateShape.available)) ?? []),
     ];
   const origin = hole?.ball?.position ?? hole?.geometry?.tee ?? { x: 0, y: 0 };
   const targetDistance = Math.hypot(aimPoint.x - origin.x, aimPoint.y - origin.y);
   const landingTarget = technique === "PITCH" || technique === "CHIP";
   const selectedTechnique = selectedClub?.families.find((candidate) => candidate.family === technique);
-  const shapes = selectedTechnique?.shapes ?? [{ shape: "STRAIGHT", available: true, reason: null }];
+  const shapes = selectedTechnique?.shapes.filter((candidate) => candidate.available)
+    ?? [{ shape: "STRAIGHT", available: true, reason: null }];
+
+  function updateSelection(update: Partial<typeof selection>) {
+    setRequestedSelection((current) => validShotSelection(situation, { ...current, ...update }));
+  }
 
   async function onPlay() {
     setFormError(null);
@@ -273,8 +282,8 @@ function ActionDock({
         return;
       }
       onShot(submission.outcome);
-    } catch {
-      setFormError("Couldn't play that shot. Try again.");
+    } catch (error) {
+      setFormError(shotSubmissionFeedback(error));
     }
   }
 
@@ -282,7 +291,7 @@ function ActionDock({
     <footer className="border-border bg-surface/70 border-t px-4 py-3 backdrop-blur-md md:px-6">
       <div className="mx-auto flex max-w-5xl flex-wrap items-end gap-x-3 gap-y-2.5">
         {!puttRoute ? <DockField label="Club">
-          <Select value={club} onChange={(e) => setClub(e.target.value)}>
+          <Select value={club} onChange={(e) => updateSelection({ club: e.target.value })}>
             {playableClubs.map((candidate) => (
               <option key={candidate.club} value={candidate.club}>
                 {candidate.label}
@@ -291,42 +300,42 @@ function ActionDock({
           </Select>
         </DockField> : null}
         <DockField label="Technique">
-          <Select value={puttRoute && situation.lie === "GREEN" ? "PUTT" : technique} onChange={(e) => setTechnique(e.target.value)} disabled={situation.lie === "GREEN"}>
+          <Select value={puttRoute && situation.lie === "GREEN" ? "PUTT" : technique} onChange={(e) => updateSelection({ technique: e.target.value })} disabled={situation.lie === "GREEN"}>
             {techniques.map((candidate) => (
-              <option key={candidate.family} value={candidate.family} disabled={!candidate.available}>
+              <option key={candidate.family} value={candidate.family}>
                 {humanize(candidate.family)}{candidate.reason ? ` — ${candidate.reason}` : ""}
               </option>
             ))}
           </Select>
         </DockField>
         {!puttRoute ? <DockField label="Flight shape">
-          <Select value={shape} onChange={(e) => setShape(e.target.value)}>
-            {shapes.map((candidate) => <option key={candidate.shape} value={candidate.shape} disabled={!candidate.available}>
+          <Select value={shape} onChange={(e) => updateSelection({ shape: e.target.value })}>
+            {shapes.map((candidate) => <option key={candidate.shape} value={candidate.shape}>
               {humanize(candidate.shape)}{candidate.reason ? ` — ${candidate.reason}` : ""}
             </option>)}
           </Select>
         </DockField> : null}
-        {!puttRoute ? <DockField label={landingTarget ? "Landing X" : "Target X"}>
-          <Input
-            type="number"
-            value={aimPoint.x}
-            onChange={(e) => onAimPoint({ ...aimPoint, x: Number(e.target.value) })}
-            className="w-24"
-          />
-        </DockField> : null}
-        {!puttRoute ? <DockField label={landingTarget ? "Landing Y" : "Target Y"}>
-          <Input type="number" value={aimPoint.y} onChange={(e) => onAimPoint({ ...aimPoint, y: Number(e.target.value) })} className="w-24" />
-        </DockField> : null}
-        {!puttRoute ? <div className="flex gap-1" aria-label="Nudge target">
-          <Button variant="secondary" size="sm" onClick={() => onAimPoint({ ...aimPoint, x: aimPoint.x - 5 })}>←</Button>
-          <Button variant="secondary" size="sm" onClick={() => onAimPoint({ ...aimPoint, y: aimPoint.y + 5 })}>↑</Button>
-          <Button variant="secondary" size="sm" onClick={() => onAimPoint({ ...aimPoint, y: aimPoint.y - 5 })}>↓</Button>
-          <Button variant="secondary" size="sm" onClick={() => onAimPoint({ ...aimPoint, x: aimPoint.x + 5 })}>→</Button>
-        </div> : null}
+        {!puttRoute ? <details className="text-muted-foreground text-xs">
+          <summary className="cursor-pointer select-none">Fine adjust target</summary>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <DockField label={landingTarget ? "Landing X" : "Target X"}>
+              <Input
+                type="number"
+                value={aimPoint.x}
+                onChange={(e) => onAimPoint({ ...aimPoint, x: Number(e.target.value) })}
+                className="w-24"
+              />
+            </DockField>
+            <DockField label={landingTarget ? "Landing Y" : "Target Y"}>
+              <Input type="number" value={aimPoint.y} onChange={(e) => onAimPoint({ ...aimPoint, y: Number(e.target.value) })} className="w-24" />
+            </DockField>
+          </div>
+        </details> : null}
         <div className="text-muted-foreground text-xs" aria-live="polite">
           {puttRoute ? "Putting uses the existing make-and-leave model" : `${landingTarget ? "Landing target" : "Target"} ${Math.round(targetDistance)} yds · ${selectedClub ? `${Math.round(selectedClub.normalReach)} yd normal reach` : "club guidance unavailable"}`}
         </div>
-        {situation.guidance ? <div className="flex gap-1"><Button variant="secondary" size="sm" onClick={() => onAimPoint(situation.guidance!.safe)}>Safe</Button><Button variant="secondary" size="sm" onClick={() => onAimPoint(situation.guidance!.primary)}>Primary</Button><Button variant="secondary" size="sm" onClick={() => onAimPoint(situation.guidance!.aggressive)}>Aggressive</Button></div> : null}
+        {situation.guidance ? <StrategicGuidance options={situation.guidance.strategicOptions}
+          fallback={situation.guidance.primary} onAimPoint={onAimPoint} /> : null}
 
         <div className="order-last w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
           {formError ? (
@@ -344,6 +353,33 @@ function ActionDock({
         </Button>
       </div>
     </footer>
+  );
+}
+
+function StrategicGuidance({
+  options,
+  fallback,
+  onAimPoint,
+}: {
+  options: NonNullable<Situation["guidance"]>["strategicOptions"];
+  fallback: { x: number; y: number };
+  onAimPoint: (point: { x: number; y: number }) => void;
+}) {
+  if (options.length === 0) {
+    return <Button variant="secondary" size="sm" onClick={() => onAimPoint(fallback)}>Primary</Button>;
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1" aria-label="Strategic landing guidance">
+      {options.map((option) => (
+        <Button key={option.role} variant="secondary" size="sm" onClick={() => onAimPoint(option.aimPoint)}
+          title={`${option.routeSummary}. ${option.exposureSummary}. Suggested ${humanize(option.suggestedClub)} ${humanize(option.suggestedFamily)}.`}>
+          {humanize(option.role)}
+        </Button>
+      ))}
+      <span className="text-subtle-foreground max-w-64 text-xs">
+        {options.map((option) => `${humanize(option.role)}: ${option.routeSummary}; ${option.exposureSummary}; suggested ${humanize(option.suggestedClub)} ${humanize(option.suggestedFamily)}`).join(" · ")}
+      </span>
+    </div>
   );
 }
 
