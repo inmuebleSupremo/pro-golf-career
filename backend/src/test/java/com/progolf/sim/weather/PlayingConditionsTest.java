@@ -46,6 +46,17 @@ class PlayingConditionsTest {
     }
 
     @Test
+    void environmentForHoleCarriesTheConditionDerivedGroundFirmness() {
+        PlayingConditions soft = PlayingConditions.of(6.0, 90.0, 0.9, 55.0, 0.9);
+        PlayingConditions firm = PlayingConditions.of(6.0, 90.0, 0.0, 55.0, 0.3);
+
+        assertThat(soft.environmentForHole(7, 0.8).groundFirmness()).isEqualTo(soft.groundFirmness());
+        assertThat(firm.environmentForHole(7, 0.8).groundFirmness()).isEqualTo(firm.groundFirmness());
+        assertThat(firm.environmentForHole(7, 0.8).groundFirmness())
+                .isGreaterThan(soft.environmentForHole(7, 0.8).groundFirmness());
+    }
+
+    @Test
     void windDecomposesDifferentlyAcrossHoles() {
         // A single wind bearing produces head/cross that vary by hole (some into wind, some downwind).
         PlayingConditions windy = PlayingConditions.of(25.0, 60.0, 0.0, 60.0, 0.4);

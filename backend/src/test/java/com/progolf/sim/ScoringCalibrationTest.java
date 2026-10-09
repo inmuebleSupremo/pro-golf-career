@@ -60,10 +60,10 @@ class ScoringCalibrationTest {
         assertThat(worst).isGreaterThanOrEqualTo(4).isLessThanOrEqualTo(40);
         assertThat(worst - best).isGreaterThan(8);
 
-        // Fixed-seed calm corpus baseline: trajectory materialization and calm STRAIGHT compatibility
-        // must not quietly move scoring while the broad realism guard above still passes.
-        assertThat(mean).isBetween(-0.05, -0.03);
-        assertThat(best).isEqualTo(-9);
-        assertThat(worst).isEqualTo(16);
+        // Fixed-seed calm corpus baseline: the deterministic, club-aware release model is calibrated
+        // independently from the broad realism guard above.
+        assertThat(mean).isBetween(-0.43, -0.42);
+        assertThat(best).isEqualTo(-8);
+        assertThat(worst).isEqualTo(17);
     }
 }

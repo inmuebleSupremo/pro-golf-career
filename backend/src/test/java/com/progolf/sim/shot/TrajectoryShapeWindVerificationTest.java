@@ -47,7 +47,8 @@ class TrajectoryShapeWindVerificationTest {
         assertThat(summary.lateral()).isEqualTo(-1.7312904200098234);
         assertThat(summary.settlement().contact().position()).isEqualTo(new Position2d(-1.7312904200098234, 199.00778023822065));
         assertThat(summary.settlement().ball()).isEqualTo(new BallState(
-                new Position2d(-1.7312904200098234, 199.00778023822065), Surface.FAIRWAY));
+                new Position2d(-1.7730469762244945, 203.80759860874397), Surface.FAIRWAY));
+        assertThat(summary.trace()).isNull();
         assertThat(summary.strokes()).isEqualTo(1);
         assertThat(summaryRng.draws()).isEqualTo(new Draws(1, 2));
 
@@ -59,6 +60,7 @@ class TrajectoryShapeWindVerificationTest {
         assertThat(traced.settlement()).isEqualTo(summary.settlement());
         assertThat(traced.strokes()).isEqualTo(summary.strokes());
         assertThat(traceRng.draws()).isEqualTo(summaryRng.draws());
+        assertThat(traced.trace().roll()).isNotNull();
     }
 
     @Test

@@ -4,9 +4,14 @@ import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.Rng;
 import com.progolf.sim.core.RngFactory;
+import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.Position2d;
+import com.progolf.sim.course.TerrainRegion;
 import com.progolf.sim.spatial.Surface;
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * The single shared shot-resolution engine (spec: shot-resolution). {@link #resolveShot(ShotContext)}
@@ -308,10 +313,9 @@ public final class ShotResolver {
             if (profile != null) {
                 double rollYards = profile.rollYardsOn(contactSurface);
                 if (rollYards > 0) {
-                    Position2d candidate = frame.project(raw.carry() + rollYards, raw.lateral());
-                    // The first slice deliberately permits only one endpoint on the same classified landing
-                    // surface. Crossing a terrain boundary is not traversal: settle conservatively at contact.
-                    if (context.geometry().surfaceAt(candidate) == contactSurface) {
+                    Position2d candidate = boundedRelease(context.geometry(), flight, frame, contactPosition,
+                            contactSurface, rollYards);
+                    if (!candidate.equals(contactPosition)) {
                         finalPosition = candidate;
                         roll = new ShotTraceRoll(contactPosition, candidate);
                     }
@@ -335,6 +339,101 @@ public final class ShotResolver {
         double apex = raw.carry() * (profile == null ? SimConstants.FLIGHT_APEX_FRACTION
                 : SimConstants.FLIGHT_APEX_FRACTION * (context.decision().shotFamily() == ShotFamily.PITCH ? 0.7 : 1.0));
         return new FlightSolution(frame, raw.carry(), raw.lateral(), curve, apex);
+    }
+
+    /**
+     * Resolves one authoritative post-contact ground segment. It may cross exactly one ordinary playable
+     * surface boundary; a second boundary or non-playable terrain clamps the endpoint before that boundary.
+     * This is intentionally not general terrain traversal or roll-created hazard settlement.
+     */
+    private static Position2d boundedRelease(CourseGeometry geometry, FlightSolution flight, ShotFrame frame,
+                                             Position2d contact, Surface contactSurface, double rollYards) {
+        if (!ordinaryPlayable(contactSurface)) return contact;
+        Position2d previous = flight == null ? frame.project(-0.01, 0.0) : flight.positionAt(0.99);
+        double dx = contact.x() - previous.x();
+        double dy = contact.y() - previous.y();
+        double length = StrictMath.hypot(dx, dy);
+        if (length < 1.0e-9) {
+            dx = frame.forwardX();
+            dy = frame.forwardY();
+            length = 1.0;
+        }
+        Position2d desired = contact.plus(dx / length * rollYards, dy / length * rollYards);
+        List<Double> boundaries = boundaryParameters(geometry, contact, desired);
+        boundaries.add(0.0);
+        boundaries.add(1.0);
+        boundaries.sort(Comparator.naturalOrder());
+
+        Surface current = contactSurface;
+        int transitions = 0;
+        for (int i = 0; i < boundaries.size() - 1; i++) {
+            double start = boundaries.get(i);
+            double end = boundaries.get(i + 1);
+            if (end - start < 1.0e-9) continue;
+            Surface next = geometry.surfaceAt(interpolate(contact, desired, (start + end) / 2.0));
+            if (next == current) continue;
+            if (!ordinaryPlayable(next) || transitions == 1) {
+                return pointBefore(contact, desired, start);
+            }
+            transitions++;
+            current = next;
+        }
+        return desired;
+    }
+
+    private static boolean ordinaryPlayable(Surface surface) {
+        return switch (surface) {
+            case TEE_BOX, FAIRWAY, FIRST_CUT, PRIMARY_ROUGH, DEEP_ROUGH, GREEN, FRINGE, WASTE_AREA -> true;
+            case BUNKER, RECOVERY_AREA, TREES, WATER, OUT_OF_BOUNDS -> false;
+        };
+    }
+
+    private static List<Double> boundaryParameters(CourseGeometry geometry, Position2d from, Position2d to) {
+        List<Double> result = new ArrayList<>();
+        addBoundaryParameters(result, geometry.playableBoundary(), from, to);
+        for (TerrainRegion region : geometry.regions()) addBoundaryParameters(result, region.boundary(), from, to);
+        result.sort(Comparator.naturalOrder());
+        List<Double> distinct = new ArrayList<>();
+        for (double parameter : result) {
+            if (parameter > 1.0e-9 && parameter < 1.0 - 1.0e-9
+                    && (distinct.isEmpty() || parameter - distinct.getLast() > 1.0e-8)) {
+                distinct.add(parameter);
+            }
+        }
+        return distinct;
+    }
+
+    private static void addBoundaryParameters(List<Double> parameters, List<Position2d> polygon,
+                                              Position2d from, Position2d to) {
+        for (int i = 0; i < polygon.size(); i++) {
+            double parameter = segmentIntersectionParameter(from, to, polygon.get(i), polygon.get((i + 1) % polygon.size()));
+            if (Double.isFinite(parameter)) parameters.add(parameter);
+        }
+    }
+
+    private static double segmentIntersectionParameter(Position2d from, Position2d to, Position2d edgeStart, Position2d edgeEnd) {
+        double rx = to.x() - from.x();
+        double ry = to.y() - from.y();
+        double sx = edgeEnd.x() - edgeStart.x();
+        double sy = edgeEnd.y() - edgeStart.y();
+        double denominator = rx * sy - ry * sx;
+        if (Math.abs(denominator) < 1.0e-12) return Double.NaN;
+        double qpx = edgeStart.x() - from.x();
+        double qpy = edgeStart.y() - from.y();
+        double t = (qpx * sy - qpy * sx) / denominator;
+        double u = (qpx * ry - qpy * rx) / denominator;
+        return t >= 0.0 && t <= 1.0 && u >= 0.0 && u <= 1.0 ? t : Double.NaN;
+    }
+
+    private static Position2d pointBefore(Position2d from, Position2d to, double boundaryParameter) {
+        double distance = from.distanceTo(to);
+        double margin = distance == 0.0 ? 0.0 : Math.min(0.01 / distance, boundaryParameter / 2.0);
+        return interpolate(from, to, Math.max(0.0, boundaryParameter - margin));
+    }
+
+    private static Position2d interpolate(Position2d from, Position2d to, double parameter) {
+        return new Position2d(from.x() + (to.x() - from.x()) * parameter,
+                from.y() + (to.y() - from.y()) * parameter);
     }
 
     private static ShotTrace trace(ShotContext context, ShotSettlement settlement, ShotTraceRoll roll, FlightSolution flight) {

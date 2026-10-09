@@ -73,7 +73,7 @@ class ShotFamilyResolutionTest {
     }
 
     @Test
-    void fullControlledAndBunkerRetainNoConfiguredRollWhilePitchAndChipStayBounded() {
+    void fullControlledAndBunkerUseTheirApprovedGroundResponseProfiles() {
         Attributes attributes = Attributes.uniform(60);
         ShotExecutionProfile full = ShotExecutionProfile.derive(Surface.FAIRWAY, ClubSpec.of(ClubId.SEVEN_IRON),
                 ShotFamily.FULL, attributes, Environment.calm());
@@ -82,11 +82,11 @@ class ShotFamilyResolutionTest {
         ShotExecutionProfile bunker = ShotExecutionProfile.derive(Surface.BUNKER, ClubSpec.of(ClubId.SAND_WEDGE),
                 ShotFamily.BUNKER, attributes, Environment.calm());
 
-        assertThat(full.rollYardsOn(Surface.FAIRWAY)).isZero();
-        assertThat(controlled.rollYardsOn(Surface.FAIRWAY)).isZero();
+        assertThat(full.rollYardsOn(Surface.FAIRWAY)).isGreaterThan(controlled.rollYardsOn(Surface.FAIRWAY));
+        assertThat(controlled.rollYardsOn(Surface.FAIRWAY)).isPositive();
         assertThat(bunker.rollYardsOn(Surface.BUNKER)).isZero();
-        assertThat(resolve(ShotFamily.FULL).trace().roll()).isNull();
-        assertThat(resolve(ShotFamily.CONTROLLED).trace().roll()).isNull();
+        assertThat(resolve(ShotFamily.FULL).trace().roll()).isNotNull();
+        assertThat(resolve(ShotFamily.CONTROLLED).trace().roll()).isNotNull();
     }
 
     @Test

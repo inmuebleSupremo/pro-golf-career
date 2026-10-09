@@ -29,8 +29,8 @@ public record ShotExecutionProfile(
         ShotFamilyEligibility.Result eligibility = ShotFamilyEligibility.evaluate(lie, club, family);
         double carry = 1.0, lateral = 1.0, distance = 1.0, mishit = 1.0, roll = 0.0;
         switch (family) {
-            case FULL -> { }
-            case CONTROLLED -> { carry = 0.82; lateral = 0.78; distance = 0.76; mishit = 0.88; }
+            case FULL -> roll = longShotRelease(club);
+            case CONTROLLED -> { carry = 0.82; lateral = 0.78; distance = 0.76; mishit = 0.88; roll = longShotRelease(club) * 0.55; }
             case PITCH -> { carry = 0.42; lateral = 0.82; distance = 0.78; roll = 0.75; }
             case CHIP -> { carry = 0.28; lateral = 0.76; distance = 0.74; roll = 2.0 + club.baseCarry() * 0.005; }
             // Generic bunkers do not preserve fairway-vs-greenside semantics yet. The extraction must
@@ -45,7 +45,19 @@ public record ShotExecutionProfile(
             distance *= 1.05;
             mishit *= 1.06;
         }
-        return new ShotExecutionProfile(eligibility, carry, lateral, distance, mishit, roll);
+        return new ShotExecutionProfile(eligibility, carry, lateral, distance, mishit,
+                roll * firmnessReleaseMultiplier(environment.groundFirmness()));
+    }
+
+    private static double longShotRelease(ClubSpec club) {
+        // Base carry is the existing stable club-category proxy for loft. This is deliberately a release
+        // tendency rather than a new spin/launch model: long, lower-lofted clubs receive more potential run.
+        return Math.max(0.0, (club.baseCarry() - 100.0) * 0.06);
+    }
+
+    private static double firmnessReleaseMultiplier(double firmness) {
+        // Soft ground may nearly hold a landing; firm ground retains the calibrated family/club entitlement.
+        return 0.15 + 0.85 * firmness;
     }
 
     /** Bounded endpoint-only ground response; no traversal or physics claim is made. */
