@@ -18,7 +18,7 @@ class EffectiveGreenPinPlacementTest {
     @Test
     void v5CupsAreGreenAndTwoYardsFromEveryEdgeAcrossSupportedSetups() {
         for (int generatorVersion = CourseGenConstants.V1_GENERATOR_VERSION;
-             generatorVersion <= CourseGenConstants.V4_GENERATOR_VERSION; generatorVersion++) {
+             generatorVersion <= CourseGenConstants.V5_GENERATOR_VERSION; generatorVersion++) {
             for (long seed = 1; seed <= 12; seed++) {
                 Course course = CourseGenerator.generate(new SeedCoordinate(0x5eedL, 1, seed, 0, 0, 0, 0),
                         EnvironmentClassification.values()[(int) (seed % EnvironmentClassification.values().length)],

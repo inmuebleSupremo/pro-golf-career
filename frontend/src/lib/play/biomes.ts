@@ -44,6 +44,8 @@ export interface BiomeKit {
   readonly fringe: string;
   readonly sand: string;
   readonly sandStroke: string;
+  /** Canonical tree/recovery-canopy fill, kept in the same environment palette as the terrain. */
+  readonly tree: string;
   /** Pot bunkers (small, deep, ringed — links) vs. flashed bunkers. */
   readonly potBunkers: boolean;
   /** Water hazard colour, or `null` for biomes without water (desert). */
@@ -88,7 +90,7 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
     biome: "parkland",
     out: "#2a5f30", rough: "#3c8f42", roughPattern: null,
     fairway: "#57b855", mowStripe: ["#63c65e", "#54b350"],
-    green: "#84d47f", fringe: "#5fae5b", sand: "#e9dcae", sandStroke: "rgba(60,45,10,.2)",
+    green: "#84d47f", fringe: "#5fae5b", sand: "#e9dcae", sandStroke: "rgba(60,45,10,.2)", tree: "#245b2c",
     potBunkers: false, water: "#2f7fb5",
     vegetation: "deciduous", vegetationDensity: 1, waste: false, rock: false, elevationShading: false,
     tee: "#eef0f2", scatterMode: "forest", scatterCull: 0.16, scatter: [{ kind: "deciduous", weight: 1 }], mowKind: "horizontal",
@@ -100,7 +102,7 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
     biome: "links",
     out: "#c6bd80", rough: "#c6bd80", roughPattern: "fescue",
     fairway: "#93bd66", mowStripe: null,
-    green: "#88b860", fringe: "#6c974e", sand: "#efe6c4", sandStroke: "#7a6a3f",
+    green: "#88b860", fringe: "#6c974e", sand: "#efe6c4", sandStroke: "#7a6a3f", tree: "#5e713f",
     potBunkers: true, water: "#5a86a0",
     vegetation: "deciduous", vegetationDensity: 0.35, waste: false, rock: false, elevationShading: false,
     tee: "#d4af37", scatterMode: "edge", scatterCull: 0.5, scatter: [{ kind: "gorse", weight: 1 }], mowKind: null, coastal: true,
@@ -110,7 +112,7 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
     biome: "desert",
     out: "#e4cea1", rough: "#d7be8a", roughPattern: null,
     fairway: "#5aa64a", mowStripe: null,
-    green: "#7bbf62", fringe: "#5c9a48", sand: "#f3f1ea", sandStroke: "#d8cfa8",
+    green: "#7bbf62", fringe: "#5c9a48", sand: "#f3f1ea", sandStroke: "#d8cfa8", tree: "#5a7c3f",
     potBunkers: false, water: null,
     vegetation: "yucca", vegetationDensity: 0.4, waste: true, rock: false, elevationShading: false,
     tee: "#c1502e", scatterMode: "scatter", scatterCull: 0.7, mowKind: "diagonal", arroyo: true, grain: true, dryGreen: true,
@@ -120,7 +122,7 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
     biome: "alpine",
     out: "#20463a", rough: "#357a4b", roughPattern: null,
     fairway: "#4caf50", mowStripe: ["#54b95a", "#46a64c"],
-    green: "#74c483", fringe: "#3f8a4d", sand: "#eeeeee", sandStroke: "#c9c1a4",
+    green: "#74c483", fringe: "#3f8a4d", sand: "#eeeeee", sandStroke: "#c9c1a4", tree: "#184a3c",
     potBunkers: false, water: "#2b6f9e",
     vegetation: "pine", vegetationDensity: 1, waste: false, rock: true, elevationShading: true,
     tee: "#3b6fd4", scatterMode: "forest", scatterCull: 0.12, scatter: [{ kind: "pine", weight: 1 }], mowKind: "premium",
@@ -133,7 +135,7 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
     biome: "heathland",
     out: "#949a68", rough: "#828f56", roughPattern: "heather",
     fairway: "#68a850", mowStripe: ["#72b25a", "#61984c"],
-    green: "#83bb63", fringe: "#58893f", sand: "#ddceac", sandStroke: "#8a765a",
+    green: "#83bb63", fringe: "#58893f", sand: "#ddceac", sandStroke: "#8a765a", tree: "#4f633c",
     potBunkers: false, water: "#3f6a86",
     vegetation: "deciduous", vegetationDensity: 0.6, waste: false, rock: false, elevationShading: false,
     tee: "#8f7268", scatterMode: "scatter", scatterCull: 0.42, mowKind: "premium", contour: "#5f6b3c",
@@ -143,7 +145,7 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
     biome: "tropical",
     out: "#0d84b8", rough: "#3fa85a", roughPattern: null,
     fairway: "#31c766", mowStripe: ["#00e676", "#00c853"],
-    green: "#8bef9d", fringe: "#3fae62", sand: "#efe3bf", sandStroke: "rgba(40,60,10,.18)",
+    green: "#8bef9d", fringe: "#3fae62", sand: "#efe3bf", sandStroke: "rgba(40,60,10,.18)", tree: "#176b43",
     potBunkers: false, water: "#0277bd",
     vegetation: "palm", vegetationDensity: 1, waste: false, rock: false, elevationShading: false,
     tee: "#00bcd4", scatterMode: "edge", scatterCull: 0.18, scatter: [{ kind: "palm", weight: 1 }], mowKind: "diagonal",

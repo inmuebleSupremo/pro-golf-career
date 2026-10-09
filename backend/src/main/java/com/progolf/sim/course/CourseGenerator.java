@@ -24,13 +24,15 @@ public final class CourseGenerator {
             case CourseGenConstants.V2_GENERATOR_VERSION -> generateV2(coordinate, classification);
             case CourseGenConstants.V3_GENERATOR_VERSION -> generateV3(coordinate, classification);
             case CourseGenConstants.V4_GENERATOR_VERSION -> generateV4(coordinate, classification);
+            case CourseGenConstants.V5_GENERATOR_VERSION -> generateV5(coordinate, classification);
             default -> throw new IllegalArgumentException("Unsupported course generator version: " + version);
         };
     }
 
     public static boolean supports(int version) {
         return version == CourseGenConstants.V1_GENERATOR_VERSION || version == CourseGenConstants.V2_GENERATOR_VERSION
-                || version == CourseGenConstants.V3_GENERATOR_VERSION || version == CourseGenConstants.V4_GENERATOR_VERSION;
+                || version == CourseGenConstants.V3_GENERATOR_VERSION || version == CourseGenConstants.V4_GENERATOR_VERSION
+                || version == CourseGenConstants.V5_GENERATOR_VERSION;
     }
 
     /** Historical V1 implementation retained unchanged in behavior. */
@@ -196,6 +198,73 @@ public final class CourseGenerator {
         boolean trees = hazardPlan.features().stream().anyMatch(feature -> feature.surface() == com.progolf.sim.spatial.Surface.TREES);
         return new GeneratedHole(brief.number(), brief.par(), length, fairwayHalf, greenHalf, greenDepth,
                 bunker, water, trees, elevation, holeSeed, geometry, spatialPlan, hazardPlan);
+    }
+
+    private static Course generateV5(SeedCoordinate coordinate, EnvironmentClassification classification) {
+        long courseSeed = Seeds.forCoordinate(coordinate);
+        CoursePlan plan = CoursePlanGenerator.generate(courseSeed);
+        CourseArchitectureProfile architectureProfile = V5HolePlanner.profileFor(courseSeed);
+        return generateV5(coordinate, classification, plan, architectureProfile);
+    }
+
+    /** Package-private calibration seam for explicit V5 design and architectural profile combinations. */
+    static Course generateV5(SeedCoordinate coordinate, EnvironmentClassification classification,
+                             CourseDesignProfile profile, CourseArchitectureProfile architectureProfile) {
+        return generateV5(coordinate, classification, CoursePlanGenerator.generate(Seeds.forCoordinate(coordinate), profile),
+                architectureProfile);
+    }
+
+    private static Course generateV5(SeedCoordinate coordinate, EnvironmentClassification classification, CoursePlan plan,
+                                     CourseArchitectureProfile architectureProfile) {
+        long courseSeed = Seeds.forCoordinate(coordinate);
+        List<Double> lengths = new ArrayList<>(18);
+        List<Double> fairwayHalves = new ArrayList<>(18);
+        List<Double> greenHalves = new ArrayList<>(18);
+        List<Double> greenDepths = new ArrayList<>(18);
+        List<Double> elevations = new ArrayList<>(18);
+        for (HoleBrief brief : plan.briefs()) {
+            Rng rng = new SplitMix64Rng(Seeds.deriveSeed(courseSeed, brief.number()));
+            double[] range = parRange(brief.par());
+            lengths.add(lengthForBand(rng, range[0], range[1], brief.lengthBand()));
+            double multiplier = switch (plan.profile().widthTendency()) {
+                case GENEROUS -> 1.18;
+                case BALANCED -> 1.0;
+                case EXACTING -> 0.84;
+            };
+            multiplier *= switch (brief.archetype()) {
+                case POSITIONAL -> 0.92;
+                case BALANCED -> 1.0;
+                case RISK_REWARD -> 0.97;
+            };
+            fairwayHalves.add(Math.clamp(range(rng, CourseGenConstants.FAIRWAY_HALF_MIN,
+                    CourseGenConstants.FAIRWAY_HALF_MAX) * multiplier, 12.0, 28.0));
+            greenHalves.add(range(rng, CourseGenConstants.GREEN_HALF_MIN, CourseGenConstants.GREEN_HALF_MAX));
+            greenDepths.add(range(rng, CourseGenConstants.GREEN_DEPTH_MIN, CourseGenConstants.GREEN_DEPTH_MAX));
+            elevations.add((rng.nextDouble() * 2.0 - 1.0) * CourseGenConstants.ELEVATION_RANGE);
+        }
+        List<V5HolePlanner.SelectedCandidate> selected = V5HolePlanner.select(plan, architectureProfile, courseSeed,
+                lengths, fairwayHalves);
+        List<EnvironmentHoleCharacter> environmentCharacters = V5EnvironmentPlanner.plan(plan, classification,
+                architectureProfile, courseSeed);
+        List<GeneratedHole> holes = new ArrayList<>(18);
+        for (int i = 0; i < plan.briefs().size(); i++) {
+            HoleBrief brief = plan.briefs().get(i);
+            long holeSeed = Seeds.deriveSeed(courseSeed, brief.number());
+            HoleSpatialPlan guidancePlan = V3HolePlanner.plan(brief, lengths.get(i), fairwayHalves.get(i),
+                    greenHalves.get(i), greenDepths.get(i), holeSeed);
+            HazardPlan hazards = V4HazardPlanner.plan(brief, plan.profile(), classification, guidancePlan, holeSeed);
+            CourseGeometry geometry = V5GeometryGenerator.generate(selected.get(i).plan(), brief, plan.profile(),
+                    architectureProfile, classification, environmentCharacters.get(i), holeSeed, hazards);
+            boolean bunker = geometry.regions().stream().anyMatch(region -> region.surface() == com.progolf.sim.spatial.Surface.BUNKER);
+            boolean water = geometry.regions().stream().anyMatch(region -> region.surface() == com.progolf.sim.spatial.Surface.WATER);
+            boolean trees = geometry.regions().stream().anyMatch(region -> region.surface() == com.progolf.sim.spatial.Surface.TREES);
+            holes.add(new GeneratedHole(brief.number(), brief.par(), lengths.get(i), fairwayHalves.get(i), greenHalves.get(i),
+                    greenDepths.get(i), bunker, water, trees, elevations.get(i), holeSeed, geometry, guidancePlan, hazards,
+                    selected.get(i).plan()));
+        }
+        return new Course(CourseNames.generate(courseSeed, classification), holes, CourseGenConstants.V5_GENERATOR_VERSION,
+                plan.profile(), plan, new CourseArchitecturePlan(architectureProfile,
+                selected.stream().map(V5HolePlanner.SelectedCandidate::plan).toList()));
     }
 
     private static GeneratedHole generateV3Hole(HoleBrief brief, long holeSeed,

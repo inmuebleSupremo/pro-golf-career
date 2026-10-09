@@ -23,7 +23,7 @@ const fills = (surface: string, kit: (typeof BIOME_KITS)[keyof typeof BIOME_KITS
     case "FRINGE": return kit.fringe;
     case "BUNKER": case "WASTE_AREA": return kit.sand;
     case "WATER": return kit.water ?? "#2f7fb5";
-    case "TREES": return "#254d2b";
+    case "TREES": return kit.tree;
     case "RECOVERY_AREA": return kit.rough;
     default: return "transparent";
   }
