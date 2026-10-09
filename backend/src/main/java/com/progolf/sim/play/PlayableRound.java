@@ -113,7 +113,7 @@ public final class PlayableRound {
         }
         return new ShotSituation(holeIndex + 1, hole.par(), shotNumber, strokesThisHole,
                 remaining, lie, hole.model().pinLateral(), hole.model().zoneProfileFor(remaining),
-                revision(), envelope(hole.model().geometry()), guidance(hole.model()));
+                revision(), envelope(hole.model().geometry()), guidance(hole.model(), hole.environment()));
     }
 
     /** Plays the current shot with the human's decision (club / target / risk). */
@@ -174,7 +174,8 @@ public final class PlayableRound {
     private SimShot simShotPlan() {
         HoleToPlay hole = holes.get(holeIndex);
         if (ball != null && hole.model().geometry() != null) {
-            com.progolf.sim.shot.ShotIntent selected = simPolicy.decideShotIntent(hole.model(), ball, remaining, lie, attributes, hole.par());
+            com.progolf.sim.shot.ShotIntent selected = simPolicy.decideShotIntent(hole.model(), ball, remaining, lie,
+                    attributes, hole.par(), hole.environment());
             if (selected instanceof PuttIntent) {
                 return new SimShot(puttDecision(), hole.model().cupPosition());
             }
@@ -324,7 +325,7 @@ public final class PlayableRound {
                 geometry.playableBoundary().stream().mapToDouble(Position2d::y).max().orElseThrow() + 100.0);
     }
 
-    private ShotGuidance guidance(HoleModel model) {
+    private ShotGuidance guidance(HoleModel model, com.progolf.sim.shot.Environment environment) {
         return new ShotGuidance(pointFor(model, Strategy.CONSERVATIVE), pointFor(model, Strategy.BALANCED),
                 pointFor(model, Strategy.AGGRESSIVE), ClubSpec.all().stream().map(spec -> new ShotGuidance.ClubReach(
                 spec.id(), spec.label(), spec.baseCarry(), spec.baseCarry() * (SimConstants.REACH_FLOOR
@@ -336,7 +337,8 @@ public final class PlayableRound {
                                 var result = com.progolf.sim.shot.ShotShapeEligibility.evaluate(family, shape);
                                 return new ShotGuidance.ShapeAvailability(shape, result.allowed(), result.reason());
                             }).toList());
-                }).toList())).toList());
+                }).toList())).toList(), com.progolf.sim.shot.StrategicTargetPlanner.options(model, ball, remaining,
+                lie, attributes, environment));
     }
 
     private AimPoint pointFor(HoleModel model, Strategy strategy) {

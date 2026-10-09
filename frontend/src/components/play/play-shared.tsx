@@ -1,4 +1,4 @@
-import { humanize } from "@/lib/play/options";
+import { humanize } from "../../lib/play/options";
 
 /** Shared types, helpers, and presentational pieces used by both the play console and the end-of-event screen. */
 
@@ -23,8 +23,55 @@ export type Situation = {
     clubs: { club: string; label: string; nominalCarry: number; normalReach: number;
       families: { family: string; available: boolean; reason?: string | null;
         shapes: { shape: string; available: boolean; reason?: string | null }[] }[] }[];
+    strategicOptions: { role: string; aimPoint: { x: number; y: number }; suggestedClub: string;
+      suggestedFamily: string; routeSummary: string; exposureSummary: string }[];
   } | null;
 };
+
+/** A browser selection derived only from the server's current availability projection. */
+export type ShotSelection = { club: string; technique: string; shape: string };
+
+type GuidedClub = NonNullable<Situation["guidance"]>["clubs"][number];
+type GuidedFamily = GuidedClub["families"][number];
+
+/**
+ * Returns a legal non-putting choice from the current server-authored availability map.
+ * A still-legal player choice wins; otherwise this selects the nearest legal club and its
+ * first legal family/shape. The server remains authoritative when the shot is submitted.
+ */
+export function validShotSelection(situation: Situation, current?: ShotSelection): ShotSelection {
+  const lie = situation.lie.toUpperCase();
+  if (lie === "GREEN") return { club: "PUTTER", technique: "PUTT", shape: "STRAIGHT" };
+  if (lie === "FRINGE" && current?.technique === "PUTT") {
+    return { club: current.club, technique: "PUTT", shape: "STRAIGHT" };
+  }
+
+  const clubs = situation.guidance?.clubs ?? [];
+  const legalClubs = clubs.filter((club) => legalFamilies(club).length > 0);
+  if (legalClubs.length === 0) {
+    return {
+      club: current?.club ?? defaultClub(situation),
+      technique: current?.technique && current.technique !== "PUTT" ? current.technique : "FULL",
+      shape: current?.shape ?? "STRAIGHT",
+    };
+  }
+
+  const club = legalClubs.find((candidate) => candidate.club === current?.club)
+    ?? legalClubs.reduce((best, candidate) =>
+      Math.abs(candidate.nominalCarry - situation.distanceToPin) < Math.abs(best.nominalCarry - situation.distanceToPin)
+        ? candidate
+        : best,
+    );
+  const families = legalFamilies(club);
+  const family = families.find((candidate) => candidate.family === current?.technique) ?? families[0];
+  const shapes = family.shapes.filter((candidate) => candidate.available);
+  const shape = shapes.find((candidate) => candidate.shape === current?.shape) ?? shapes[0];
+  return { club: club.club, technique: family.family, shape: shape.shape };
+}
+
+function legalFamilies(club: GuidedClub): GuidedFamily[] {
+  return club.families.filter((family) => family.available && family.shapes.some((shape) => shape.available));
+}
 
 export type Outcome = {
   finalSurface: string;

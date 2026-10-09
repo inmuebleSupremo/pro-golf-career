@@ -22,6 +22,7 @@ import com.progolf.app.api.dto.AimEnvelopeDto;
 import com.progolf.app.api.dto.AimPointDto;
 import com.progolf.app.api.dto.ClubReachDto;
 import com.progolf.app.api.dto.ShotGuidanceDto;
+import com.progolf.app.api.dto.StrategicTargetOptionDto;
 import com.progolf.app.api.dto.ShotSubmissionDto;
 import com.progolf.app.api.dto.ShotOutcomeDto;
 import com.progolf.app.api.dto.PlayingHoleDto;
@@ -146,7 +147,10 @@ public final class ApiMapper {
         return new ShotGuidanceDto(point(g.safe()), point(g.primary()), point(g.aggressive()), g.clubs().stream()
                 .map(c -> new ClubReachDto(c.club().name(), c.label(), c.nominalCarry(), c.normalReach(), c.families().stream()
                         .map(f -> new ShotFamilyAvailabilityDto(f.family().name(), f.available(), f.reason(), f.shapes().stream()
-                                .map(s -> new ShotShapeAvailabilityDto(s.shape().name(), s.available(), s.reason())).toList())).toList())).toList());
+                                .map(s -> new ShotShapeAvailabilityDto(s.shape().name(), s.available(), s.reason())).toList())).toList())).toList(),
+                g.strategicOptions().stream().map(option -> new StrategicTargetOptionDto(option.role().name(),
+                        point(option.aimPoint()), option.suggestedClub().name(), option.suggestedFamily().name(),
+                        option.routeSummary(), option.exposureSummary())).toList());
     }
 
     public static ShotSubmissionDto submission(com.progolf.sim.play.ShotSubmission submission) {

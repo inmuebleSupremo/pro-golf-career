@@ -91,15 +91,35 @@ public final class StrategyPolicy {
      */
     public ShotIntent decideShotIntent(HoleModel hole, BallState ball, double remainingDistance, Surface lie,
                                        Attributes attributes, int par) {
+        return decideShotIntent(hole, ball, remainingDistance, lie, attributes, par, Environment.calm());
+    }
+
+    /**
+     * Environment-aware strategic planning entry point. The environment is only used to evaluate current,
+     * supported reach/release facts; it never samples the future execution RNG.
+     */
+    public ShotIntent decideShotIntent(HoleModel hole, BallState ball, double remainingDistance, Surface lie,
+                                       Attributes attributes, int par, Environment environment) {
         if (lie == Surface.GREEN || (lie == Surface.FRINGE && remainingDistance <= 10.0)) {
             return new PuttIntent();
         }
-        return decideIntent(hole, ball, remainingDistance, lie, attributes, par);
+        return decideIntent(hole, ball, remainingDistance, lie, attributes, par, environment);
     }
 
     /** Produces the non-putting branch of the shared intent contract. */
     public BallStrikeIntent decideIntent(HoleModel hole, BallState ball, double remainingDistance, Surface lie,
                                          Attributes attributes, int par) {
+        return decideIntent(hole, ball, remainingDistance, lie, attributes, par, Environment.calm());
+    }
+
+    /** Produces the non-putting branch while optionally activating a truthful V4 landing option. */
+    public BallStrikeIntent decideIntent(HoleModel hole, BallState ball, double remainingDistance, Surface lie,
+                                         Attributes attributes, int par, Environment environment) {
+        ShotGuidance.StrategicOption strategic = StrategicTargetPlanner.preferred(
+                StrategicTargetPlanner.options(hole, ball, remainingDistance, lie, attributes, environment), strategy);
+        if (strategic != null) {
+            return new BallStrikeIntent(strategic.suggestedClub(), strategic.aimPoint(), strategic.suggestedFamily());
+        }
         ShotAim.Reference aim = ShotAim.forBall(hole, ball, strategy);
         PolicyPlan plan = plan(remainingDistance, lie, aim.pinLateral(), attributes, par);
         ShotFamily family = familyFor(remainingDistance, lie, par);

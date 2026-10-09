@@ -765,7 +765,23 @@ type AimPoint { x: Float!, y: Float! }
 type ShotShapeAvailability { shape: String!, available: Boolean!, reason: String }
 type ShotFamilyAvailability { family: String!, available: Boolean!, reason: String, shapes: [ShotShapeAvailability!]! }
 type ClubReach { club: String!, label: String!, nominalCarry: Float!, normalReach: Float!, families: [ShotFamilyAvailability!]! }
-type ShotGuidance { safe: AimPoint!, primary: AimPoint!, aggressive: AimPoint!, clubs: [ClubReach!]! }
+"One advisory V4 landing option evaluated by the backend from current course and shot facts."
+type StrategicTargetOption {
+    role: String!
+    aimPoint: AimPoint!
+    suggestedClub: String!
+    suggestedFamily: String!
+    routeSummary: String!
+    exposureSummary: String!
+}
+type ShotGuidance {
+    safe: AimPoint!
+    primary: AimPoint!
+    aggressive: AimPoint!
+    clubs: [ClubReach!]!
+    "Distinct strategic options; empty for legacy, ordinary, or non-eligible current shots."
+    strategicOptions: [StrategicTargetOption!]!
+}
 type ShotSubmission { outcome: ShotOutcome, stale: Boolean! }
 
 "One distance band of a shot's reachable surface profile (spec: web-hole-visualization). Distances in yards."

@@ -177,7 +177,8 @@ public final class PlayableHole {
 
     private SimShot simShotPlan() {
         if (ball == null) return new SimShot(simPolicy.decide(remaining, lie, model.pinLateral(), attributes, par), null);
-        com.progolf.sim.shot.ShotIntent selected = simPolicy.decideShotIntent(model, ball, remaining, lie, attributes, par);
+        com.progolf.sim.shot.ShotIntent selected = simPolicy.decideShotIntent(model, ball, remaining, lie, attributes, par,
+                environment);
         if (selected instanceof PuttIntent) {
             return new SimShot(new ShotDecision(com.progolf.sim.shot.Club.PUTTER, remaining, 0.0, Strategy.BALANCED), model.cupPosition());
         }

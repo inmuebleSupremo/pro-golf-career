@@ -1,6 +1,7 @@
 package com.progolf.sim.play;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeedCoordinate;
@@ -116,6 +117,15 @@ class PlayableRoundTest {
         PlayableRound background = round(course());
         background.simHole();
         assertThat(background.playedHoles().getFirst().shots()).allSatisfy(shot -> assertThat(shot.trace()).isNull());
+    }
+
+    @Test
+    void rejectsAnAimOutsideThePublishedPlanningEnvelope() {
+        PlayableRound pr = round(course());
+
+        assertThatThrownBy(() -> pr.playShot(new BallStrikeIntent(ClubId.DRIVER, new AimPoint(1_000_000, 1_000_000))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("aim point is outside the planning envelope");
     }
 
     @Test

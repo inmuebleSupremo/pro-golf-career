@@ -80,4 +80,11 @@ public final class RoundHole implements HoleModel {
     public Position2d progressionTarget(Position2d ball, Strategy strategy) {
         return hole.progressionTarget(ball, strategy, setup.widthScale());
     }
+
+    @Override
+    public HoleSpatialPlan strategicLandingPlan() {
+        // Hazard provenance is V4-only. V3 plans remain compatibility-only route metadata.
+        return hole.hazardPlan() == null || hole.spatialPlan() == null ? null
+                : hole.spatialPlan().withLateralScale(setup.widthScale());
+    }
 }

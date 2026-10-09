@@ -85,7 +85,7 @@ public final class RoundResolver {
                                               Environment environment, StrategyPolicy policy, double remainingDistance,
                                               Surface lie, SeedCoordinate holeCoordinate, int shotNo, BallState ball) {
         // The AI emits the shared intent. The compatibility shape is derived solely from that intent.
-        ShotIntent intent = policy.decideShotIntent(hole, ball, remainingDistance, lie, attributes, hole.par());
+        ShotIntent intent = policy.decideShotIntent(hole, ball, remainingDistance, lie, attributes, hole.par(), environment);
         if (intent instanceof PuttIntent) {
             return new ShotContext(attributes, state, environment, remainingDistance, hole.zoneProfileFor(remainingDistance),
                     new ShotDecision(Club.PUTTER, remainingDistance, 0.0, Strategy.BALANCED), holeCoordinate.withShot(shotNo),
