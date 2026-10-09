@@ -13,7 +13,15 @@ export interface CanonicalRenderModel {
   readonly unproject: (point: Point) => Point;
   readonly playableBoundaryPath: string;
   readonly terrain: readonly { readonly surface: string; readonly path: string }[];
+  readonly context: readonly { readonly id: string; readonly kind: string; readonly path: string }[];
 }
+
+/** Immutable non-gameplay context supplied by V6; never used for aiming or surface resolution. */
+export interface CanonicalLandscapeContext {
+  readonly features: readonly { readonly id: string; readonly kind: string; readonly boundary: readonly Point[] }[];
+}
+
+type Viewport = { readonly width: number; readonly height: number; readonly padding: number };
 
 /** Projects a canonical flow vector into a unit SVG direction; canonical +Y is screen-up. */
 export function projectCanonicalFlow(
@@ -30,9 +38,14 @@ export function projectCanonicalFlow(
 /** Builds the canonical-only terrain model used by the SVG renderer. No seed or local landform generation enters this path. */
 export function canonicalRenderModel(
   geometry: CanonicalPlayingGeometry,
-  viewport = { width: 220, height: 440, padding: 16 },
+  contextOrViewport?: CanonicalLandscapeContext | Viewport | null,
+  requestedViewport?: Viewport,
 ): CanonicalRenderModel {
-  const points = [...geometry.playableBoundary, geometry.tee, geometry.cup];
+  const context = contextOrViewport && "features" in contextOrViewport ? contextOrViewport : null;
+  const viewport = requestedViewport ?? (context ? { width: 220, height: 440, padding: 16 }
+    : (contextOrViewport as Viewport | undefined) ?? { width: 220, height: 440, padding: 16 });
+  const points = [...geometry.playableBoundary, geometry.tee, geometry.cup,
+    ...(context?.features.flatMap((feature) => feature.boundary) ?? [])];
   const xs = points.map((point) => point.x);
   const ys = points.map((point) => point.y);
   const minX = Math.min(...xs);
@@ -57,6 +70,8 @@ export function canonicalRenderModel(
     unproject,
     playableBoundaryPath: polygonPath(geometry.playableBoundary, project),
     terrain: geometry.regions.map((region) => ({ surface: region.surface, path: polygonPath(region.boundary, project) })),
+    context: (context?.features ?? []).map((feature) => ({ id: feature.id, kind: feature.kind,
+      path: polygonPath(feature.boundary, project) })),
   };
 }
 

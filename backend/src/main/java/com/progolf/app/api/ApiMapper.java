@@ -28,6 +28,8 @@ import com.progolf.app.api.dto.ShotOutcomeDto;
 import com.progolf.app.api.dto.PlayingHoleDto;
 import com.progolf.app.api.dto.EffectiveWindDto;
 import com.progolf.app.api.dto.PlayingGeometryDto;
+import com.progolf.app.api.dto.LandscapeHoleContextDto;
+import com.progolf.app.api.dto.LandscapeContextFeatureDto;
 import com.progolf.app.api.dto.PositionDto;
 import com.progolf.app.api.dto.TerrainRegionDto;
 import com.progolf.app.api.dto.BallStateDto;
@@ -55,6 +57,7 @@ import com.progolf.sim.course.GeneratedHole;
 import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.course.Position2d;
+import com.progolf.sim.course.LandscapeHoleContext;
 import com.progolf.sim.shot.WindVector;
 import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.ShotSettlement;
@@ -201,7 +204,8 @@ public final class ApiMapper {
                 hole.fairwayHalfWidth(), hole.greenHalfWidth(), hole.greenDepth(), hole.elevationDelta(),
                 hole.hasGreensideBunker(), hole.hasWater(), hole.hasTrees(),
                 pin.lateralOffset(), pin.depthOffset(),
-                courseType, Long.toString(hole.holeSeed()), geometry(geometry, cup), ballState(ball), effectiveWind(wind));
+                courseType, Long.toString(hole.holeSeed()), geometry(geometry, cup), landscapeContext(hole.landscapeContext()),
+                ballState(ball), effectiveWind(wind));
     }
 
     /** Compatibility mapper for tests/readers not yet carrying a live ball. */
@@ -241,6 +245,13 @@ public final class ApiMapper {
                 geometry.playableBoundary().stream().map(ApiMapper::point).toList(),
                 geometry.regions().stream().map(region -> new TerrainRegionDto(region.surface().name(),
                         region.boundary().stream().map(ApiMapper::point).toList())).toList());
+    }
+
+    private static LandscapeHoleContextDto landscapeContext(LandscapeHoleContext context) {
+        if (context == null) return null;
+        return new LandscapeHoleContextDto(context.courseIdentity(), context.relationship().name(), context.features().stream()
+                .map(feature -> new LandscapeContextFeatureDto(feature.id(), feature.kind().name(),
+                        feature.boundary().stream().map(ApiMapper::point).toList())).toList());
     }
 
     private static Position2d legacyCup(CourseGeometry geometry, PinPosition pin) {

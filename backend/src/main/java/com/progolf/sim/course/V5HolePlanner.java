@@ -22,11 +22,20 @@ final class V5HolePlanner {
 
     static List<SelectedCandidate> select(CoursePlan coursePlan, CourseArchitectureProfile profile, long courseSeed,
                                           List<Double> lengths, List<Double> fairwayHalves) {
+        return select(coursePlan, profile, courseSeed, lengths, fairwayHalves,
+                java.util.Collections.nCopies(coursePlan.briefs().size(), null));
+    }
+
+    /** V6 reuses the bounded V5 pool but makes its geometry answer deterministic course-scale conditions. */
+    static List<SelectedCandidate> select(CoursePlan coursePlan, CourseArchitectureProfile profile, long courseSeed,
+                                          List<Double> lengths, List<Double> fairwayHalves,
+                                          List<LandscapeHoleCondition> conditions) {
+        if (conditions.size() != coursePlan.briefs().size()) throw new IllegalArgumentException("one landscape condition per brief");
         List<SelectedCandidate> selected = new ArrayList<>(18);
         for (int index = 0; index < coursePlan.briefs().size(); index++) {
             HoleBrief brief = coursePlan.briefs().get(index);
             List<Candidate> candidates = candidates(brief, profile, lengths.get(index), fairwayHalves.get(index),
-                    Seeds.deriveSeed(courseSeed, brief.number()));
+                    Seeds.deriveSeed(courseSeed, brief.number()), conditions.get(index));
             Candidate best = candidates.stream().max(Comparator.comparingDouble(candidate -> candidate.score
                     - repetitionPenalty(candidate, selected) + compositionAdjustment(candidate, selected, profile,
                     coursePlan.briefs().size()))).orElseThrow();
@@ -36,19 +45,28 @@ final class V5HolePlanner {
     }
 
     private static List<Candidate> candidates(HoleBrief brief, CourseArchitectureProfile profile, double length,
-                                              double fairwayHalf, long holeSeed) {
+                                              double fairwayHalf, long holeSeed, LandscapeHoleCondition condition) {
         List<Candidate> result = new ArrayList<>(CANDIDATES_PER_BRIEF);
         for (int ordinal = 0; ordinal < CANDIDATES_PER_BRIEF; ordinal++) {
             Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, CANDIDATE_SALT + ordinal));
             RoutingForm form = routingForm(brief, ordinal);
             double movement = 18.0 + profile.routingMovement() * 34.0 + rng.nextDouble() * 12.0;
+            if (condition != null) movement *= (.82 + condition.openness() * .23 + condition.enclosure() * .10);
             List<Position2d> anchors = new ArrayList<>(form == RoutingForm.DOUBLE_DOGLEG ? 2 : form == RoutingForm.STRAIGHT ? 0 : 1);
             double finalX = 0.0;
             int turns = form == RoutingForm.DOUBLE_DOGLEG ? 2 : form == RoutingForm.STRAIGHT ? 0 : 1;
             for (int turn = 0; turn < turns; turn++) {
                 double fraction = turns == 1 ? 0.56 : (turn == 0 ? 0.33 : 0.67);
-                double sign = (turn == 0 || rng.nextDouble() < 0.55) ? (rng.nextDouble() < 0.5 ? -1.0 : 1.0)
-                        : -Math.signum(finalX == 0.0 ? 1.0 : finalX);
+                double sign;
+                if (condition == null) {
+                    sign = (turn == 0 || rng.nextDouble() < 0.55) ? (rng.nextDouble() < 0.5 ? -1.0 : 1.0)
+                            : -Math.signum(finalX == 0.0 ? 1.0 : finalX);
+                } else {
+                    double preferred = condition.sideBias() == 0.0 ? (rng.nextDouble() < .5 ? -1.0 : 1.0)
+                            : Math.signum(condition.sideBias());
+                    sign = (turn == 0 || rng.nextDouble() < 0.55) ? (rng.nextDouble() < .73 ? preferred : -preferred)
+                            : -Math.signum(finalX == 0.0 ? 1.0 : finalX);
+                }
                 double scale = form == RoutingForm.GENTLE ? 0.34 : turns == 2 && turn == 0 ? 0.66 : 1.0;
                 finalX += sign * movement * scale;
                 anchors.add(new Position2d(finalX, length * fraction));
@@ -56,11 +74,11 @@ final class V5HolePlanner {
             finalX *= 0.30 + rng.nextDouble() * 0.25;
             ArchitectureRoute route = new ArchitectureRoute(new Position2d(0.0, 0.0), anchors,
                     new Position2d(finalX, length));
-            List<FairwayWidthStation> stations = stations(route, fairwayHalf, profile, ordinal, rng);
+            List<FairwayWidthStation> stations = stations(route, fairwayHalf, profile, ordinal, rng, condition);
             Position2d direction = finalDirection(route);
             List<Position2d> green = greenFootprint(route.greenCenter(), direction, profile, rng);
             double signature = signature(route, stations, green, ordinal);
-            double score = 42.0 + profile.widthRhythm() * 8.0
+            double score = 42.0 + profile.widthRhythm() * 8.0 + (condition == null ? 0.0 : condition.openness() * 3.0)
                     + (brief.archetype() == StrategicArchetype.BALANCED ? 3.0 : 6.0) + rng.nextDouble();
             result.add(new Candidate(new HoleArchitecturePlan(form, route, stations, green, direction, signature), score, ordinal));
         }
@@ -68,7 +86,8 @@ final class V5HolePlanner {
     }
 
     private static List<FairwayWidthStation> stations(ArchitectureRoute route, double base,
-                                                       CourseArchitectureProfile profile, int ordinal, Rng rng) {
+                                                       CourseArchitectureProfile profile, int ordinal, Rng rng,
+                                                       LandscapeHoleCondition condition) {
         double total = route.length();
         double asymmetry = (profile.lateralAsymmetry() * 0.38 + 0.06) * (ordinal % 2 == 0 ? 1.0 : -1.0);
         List<FairwayWidthStation> result = new ArrayList<>();
@@ -76,8 +95,10 @@ final class V5HolePlanner {
             double rhythm = StrictMath.sin((fraction * 2.0 + ordinal * 0.37) * StrictMath.PI)
                     * (0.18 + profile.widthRhythm() * 0.22);
             double landingWiden = fraction > 0.42 && fraction < 0.70 ? 0.12 + rng.nextDouble() * 0.11 : 0.0;
-            double left = Math.max(10.0, base * (1.0 + rhythm - asymmetry + landingWiden));
-            double right = Math.max(10.0, base * (1.0 - rhythm + asymmetry + landingWiden * 0.45));
+            double clearance = condition != null && fraction > .35 && fraction < .75 ? condition.enclosure() * .11 : 0.0;
+            double side = condition == null ? 0.0 : condition.sideBias() * (fraction > .35 && fraction < .82 ? .10 : .04);
+            double left = Math.max(10.0, base * (1.0 + rhythm - asymmetry + landingWiden - side - clearance));
+            double right = Math.max(10.0, base * (1.0 - rhythm + asymmetry + landingWiden * .45 + side - clearance));
             result.add(new FairwayWidthStation(total * fraction, left, right));
         }
         return result;

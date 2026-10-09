@@ -29,6 +29,17 @@ const fills = (surface: string, kit: (typeof BIOME_KITS)[keyof typeof BIOME_KITS
   }
 };
 
+const contextFill = (kind: string, kit: (typeof BIOME_KITS)[keyof typeof BIOME_KITS]) => {
+  switch (kind) {
+    case "COAST_WATER": case "BAY_WATER": case "LAKE": return kit.water ?? "#2f7fb5";
+    case "WOODLAND_MASS": case "COPSE": return kit.tree;
+    case "CLEARING": case "PARKLAND_FIELD": return kit.rough;
+    case "DUNE_BAND": return kit.sand;
+    case "LINKS_HEATH": return kit.out;
+    default: return kit.out;
+  }
+};
+
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
   useLayoutEffect(() => {
@@ -45,7 +56,8 @@ function usePrefersReducedMotion(): boolean {
 export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint }: Hole2dProps) {
   const geometry = hole.geometry!;
   const kit = BIOME_KITS[resolveBiome(hole.courseType)];
-  const model = useMemo(() => canonicalRenderModel(geometry, { width: W, height: H, padding: PAD }), [geometry]);
+  const model = useMemo(() => canonicalRenderModel(geometry, hole.landscapeContext,
+    { width: W, height: H, padding: PAD }), [geometry, hole.landscapeContext]);
   const svgRef = useRef<SVGSVGElement>(null);
   const reduced = usePrefersReducedMotion();
   const trace = ball?.trace ?? null;
@@ -99,6 +111,8 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint }:
   return <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className={className} role="img"
     aria-label={`Hole ${hole.holeNumber}, par ${hole.par}, canonical terrain${trace ? `, ${trace.club} shot result` : ""}`}
     onPointerDown={selectTarget}>
+    {model.context.map((feature) => <path key={`context-${feature.id}`} d={feature.path}
+      fill={contextFill(feature.kind, kit)} opacity="0.72" />)}
     <path d={model.playableBoundaryPath} fill={kit.out} />
     {model.terrain.map((region, index) => <path key={`${region.surface}-${index}`} d={region.path} fill={fills(region.surface, kit)} />)}
     <path d={model.playableBoundaryPath} fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="1" />

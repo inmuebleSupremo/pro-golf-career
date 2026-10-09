@@ -766,6 +766,7 @@ export const PlayingHoleDocument = graphql(`
       pinDepth
       courseType
       layoutSeed
+      landscapeContext { courseIdentity relationship features { id kind boundary { x y } } }
       effectiveWind { x y magnitude unit }
       geometry {
         tee { x y }

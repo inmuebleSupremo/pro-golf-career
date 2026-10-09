@@ -20,6 +20,11 @@ export interface HoleGeom {
   readonly pinDepth: number;
   readonly courseType: string;
   readonly layoutSeed: string;
+  readonly landscapeContext?: {
+    readonly courseIdentity: string;
+    readonly relationship: string;
+    readonly features: readonly { readonly id: string; readonly kind: string; readonly boundary: readonly Point[] }[];
+  } | null;
   readonly effectiveWind: { readonly x: number; readonly y: number; readonly magnitude: number; readonly unit: string };
   readonly geometry?: {
     readonly tee: Point;

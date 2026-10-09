@@ -30,6 +30,7 @@ public record PlayingHoleDto(
         String courseType,
         String layoutSeed,
         PlayingGeometryDto geometry,
+        LandscapeHoleContextDto landscapeContext,
         BallStateDto ball,
         EffectiveWindDto effectiveWind) {
 }

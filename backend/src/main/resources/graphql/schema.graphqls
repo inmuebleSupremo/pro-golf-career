@@ -673,6 +673,8 @@ type PlayingHole {
     layoutSeed: String!
     "Authoritative yard-space terrain for this hole; SVG details remain client-owned."
     geometry: PlayingGeometry!
+    "Read-only V6 geographical context. It never changes authoritative terrain or a shot outcome."
+    landscapeContext: LandscapeHoleContext
     "The legal position and lie from which the next shot will be played."
     ball: BallState!
     "Effective local wind flow after weather, exposure, and synthetic orientation conversion."
@@ -694,6 +696,18 @@ type PlayingGeometry {
     cup: Position!
     playableBoundary: [Position!]!
     regions: [TerrainRegion!]!
+}
+
+type LandscapeHoleContext {
+    courseIdentity: String!
+    relationship: String!
+    features: [LandscapeContextFeature!]!
+}
+
+type LandscapeContextFeature {
+    id: String!
+    kind: String!
+    boundary: [Position!]!
 }
 
 type BallState {

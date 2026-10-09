@@ -20,6 +20,8 @@ public final class CourseGenConstants {
     public static final int V4_GENERATOR_VERSION = 4;
     /** First candidate-selected organic course architecture generator. */
     public static final int V5_GENERATOR_VERSION = 5;
+    /** First retained generator with shared course-scale landscape and hole placement. */
+    public static final int V6_GENERATOR_VERSION = 6;
     /** Generator selected only when a new world is created. Restore always uses its persisted pin. */
     public static final int CURRENT_GENERATOR_VERSION = V5_GENERATOR_VERSION;
     /** @deprecated Use an explicit retained generator version. */
