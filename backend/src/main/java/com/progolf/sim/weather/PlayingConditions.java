@@ -98,7 +98,8 @@ public record PlayingConditions(
         // +x is golfer-right and +y is down the legacy green-centre reference; the resolver rotates this
         // vector against each submitted AimPoint axis before applying deterministic drift or uncertainty.
         double windY = -headWind;
-        return new Environment(new com.progolf.sim.shot.WindVector(crossWind, windY == 0.0 ? 0.0 : windY), lieQuality);
+        return new Environment(new com.progolf.sim.shot.WindVector(crossWind, windY == 0.0 ? 0.0 : windY),
+                lieQuality, groundFirmness);
     }
 
     /**
