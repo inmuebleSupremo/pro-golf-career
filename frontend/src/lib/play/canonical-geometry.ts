@@ -32,7 +32,9 @@ export function canonicalRenderModel(
   geometry: CanonicalPlayingGeometry,
   viewport = { width: 220, height: 440, padding: 16 },
 ): CanonicalRenderModel {
-  const points = [...geometry.playableBoundary, geometry.tee, geometry.cup];
+  // The canonical boundary remains the playable extent, while terrain vertices also participate in framing.
+  // This prevents an authoritative bunker or collar near an edge from disappearing at the SVG viewBox.
+  const points = [...geometry.playableBoundary, ...geometry.regions.flatMap((region) => region.boundary), geometry.tee, geometry.cup];
   const xs = points.map((point) => point.x);
   const ys = points.map((point) => point.y);
   const minX = Math.min(...xs);

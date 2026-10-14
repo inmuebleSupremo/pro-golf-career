@@ -151,6 +151,29 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
   },
 };
 
+/** Parkland material palette, derived from the authored `parkland001.svg` reference. Kept separate from
+ * application-chrome tokens because it colours the literal course illustration, not general UI. */
+export const PARKLAND_MATERIAL = {
+  outerDark: "#18471f",
+  outerLight: "#347c3b",
+  roughLight: "#4b9d4d",
+  roughDark: "#2d7538",
+  fairwayLight: "#72cd68",
+  fairwayDark: "#4ba84d",
+  fringeLight: "#6fbb61",
+  fringeDark: "#4f9a4f",
+  greenLight: "#9ae38a",
+  greenDark: "#6fc56b",
+  sandLight: "#f6edcb",
+  sandDark: "#d7c48d",
+  waterLight: "#62b7df",
+  waterDark: "#236eaa",
+  treeBase: "#164a1a",
+  treeOutline: "#0e3a11",
+  markerOutline: "#17361b",
+  traceShadow: "#102a17",
+} as const;
+
 /**
  * Resolves the schematic biome from the event's canonical scene token (`courseType`) — the same token the scene
  * backdrop keys on, so the hole illustration always agrees with the event's photo, name, and place. HEATHLAND
