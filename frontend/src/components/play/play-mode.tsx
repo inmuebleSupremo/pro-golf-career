@@ -56,6 +56,7 @@ export function PlayMode({
   leaderboard,
   pressure,
   playerGolferId,
+  courseGeneratorVersion,
 }: {
   id: string;
   event: CurrentEvent | null;
@@ -65,6 +66,7 @@ export function PlayMode({
   leaderboard: LeaderboardRow[];
   pressure: number | null;
   playerGolferId: string | null;
+  courseGeneratorVersion: number;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<DrawerTab | null>(null);
@@ -131,6 +133,8 @@ export function PlayMode({
           scorecard={scorecard}
           leaderboard={leaderboard}
           playerGolferId={playerGolferId}
+          courseGeneratorVersion={courseGeneratorVersion}
+          hole={hole}
         />
       </div>
 
@@ -461,6 +465,8 @@ function InfoDrawer({
   scorecard,
   leaderboard,
   playerGolferId,
+  courseGeneratorVersion,
+  hole,
 }: {
   tab: DrawerTab | null;
   onTab: (t: DrawerTab) => void;
@@ -469,6 +475,8 @@ function InfoDrawer({
   scorecard: Scorecard | null;
   leaderboard: LeaderboardRow[];
   playerGolferId: string | null;
+  courseGeneratorVersion: number;
+  hole: HoleGeom | null;
 }) {
   const open = tab !== null;
   return (
@@ -503,7 +511,7 @@ function InfoDrawer({
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {tab === "leaderboard" ? <Leaderboard rows={leaderboard} playerGolferId={playerGolferId} /> : null}
           {tab === "scorecard" ? <ScorecardTab scorecard={scorecard} /> : null}
-          {tab === "details" ? <DetailsTab event={event} scorecard={scorecard} /> : null}
+          {tab === "details" ? <DetailsTab event={event} scorecard={scorecard} courseGeneratorVersion={courseGeneratorVersion} hole={hole} /> : null}
         </div>
       </aside>
     </>
@@ -534,14 +542,22 @@ function ScorecardTab({ scorecard }: { scorecard: Scorecard | null }) {
   );
 }
 
-function DetailsTab({ event, scorecard }: { event: CurrentEvent | null; scorecard: Scorecard | null }) {
+function DetailsTab({ event, scorecard, courseGeneratorVersion, hole }: {
+  event: CurrentEvent | null;
+  scorecard: Scorecard | null;
+  courseGeneratorVersion: number;
+  hole: HoleGeom | null;
+}) {
   return (
     <div className="grid grid-cols-2 gap-5">
       {event ? <Stat label="Event" value={event.name} /> : null}
       {event ? <Stat label="Location" value={event.location} /> : null}
-      {event ? <Stat label="Course" value={humanize(event.courseType)} /> : null}
+      {event ? <Stat label="Scene biome" value={humanize(event.courseType)} /> : null}
       {scorecard ? <Stat label="Round" value={`${scorecard.roundNumber} of ${ROUNDS_PER_EVENT}`} /> : null}
       {scorecard ? <Stat label="Hole" value={`${scorecard.currentHole} of 18`} /> : null}
+      <Stat label="World/course generator" value={`${courseGeneratorVersion}`} />
+      {hole ? <div className="col-span-2"><Stat label="Hole layout seed" value={hole.layoutSeed} /></div> : null}
+      {hole ? <div className="col-span-2"><Stat label="Geometry source" value={hole.geometry ? `Backend canonical · ${hole.geometry.regions.length} regions` : "Unavailable"} /></div> : null}
     </div>
   );
 }

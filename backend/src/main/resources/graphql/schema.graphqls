@@ -222,6 +222,8 @@ type WorldStatus {
     week: Int!
     activePopulation: Int!
     hasPendingEvent: Boolean!
+    "Generator provenance pinned in this world's save; 7 identifies the opt-in refined V5 test architecture."
+    courseGeneratorVersion: Int!
     "True when the pending event has been played to its end and only awaits completion (the finish-event window)."
     pendingEventFinished: Boolean!
 }

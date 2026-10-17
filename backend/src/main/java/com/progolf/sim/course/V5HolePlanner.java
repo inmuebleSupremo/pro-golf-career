@@ -22,11 +22,16 @@ final class V5HolePlanner {
 
     static List<SelectedCandidate> select(CoursePlan coursePlan, CourseArchitectureProfile profile, long courseSeed,
                                           List<Double> lengths, List<Double> fairwayHalves) {
+        return select(coursePlan, profile, courseSeed, lengths, fairwayHalves, false);
+    }
+
+    static List<SelectedCandidate> select(CoursePlan coursePlan, CourseArchitectureProfile profile, long courseSeed,
+                                          List<Double> lengths, List<Double> fairwayHalves, boolean refined) {
         List<SelectedCandidate> selected = new ArrayList<>(18);
         for (int index = 0; index < coursePlan.briefs().size(); index++) {
             HoleBrief brief = coursePlan.briefs().get(index);
             List<Candidate> candidates = candidates(brief, profile, lengths.get(index), fairwayHalves.get(index),
-                    Seeds.deriveSeed(courseSeed, brief.number()));
+                    Seeds.deriveSeed(courseSeed, brief.number()), refined);
             Candidate best = candidates.stream().max(Comparator.comparingDouble(candidate -> candidate.score
                     - repetitionPenalty(candidate, selected) + compositionAdjustment(candidate, selected, profile,
                     coursePlan.briefs().size()))).orElseThrow();
@@ -36,12 +41,13 @@ final class V5HolePlanner {
     }
 
     private static List<Candidate> candidates(HoleBrief brief, CourseArchitectureProfile profile, double length,
-                                              double fairwayHalf, long holeSeed) {
+                                              double fairwayHalf, long holeSeed, boolean refined) {
         List<Candidate> result = new ArrayList<>(CANDIDATES_PER_BRIEF);
         for (int ordinal = 0; ordinal < CANDIDATES_PER_BRIEF; ordinal++) {
             Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, CANDIDATE_SALT + ordinal));
             RoutingForm form = routingForm(brief, ordinal);
-            double movement = 18.0 + profile.routingMovement() * 34.0 + rng.nextDouble() * 12.0;
+            double movement = refined ? 29.0 + profile.routingMovement() * 47.0 + rng.nextDouble() * 17.0
+                    : 18.0 + profile.routingMovement() * 34.0 + rng.nextDouble() * 12.0;
             List<Position2d> anchors = new ArrayList<>(form == RoutingForm.DOUBLE_DOGLEG ? 2 : form == RoutingForm.STRAIGHT ? 0 : 1);
             double finalX = 0.0;
             int turns = form == RoutingForm.DOUBLE_DOGLEG ? 2 : form == RoutingForm.STRAIGHT ? 0 : 1;
@@ -53,12 +59,13 @@ final class V5HolePlanner {
                 finalX += sign * movement * scale;
                 anchors.add(new Position2d(finalX, length * fraction));
             }
-            finalX *= 0.30 + rng.nextDouble() * 0.25;
+            finalX *= refined ? 0.56 + rng.nextDouble() * 0.27 : 0.30 + rng.nextDouble() * 0.25;
             ArchitectureRoute route = new ArchitectureRoute(new Position2d(0.0, 0.0), anchors,
                     new Position2d(finalX, length));
-            List<FairwayWidthStation> stations = stations(route, fairwayHalf, profile, ordinal, rng);
+            List<FairwayWidthStation> stations = stations(route, refined ? fairwayHalf * 1.12 : fairwayHalf,
+                    profile, ordinal, rng, refined);
             Position2d direction = finalDirection(route);
-            List<Position2d> green = greenFootprint(route.greenCenter(), direction, profile, rng);
+            List<Position2d> green = greenFootprint(route.greenCenter(), direction, profile, rng, brief.par(), refined);
             double signature = signature(route, stations, green, ordinal);
             double score = 42.0 + profile.widthRhythm() * 8.0
                     + (brief.archetype() == StrategicArchetype.BALANCED ? 3.0 : 6.0) + rng.nextDouble();
@@ -68,14 +75,19 @@ final class V5HolePlanner {
     }
 
     private static List<FairwayWidthStation> stations(ArchitectureRoute route, double base,
-                                                       CourseArchitectureProfile profile, int ordinal, Rng rng) {
+                                                       CourseArchitectureProfile profile, int ordinal, Rng rng,
+                                                       boolean refined) {
         double total = route.length();
         double asymmetry = (profile.lateralAsymmetry() * 0.38 + 0.06) * (ordinal % 2 == 0 ? 1.0 : -1.0);
         List<FairwayWidthStation> result = new ArrayList<>();
-        for (double fraction : List.of(0.0, 0.20, 0.47, 0.67, 0.84, 1.0)) {
+        for (double fraction : refined ? List.of(0.0, 0.17, 0.38, 0.55, 0.72, 0.87, 1.0)
+                : List.of(0.0, 0.20, 0.47, 0.67, 0.84, 1.0)) {
             double rhythm = StrictMath.sin((fraction * 2.0 + ordinal * 0.37) * StrictMath.PI)
                     * (0.18 + profile.widthRhythm() * 0.22);
-            double landingWiden = fraction > 0.42 && fraction < 0.70 ? 0.12 + rng.nextDouble() * 0.11 : 0.0;
+            double landingWiden = refined
+                    ? (fraction > 0.35 && fraction < 0.73 ? 0.31 + rng.nextDouble() * 0.30 : 0.0)
+                    : (fraction > 0.42 && fraction < 0.70 ? 0.12 + rng.nextDouble() * 0.11 : 0.0);
+            if (refined && fraction == 0.87) rhythm -= .14;
             double left = Math.max(10.0, base * (1.0 + rhythm - asymmetry + landingWiden));
             double right = Math.max(10.0, base * (1.0 - rhythm + asymmetry + landingWiden * 0.45));
             result.add(new FairwayWidthStation(total * fraction, left, right));
@@ -92,13 +104,16 @@ final class V5HolePlanner {
     }
 
     private static List<Position2d> greenFootprint(Position2d center, Position2d direction,
-                                                     CourseArchitectureProfile profile, Rng rng) {
+                                                     CourseArchitectureProfile profile, Rng rng, int par, boolean refined) {
         // Modern putting surfaces have room for several pin positions and are not circular end-caps. Their
         // orientation can sit slightly across the approach, while remaining legible from the connected route.
-        double major = 16.0 + rng.nextDouble() * 8.0;
-        double minor = 12.5 + rng.nextDouble() * 7.0;
+        double major = refined ? (par == 3 ? 22.0 : par == 4 ? 24.0 : 26.0) + rng.nextDouble() * 7.0
+                : 16.0 + rng.nextDouble() * 8.0;
+        double minor = refined ? (par == 3 ? 17.0 : par == 4 ? 18.0 : 19.0) + rng.nextDouble() * 5.0
+                : 12.5 + rng.nextDouble() * 7.0;
         double defence = 0.07 + profile.greenDefence() * 0.13;
-        double rotation = (rng.nextDouble() * 2.0 - 1.0) * (.18 + profile.lateralAsymmetry() * .30);
+        double rotation = (rng.nextDouble() * 2.0 - 1.0) * (refined ? .55 + profile.lateralAsymmetry() * .52
+                : .18 + profile.lateralAsymmetry() * .30);
         double cos = StrictMath.cos(rotation);
         double sin = StrictMath.sin(rotation);
         Position2d longAxis = new Position2d(direction.x() * cos - direction.y() * sin,
@@ -109,7 +124,8 @@ final class V5HolePlanner {
         double secondaryPhase = rng.nextDouble() * 2.0 * StrictMath.PI;
         for (int i = 0; i < 22; i++) {
             double theta = 2.0 * StrictMath.PI * i / 22.0;
-            double wobble = 1.0 + defence * (0.62 * StrictMath.sin(2.0 * theta + primaryPhase)
+            double wobble = 1.0 + (refined ? defence * 2.20 : defence)
+                    * (0.62 * StrictMath.sin(2.0 * theta + primaryPhase)
                     + 0.23 * StrictMath.sin(3.0 * theta + secondaryPhase)
                     + 0.15 * StrictMath.sin(theta - primaryPhase));
             points.add(center.plus(longAxis.x() * StrictMath.cos(theta) * major * wobble

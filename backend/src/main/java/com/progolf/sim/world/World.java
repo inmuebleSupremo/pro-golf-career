@@ -211,7 +211,12 @@ public final class World {
 
     /** Creates and bootstraps a World from a master seed and configuration. */
     public static World create(long masterSeed, WorldConfig config) {
-        World world = new World(masterSeed, config, CourseGenConstants.CURRENT_GENERATOR_VERSION);
+        return create(masterSeed, config, CourseGenConstants.CURRENT_GENERATOR_VERSION);
+    }
+
+    /** Explicit provenance for a fresh world; restore always uses the version pinned in its snapshot. */
+    public static World create(long masterSeed, WorldConfig config, int courseGeneratorVersion) {
+        World world = new World(masterSeed, config, courseGeneratorVersion);
         world.bootstrap();
         return world;
     }

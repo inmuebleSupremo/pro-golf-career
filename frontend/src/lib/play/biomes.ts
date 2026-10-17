@@ -98,9 +98,9 @@ export const BIOME_KITS: Record<Biome, BiomeKit> = {
   // wild dusty fescue (the same lush-turf-vs-dry-surround contrast that makes desert & parkland pop).
   links: {
     biome: "links",
-    out: "#c6bd80", rough: "#c6bd80", roughPattern: "fescue",
-    fairway: "#93bd66", mowStripe: null,
-    green: "#88b860", fringe: "#6c974e", sand: "#efe6c4", sandStroke: "#7a6a3f",
+    out: "#e3d5a5", rough: "#a3b18a", roughPattern: "fescue",
+    fairway: "#b5c19b", mowStripe: null,
+    green: "#99a97d", fringe: "#b9c69d", sand: "#f4e8c1", sandStroke: "#8d6e63",
     potBunkers: true, water: "#5a86a0",
     vegetation: "deciduous", vegetationDensity: 0.35, waste: false, rock: false, elevationShading: false,
     tee: "#d4af37", scatterMode: "edge", scatterCull: 0.5, scatter: [{ kind: "gorse", weight: 1 }], mowKind: null, coastal: true,
@@ -172,6 +172,30 @@ export const PARKLAND_MATERIAL = {
   treeOutline: "#0e3a11",
   markerOutline: "#17361b",
   traceShadow: "#102a17",
+} as const;
+
+/** Links material vocabulary transcribed from `docs/course-holes/links001.svg`. */
+export const LINKS_MATERIAL = {
+  distantDune: "#b9ad84",
+  duneContour: "#9c8c65",
+  duneLight: "#e3d5a5",
+  duneShade: "#d0b976",
+  fescueLight: "#a3b18a",
+  fescueDark: "#8b7355",
+  fescueBlue: "#708090",
+  deepFescue: "#899577",
+  recovery: "#bbc5a0",
+  thicket: "#64795d",
+  fairwayLight: "#c2cda8",
+  fairwayDark: "#aab88f",
+  greenLight: "#aebb91",
+  greenDark: "#87966e",
+  potSand: "#f4e8c1",
+  potRim: "#8d6e63",
+  potLight: "#fff4d9",
+  potShadow: "#5f493d",
+  waterLight: "#6f9ab0",
+  waterDark: "#456d83",
 } as const;
 
 /**

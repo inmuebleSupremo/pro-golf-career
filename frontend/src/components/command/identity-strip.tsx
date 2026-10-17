@@ -46,6 +46,7 @@ export function IdentityStrip({ id }: { id: string }) {
                 {" · Age "}
                 {profile.age}
                 {world ? ` · Season ${world.season}` : ""}
+                {world?.courseGeneratorVersion === 7 ? " · Refined V5 test · Generator 7" : ""}
               </>
             ) : (
               "Loading career…"

@@ -7,5 +7,5 @@ package com.progolf.app.api.dto;
  * removed provisional REST status record; no simulation-engine type is exposed.
  */
 public record WorldStatusDto(String id, int season, int week, int activePopulation, boolean hasPendingEvent,
-                             boolean pendingEventFinished) {
+                             boolean pendingEventFinished, int courseGeneratorVersion) {
 }

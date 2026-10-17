@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 
-import { BIOME_KITS, PARKLAND_MATERIAL, resolveBiome, VEG_SYMBOLS, type SvgPrim } from "@/lib/play/biomes";
+import { BIOME_KITS, LINKS_MATERIAL, PARKLAND_MATERIAL, resolveBiome, VEG_SYMBOLS, type SvgPrim } from "@/lib/play/biomes";
 import { canonicalRenderModel } from "@/lib/play/canonical-geometry";
 import { decorationId, planTreeCanopies, type CanopyPlacement } from "@/lib/play/canonical-hole-decoration";
 import type { Point } from "@/lib/play/hole-geometry";
@@ -14,6 +14,17 @@ const W = 220;
 const H = 440;
 const PAD = 16;
 
+/** Fit short canonical holes without changing the projection or aim-point inverse. */
+function canonicalViewportHeight(geometry: Hole2dProps["hole"]["geometry"]): number {
+  if (!geometry) return H;
+  const points = [...geometry.playableBoundary, ...geometry.regions.flatMap((region) => region.boundary)];
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const width = Math.max(1, Math.max(...xs) - Math.min(...xs));
+  const height = Math.max(...ys) - Math.min(...ys);
+  return Math.min(H, Math.max(260, Math.ceil(height * (W - PAD * 2) / width + PAD * 2)));
+}
+
 const fills = (surface: string, kit: (typeof BIOME_KITS)[keyof typeof BIOME_KITS], artId: string) => {
   if (kit.biome === "parkland") {
     switch (surface) {
@@ -24,6 +35,20 @@ const fills = (surface: string, kit: (typeof BIOME_KITS)[keyof typeof BIOME_KITS
       case "BUNKER": case "WASTE_AREA": return `url(#${artId}-sand)`;
       case "WATER": return `url(#${artId}-water)`;
       case "TREES": return `url(#${artId}-trees)`;
+      default: return "transparent";
+    }
+  }
+  if (kit.biome === "links") {
+    switch (surface) {
+      case "FAIRWAY": return `url(#${artId}-links-fairway)`;
+      case "FIRST_CUT": case "FRINGE": return `url(#${artId}-links-fringe)`;
+      case "PRIMARY_ROUGH": return `url(#${artId}-links-fescue)`;
+      case "DEEP_ROUGH": return `url(#${artId}-links-deep-fescue)`;
+      case "RECOVERY_AREA": return LINKS_MATERIAL.recovery;
+      case "GREEN": return `url(#${artId}-links-green)`;
+      case "BUNKER": case "WASTE_AREA": return `url(#${artId}-links-sand)`;
+      case "WATER": return `url(#${artId}-links-water)`;
+      case "TREES": return `url(#${artId}-links-thicket)`;
       default: return "transparent";
     }
   }
@@ -58,13 +83,15 @@ function usePrefersReducedMotion(): boolean {
 export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, presentation = "polished" }: Hole2dProps) {
   const geometry = hole.geometry!;
   const kit = BIOME_KITS[resolveBiome(hole.courseType)];
-  const model = useMemo(() => canonicalRenderModel(geometry, { width: W, height: H, padding: PAD }), [geometry]);
+  const viewHeight = useMemo(() => canonicalViewportHeight(geometry), [geometry]);
+  const model = useMemo(() => canonicalRenderModel(geometry, { width: W, height: viewHeight, padding: PAD }), [geometry, viewHeight]);
   const artId = useMemo(() => decorationId(hole.layoutSeed, geometry), [geometry, hole.layoutSeed]);
   const treeCanopies = useMemo(() => planTreeCanopies(geometry, hole.layoutSeed), [geometry, hole.layoutSeed]);
   const svgRef = useRef<SVGSVGElement>(null);
   const reduced = usePrefersReducedMotion();
   const trace = ball?.trace ?? null;
   const polishedParkland = kit.biome === "parkland" && presentation === "polished";
+  const polishedLinks = kit.biome === "links" && presentation === "polished";
   const [progress, setProgress] = useState(1);
 
   useEffect(() => {
@@ -113,20 +140,28 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
   function selectTarget(event: PointerEvent<SVGSVGElement>) {
     if (!onAimPoint || !svgRef.current || isAimPointInteractionLocked(trace != null)) return;
     const rect = svgRef.current.getBoundingClientRect();
-    onAimPoint(model.unproject({ x: (event.clientX - rect.left) * W / rect.width, y: (event.clientY - rect.top) * H / rect.height }));
+    onAimPoint(model.unproject({ x: (event.clientX - rect.left) * W / rect.width, y: (event.clientY - rect.top) * viewHeight / rect.height }));
   }
 
   const recoveryLabel = transitionLabel(trace);
   const playbackStatus = tracePlaybackStatus(trace, playback);
-  return <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className={className} role="img"
+  return <svg ref={svgRef} viewBox={`0 0 ${W} ${viewHeight}`} className={className} role="img"
     aria-label={`Hole ${hole.holeNumber}, par ${hole.par}, canonical terrain${trace ? `, ${trace.club} shot result` : ""}`}
     onPointerDown={selectTarget}>
     {polishedParkland ? <ParklandDefs artId={artId} model={model} treeCanopies={treeCanopies} /> : null}
-    <path d={model.playableBoundaryPath} fill={polishedParkland ? `url(#${artId}-out)` : kit.out} />
+    {kit.biome === "links" ? <LinksDefs artId={artId} /> : null}
+    {polishedParkland ? <><rect width={W} height={viewHeight} fill={`url(#${artId}-out)`} />
+      <rect width={W} height={viewHeight} fill={`url(#${artId}-parkland-landscape)`} opacity=".36" /></> : null}
+    {polishedLinks ? <rect width={W} height={viewHeight} fill={`url(#${artId}-links-distant)`} /> : null}
+    {polishedLinks ? <rect width={W} height={viewHeight} fill={`url(#${artId}-links-dunes)`} opacity=".24" /> : null}
+    <path d={model.playableBoundaryPath} fill={polishedParkland ? `url(#${artId}-out)` : polishedLinks ? `url(#${artId}-links-out)` : kit.out} />
+    {polishedLinks ? <path d={model.playableBoundaryPath} fill={`url(#${artId}-links-dunes)`} opacity=".44" /> : null}
     {model.terrain.map((region, index) => <TerrainRegion key={`${region.surface}-${index}`} surface={region.surface}
-      path={region.path} fill={fills(region.surface, kit, artId)} artId={artId} polishedParkland={polishedParkland} />)}
+      path={region.path} fill={fills(region.surface, kit, artId)} artId={artId} polishedParkland={polishedParkland}
+      polishedLinks={polishedLinks} />)}
     {polishedParkland ? <ParklandCanopies artId={artId} model={model} treeCanopies={treeCanopies} /> : null}
-    <path d={model.playableBoundaryPath} fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="1" />
+    <path d={model.playableBoundaryPath} fill="none" stroke={polishedLinks ? LINKS_MATERIAL.duneContour : "rgba(255,255,255,.28)"}
+      strokeWidth={polishedLinks ? ".8" : "1"} opacity={polishedLinks ? ".7" : undefined} />
     <rect x={tee.x - 7} y={tee.y - 3} width="14" height="6" rx="2" fill={kit.tee}
       stroke={polishedParkland ? PARKLAND_MATERIAL.markerOutline : undefined} strokeWidth={polishedParkland ? ".7" : undefined} />
     <circle cx={cup.x} cy={cup.y} r="2" fill="#111" /><path d={`M${cup.x} ${cup.y} v-13 l7 2.5 -7 2.5z`} fill="#e23b3b" />
@@ -155,7 +190,7 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
       <text x={(rollFrom.x + rollTo.x) / 2 + 3} y={(rollFrom.y + rollTo.y) / 2 - 3} fill="var(--accent)" fontSize="5">Roll</text>
     </> : null}
 
-    {playbackStatus ? <text x={PAD} y={H - PAD} fill="var(--accent)" fontSize="6" fontWeight="700">
+    {playbackStatus ? <text x={PAD} y={viewHeight - PAD} fill="var(--accent)" fontSize="6" fontWeight="700">
       {playbackStatus}
     </text> : null}
 
@@ -171,8 +206,8 @@ function TargetMarker({ point, label, outlined }: { point: Point; label: string;
 }
 
 function TerrainRegion({
-  surface, path, fill, artId, polishedParkland,
-}: { surface: string; path: string; fill: string; artId: string; polishedParkland: boolean }) {
+  surface, path, fill, artId, polishedParkland, polishedLinks,
+}: { surface: string; path: string; fill: string; artId: string; polishedParkland: boolean; polishedLinks: boolean }) {
   const overlay = polishedParkland
     ? surface === "FAIRWAY" ? `${artId}-mow`
       : surface === "PRIMARY_ROUGH" || surface === "DEEP_ROUGH" || surface === "RECOVERY_AREA" ? `${artId}-grass`
@@ -181,9 +216,41 @@ function TerrainRegion({
             : null
     : null;
   return <g>
-    <path d={path} fill={fill} />
+    <path d={path} fill={fill} stroke={polishedLinks && (surface === "BUNKER" || surface === "WASTE_AREA") ? LINKS_MATERIAL.potRim : undefined}
+      strokeWidth={polishedLinks && (surface === "BUNKER" || surface === "WASTE_AREA") ? "1.8" : undefined} />
     {overlay ? <path d={path} fill={`url(#${overlay})`} opacity={surface === "FAIRWAY" ? ".12" : ".3"} /> : null}
+    {polishedLinks && (surface === "BUNKER" || surface === "WASTE_AREA") ? <path d={path} fill="none" stroke={LINKS_MATERIAL.potShadow} strokeWidth=".42" opacity=".75" /> : null}
   </g>;
+}
+
+function LinksDefs({ artId }: { artId: string }) {
+  return <defs>
+    <linearGradient id={`${artId}-links-distant`} x1="0" y1="0" x2="1" y2="1"><stop stopColor={LINKS_MATERIAL.distantDune} /><stop offset="1" stopColor={LINKS_MATERIAL.duneShade} /></linearGradient>
+    <linearGradient id={`${artId}-links-out`} x1="0" y1="0" x2=".8" y2="1"><stop stopColor={LINKS_MATERIAL.duneLight} /><stop offset="1" stopColor={LINKS_MATERIAL.duneShade} /></linearGradient>
+    <linearGradient id={`${artId}-links-fairway`} x1="0" y1="0" x2=".85" y2="1"><stop stopColor={LINKS_MATERIAL.fairwayLight} /><stop offset="1" stopColor={LINKS_MATERIAL.fairwayDark} /></linearGradient>
+    <linearGradient id={`${artId}-links-fringe`} x1="0" y1="0" x2="1" y2="1"><stop stopColor={LINKS_MATERIAL.fairwayLight} /><stop offset="1" stopColor={LINKS_MATERIAL.fescueLight} /></linearGradient>
+    <linearGradient id={`${artId}-links-green`} x1=".25" y1="0" x2=".8" y2="1"><stop stopColor={LINKS_MATERIAL.greenLight} /><stop offset="1" stopColor={LINKS_MATERIAL.greenDark} /></linearGradient>
+    <linearGradient id={`${artId}-links-sand`} x1="0" y1="0" x2=".7" y2="1"><stop stopColor={LINKS_MATERIAL.potLight} /><stop offset="1" stopColor={LINKS_MATERIAL.potSand} /></linearGradient>
+    <linearGradient id={`${artId}-links-water`} x1="0" y1="0" x2=".2" y2="1"><stop stopColor={LINKS_MATERIAL.waterLight} /><stop offset="1" stopColor={LINKS_MATERIAL.waterDark} /></linearGradient>
+    <pattern id={`${artId}-links-fescue`} width="13" height="15" patternUnits="userSpaceOnUse">
+      <rect width="13" height="15" fill={LINKS_MATERIAL.fescueLight} />
+      <path d="M2 14 4 8M4 14 6 6M8 14 9 9M10 14 12 7" stroke={LINKS_MATERIAL.fescueDark} strokeWidth=".5" opacity=".45" />
+      <path d="M1 7 2 3M7 6 9 2" stroke={LINKS_MATERIAL.fescueBlue} strokeWidth=".42" opacity=".34" />
+    </pattern>
+    <pattern id={`${artId}-links-deep-fescue`} width="13" height="15" patternUnits="userSpaceOnUse">
+      <rect width="13" height="15" fill={LINKS_MATERIAL.deepFescue} />
+      <path d="M1 14 3 5M4 14 6 4M7 14 10 6M10 14 12 3" stroke={LINKS_MATERIAL.fescueDark} strokeWidth=".7" opacity=".57" />
+      <path d="M2 6 3 2M8 7 9 1" stroke={LINKS_MATERIAL.fescueBlue} strokeWidth=".5" opacity=".4" />
+    </pattern>
+    <pattern id={`${artId}-links-thicket`} width="11" height="11" patternUnits="userSpaceOnUse">
+      <rect width="11" height="11" fill={LINKS_MATERIAL.thicket} />
+      <path d="M1 9 3 3M4 11 6 2M7 10 10 4" stroke={LINKS_MATERIAL.deepFescue} strokeWidth="1" opacity=".7" />
+    </pattern>
+    <pattern id={`${artId}-links-dunes`} width="45" height="54" patternUnits="userSpaceOnUse">
+      <path d="M-6 16 Q11 6 25 12 T51 10M-7 22 Q11 12 26 18 T51 17M-5 44 Q12 32 27 38 T50 35" fill="none" stroke={LINKS_MATERIAL.duneContour} strokeWidth=".6" opacity=".45" />
+      <path d="M5 31h1M35 28h1M21 50h1" stroke={LINKS_MATERIAL.fescueDark} strokeWidth="1" opacity=".3" />
+    </pattern>
+  </defs>;
 }
 
 function ParklandDefs({
@@ -191,6 +258,10 @@ function ParklandDefs({
 }: { artId: string; model: ReturnType<typeof canonicalRenderModel>; treeCanopies: ReturnType<typeof planTreeCanopies> }) {
   return <defs>
     <linearGradient id={`${artId}-out`} x1="0" y1="0" x2="0.8" y2="1"><stop stopColor={PARKLAND_MATERIAL.outerLight} /><stop offset="1" stopColor={PARKLAND_MATERIAL.outerDark} /></linearGradient>
+    <pattern id={`${artId}-parkland-landscape`} width="68" height="80" patternUnits="userSpaceOnUse">
+      <path d="M-12 20 Q15 5 40 17 T80 9M-10 27 Q18 13 41 24 T78 17M-8 68 Q17 52 42 62 T80 55" fill="none" stroke={PARKLAND_MATERIAL.roughLight} strokeWidth=".9" opacity=".28" />
+      <path d="M10 43l2-4m14 32 2-3m35-33 2-4m-14 40 2-3" stroke={PARKLAND_MATERIAL.roughLight} strokeWidth=".7" opacity=".3" />
+    </pattern>
     <linearGradient id={`${artId}-rough`} x1="0" y1="0" x2="0" y2="1"><stop stopColor={PARKLAND_MATERIAL.roughLight} /><stop offset="1" stopColor={PARKLAND_MATERIAL.roughDark} /></linearGradient>
     <linearGradient id={`${artId}-fairway`} x1="0" y1="0" x2="0" y2="1"><stop stopColor={PARKLAND_MATERIAL.fairwayLight} /><stop offset="1" stopColor={PARKLAND_MATERIAL.fairwayDark} /></linearGradient>
     <radialGradient id={`${artId}-green`} cx="42%" cy="34%"><stop stopColor={PARKLAND_MATERIAL.greenLight} /><stop offset="1" stopColor={PARKLAND_MATERIAL.greenDark} /></radialGradient>

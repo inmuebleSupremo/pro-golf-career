@@ -25,6 +25,7 @@ public final class CourseGenerator {
             case CourseGenConstants.V3_GENERATOR_VERSION -> generateV3(coordinate, classification);
             case CourseGenConstants.V4_GENERATOR_VERSION -> generateV4(coordinate, classification);
             case CourseGenConstants.V5_GENERATOR_VERSION -> generateV5(coordinate, classification);
+            case CourseGenConstants.V5_REFINED_GENERATOR_VERSION -> generateRefinedV5(coordinate, classification);
             default -> throw new IllegalArgumentException("Unsupported course generator version: " + version);
         };
     }
@@ -32,7 +33,8 @@ public final class CourseGenerator {
     public static boolean supports(int version) {
         return version == CourseGenConstants.V1_GENERATOR_VERSION || version == CourseGenConstants.V2_GENERATOR_VERSION
                 || version == CourseGenConstants.V3_GENERATOR_VERSION || version == CourseGenConstants.V4_GENERATOR_VERSION
-                || version == CourseGenConstants.V5_GENERATOR_VERSION;
+                || version == CourseGenConstants.V5_GENERATOR_VERSION
+                || version == CourseGenConstants.V5_REFINED_GENERATOR_VERSION;
     }
 
     /** Historical V1 implementation retained unchanged in behavior. */
@@ -207,6 +209,13 @@ public final class CourseGenerator {
         return generateV5(coordinate, classification, plan, architectureProfile);
     }
 
+    private static Course generateRefinedV5(SeedCoordinate coordinate, EnvironmentClassification classification) {
+        long courseSeed = Seeds.forCoordinate(coordinate);
+        CoursePlan plan = CoursePlanGenerator.generate(courseSeed);
+        CourseArchitectureProfile architectureProfile = V5HolePlanner.profileFor(courseSeed);
+        return generateV5(coordinate, classification, plan, architectureProfile, true);
+    }
+
     /** Package-private calibration seam for explicit V5 design and architectural profile combinations. */
     static Course generateV5(SeedCoordinate coordinate, EnvironmentClassification classification,
                              CourseDesignProfile profile, CourseArchitectureProfile architectureProfile) {
@@ -216,6 +225,11 @@ public final class CourseGenerator {
 
     private static Course generateV5(SeedCoordinate coordinate, EnvironmentClassification classification, CoursePlan plan,
                                      CourseArchitectureProfile architectureProfile) {
+        return generateV5(coordinate, classification, plan, architectureProfile, false);
+    }
+
+    private static Course generateV5(SeedCoordinate coordinate, EnvironmentClassification classification, CoursePlan plan,
+                                     CourseArchitectureProfile architectureProfile, boolean refined) {
         long courseSeed = Seeds.forCoordinate(coordinate);
         List<Double> lengths = new ArrayList<>(18);
         List<Double> fairwayHalves = new ArrayList<>(18);
@@ -243,7 +257,7 @@ public final class CourseGenerator {
             elevations.add((rng.nextDouble() * 2.0 - 1.0) * CourseGenConstants.ELEVATION_RANGE);
         }
         List<V5HolePlanner.SelectedCandidate> selected = V5HolePlanner.select(plan, architectureProfile, courseSeed,
-                lengths, fairwayHalves);
+                lengths, fairwayHalves, refined);
         List<EnvironmentHoleCharacter> environmentCharacters = V5EnvironmentPlanner.plan(plan, classification,
                 architectureProfile, courseSeed);
         List<GeneratedHole> holes = new ArrayList<>(18);
@@ -254,7 +268,7 @@ public final class CourseGenerator {
                     greenHalves.get(i), greenDepths.get(i), holeSeed);
             HazardPlan hazards = V4HazardPlanner.plan(brief, plan.profile(), classification, guidancePlan, holeSeed);
             CourseGeometry geometry = V5GeometryGenerator.generate(selected.get(i).plan(), brief, plan.profile(),
-                    architectureProfile, classification, environmentCharacters.get(i), holeSeed, hazards);
+                    architectureProfile, classification, environmentCharacters.get(i), holeSeed, hazards, refined);
             boolean bunker = geometry.regions().stream().anyMatch(region -> region.surface() == com.progolf.sim.spatial.Surface.BUNKER);
             boolean water = geometry.regions().stream().anyMatch(region -> region.surface() == com.progolf.sim.spatial.Surface.WATER);
             boolean trees = geometry.regions().stream().anyMatch(region -> region.surface() == com.progolf.sim.spatial.Surface.TREES);
@@ -262,7 +276,8 @@ public final class CourseGenerator {
                     greenDepths.get(i), bunker, water, trees, elevations.get(i), holeSeed, geometry, guidancePlan, hazards,
                     selected.get(i).plan()));
         }
-        return new Course(CourseNames.generate(courseSeed, classification), holes, CourseGenConstants.V5_GENERATOR_VERSION,
+        return new Course(CourseNames.generate(courseSeed, classification), holes,
+                refined ? CourseGenConstants.V5_REFINED_GENERATOR_VERSION : CourseGenConstants.V5_GENERATOR_VERSION,
                 plan.profile(), plan, new CourseArchitecturePlan(architectureProfile,
                 selected.stream().map(V5HolePlanner.SelectedCandidate::plan).toList()));
     }

@@ -40,6 +40,183 @@ final class V5GeometryGenerator {
                 corridor(landscapeSamples, DEEP + 17.0, DEEP + 17.0), regions);
     }
 
+    static CourseGeometry generate(HoleArchitecturePlan plan, HoleBrief brief, CourseDesignProfile design,
+                                   CourseArchitectureProfile architecture, EnvironmentClassification environment,
+                                   EnvironmentHoleCharacter environmentCharacter, long holeSeed, HazardPlan inheritedHazards,
+                                   boolean refined) {
+        if (!refined) return generate(plan, brief, design, architecture, environment, environmentCharacter,
+                holeSeed, inheritedHazards);
+        List<RouteSample> routeSamples = samples(plan);
+        GreenComplex complex = refinedGreenComplex(plan, holeSeed);
+        List<RouteSample> landscape = refinedLandscapeSamples(routeSamples, plan, complex, holeSeed);
+        List<RouteSample> fairway = through(routeSamples, plan.route().length() - 50.0, plan);
+        List<TerrainRegion> regions = new ArrayList<>();
+        double finishAt = plan.route().length();
+        regions.add(new TerrainRegion(Surface.DEEP_ROUGH, refinedCorridor(landscape, 3, holeSeed, finishAt, true)));
+        regions.add(new TerrainRegion(Surface.PRIMARY_ROUGH, refinedCorridor(landscape, 2, holeSeed, finishAt, true)));
+        regions.add(new TerrainRegion(Surface.FIRST_CUT, refinedCorridor(routeSamples, 1, holeSeed, finishAt, false)));
+        regions.add(new TerrainRegion(Surface.FAIRWAY, refinedCorridor(fairway, 0, holeSeed, finishAt, false)));
+        regions.add(new TerrainRegion(Surface.FIRST_CUT, complex.approachApron()));
+        addRefinedRecovery(regions, plan, complex, holeSeed);
+        regions.add(new TerrainRegion(Surface.FRINGE, complex.collar()));
+        regions.add(new TerrainRegion(Surface.GREEN, counterClockwise(plan.greenFootprint())));
+        addArchitectureLandforms(regions, plan, brief, design, architecture, environment, environmentCharacter,
+                holeSeed, inheritedHazards, true);
+        return new CourseGeometry(plan.route().teeOrigin(), plan.route().greenCenter(),
+                refinedBoundary(landscape, regions, holeSeed, finishAt), regions);
+    }
+
+    /** The outer edge makes room only where a placed bunker needs it, rather than flaring every finish. */
+    private static List<Position2d> refinedBoundary(List<RouteSample> landscape, List<TerrainRegion> regions,
+                                                     long holeSeed, double finishAt) {
+        double phase = Math.floorMod(Seeds.deriveSeed(holeSeed, 0x5635434f4e544fL), 10_000) / 10_000.0 * 6.283185307179586;
+        List<RouteSample> adjusted = new ArrayList<>();
+        List<Position2d> bunkerEdges = regions.stream().filter(region -> region.surface() == Surface.BUNKER)
+                .flatMap(region -> region.boundary().stream()).toList();
+        for (RouteSample sample : landscape) {
+            double left = sample.left;
+            double right = sample.right;
+            double currentLeft = refinedHalfWidth(left, sample.distance, phase, true, 4, finishAt);
+            double currentRight = refinedHalfWidth(right, sample.distance, phase, false, 4, finishAt);
+            for (Position2d edge : bunkerEdges) {
+                if (Math.abs(edge.y() - sample.point.y()) > 35.0) continue;
+                double offset = edge.x() - sample.point.x();
+                if (offset < 0.0) left = Math.max(left, sample.left + (-offset + 12.0 - currentLeft));
+                else right = Math.max(right, sample.right + (offset + 12.0 - currentRight));
+            }
+            adjusted.add(new RouteSample(sample.distance, sample.point, sample.tangent, left, right));
+        }
+        return refinedCorridor(adjusted, 4, holeSeed, finishAt, true);
+    }
+
+    private static List<RouteSample> refinedLandscapeSamples(List<RouteSample> routeSamples, HoleArchitecturePlan plan,
+                                                               GreenComplex complex, long holeSeed) {
+        List<RouteSample> result = new ArrayList<>(routeSamples);
+        Position2d center = plan.route().greenCenter();
+        Position2d direction = plan.approachDirection();
+        Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, 0x56355245434f56L));
+        double left = complex.lateralExtent() * .77 + 3.0 + rng.nextDouble() * 5.0;
+        double right = complex.lateralExtent() * .77 + 3.0 + rng.nextDouble() * 5.0;
+        for (double fraction : List.of(.32, .67, 1.0)) {
+            double behind = complex.backExtent() * fraction;
+            Position2d point = center.plus(direction.x() * behind, direction.y() * behind);
+            result.add(new RouteSample(plan.route().length() + behind, point, direction,
+                    left * (1.0 - .18 * fraction), right * (1.0 - .15 * fraction)));
+        }
+        return List.copyOf(result);
+    }
+
+    /** Each side and each successive surface band changes independently, while staying nested. */
+    private static List<Position2d> refinedCorridor(List<RouteSample> samples, int band, long holeSeed,
+                                                     double finishAt, boolean roundBack) {
+        double phase = Math.floorMod(Seeds.deriveSeed(holeSeed, 0x5635434f4e544fL), 10_000) / 10_000.0 * 6.283185307179586;
+        List<Position2d> right = new ArrayList<>();
+        List<Position2d> left = new ArrayList<>();
+        for (RouteSample sample : samples) {
+            double distance = sample.distance;
+            double rightWidth = refinedHalfWidth(sample.right, distance, phase, false, band, finishAt);
+            double leftWidth = refinedHalfWidth(sample.left, distance, phase, true, band, finishAt);
+            right.add(sample.point.plus(rightWidth, 0.0));
+            left.add(sample.point.plus(-leftWidth, 0.0));
+        }
+        List<Position2d> polygon = new ArrayList<>(right);
+        if (roundBack) {
+            RouteSample end = samples.getLast();
+            double rightWidth = refinedHalfWidth(end.right, end.distance, phase, false, band, finishAt);
+            double leftWidth = refinedHalfWidth(end.left, end.distance, phase, true, band, finishAt);
+            double capDepth = band == 4 ? 25.0 : band == 3 ? 18.0 : 12.0;
+            for (int i = 1; i < 8; i++) {
+                double angle = StrictMath.PI * i / 8.0;
+                double cosine = StrictMath.cos(angle);
+                polygon.add(end.point.plus((cosine >= 0.0 ? rightWidth : leftWidth) * cosine,
+                        capDepth * StrictMath.sin(angle) + 6.0 * cosine));
+            }
+        }
+        for (int i = left.size() - 1; i >= 0; i--) polygon.add(left.get(i));
+        return polygon;
+    }
+
+    private static double refinedHalfWidth(double fairwayHalf, double distance, double phase, boolean left,
+                                            int band, double finishAt) {
+        double side = left ? 1.0 : -1.0;
+        double meander = 4.6 * StrictMath.sin(distance * .018 + phase + side * .9)
+                + 2.3 * StrictMath.sin(distance * .037 + phase * .47 + side * 1.4);
+        double width = Math.max(11.0, fairwayHalf + meander);
+        double finish = Math.clamp((distance - (finishAt - 75.0)) / 75.0, 0.0, 1.0);
+        double surround = 1.0 - .37 * finish;
+        if (band >= 1) width += surround * (5.5 + 1.6 * StrictMath.sin(distance * .026 + phase + side));
+        if (band >= 2) width += surround * (11.5 + 3.6 * StrictMath.sin(distance * .013 + phase * 1.3 - side));
+        if (band >= 3) width += surround * (13.0 + 4.5 * StrictMath.sin(distance * .021 + phase * .7 + side * 2.0));
+        if (band >= 4) width += surround * (20.0 + 5.5 * StrictMath.sin(distance * .016 + phase * 1.8 + side * .3));
+        return width;
+    }
+
+    private static GreenComplex refinedGreenComplex(HoleArchitecturePlan plan, long holeSeed) {
+        Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, 0x563552475245454eL));
+        Position2d center = plan.route().greenCenter();
+        Position2d approach = plan.approachDirection();
+        Position2d right = new Position2d(approach.y(), -approach.x());
+        double front = plan.greenFootprint().stream().mapToDouble(point ->
+                -(point.x() - center.x()) * approach.x() - (point.y() - center.y()) * approach.y()).max().orElse(20.0);
+        double back = plan.greenFootprint().stream().mapToDouble(point ->
+                (point.x() - center.x()) * approach.x() + (point.y() - center.y()) * approach.y()).max().orElse(20.0);
+        double lateral = plan.greenFootprint().stream().mapToDouble(point -> Math.abs(
+                (point.x() - center.x()) * right.x() + (point.y() - center.y()) * right.y())).max().orElse(18.0);
+        List<Position2d> collar = new ArrayList<>();
+        for (int i = 0; i < plan.greenFootprint().size(); i++) {
+            Position2d point = plan.greenFootprint().get(i);
+            double dx = point.x() - center.x();
+            double dy = point.y() - center.y();
+            double radial = StrictMath.hypot(dx, dy);
+            double offset = 3.2 + rng.nextDouble() * 1.8;
+            collar.add(center.plus(dx * (1.0 + offset / radial), dy * (1.0 + offset / radial)));
+        }
+        double approachStart = Math.max(62.0, front + 35.0);
+        List<Position2d> rightSide = new ArrayList<>();
+        List<Position2d> leftSide = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            double t = i / 5.0;
+            double before = approachStart * (1.0 - t) + front * .52 * t;
+            Position2d point = smoothPoint(plan.route(), Math.max(0.0, plan.route().length() - before));
+            double width = (lateral * .58) * (1.0 - t) + (lateral * 1.12) * t
+                    + 2.5 * StrictMath.sin(t * 4.0 + rng.nextDouble() * .3);
+            rightSide.add(point.plus(right.x() * width, right.y() * width));
+            leftSide.add(point.plus(-right.x() * width * (.88 + .12 * t), -right.y() * width * (.88 + .12 * t)));
+        }
+        List<Position2d> apron = new ArrayList<>(rightSide);
+        for (int i = leftSide.size() - 1; i >= 0; i--) apron.add(leftSide.get(i));
+        return new GreenComplex(counterClockwise(collar), counterClockwise(apron), lateral,
+                Math.max(31.0, back + 15.0));
+    }
+
+    private static void addRefinedRecovery(List<TerrainRegion> regions, HoleArchitecturePlan plan,
+                                           GreenComplex complex, long holeSeed) {
+        Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, 0x56355245434f5645L));
+        Position2d center = plan.route().greenCenter();
+        Position2d approach = plan.approachDirection();
+        Position2d right = new Position2d(approach.y(), -approach.x());
+        double side = rng.nextDouble() < .5 ? -1.0 : 1.0;
+        if (rng.nextDouble() > .68) return;
+        double lateral = complex.lateralExtent();
+        double front = 19.0 + rng.nextDouble() * 7.0;
+        double back = 20.0 + rng.nextDouble() * 7.0;
+        double[] stations = {-1.0, -.55, 0.0, .55, 1.0};
+        List<Position2d> inside = new ArrayList<>();
+        List<Position2d> outside = new ArrayList<>();
+        for (double station : stations) {
+            double forward = station < 0.0 ? front * station : back * station;
+            double inset = lateral + 4.0 + 2.0 * Math.abs(station);
+            double width = 2.5 + 9.0 * (1.0 - station * station);
+            Position2d axis = center.plus(approach.x() * forward, approach.y() * forward);
+            inside.add(axis.plus(right.x() * side * inset, right.y() * side * inset));
+            outside.add(axis.plus(right.x() * side * (inset + width), right.y() * side * (inset + width)));
+        }
+        List<Position2d> polygon = new ArrayList<>(inside);
+        for (int i = outside.size() - 1; i >= 0; i--) polygon.add(outside.get(i));
+        // Short-grass run-off remains below tree precedence; a tree cluster may border or cross its outer edge.
+        regions.add(new TerrainRegion(Surface.FIRST_CUT, counterClockwise(polygon)));
+    }
+
     private static List<RouteSample> samples(HoleArchitecturePlan plan) {
         ArchitectureRoute route = plan.route();
         List<Double> distances = new ArrayList<>();
@@ -203,6 +380,185 @@ final class V5GeometryGenerator {
             addWoodlandWater(regions, plan, rng);
         }
         if (environmentCharacter.coastalExposure()) addCoastalShoreline(regions, plan, rng);
+    }
+
+    private static void addArchitectureLandforms(List<TerrainRegion> regions, HoleArchitecturePlan plan, HoleBrief brief,
+                                                  CourseDesignProfile design, CourseArchitectureProfile architecture,
+                                                  EnvironmentClassification environment, EnvironmentHoleCharacter environmentCharacter,
+                                                  long holeSeed, HazardPlan inheritedHazards, boolean refined) {
+        if (!refined) {
+            addArchitectureLandforms(regions, plan, brief, design, architecture, environment,
+                    environmentCharacter, holeSeed, inheritedHazards);
+            return;
+        }
+        Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, 0x5635524c414e4446L));
+        List<TerrainRegion> water = new ArrayList<>();
+        addWaterIntent(water, plan, inheritedHazards, rng);
+        if (environment == EnvironmentClassification.PARKLAND) addRefinedParklandWater(water, plan, brief, holeSeed);
+        if (environment == EnvironmentClassification.WOODLAND
+                && rng.nextDouble() < (brief.recoverySeverity() == RecoverySeverity.PENAL ? .34 : .22)) {
+            addWoodlandWater(water, plan, rng);
+        }
+        if (environmentCharacter.coastalExposure()) addRefinedCoastalShoreline(water, plan, rng);
+        for (TerrainRegion candidate : water) if (hazardsHaveRoom(candidate, regions)) regions.add(candidate);
+        List<TerrainRegion> trees = new ArrayList<>();
+        addTrees(trees, plan, brief, environmentCharacter.treeEnclosure(), rng);
+        for (TerrainRegion candidate : trees) {
+            if (hazardsHaveRoom(candidate, regions)
+                    && !TerrainRegion.strictlyOverlaps(candidate.boundary(), plan.greenFootprint())) regions.add(candidate);
+        }
+        addRefinedBunkers(regions, plan, brief, architecture, environment, holeSeed, rng);
+    }
+
+    static boolean hazardsHaveRoom(TerrainRegion candidate, List<TerrainRegion> placed) {
+        for (TerrainRegion existing : placed) {
+            if (!isHazard(existing.surface())) continue;
+            double clearance = switch (candidate.surface()) {
+                case WATER -> existing.surface() == Surface.TREES ? 14.0 : 9.0;
+                case TREES -> existing.surface() == Surface.WATER ? 14.0 : 6.0;
+                case BUNKER -> existing.surface() == Surface.WATER ? 12.0
+                        : existing.surface() == Surface.TREES ? 10.0 : 7.0;
+                default -> 0.0;
+            };
+            if (TerrainRegion.strictlyOverlaps(candidate.boundary(), existing.boundary())
+                    || polygonGap(candidate.boundary(), existing.boundary()) < clearance) return false;
+        }
+        return true;
+    }
+
+    private static boolean isHazard(Surface surface) {
+        return surface == Surface.WATER || surface == Surface.BUNKER || surface == Surface.TREES
+                || surface == Surface.WASTE_AREA;
+    }
+
+    private static double polygonGap(List<Position2d> first, List<Position2d> second) {
+        double gap = Double.POSITIVE_INFINITY;
+        for (Position2d point : first) {
+            for (int i = 0; i < second.size(); i++) {
+                gap = Math.min(gap, segmentGap(point, second.get(i), second.get((i + 1) % second.size())));
+            }
+        }
+        for (Position2d point : second) {
+            for (int i = 0; i < first.size(); i++) {
+                gap = Math.min(gap, segmentGap(point, first.get(i), first.get((i + 1) % first.size())));
+            }
+        }
+        return gap;
+    }
+
+    private static double segmentGap(Position2d point, Position2d start, Position2d end) {
+        double dx = end.x() - start.x();
+        double dy = end.y() - start.y();
+        double distanceSquared = dx * dx + dy * dy;
+        double t = distanceSquared < 1.0e-9 ? 0.0 : Math.clamp(
+                ((point.x() - start.x()) * dx + (point.y() - start.y()) * dy) / distanceSquared, 0.0, 1.0);
+        return StrictMath.hypot(point.x() - start.x() - t * dx, point.y() - start.y() - t * dy);
+    }
+
+    private static double safeMissSide(long holeSeed) {
+        return new SplitMix64Rng(Seeds.deriveSeed(holeSeed, 0x56355245434f5645L)).nextDouble() < .5 ? -1.0 : 1.0;
+    }
+
+    private static void addRefinedBunkers(List<TerrainRegion> regions, HoleArchitecturePlan plan, HoleBrief brief,
+                                          CourseArchitectureProfile architecture, EnvironmentClassification environment,
+                                          long holeSeed, Rng rng) {
+        Position2d green = plan.route().greenCenter();
+        Position2d tangent = plan.approachDirection();
+        Position2d right = new Position2d(tangent.y(), -tangent.x());
+        double guardedSide = -safeMissSide(holeSeed);
+        int guards = rng.nextDouble() < (environment == EnvironmentClassification.LINKS ? .88 : .76)
+                ? 1 + (rng.nextDouble() < .31 + architecture.greenDefence() * .20 ? 1 : 0) : 0;
+        for (int i = 0; i < guards; i++) {
+            for (int attempt = 0; attempt < 3; attempt++) {
+                double angle = i == 0 ? guardedSide * (1.16 + rng.nextDouble() * .42 + attempt * .18)
+                        : -guardedSide * (1.70 + rng.nextDouble() * .40 + attempt * .16);
+                Position2d vector = new Position2d(tangent.x() * StrictMath.cos(angle) + right.x() * StrictMath.sin(angle),
+                        tangent.y() * StrictMath.cos(angle) + right.y() * StrictMath.sin(angle));
+                double greenExtent = plan.greenFootprint().stream().mapToDouble(point ->
+                        (point.x() - green.x()) * vector.x() + (point.y() - green.y()) * vector.y()).max().orElse(20.0);
+                double major = environment == EnvironmentClassification.LINKS ? 8.5 + rng.nextDouble() * 3.7
+                        : 11.0 + rng.nextDouble() * 4.5;
+                double offset = greenExtent + major + 4.0 + rng.nextDouble() * 2.0;
+                Position2d center = green.plus(vector.x() * offset, vector.y() * offset);
+                if (tryAddRefinedBunker(regions, plan, center, major,
+                        major * (.70 + rng.nextDouble() * .13), StrictMath.atan2(vector.y(), vector.x()), rng, 18)) break;
+            }
+        }
+        if (brief.par() == 3) return;
+        double landing = Math.min(plan.route().length() - 92.0, 228.0 + rng.nextDouble() * 48.0);
+        if (brief.par() == 5 && rng.nextDouble() < .45) landing = Math.min(plan.route().length() - 90.0, landing + 70.0);
+        double turn = plan.route().intermediateAnchors().isEmpty() ? 0.0
+                : plan.route().intermediateAnchors().getFirst().x() - plan.route().teeOrigin().x();
+        double challengeSide = Math.abs(turn) > 12.0 ? Math.signum(turn) : rng.nextDouble() < .5 ? -1.0 : 1.0;
+        int group = 1 + (rng.nextDouble() < (environment == EnvironmentClassification.LINKS ? .54 : .46) ? 1 : 0);
+        for (int i = 0; i < group; i++) {
+            for (int attempt = 0; attempt < 3; attempt++) {
+                double distance = landing + (i - (group - 1) / 2.0) * (30.0 + rng.nextDouble() * 8.0)
+                        + attempt * 12.0;
+                Position2d point = smoothPoint(plan.route(), distance);
+                Position2d localTangent = tangent(plan.route(), distance);
+                Position2d localRight = new Position2d(localTangent.y(), -localTangent.x());
+                double width = interpolate(plan.widthStations(), distance, challengeSide < 0.0);
+                double major = environment == EnvironmentClassification.LINKS ? 9.0 + rng.nextDouble() * 4.0
+                        : 12.0 + rng.nextDouble() * 5.0;
+                Position2d center = point.plus(localRight.x() * challengeSide * (width - major * .20),
+                        localRight.y() * challengeSide * (width - major * .20));
+                if (tryAddRefinedBunker(regions, plan, center, major,
+                        major * (.66 + rng.nextDouble() * .16), StrictMath.atan2(localTangent.y(), localTangent.x()),
+                        rng, 16)) break;
+            }
+        }
+    }
+
+    private static boolean tryAddRefinedBunker(List<TerrainRegion> regions, HoleArchitecturePlan plan,
+                                                Position2d center, double major, double minor,
+                                                double rotation, Rng rng, int vertices) {
+        TerrainRegion bunker = irregularRegion(Surface.BUNKER, center, major, minor, rotation, rng, vertices);
+        if (TerrainRegion.strictlyOverlaps(bunker.boundary(), plan.greenFootprint())
+                || !hazardsHaveRoom(bunker, regions)) return false;
+        regions.add(bunker);
+        return true;
+    }
+
+    private static void addRefinedCoastalShoreline(List<TerrainRegion> regions, HoleArchitecturePlan plan, Rng rng) {
+        double length = plan.route().length();
+        double first = length * (.34 + rng.nextDouble() * .07);
+        double last = length * (.69 + rng.nextDouble() * .09);
+        double side = rng.nextDouble() < .5 ? -1.0 : 1.0;
+        double phase = rng.nextDouble() * 6.283185307179586;
+        List<Position2d> inner = new ArrayList<>();
+        List<Position2d> outer = new ArrayList<>();
+        for (int i = 0; i <= 9; i++) {
+            double fraction = i / 9.0;
+            double distance = first + (last - first) * fraction;
+            Position2d point = smoothPoint(plan.route(), distance);
+            double width = interpolate(plan.widthStations(), distance, side < 0.0);
+            double shoreline = width + 6.0 + 5.5 * StrictMath.sin(fraction * 7.0 + phase);
+            double body = 5.0 + 34.0 * StrictMath.pow(StrictMath.sin(StrictMath.PI * fraction), .75)
+                    + 5.0 * StrictMath.sin(fraction * 9.0 + phase);
+            inner.add(point.plus(side * shoreline, 0.0));
+            outer.add(point.plus(side * (shoreline + Math.max(4.0, body)), 0.0));
+        }
+        List<Position2d> polygon = new ArrayList<>(inner);
+        for (int i = outer.size() - 1; i >= 0; i--) polygon.add(outer.get(i));
+        regions.add(new TerrainRegion(Surface.WATER, counterClockwise(polygon)));
+    }
+
+    private static void addRefinedParklandWater(List<TerrainRegion> regions, HoleArchitecturePlan plan,
+                                                HoleBrief brief, long holeSeed) {
+        Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, 0x5635525041524b57L));
+        if (rng.nextDouble() >= (brief.archetype() == StrategicArchetype.RISK_REWARD ? .30 : .15)) return;
+        double distance = brief.par() == 3 ? plan.route().length() * .65
+                : Math.min(plan.route().length() - 85.0, 225.0 + rng.nextDouble() * 60.0);
+        Position2d point = smoothPoint(plan.route(), distance);
+        Position2d tangent = tangent(plan.route(), distance);
+        Position2d right = new Position2d(tangent.y(), -tangent.x());
+        double side = rng.nextDouble() < .5 ? -1.0 : 1.0;
+        double fairwayWidth = interpolate(plan.widthStations(), distance, side < 0.0);
+        Position2d center = point.plus(right.x() * side * (fairwayWidth + 8.0),
+                right.y() * side * (fairwayWidth + 8.0));
+        addIrregular(regions, Surface.WATER, center, 25.0 + rng.nextDouble() * 12.0,
+                12.0 + rng.nextDouble() * 8.0, StrictMath.atan2(tangent.y(), tangent.x()) + .45, rng, 22);
     }
 
     private static void addBunkers(List<TerrainRegion> regions, HoleArchitecturePlan plan, HoleBrief brief,
@@ -382,6 +738,11 @@ final class V5GeometryGenerator {
 
     private static void addIrregular(List<TerrainRegion> regions, Surface surface, Position2d center, double major,
                                      double minor, double rotation, Rng rng, int vertices) {
+        regions.add(irregularRegion(surface, center, major, minor, rotation, rng, vertices));
+    }
+
+    private static TerrainRegion irregularRegion(Surface surface, Position2d center, double major,
+                                                 double minor, double rotation, Rng rng, int vertices) {
         double phase = rng.nextDouble() * 2.0 * StrictMath.PI;
         List<Position2d> points = new ArrayList<>();
         double cos = StrictMath.cos(rotation);
@@ -393,7 +754,7 @@ final class V5GeometryGenerator {
             double y = minor * variation * StrictMath.sin(theta);
             points.add(new Position2d(center.x() + x * cos - y * sin, center.y() + x * sin + y * cos));
         }
-        regions.add(new TerrainRegion(surface, points));
+        return new TerrainRegion(surface, points);
     }
 
     private static Position2d tangent(ArchitectureRoute route, double distance) {
