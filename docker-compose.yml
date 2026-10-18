@@ -11,6 +11,8 @@ services:
       PROGOLF_JWT_SECRET: "${PROGOLF_JWT_SECRET:?Set PROGOLF_JWT_SECRET in .env}"
       PROGOLF_USERS_DIR: /data/users
       PROGOLF_SAVES_DIR: /data/saves
+      # Opt-in only for newly created test worlds; existing saves retain their pinned generator.
+      PROGOLF_REFINED_V5_NEW_WORLDS: "${PROGOLF_REFINED_V5_NEW_WORLDS:-false}"
     ports:
       - "8080:8080"
     volumes:

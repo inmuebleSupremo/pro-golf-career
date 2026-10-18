@@ -30,6 +30,7 @@ import com.progolf.app.api.dto.PinPlacementStatusDto;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
 import com.progolf.app.persistence.SaveMetadata;
+import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.career.Career;
 import com.progolf.sim.career.CareerEventRecord;
 import com.progolf.sim.career.CareerStatistics;
@@ -86,6 +87,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -110,19 +113,29 @@ public class WorldService {
     /** Application-only completion of the optional Staff review, keyed by session and scoped to one season. */
     private final ConcurrentMap<String, Integer> staffReviewAcknowledgements = new ConcurrentHashMap<>();
     private final SaveGameStore saveStore;
+    private final boolean refinedV5NewWorlds;
 
     public WorldService(SaveGameStore saveStore) {
+        this(saveStore, false);
+    }
+
+    @Autowired
+    public WorldService(SaveGameStore saveStore,
+                        @Value("${PROGOLF_REFINED_V5_NEW_WORLDS:false}") boolean refinedV5NewWorlds) {
         this.saveStore = saveStore;
+        this.refinedV5NewWorlds = refinedV5NewWorlds;
     }
 
     /** Creates a new, independent world session owned by {@code ownerId} from a master seed and returns it. */
     public WorldSession create(String ownerId, long seed) {
-        return register(ownerId, seed, World.create(seed));
+        return create(ownerId, seed, WorldConfig.defaults());
     }
 
     /** Creates a new owned session from a seed and an explicit world configuration. */
     public WorldSession create(String ownerId, long seed, WorldConfig config) {
-        return register(ownerId, seed, World.create(seed, config));
+        int version = refinedV5NewWorlds ? CourseGenConstants.V5_REFINED_GENERATOR_VERSION
+                : CourseGenConstants.CURRENT_GENERATOR_VERSION;
+        return register(ownerId, seed, World.create(seed, config, version));
     }
 
     private WorldSession register(String ownerId, long seed, World world) {
@@ -198,7 +211,8 @@ public class WorldService {
         WorldSession session = required(ownerId, id);
         World world = session.world();
         return new WorldStatusDto(session.id(), world.currentSeason(), world.currentWeek(),
-                world.activePopulationSize(), world.hasPendingPlayerEvent(), world.playerEventAwaitingCompletion());
+                world.activePopulationSize(), world.hasPendingPlayerEvent(), world.playerEventAwaitingCompletion(),
+                world.courseGeneratorVersion());
     }
 
     /** Owner-authorized status for the one-way future-event pin-policy adoption. */

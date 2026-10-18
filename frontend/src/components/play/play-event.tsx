@@ -99,6 +99,7 @@ export function PlayEvent({ id }: { id: string }) {
       leaderboard={leaderboard}
       pressure={pressure}
       playerGolferId={playerGolferId}
+      courseGeneratorVersion={data.world.courseGeneratorVersion}
     />
   );
 }

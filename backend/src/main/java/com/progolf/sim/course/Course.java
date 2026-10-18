@@ -10,7 +10,7 @@ import java.util.Objects;
  * from its seed together with {@code generatorVersion} (REQ-082).
  */
 public record Course(CourseIdentity identity, List<GeneratedHole> holes, int generatorVersion,
-                     CourseDesignProfile designProfile, CoursePlan coursePlan) {
+                     CourseDesignProfile designProfile, CoursePlan coursePlan, CourseArchitecturePlan architecturePlan) {
 
     public Course {
         Objects.requireNonNull(identity, "identity");
@@ -29,7 +29,13 @@ public record Course(CourseIdentity identity, List<GeneratedHole> holes, int gen
 
     /** Source-compatible V1/read-model constructor. V1 deliberately has no design profile or plan. */
     public Course(CourseIdentity identity, List<GeneratedHole> holes, int generatorVersion) {
-        this(identity, holes, generatorVersion, null, null);
+        this(identity, holes, generatorVersion, null, null, null);
+    }
+
+    /** Compatibility constructor for retained V2--V4 design-aware course records. */
+    public Course(CourseIdentity identity, List<GeneratedHole> holes, int generatorVersion,
+                  CourseDesignProfile designProfile, CoursePlan coursePlan) {
+        this(identity, holes, generatorVersion, designProfile, coursePlan, null);
     }
 
     /** Total par, derived from the holes (never stored independently). */
@@ -39,6 +45,14 @@ public record Course(CourseIdentity identity, List<GeneratedHole> holes, int gen
             sum += h.par();
         }
         return sum;
+    }
+
+    /** Retains the locked V1--V4 diagnostic rendering while exposing V5 provenance when it exists. */
+    @Override
+    public String toString() {
+        String legacy = "Course[identity=" + identity + ", holes=" + holes + ", generatorVersion=" + generatorVersion
+                + ", designProfile=" + designProfile + ", coursePlan=" + coursePlan;
+        return architecturePlan == null ? legacy + "]" : legacy + ", architecturePlan=" + architecturePlan + "]";
     }
 
     /** The playable {@link HoleModel} for a hole number (1..18) in a given round, under the neutral setup. */

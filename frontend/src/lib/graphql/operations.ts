@@ -92,6 +92,7 @@ export const CareerOverviewDocument = graphql(`
       activePopulation
       hasPendingEvent
       pendingEventFinished
+      courseGeneratorVersion
     }
     playerSchedule(id: $id) {
       tournamentId
@@ -689,6 +690,7 @@ export const PlayStateDocument = graphql(`
       season
       week
       hasPendingEvent
+      courseGeneratorVersion
     }
     currentSituation(id: $id) {
       holeNumber

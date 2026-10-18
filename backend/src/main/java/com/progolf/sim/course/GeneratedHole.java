@@ -25,7 +25,8 @@ public record GeneratedHole(
         long holeSeed,
         CourseGeometry geometry,
         HoleSpatialPlan spatialPlan,
-        HazardPlan hazardPlan) {
+        HazardPlan hazardPlan,
+        HoleArchitecturePlan architecturePlan) {
 
     /** Cached immutable setup variants, shared by every competitor using the same generated hole. */
     private static final Map<GeometryVariantKey, CourseGeometry> SETUP_GEOMETRIES = new ConcurrentHashMap<>();
@@ -51,7 +52,7 @@ public record GeneratedHole(
                          double greenDepth, boolean hasGreensideBunker, boolean hasWater, boolean hasTrees,
                          double elevationDelta, long holeSeed) {
         this(number, par, length, fairwayHalfWidth, greenHalfWidth, greenDepth, hasGreensideBunker, hasWater,
-                hasTrees, elevationDelta, holeSeed, null, null, null);
+                hasTrees, elevationDelta, holeSeed, null, null, null, null);
     }
 
     /** Compatibility constructor for V3 callers; V4 supplies a semantic hazard plan. */
@@ -59,7 +60,16 @@ public record GeneratedHole(
                          double greenDepth, boolean hasGreensideBunker, boolean hasWater, boolean hasTrees,
                          double elevationDelta, long holeSeed, CourseGeometry geometry, HoleSpatialPlan spatialPlan) {
         this(number, par, length, fairwayHalfWidth, greenHalfWidth, greenDepth, hasGreensideBunker, hasWater,
-                hasTrees, elevationDelta, holeSeed, geometry, spatialPlan, null);
+                hasTrees, elevationDelta, holeSeed, geometry, spatialPlan, null, null);
+    }
+
+    /** Compatibility constructor for retained V4 generators. */
+    public GeneratedHole(int number, int par, double length, double fairwayHalfWidth, double greenHalfWidth,
+                         double greenDepth, boolean hasGreensideBunker, boolean hasWater, boolean hasTrees,
+                         double elevationDelta, long holeSeed, CourseGeometry geometry, HoleSpatialPlan spatialPlan,
+                         HazardPlan hazardPlan) {
+        this(number, par, length, fairwayHalfWidth, greenHalfWidth, greenDepth, hasGreensideBunker, hasWater,
+                hasTrees, elevationDelta, holeSeed, geometry, spatialPlan, hazardPlan, null);
     }
 
     /** Deterministically derives the active pin for {@code round} under the neutral setup (REQ-076). */
@@ -166,6 +176,7 @@ public record GeneratedHole(
 
     /** V3 progression target under the round's effective lateral setup; null keeps legacy green-centre behavior. */
     Position2d progressionTarget(Position2d ball, com.progolf.sim.shot.Strategy strategy, double widthScale) {
+        if (architecturePlan != null) return architecturePlan.progressionTarget(ball, strategy);
         if (spatialPlan == null) return null;
         return spatialPlan.withLateralScale(widthScale).progressionTarget(ball, strategy);
     }
@@ -182,8 +193,10 @@ public record GeneratedHole(
                 + hasWater + ", hasTrees=" + hasTrees + ", elevationDelta=" + elevationDelta + ", holeSeed="
                 + holeSeed + ", geometry=" + geometry;
         if (spatialPlan == null) return legacy + "]";
-        return hazardPlan == null ? legacy + ", spatialPlan=" + spatialPlan + "]"
+        if (architecturePlan == null) return hazardPlan == null ? legacy + ", spatialPlan=" + spatialPlan + "]"
                 : legacy + ", spatialPlan=" + spatialPlan + ", hazardPlan=" + hazardPlan + "]";
+        return legacy + ", spatialPlan=" + spatialPlan + ", hazardPlan=" + hazardPlan
+                + ", architecturePlan=" + architecturePlan + "]";
     }
 
     private record GeometryVariantKey(long holeSeed, double length, double fairwayHalfWidth, double greenHalfWidth,
