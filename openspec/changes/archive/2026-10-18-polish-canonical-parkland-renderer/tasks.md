@@ -16,6 +16,7 @@
 - [x] 3.1 Run focused renderer tests, frontend typecheck, lint, and production build.
 - [x] 3.2 Capture reproducible development comparison evidence using the same canonical geometry and a second
   geometry with a different shape.
-- [ ] 3.3 Manually inspect authenticated gameplay aim and backend-authored shot playback before seeking
-  acceptance. **Rejected in manual E2E:** renderer-only work cannot remedy V4 Parkland's absent authoritative
-  trees, water and richer architecture; it remains unapproved and unarchived.
+- [x] 3.3 Manual E2E review accepted the integrated Generator 7 Parkland/Links result as interim progress after
+  authenticated gameplay aiming and backend-authored shot playback inspection. This acceptance does not claim final
+  golf-course realism, does not retrofit absent V4 architecture, and does not make Generator 7 the default for new
+  careers.

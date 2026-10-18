@@ -19,7 +19,15 @@ The Play Event screen SHALL render a 2D graphical representation of the hole bei
 
 ### Requirement: Faithful Representation of Mechanical Facts
 
-The 2D layer SHALL be a truthful representation of the simulation and SHALL NOT contradict any resolved mechanical fact. The hole's effective canonical terrain for the active event setup, active pin/cup position, and each resolved shot's contact, final playable ball state, distance remaining, and penalty SHALL be represented literally. The client SHALL NOT synthesize which flank a gameplay hazard occupies, dogleg lean, hazard longitudinal position, fairway-width variation, or any other gameplay terrain. Presentation details not represented by canonical geometry — vegetation scatter, texture, lighting, organic edge treatment, and camera treatment — MAY be synthesized only when they cannot imply or obscure a different gameplay surface.
+The 2D layer SHALL be a truthful representation of the simulation and SHALL NOT contradict any resolved
+mechanical fact. The hole's effective canonical terrain for the active event setup, active pin/cup position,
+and each resolved shot's contact, final playable ball state, distance remaining, and penalty SHALL be
+represented literally. The client SHALL NOT synthesize which flank a gameplay hazard occupies, dogleg lean,
+hazard longitudinal position, fairway-width variation, or any other gameplay terrain. Presentation details not
+represented by canonical geometry — vegetation scatter, texture, lighting, organic edge treatment, and camera
+treatment — MAY be synthesized only when they cannot imply or obscure a different gameplay surface. Such
+decoration SHALL be clipped to its owning canonical surface; vegetation that could read as an obstacle SHALL be
+limited to authoritative tree terrain.
 
 #### Scenario: The pin is drawn at its real position
 
@@ -41,9 +49,27 @@ The 2D layer SHALL be a truthful representation of the simulation and SHALL NOT 
 - **WHEN** a cosmetic layer would visually suggest a surface different from canonical terrain
 - **THEN** canonical terrain SHALL win and the cosmetic layer SHALL be suppressed, clipped, or restyled
 
+#### Scenario: Parkland canopies remain inside tree terrain
+
+- **WHEN** a parkland hole has one or more canonical `TREES` regions
+- **THEN** the renderer SHALL derive any deciduous canopy decoration deterministically from the hole seed
+- **AND THEN** it SHALL contain the visible canopy decoration within those supplied tree polygons
+- **AND THEN** it SHALL not create canopy decoration in a fairway, green, bunker, water, or other terrain region
+
+#### Scenario: Material treatment does not change a hazard boundary
+
+- **WHEN** the renderer applies mowing, grass, sand, or water presentation to a canonical surface
+- **THEN** the corresponding visible surface boundary SHALL remain the supplied canonical polygon
+- **AND THEN** the renderer SHALL not imply a new carry, obstacle, lie, or penalty
+
 ### Requirement: Stable, Deterministic Hole Appearance
 
-A given hole's gameplay landforms SHALL look the same every time it is rendered because they derive from immutable canonical geometry, with only the permitted per-round cup position changing. Cosmetic decoration MAY be derived deterministically from a stable per-hole decoration seed so a course's holes read as permanent, designed venues; it SHALL not create or reshape a gameplay landform.
+A given hole's gameplay landforms SHALL look the same every time it is rendered because they derive from
+immutable canonical geometry, with only the permitted per-round cup position changing. Cosmetic decoration MAY
+be derived deterministically from a stable per-hole decoration seed so a course's holes read as permanent,
+designed venues; it SHALL not create or reshape a gameplay landform. Deterministic decoration that uses a
+canonical region SHALL also incorporate that region's supplied vertices so a changed region cannot retain a
+stale visual placement.
 
 #### Scenario: A hole's gameplay layout is stable across rounds
 
@@ -54,6 +80,18 @@ A given hole's gameplay landforms SHALL look the same every time it is rendered 
 
 - **WHEN** the same hole is rendered in two separate sessions
 - **THEN** its deterministic cosmetic decoration SHALL be identical when given the same decoration seed
+
+#### Scenario: Parkland treatment is reproducible
+
+- **WHEN** the same parkland hole is rendered in two separate sessions with the same layout seed and canonical
+  geometry
+- **THEN** its material treatment and permitted canopy placements SHALL be identical
+
+#### Scenario: Different canonical tree geometry changes decoration safely
+
+- **WHEN** two otherwise equivalent holes supply different `TREES` polygons
+- **THEN** the renderer SHALL derive decoration from the supplied polygons for each hole
+- **AND THEN** neither render SHALL show tree decoration outside its own tree terrain
 
 ### Requirement: Biome-Styled Visual Themes
 
@@ -229,3 +267,16 @@ When first-milestone boundary policy clamps an eligible release before a second 
 - **WHEN** a trace returns a clamped release before a water or out-of-bounds boundary and contains no recovery transition
 - **THEN** the renderer SHALL not show a splash, penalty, drop, replay, or contact-to-final rules transition
 - **AND THEN** it SHALL leave all scoring and final-state meaning to the returned outcome.
+
+### Requirement: Links canonical-hole visual treatment
+The playable canonical-hole renderer SHALL give Links holes an open fescue-and-dune visual identity distinct from Parkland, with exposed-turf fairways, muted greens and pot-bunker styling. Every rendered playing surface, bunker, water feature and tree region SHALL derive from backend canonical geometry; non-playable landscape texture SHALL NOT be represented as a gameplay hazard.
+
+#### Scenario: Ordinary generated Links hole
+- **WHEN** a V5 Links hole is rendered from its canonical terrain regions
+- **THEN** the renderer SHALL distinguish fairway, rough, deep rough, green, bunker and any present water or tree regions with Links-specific materials
+- **AND THEN** its aiming and shot feedback SHALL continue using the canonical projection and backend-authored positions.
+
+#### Scenario: Links background contains decorative dune texture
+- **WHEN** dune contours or distant fescue are shown beyond the canonical playable boundary
+- **THEN** they SHALL remain presentation-only landscape context
+- **AND THEN** they SHALL not add a playable surface, obstacle or hazard to the simulation.
