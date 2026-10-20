@@ -13,6 +13,8 @@ services:
       PROGOLF_SAVES_DIR: /data/saves
       # Opt-in only for newly created test worlds; existing saves retain their pinned generator.
       PROGOLF_REFINED_V5_NEW_WORLDS: "${PROGOLF_REFINED_V5_NEW_WORLDS:-false}"
+      # Generator 8 is opt-in for new test worlds only; existing saves retain their pinned generator.
+      PROGOLF_PRINCIPLED_ARCHITECTURE_NEW_WORLDS: "${PROGOLF_PRINCIPLED_ARCHITECTURE_NEW_WORLDS:-false}"
     ports:
       - "8080:8080"
     volumes:

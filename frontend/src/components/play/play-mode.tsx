@@ -555,9 +555,11 @@ function DetailsTab({ event, scorecard, courseGeneratorVersion, hole }: {
       {event ? <Stat label="Scene biome" value={humanize(event.courseType)} /> : null}
       {scorecard ? <Stat label="Round" value={`${scorecard.roundNumber} of ${ROUNDS_PER_EVENT}`} /> : null}
       {scorecard ? <Stat label="Hole" value={`${scorecard.currentHole} of 18`} /> : null}
-      <Stat label="World/course generator" value={`${courseGeneratorVersion}`} />
+      <Stat label="Saved world generator" value={`${courseGeneratorVersion}`} />
+      {hole ? <Stat label="Active course generator" value={hole.courseGeneratorVersion == null ? "Unavailable" : `${hole.courseGeneratorVersion}`} /> : null}
+      {hole ? <div className="col-span-2"><Stat label="Canonical course biome" value={humanize(hole.canonicalBiome ?? event?.courseType ?? "unknown")} /></div> : null}
       {hole ? <div className="col-span-2"><Stat label="Hole layout seed" value={hole.layoutSeed} /></div> : null}
-      {hole ? <div className="col-span-2"><Stat label="Geometry source" value={hole.geometry ? `Backend canonical · ${hole.geometry.regions.length} regions` : "Unavailable"} /></div> : null}
+      {hole ? <div className="col-span-2"><Stat label="Geometry source" value={hole.geometry ? `${hole.canonicalGeometrySource ?? "Backend canonical"} · ${hole.geometry.regions.length} regions` : "Unavailable"} /></div> : null}
     </div>
   );
 }

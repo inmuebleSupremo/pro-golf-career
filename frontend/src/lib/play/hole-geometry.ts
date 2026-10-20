@@ -19,6 +19,10 @@ export interface HoleGeom {
   readonly pinLateral: number;
   readonly pinDepth: number;
   readonly courseType: string;
+  /** Active GraphQL rounds provide these; retained development-preview fixtures predate provenance fields. */
+  readonly canonicalBiome?: string;
+  readonly courseGeneratorVersion?: number;
+  readonly canonicalGeometrySource?: string;
   readonly layoutSeed: string;
   readonly effectiveWind: { readonly x: number; readonly y: number; readonly magnitude: number; readonly unit: string };
   readonly geometry?: {

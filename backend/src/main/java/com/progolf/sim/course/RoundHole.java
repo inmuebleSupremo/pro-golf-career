@@ -87,4 +87,10 @@ public final class RoundHole implements HoleModel {
         return hole.hazardPlan() == null || hole.spatialPlan() == null ? null
                 : hole.spatialPlan().withLateralScale(setup.widthScale());
     }
+
+    /** Generator 8 carries a route-derived landing plan; older retained generators deliberately return null. */
+    @Override
+    public ArchitectureStrategyPlan architectureStrategyPlan() {
+        return hole.architectureStrategyPlan();
+    }
 }

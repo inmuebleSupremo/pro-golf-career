@@ -2,6 +2,7 @@ package com.progolf.sim.shot;
 
 import com.progolf.sim.spatial.ShotZoneProfile;
 import com.progolf.sim.course.CourseGeometry;
+import com.progolf.sim.course.ArchitectureStrategyPlan;
 import com.progolf.sim.course.HoleSpatialPlan;
 import com.progolf.sim.course.Position2d;
 
@@ -57,6 +58,11 @@ public interface HoleModel {
      * existing V1/V2/V3 target policy and keeps the version boundary at the generated-course adapter.
      */
     default HoleSpatialPlan strategicLandingPlan() {
+        return null;
+    }
+
+    /** Non-persistent V5 preview strategy derived from the exact selected architecture route. */
+    default ArchitectureStrategyPlan architectureStrategyPlan() {
         return null;
     }
 }

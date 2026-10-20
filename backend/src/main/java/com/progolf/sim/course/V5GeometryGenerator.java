@@ -44,6 +44,15 @@ final class V5GeometryGenerator {
                                    CourseArchitectureProfile architecture, EnvironmentClassification environment,
                                    EnvironmentHoleCharacter environmentCharacter, long holeSeed, HazardPlan inheritedHazards,
                                    boolean refined) {
+        return generate(plan, brief, design, architecture, environment, environmentCharacter, holeSeed,
+                inheritedHazards, refined, null);
+    }
+
+    /** Optional development-preview strategy is compiled into the same canonical terrain used by the evaluator. */
+    static CourseGeometry generate(HoleArchitecturePlan plan, HoleBrief brief, CourseDesignProfile design,
+                                   CourseArchitectureProfile architecture, EnvironmentClassification environment,
+                                   EnvironmentHoleCharacter environmentCharacter, long holeSeed, HazardPlan inheritedHazards,
+                                   boolean refined, ArchitectureStrategyPlan previewStrategy) {
         if (!refined) return generate(plan, brief, design, architecture, environment, environmentCharacter,
                 holeSeed, inheritedHazards);
         List<RouteSample> routeSamples = samples(plan);
@@ -61,7 +70,7 @@ final class V5GeometryGenerator {
         regions.add(new TerrainRegion(Surface.FRINGE, complex.collar()));
         regions.add(new TerrainRegion(Surface.GREEN, counterClockwise(plan.greenFootprint())));
         addArchitectureLandforms(regions, plan, brief, design, architecture, environment, environmentCharacter,
-                holeSeed, inheritedHazards, true);
+                holeSeed, inheritedHazards, true, previewStrategy);
         return new CourseGeometry(plan.route().teeOrigin(), plan.route().greenCenter(),
                 refinedBoundary(landscape, regions, holeSeed, finishAt), regions);
     }
@@ -386,6 +395,15 @@ final class V5GeometryGenerator {
                                                   CourseDesignProfile design, CourseArchitectureProfile architecture,
                                                   EnvironmentClassification environment, EnvironmentHoleCharacter environmentCharacter,
                                                   long holeSeed, HazardPlan inheritedHazards, boolean refined) {
+        addArchitectureLandforms(regions, plan, brief, design, architecture, environment, environmentCharacter,
+                holeSeed, inheritedHazards, refined, null);
+    }
+
+    private static void addArchitectureLandforms(List<TerrainRegion> regions, HoleArchitecturePlan plan, HoleBrief brief,
+                                                  CourseDesignProfile design, CourseArchitectureProfile architecture,
+                                                  EnvironmentClassification environment, EnvironmentHoleCharacter environmentCharacter,
+                                                  long holeSeed, HazardPlan inheritedHazards, boolean refined,
+                                                  ArchitectureStrategyPlan previewStrategy) {
         if (!refined) {
             addArchitectureLandforms(regions, plan, brief, design, architecture, environment,
                     environmentCharacter, holeSeed, inheritedHazards);
@@ -407,7 +425,101 @@ final class V5GeometryGenerator {
             if (hazardsHaveRoom(candidate, regions)
                     && !TerrainRegion.strictlyOverlaps(candidate.boundary(), plan.greenFootprint())) regions.add(candidate);
         }
+        if (previewStrategy != null && environment == EnvironmentClassification.PARKLAND) {
+            addPreviewParklandTreeFields(regions, plan, brief, holeSeed);
+        }
         addRefinedBunkers(regions, plan, brief, architecture, environment, holeSeed, rng);
+        if (previewStrategy != null) {
+            addPreviewTurnBunkerComplexes(regions, plan, brief, environment, holeSeed);
+            addPreviewStrategyBunkers(regions, plan, previewStrategy, environment, holeSeed);
+        }
+    }
+
+    /**
+     * A selected landing choice receives only a real, route-relative bunker edge. The target core remains ordinary
+     * ground; exposure is subsequently measured by {@code StrategicTargetPlanner} from this emitted geometry.
+     */
+    private static void addPreviewStrategyBunkers(List<TerrainRegion> regions, HoleArchitecturePlan plan,
+                                                   ArchitectureStrategyPlan strategy, EnvironmentClassification environment,
+                                                   long holeSeed) {
+        Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, 0x5354524154454745L));
+        for (ArchitectureLandingZone zone : strategy.landingZones()) {
+            if (zone.role() == LandingZoneRole.SAFE) continue;
+            if (zone.role() == LandingZoneRole.PRIMARY && rng.nextDouble() >= .28) continue;
+            Position2d target = zone.center(strategy.route());
+            Position2d tangent = tangent(plan.route(), Math.min(plan.route().length() - 45.0, zone.routeDistance()));
+            Position2d right = new Position2d(tangent.y(), -tangent.x());
+            double side = zone.preferredApproachSide() == PreferredApproachSide.LEFT ? -1.0
+                    : zone.preferredApproachSide() == PreferredApproachSide.RIGHT ? 1.0
+                    : rng.nextDouble() < .5 ? -1.0 : 1.0;
+            double major = environment == EnvironmentClassification.LINKS ? 8.5 + rng.nextDouble() * 3.0
+                    : 10.0 + rng.nextDouble() * 4.0;
+            double offset = Math.max(9.0, zone.halfWidth() * .70 + major * .30);
+            Position2d center = target.plus(right.x() * side * offset, right.y() * side * offset);
+            tryAddRefinedBunker(regions, plan, center, major, major * (.62 + rng.nextDouble() * .16),
+                    StrictMath.atan2(tangent.y(), tangent.x()), rng, 15);
+        }
+    }
+
+    /** Parkland receives larger mature-field masses outside the fairway, while Links remains deliberately open. */
+    private static void addPreviewParklandTreeFields(List<TerrainRegion> regions, HoleArchitecturePlan plan,
+                                                     HoleBrief brief, long holeSeed) {
+        Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, 0x5052455654524545L));
+        int fields = 1 + (brief.par() >= 4 && rng.nextDouble() < .68 ? 1 : 0);
+        for (int field = 0; field < fields; field++) {
+            double distance;
+            if (field == 0 && !plan.route().intermediateAnchors().isEmpty()
+                    && PreviewCourseMetrics.meaningfulTurns(plan.route(), brief.par()) > 0) {
+                distance = plan.route().projectDistance(plan.route().intermediateAnchors().getFirst());
+            } else {
+                distance = plan.route().length() * (.18 + rng.nextDouble() * .62);
+            }
+            Position2d point = smoothPoint(plan.route(), distance);
+            Position2d tangent = tangent(plan.route(), distance);
+            Position2d right = new Position2d(tangent.y(), -tangent.x());
+            double side = field == 0 ? (rng.nextDouble() < .5 ? -1.0 : 1.0) : -1.0;
+            double width = interpolate(plan.widthStations(), distance, side < 0.0);
+            double major = 15.0 + rng.nextDouble() * 10.0;
+            Position2d center = point.plus(right.x() * side * (width + major * .70 + 7.0),
+                    right.y() * side * (width + major * .70 + 7.0));
+            TerrainRegion fieldMass = irregularRegion(Surface.TREES, center, major, major * (.58 + rng.nextDouble() * .18),
+                    StrictMath.atan2(tangent.y(), tangent.x()), rng, 17);
+            if (hazardsHaveRoom(fieldMass, regions)
+                    && !TerrainRegion.strictlyOverlaps(fieldMass.boundary(), plan.greenFootprint())) regions.add(fieldMass);
+        }
+    }
+
+    /** A material route turn can receive a real, edge-of-landing complex; cosmetic bends receive none. */
+    private static void addPreviewTurnBunkerComplexes(List<TerrainRegion> regions, HoleArchitecturePlan plan,
+                                                       HoleBrief brief, EnvironmentClassification environment, long holeSeed) {
+        if (brief.par() < 4) return;
+        Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, 0x505245565455524eL));
+        List<Position2d> points = plan.route().points();
+        for (int index = 1; index < points.size() - 1; index++) {
+            if (!PreviewCourseMetrics.meaningfulTurn(plan.route(), brief.par(), index)) continue;
+            double distance = plan.route().projectDistance(points.get(index));
+            Position2d before = points.get(index - 1);
+            Position2d turn = points.get(index);
+            Position2d after = points.get(index + 1);
+            double cross = (turn.x() - before.x()) * (after.y() - turn.y())
+                    - (turn.y() - before.y()) * (after.x() - turn.x());
+            double side = cross >= 0.0 ? -1.0 : 1.0;
+            double approachDistance = Math.max(74.0, distance - (18.0 + rng.nextDouble() * 17.0));
+            Position2d point = smoothPoint(plan.route(), approachDistance);
+            Position2d tangent = tangent(plan.route(), approachDistance);
+            Position2d right = new Position2d(tangent.y(), -tangent.x());
+            double width = interpolate(plan.widthStations(), approachDistance, side < 0.0);
+            double major = environment == EnvironmentClassification.LINKS ? 10.0 + rng.nextDouble() * 4.0
+                    : 13.0 + rng.nextDouble() * 6.0;
+            Position2d center = point.plus(right.x() * side * (width - major * .25),
+                    right.y() * side * (width - major * .25));
+            if (tryAddRefinedBunker(regions, plan, center, major, major * (.58 + rng.nextDouble() * .14),
+                    StrictMath.atan2(tangent.y(), tangent.x()), rng, 18) && rng.nextDouble() < .42) {
+                Position2d companion = center.plus(tangent.x() * (major * 1.35), tangent.y() * (major * 1.35));
+                tryAddRefinedBunker(regions, plan, companion, major * .68, major * .44,
+                        StrictMath.atan2(tangent.y(), tangent.x()), rng, 14);
+            }
+        }
     }
 
     static boolean hazardsHaveRoom(TerrainRegion candidate, List<TerrainRegion> placed) {

@@ -114,16 +114,24 @@ public class WorldService {
     private final ConcurrentMap<String, Integer> staffReviewAcknowledgements = new ConcurrentHashMap<>();
     private final SaveGameStore saveStore;
     private final boolean refinedV5NewWorlds;
+    private final boolean principledArchitectureNewWorlds;
 
     public WorldService(SaveGameStore saveStore) {
-        this(saveStore, false);
+        this(saveStore, false, false);
+    }
+
+    /** Compatibility constructor used by the retained Generator 7 opt-in tests. */
+    WorldService(SaveGameStore saveStore, boolean refinedV5NewWorlds) {
+        this(saveStore, refinedV5NewWorlds, false);
     }
 
     @Autowired
     public WorldService(SaveGameStore saveStore,
-                        @Value("${PROGOLF_REFINED_V5_NEW_WORLDS:false}") boolean refinedV5NewWorlds) {
+                        @Value("${PROGOLF_REFINED_V5_NEW_WORLDS:false}") boolean refinedV5NewWorlds,
+                        @Value("${PROGOLF_PRINCIPLED_ARCHITECTURE_NEW_WORLDS:false}") boolean principledArchitectureNewWorlds) {
         this.saveStore = saveStore;
         this.refinedV5NewWorlds = refinedV5NewWorlds;
+        this.principledArchitectureNewWorlds = principledArchitectureNewWorlds;
     }
 
     /** Creates a new, independent world session owned by {@code ownerId} from a master seed and returns it. */
@@ -133,7 +141,8 @@ public class WorldService {
 
     /** Creates a new owned session from a seed and an explicit world configuration. */
     public WorldSession create(String ownerId, long seed, WorldConfig config) {
-        int version = refinedV5NewWorlds ? CourseGenConstants.V5_REFINED_GENERATOR_VERSION
+        int version = principledArchitectureNewWorlds ? CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION
+                : refinedV5NewWorlds ? CourseGenConstants.V5_REFINED_GENERATOR_VERSION
                 : CourseGenConstants.CURRENT_GENERATOR_VERSION;
         return register(ownerId, seed, World.create(seed, config, version));
     }
@@ -927,14 +936,16 @@ public class WorldService {
         // The hole's biome keys on the event's canonical scene token — the same token the scene backdrop uses —
         // so the illustration agrees with the event's name/place/photo (a links major renders as links, whatever
         // its randomly-assigned host course). Falls back to the raw host classification only if no event is pending.
-        String courseType = required(ownerId, sessionId).world().currentEventScene()
+        World world = required(ownerId, sessionId).world();
+        String courseType = world.currentEventScene()
                 .map(World.PendingEventScene::courseType)
                 .orElseGet(() -> event.classification().name());
+        String canonicalBiome = event.classification().name();
         var geometry = event.effectiveGeometry(hole.number());
         var ball = holeNumber == null ? event.currentBallState()
                 : new com.progolf.sim.shot.BallState(geometry.tee(), com.progolf.sim.spatial.Surface.TEE_BOX);
-        return ApiMapper.playingHole(hole, pin, courseType, ball, geometry, event.cupAt(hole.number()),
-                event.effectiveWindForHole(hole.number()));
+        return ApiMapper.playingHole(hole, pin, courseType, canonicalBiome, world.courseGeneratorVersion(), ball, geometry,
+                event.cupAt(hole.number()), event.effectiveWindForHole(hole.number()));
     }
 
     /** The live field leaderboard for the player's event. */

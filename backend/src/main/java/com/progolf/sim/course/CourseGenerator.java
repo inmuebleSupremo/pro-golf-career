@@ -26,6 +26,7 @@ public final class CourseGenerator {
             case CourseGenConstants.V4_GENERATOR_VERSION -> generateV4(coordinate, classification);
             case CourseGenConstants.V5_GENERATOR_VERSION -> generateV5(coordinate, classification);
             case CourseGenConstants.V5_REFINED_GENERATOR_VERSION -> generateRefinedV5(coordinate, classification);
+            case CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION -> generatePrincipledArchitecture(coordinate, classification);
             default -> throw new IllegalArgumentException("Unsupported course generator version: " + version);
         };
     }
@@ -34,7 +35,8 @@ public final class CourseGenerator {
         return version == CourseGenConstants.V1_GENERATOR_VERSION || version == CourseGenConstants.V2_GENERATOR_VERSION
                 || version == CourseGenConstants.V3_GENERATOR_VERSION || version == CourseGenConstants.V4_GENERATOR_VERSION
                 || version == CourseGenConstants.V5_GENERATOR_VERSION
-                || version == CourseGenConstants.V5_REFINED_GENERATOR_VERSION;
+                || version == CourseGenConstants.V5_REFINED_GENERATOR_VERSION
+                || version == CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION;
     }
 
     /** Historical V1 implementation retained unchanged in behavior. */
@@ -216,6 +218,21 @@ public final class CourseGenerator {
         return generateV5(coordinate, classification, plan, architectureProfile, true);
     }
 
+    /** Retained Generator 8 implementation for the opt-in principles-driven architecture. */
+    private static Course generatePrincipledArchitecture(SeedCoordinate coordinate,
+                                                          EnvironmentClassification classification) {
+        long courseSeed = Seeds.forCoordinate(coordinate);
+        CoursePlan plan = CoursePlanGenerator.generate(courseSeed);
+        return generateV5(coordinate, classification, plan, V5HolePlanner.profileFor(courseSeed), true, true,
+                CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
+    }
+
+    /** Package-private preview seam; it deliberately calls the exact retained Generator 8 implementation. */
+    static Course generatePrincipledArchitecturePreview(SeedCoordinate coordinate,
+                                                        EnvironmentClassification classification) {
+        return generatePrincipledArchitecture(coordinate, classification);
+    }
+
     /** Package-private calibration seam for explicit V5 design and architectural profile combinations. */
     static Course generateV5(SeedCoordinate coordinate, EnvironmentClassification classification,
                              CourseDesignProfile profile, CourseArchitectureProfile architectureProfile) {
@@ -230,6 +247,19 @@ public final class CourseGenerator {
 
     private static Course generateV5(SeedCoordinate coordinate, EnvironmentClassification classification, CoursePlan plan,
                                      CourseArchitectureProfile architectureProfile, boolean refined) {
+        return generateV5(coordinate, classification, plan, architectureProfile, refined, false);
+    }
+
+    private static Course generateV5(SeedCoordinate coordinate, EnvironmentClassification classification, CoursePlan plan,
+                                     CourseArchitectureProfile architectureProfile, boolean refined,
+                                     boolean principlesDriven) {
+        return generateV5(coordinate, classification, plan, architectureProfile, refined, principlesDriven,
+                refined ? CourseGenConstants.V5_REFINED_GENERATOR_VERSION : CourseGenConstants.V5_GENERATOR_VERSION);
+    }
+
+    private static Course generateV5(SeedCoordinate coordinate, EnvironmentClassification classification, CoursePlan plan,
+                                      CourseArchitectureProfile architectureProfile, boolean refined,
+                                      boolean principlesDriven, int generatorVersion) {
         long courseSeed = Seeds.forCoordinate(coordinate);
         List<Double> lengths = new ArrayList<>(18);
         List<Double> fairwayHalves = new ArrayList<>(18);
@@ -257,7 +287,7 @@ public final class CourseGenerator {
             elevations.add((rng.nextDouble() * 2.0 - 1.0) * CourseGenConstants.ELEVATION_RANGE);
         }
         List<V5HolePlanner.SelectedCandidate> selected = V5HolePlanner.select(plan, architectureProfile, courseSeed,
-                lengths, fairwayHalves, refined);
+                lengths, fairwayHalves, refined, principlesDriven);
         List<EnvironmentHoleCharacter> environmentCharacters = V5EnvironmentPlanner.plan(plan, classification,
                 architectureProfile, courseSeed);
         List<GeneratedHole> holes = new ArrayList<>(18);
@@ -266,18 +296,21 @@ public final class CourseGenerator {
             long holeSeed = Seeds.deriveSeed(courseSeed, brief.number());
             HoleSpatialPlan guidancePlan = V3HolePlanner.plan(brief, lengths.get(i), fairwayHalves.get(i),
                     greenHalves.get(i), greenDepths.get(i), holeSeed);
+            ArchitectureStrategyPlan architectureStrategy = principlesDriven
+                    ? V5StrategicPreviewPlanner.plan(brief, selected.get(i).plan(), holeSeed) : null;
             HazardPlan hazards = V4HazardPlanner.plan(brief, plan.profile(), classification, guidancePlan, holeSeed);
             CourseGeometry geometry = V5GeometryGenerator.generate(selected.get(i).plan(), brief, plan.profile(),
-                    architectureProfile, classification, environmentCharacters.get(i), holeSeed, hazards, refined);
+                    architectureProfile, classification, environmentCharacters.get(i), holeSeed, hazards, refined,
+                    architectureStrategy);
             boolean bunker = geometry.regions().stream().anyMatch(region -> region.surface() == com.progolf.sim.spatial.Surface.BUNKER);
             boolean water = geometry.regions().stream().anyMatch(region -> region.surface() == com.progolf.sim.spatial.Surface.WATER);
             boolean trees = geometry.regions().stream().anyMatch(region -> region.surface() == com.progolf.sim.spatial.Surface.TREES);
             holes.add(new GeneratedHole(brief.number(), brief.par(), lengths.get(i), fairwayHalves.get(i), greenHalves.get(i),
                     greenDepths.get(i), bunker, water, trees, elevations.get(i), holeSeed, geometry, guidancePlan, hazards,
-                    selected.get(i).plan()));
+                    selected.get(i).plan(), architectureStrategy));
         }
         return new Course(CourseNames.generate(courseSeed, classification), holes,
-                refined ? CourseGenConstants.V5_REFINED_GENERATOR_VERSION : CourseGenConstants.V5_GENERATOR_VERSION,
+                generatorVersion,
                 plan.profile(), plan, new CourseArchitecturePlan(architectureProfile,
                 selected.stream().map(V5HolePlanner.SelectedCandidate::plan).toList()));
     }

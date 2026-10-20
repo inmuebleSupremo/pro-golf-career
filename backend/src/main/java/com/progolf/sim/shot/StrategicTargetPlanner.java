@@ -2,6 +2,8 @@ package com.progolf.sim.shot;
 
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.course.CourseGeometry;
+import com.progolf.sim.course.ArchitectureLandingZone;
+import com.progolf.sim.course.ArchitectureStrategyPlan;
 import com.progolf.sim.course.HoleSpatialPlan;
 import com.progolf.sim.course.LandingZone;
 import com.progolf.sim.course.LandingZoneRole;
@@ -31,6 +33,11 @@ public final class StrategicTargetPlanner {
         Objects.requireNonNull(lie, "lie");
         Objects.requireNonNull(attributes, "attributes");
         Objects.requireNonNull(environment, "environment");
+        ArchitectureStrategyPlan architecturePlan = hole.architectureStrategyPlan();
+        if (architecturePlan != null) {
+            return architectureOptions(architecturePlan, hole.geometry(), hole.cupPosition(), ball, remainingDistance,
+                    lie, attributes, environment);
+        }
         HoleSpatialPlan plan = hole.strategicLandingPlan();
         CourseGeometry geometry = hole.geometry();
         if (plan == null || geometry == null || hole.cupPosition() == null || !eligibleLie(lie) || remainingDistance <= 80.0) {
@@ -72,6 +79,43 @@ public final class StrategicTargetPlanner {
         return List.copyOf(result);
     }
 
+    private static List<ShotGuidance.StrategicOption> architectureOptions(ArchitectureStrategyPlan plan,
+                                                                            CourseGeometry geometry, Position2d cup,
+                                                                            BallState ball, double remainingDistance,
+                                                                            Surface lie, Attributes attributes,
+                                                                            Environment environment) {
+        if (geometry == null || cup == null || !eligibleLie(lie) || remainingDistance <= 80.0) return List.of();
+        double progress = plan.route().projectDistance(ball.position());
+        Map<LandingZoneRole, Candidate> candidates = new EnumMap<>(LandingZoneRole.class);
+        for (ArchitectureLandingZone zone : plan.landingZones()) {
+            if (zone.routeDistance() <= progress + FUTURE_ROUTE_BUFFER) continue;
+            Candidate candidate = candidateFor(zone.role(), zone.center(plan.route()), geometry, cup, ball.position(),
+                    lie, attributes, environment);
+            if (candidate != null) candidates.put(zone.role(), candidate);
+        }
+        Candidate primary = candidates.get(LandingZoneRole.PRIMARY);
+        if (primary == null) return List.of();
+        List<ShotGuidance.StrategicOption> result = new ArrayList<>();
+        Candidate safe = candidates.get(LandingZoneRole.SAFE);
+        Candidate aggressive = candidates.get(LandingZoneRole.AGGRESSIVE);
+        Candidate saferComparison = aggressive != null
+                && aggressive.nextShotDistance <= primary.nextShotDistance - MATERIAL_NEXT_SHOT_DELTA
+                ? aggressive : primary;
+        if (safe != null && safe.exposure < saferComparison.exposure
+                && safe.nextShotDistance >= saferComparison.nextShotDistance + MATERIAL_NEXT_SHOT_DELTA) {
+            result.add(option(safe, "Longer next shot leaves about " + rounded(safe.nextShotDistance)
+                    + " yd for lower landing exposure", "Lower landing exposure"));
+        }
+        result.add(option(primary, "Balanced route leaves about " + rounded(primary.nextShotDistance) + " yd to the pin",
+                exposureText(primary.exposure, "Balanced landing exposure")));
+        if (aggressive != null && aggressive.exposure > primary.exposure
+                && aggressive.nextShotDistance <= primary.nextShotDistance - MATERIAL_NEXT_SHOT_DELTA) {
+            result.add(option(aggressive, "Shorter next shot leaves about " + rounded(aggressive.nextShotDistance)
+                    + " yd to the pin", "Higher landing exposure"));
+        }
+        return List.copyOf(result);
+    }
+
     /** Returns the disposition's published option, or null so callers retain their established policy. */
     public static ShotGuidance.StrategicOption preferred(List<ShotGuidance.StrategicOption> options, Strategy strategy) {
         LandingZoneRole wanted = switch (strategy) {
@@ -86,7 +130,11 @@ public final class StrategicTargetPlanner {
 
     private static Candidate candidateFor(LandingZone zone, HoleSpatialPlan plan, CourseGeometry geometry, Position2d cup,
                                           Position2d ball, Surface lie, Attributes attributes, Environment environment) {
-        Position2d target = zone.center(plan.route());
+        return candidateFor(zone.role(), zone.center(plan.route()), geometry, cup, ball, lie, attributes, environment);
+    }
+
+    private static Candidate candidateFor(LandingZoneRole role, Position2d target, CourseGeometry geometry, Position2d cup,
+                                          Position2d ball, Surface lie, Attributes attributes, Environment environment) {
         Surface landing = geometry.surfaceAt(target);
         if (!ordinaryLanding(landing)) return null;
         double distance = ball.distanceTo(target);
@@ -98,7 +146,7 @@ public final class StrategicTargetPlanner {
         ShotExecutionProfile profile = ShotExecutionProfile.derive(lie, club, ShotFamily.FULL, attributes, environment);
         Position2d nominalRest = nominalRest(ball, target, geometry, profile.rollYardsOn(landing));
         double exposure = exposure(geometry, target, distance, club, attributes, profile);
-        return new Candidate(zone.role(), target, club, landing, exposure, nominalRest.distanceTo(cup));
+        return new Candidate(role, target, club, landing, exposure, nominalRest.distanceTo(cup));
     }
 
     private static Position2d nominalRest(Position2d ball, Position2d target, CourseGeometry geometry, double release) {
