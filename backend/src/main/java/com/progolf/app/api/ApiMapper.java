@@ -52,6 +52,7 @@ import com.progolf.sim.equipment.EquipmentCharacteristics;
 import com.progolf.sim.equipment.EquipmentItem;
 import com.progolf.sim.media.NewsEvent;
 import com.progolf.sim.course.GeneratedHole;
+import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.course.Position2d;
@@ -173,40 +174,71 @@ public final class ApiMapper {
      * backdrop uses), so the hole's biome illustration always agrees with the event's name, place, and photo.
      */
     public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball) {
-        return playingHole(hole, pin, courseType, ball, hole.geometry());
+        return playingHole(hole, pin, courseType, courseType, CourseGenConstants.V1_GENERATOR_VERSION, ball, hole.geometry());
     }
 
     /** Projects the effective setup-specific geometry used by the active playable hole. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, String canonicalBiome,
+                                              int courseGeneratorVersion, BallState ball, CourseGeometry geometry) {
+        return playingHole(hole, pin, courseType, canonicalBiome, courseGeneratorVersion, ball, geometry,
+                legacyCup(geometry, pin), new WindVector(0.0, 0.0));
+    }
+
+    /** Compatibility overload for callers that do not carry a retained generator identity. */
     public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
-                                             CourseGeometry geometry) {
-        return playingHole(hole, pin, courseType, ball, geometry, legacyCup(geometry, pin), new WindVector(0.0, 0.0));
+                                              CourseGeometry geometry) {
+        return playingHole(hole, pin, courseType, courseType, CourseGenConstants.V1_GENERATOR_VERSION, ball, geometry);
     }
 
     /** Projects the effective setup-specific geometry and resolver-effective canonical wind for the active hole. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, String canonicalBiome,
+                                              int courseGeneratorVersion, BallState ball, CourseGeometry geometry, WindVector wind) {
+        return playingHole(hole, pin, courseType, canonicalBiome, courseGeneratorVersion, ball, geometry,
+                legacyCup(geometry, pin), wind);
+    }
+
+    /** Compatibility overload for callers that do not carry a retained generator identity. */
     public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
-                                             CourseGeometry geometry, WindVector wind) {
-        return playingHole(hole, pin, courseType, ball, geometry, legacyCup(geometry, pin), wind);
+                                              CourseGeometry geometry, WindVector wind) {
+        return playingHole(hole, pin, courseType, courseType, CourseGenConstants.V1_GENERATOR_VERSION, ball, geometry, wind);
     }
 
     /** Projects a policy-resolved cup rather than reconstructing it from legacy offsets. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, String canonicalBiome,
+                                              int courseGeneratorVersion, BallState ball, CourseGeometry geometry, Position2d cup) {
+        return playingHole(hole, pin, courseType, canonicalBiome, courseGeneratorVersion, ball, geometry, cup,
+                new WindVector(0.0, 0.0));
+    }
+
+    /** Compatibility overload for callers that do not carry a retained generator identity. */
     public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
-                                             CourseGeometry geometry, Position2d cup) {
-        return playingHole(hole, pin, courseType, ball, geometry, cup, new WindVector(0.0, 0.0));
+                                              CourseGeometry geometry, Position2d cup) {
+        return playingHole(hole, pin, courseType, courseType, CourseGenConstants.V1_GENERATOR_VERSION, ball, geometry, cup);
     }
 
     /** Projects the policy-resolved cup and resolver-effective canonical wind used by the active hole. */
-    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, BallState ball,
-                                             CourseGeometry geometry, Position2d cup, WindVector wind) {
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, String canonicalBiome,
+                                              int courseGeneratorVersion, BallState ball, CourseGeometry geometry,
+                                              Position2d cup, WindVector wind) {
         return new PlayingHoleDto(hole.number(), hole.par(), hole.length(),
                 hole.fairwayHalfWidth(), hole.greenHalfWidth(), hole.greenDepth(), hole.elevationDelta(),
                 hole.hasGreensideBunker(), hole.hasWater(), hole.hasTrees(),
                 pin.lateralOffset(), pin.depthOffset(),
-                courseType, Long.toString(hole.holeSeed()), geometry(geometry, cup), ballState(ball), effectiveWind(wind));
+                courseType, canonicalBiome, courseGeneratorVersion, geometrySource(courseGeneratorVersion),
+                Long.toString(hole.holeSeed()), geometry(geometry, cup), ballState(ball), effectiveWind(wind));
     }
 
     /** Compatibility mapper for tests/readers not yet carrying a live ball. */
     public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType) {
         return playingHole(hole, pin, courseType, new BallState(hole.geometry().tee(), com.progolf.sim.spatial.Surface.TEE_BOX));
+    }
+
+    private static String geometrySource(int version) {
+        return switch (version) {
+            case CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION -> "GENERATOR_8_PRINCIPLED_ARCHITECTURE";
+            case CourseGenConstants.V5_REFINED_GENERATOR_VERSION -> "GENERATOR_7_REFINED_V5";
+            default -> "GENERATOR_" + version + "_CANONICAL";
+        };
     }
 
     public static SeasonStatDto seasonStat(SeasonStatistics s) {

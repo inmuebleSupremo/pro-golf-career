@@ -671,6 +671,12 @@ type PlayingHole {
     pinDepth: Float!
     "The host course's environment classification name, mapped by the client to a biome style."
     courseType: String!
+    "The actual generated course's environment classification; this can differ from a major's presentation scene."
+    canonicalBiome: String!
+    "The retained generator identity used by this active course."
+    courseGeneratorVersion: Int!
+    "The backend canonical geometry implementation used by this active course."
+    canonicalGeometrySource: String!
     "The hole's stable seed as a string; the client derives reproducible cosmetic placement from it."
     layoutSeed: String!
     "Authoritative yard-space terrain for this hole; SVG details remain client-owned."

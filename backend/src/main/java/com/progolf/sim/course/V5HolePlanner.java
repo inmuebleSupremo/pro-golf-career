@@ -27,48 +27,75 @@ final class V5HolePlanner {
 
     static List<SelectedCandidate> select(CoursePlan coursePlan, CourseArchitectureProfile profile, long courseSeed,
                                           List<Double> lengths, List<Double> fairwayHalves, boolean refined) {
+        return select(coursePlan, profile, courseSeed, lengths, fairwayHalves, refined, false);
+    }
+
+    /** Development-only selection mode: continuous candidate relationships replace fixed form quotas. */
+    static List<SelectedCandidate> select(CoursePlan coursePlan, CourseArchitectureProfile profile, long courseSeed,
+                                          List<Double> lengths, List<Double> fairwayHalves, boolean refined,
+                                          boolean principlesDriven) {
         List<SelectedCandidate> selected = new ArrayList<>(18);
         for (int index = 0; index < coursePlan.briefs().size(); index++) {
             HoleBrief brief = coursePlan.briefs().get(index);
             List<Candidate> candidates = candidates(brief, profile, lengths.get(index), fairwayHalves.get(index),
-                    Seeds.deriveSeed(courseSeed, brief.number()), refined);
+                    Seeds.deriveSeed(courseSeed, brief.number()), refined, principlesDriven);
             Candidate best = candidates.stream().max(Comparator.comparingDouble(candidate -> candidate.score
-                    - repetitionPenalty(candidate, selected) + compositionAdjustment(candidate, selected, profile,
-                    coursePlan.briefs().size()))).orElseThrow();
-            selected.add(new SelectedCandidate(best.plan, best.ordinal));
+                    - repetitionPenalty(candidate, selected) + (principlesDriven
+                    ? principleDiversityAdjustment(candidate, selected, brief) : compositionAdjustment(candidate, selected, profile,
+                    coursePlan.briefs().size())))).orElseThrow();
+            selected.add(new SelectedCandidate(best.plan, best.ordinal, brief.par()));
         }
         return List.copyOf(selected);
     }
 
     private static List<Candidate> candidates(HoleBrief brief, CourseArchitectureProfile profile, double length,
-                                              double fairwayHalf, long holeSeed, boolean refined) {
-        List<Candidate> result = new ArrayList<>(CANDIDATES_PER_BRIEF);
-        for (int ordinal = 0; ordinal < CANDIDATES_PER_BRIEF; ordinal++) {
+                                              double fairwayHalf, long holeSeed, boolean refined,
+                                              boolean principlesDriven) {
+        int candidateCount = principlesDriven ? 11 : CANDIDATES_PER_BRIEF;
+        List<Candidate> result = new ArrayList<>(candidateCount);
+        for (int ordinal = 0; ordinal < candidateCount; ordinal++) {
             Rng rng = new SplitMix64Rng(Seeds.deriveSeed(holeSeed, CANDIDATE_SALT + ordinal));
-            RoutingForm form = routingForm(brief, ordinal);
-            double movement = refined ? 29.0 + profile.routingMovement() * 47.0 + rng.nextDouble() * 17.0
+            RoutingForm form = principlesDriven ? null : routingForm(brief, ordinal);
+            double movement = principlesDriven ? 48.0 + profile.routingMovement() * 62.0 + rng.nextDouble() * 28.0
+                    : refined ? 29.0 + profile.routingMovement() * 47.0 + rng.nextDouble() * 17.0
                     : 18.0 + profile.routingMovement() * 34.0 + rng.nextDouble() * 12.0;
-            List<Position2d> anchors = new ArrayList<>(form == RoutingForm.DOUBLE_DOGLEG ? 2 : form == RoutingForm.STRAIGHT ? 0 : 1);
+            int turns = principlesDriven ? turnsFor(brief, profile, length, rng)
+                    : form == RoutingForm.DOUBLE_DOGLEG ? 2 : form == RoutingForm.STRAIGHT ? 0 : 1;
+            List<Position2d> anchors = new ArrayList<>(turns);
             double finalX = 0.0;
-            int turns = form == RoutingForm.DOUBLE_DOGLEG ? 2 : form == RoutingForm.STRAIGHT ? 0 : 1;
+            double firstSide = rng.nextDouble() < 0.5 ? -1.0 : 1.0;
             for (int turn = 0; turn < turns; turn++) {
-                double fraction = turns == 1 ? 0.56 : (turn == 0 ? 0.33 : 0.67);
-                double sign = (turn == 0 || rng.nextDouble() < 0.55) ? (rng.nextDouble() < 0.5 ? -1.0 : 1.0)
+                double fraction = principlesDriven ? turnFraction(turn, turns, rng)
+                        : turns == 1 ? 0.56 : (turn == 0 ? 0.33 : 0.67);
+                double sign = principlesDriven ? (turn == 0 ? firstSide : rng.nextDouble() < .72 ? -firstSide : firstSide)
+                        : (turn == 0 || rng.nextDouble() < 0.55) ? (rng.nextDouble() < 0.5 ? -1.0 : 1.0)
                         : -Math.signum(finalX == 0.0 ? 1.0 : finalX);
-                double scale = form == RoutingForm.GENTLE ? 0.34 : turns == 2 && turn == 0 ? 0.66 : 1.0;
+                double scale = principlesDriven ? .58 + rng.nextDouble() * .47
+                        : form == RoutingForm.GENTLE ? 0.34 : turns == 2 && turn == 0 ? 0.66 : 1.0;
                 finalX += sign * movement * scale;
                 anchors.add(new Position2d(finalX, length * fraction));
             }
-            finalX *= refined ? 0.56 + rng.nextDouble() * 0.27 : 0.30 + rng.nextDouble() * 0.25;
+            finalX *= principlesDriven ? .16 + rng.nextDouble() * .34
+                    : refined ? 0.56 + rng.nextDouble() * 0.27 : 0.30 + rng.nextDouble() * 0.25;
             ArchitectureRoute route = new ArchitectureRoute(new Position2d(0.0, 0.0), anchors,
                     new Position2d(finalX, length));
-            List<FairwayWidthStation> stations = stations(route, refined ? fairwayHalf * 1.12 : fairwayHalf,
-                    profile, ordinal, rng, refined);
+            // A candidate with two geometric inflections but fewer than two genuine landing/turn decisions is not
+            // an honest double dogleg. Keep its strongest single route relationship instead of merely relabelling it.
+            if (principlesDriven && anchors.size() == 2 && PreviewCourseMetrics.meaningfulTurns(route, brief.par()) < 2) {
+                anchors.removeLast();
+                route = new ArchitectureRoute(new Position2d(0.0, 0.0), anchors, new Position2d(finalX, length));
+            }
+            if (principlesDriven) form = formFor(route, brief);
+            double corridorBase = principlesDriven ? Math.clamp(fairwayHalf * 1.15, 18.0, 25.0)
+                    : refined ? fairwayHalf * 1.12 : fairwayHalf;
+            List<FairwayWidthStation> stations = stations(route, corridorBase,
+                    profile, ordinal, rng, refined, principlesDriven);
             Position2d direction = finalDirection(route);
             List<Position2d> green = greenFootprint(route.greenCenter(), direction, profile, rng, brief.par(), refined);
             double signature = signature(route, stations, green, ordinal);
             double score = 42.0 + profile.widthRhythm() * 8.0
                     + (brief.archetype() == StrategicArchetype.BALANCED ? 3.0 : 6.0) + rng.nextDouble();
+            if (principlesDriven) score += routingSuitability(brief, route);
             result.add(new Candidate(new HoleArchitecturePlan(form, route, stations, green, direction, signature), score, ordinal));
         }
         return result;
@@ -76,7 +103,7 @@ final class V5HolePlanner {
 
     private static List<FairwayWidthStation> stations(ArchitectureRoute route, double base,
                                                        CourseArchitectureProfile profile, int ordinal, Rng rng,
-                                                       boolean refined) {
+                                                       boolean refined, boolean principlesDriven) {
         double total = route.length();
         double asymmetry = (profile.lateralAsymmetry() * 0.38 + 0.06) * (ordinal % 2 == 0 ? 1.0 : -1.0);
         List<FairwayWidthStation> result = new ArrayList<>();
@@ -84,15 +111,76 @@ final class V5HolePlanner {
                 : List.of(0.0, 0.20, 0.47, 0.67, 0.84, 1.0)) {
             double rhythm = StrictMath.sin((fraction * 2.0 + ordinal * 0.37) * StrictMath.PI)
                     * (0.18 + profile.widthRhythm() * 0.22);
-            double landingWiden = refined
+            double landingWiden = principlesDriven && fraction > .18 && fraction < .83
+                    ? (rng.nextDouble() < .58 ? .12 + rng.nextDouble() * .34 : -.10 * rng.nextDouble())
+                    : refined
                     ? (fraction > 0.35 && fraction < 0.73 ? 0.31 + rng.nextDouble() * 0.30 : 0.0)
                     : (fraction > 0.42 && fraction < 0.70 ? 0.12 + rng.nextDouble() * 0.11 : 0.0);
             if (refined && fraction == 0.87) rhythm -= .14;
-            double left = Math.max(10.0, base * (1.0 + rhythm - asymmetry + landingWiden));
-            double right = Math.max(10.0, base * (1.0 - rhythm + asymmetry + landingWiden * 0.45));
+            double minimum = principlesDriven ? 17.0 : 10.0;
+            double left = Math.max(minimum, base * (1.0 + rhythm - asymmetry + landingWiden));
+            double right = Math.max(minimum, base * (1.0 - rhythm + asymmetry + landingWiden * 0.45));
             result.add(new FairwayWidthStation(total * fraction, left, right));
         }
         return result;
+    }
+
+    private static int turnsFor(HoleBrief brief, CourseArchitectureProfile profile, double length, Rng rng) {
+        if (brief.par() == 3) return 0;
+        double complexity = profile.routingMovement() * .44 + (brief.archetype() == StrategicArchetype.POSITIONAL ? .15 : 0.0)
+                + (brief.par() == 5 ? .18 : length > 470.0 ? .10 : 0.0) + rng.nextDouble() * .50;
+        if (brief.par() == 5 && complexity > .83 || brief.par() == 4 && length > 465.0 && complexity > .98) return 2;
+        return complexity > .47 ? 1 : 0;
+    }
+
+    private static double turnFraction(int turn, int turns, Rng rng) {
+        if (turns == 1) return .38 + rng.nextDouble() * .30;
+        return turn == 0 ? .25 + rng.nextDouble() * .16 : .58 + rng.nextDouble() * .17;
+    }
+
+    private static RoutingForm formFor(ArchitectureRoute route, HoleBrief brief) {
+        int meaningful = PreviewCourseMetrics.meaningfulTurns(route, brief.par());
+        if (meaningful > 1) return RoutingForm.DOUBLE_DOGLEG;
+        if (meaningful == 1) return RoutingForm.DOGLEG;
+        return route.intermediateAnchors().isEmpty() ? RoutingForm.STRAIGHT : RoutingForm.GENTLE;
+    }
+
+    private static double routingSuitability(HoleBrief brief, ArchitectureRoute route) {
+        int meaningful = PreviewCourseMetrics.meaningfulTurns(route, brief.par());
+        if (brief.par() == 3) return route.intermediateAnchors().isEmpty() ? 3.0 : -8.0;
+        // Let simple par 4/5 holes compete on their own merits. Whole-course selection—not a per-hole mandate—
+        // applies additional pressure only once the course begins to read as a run of corridors.
+        return meaningful * .45 + (route.intermediateAnchors().isEmpty() ? .75 : 0.0);
+    }
+
+    private static double principleDiversityAdjustment(Candidate candidate, List<SelectedCandidate> selected,
+                                                       HoleBrief brief) {
+        if (selected.isEmpty()) return 0.0;
+        double chordRatio = candidate.plan.route().length()
+                / candidate.plan.route().teeOrigin().distanceTo(candidate.plan.route().greenCenter());
+        double widthImbalance = candidate.plan.widthStations().stream().mapToDouble(station ->
+                station.leftHalfWidth() - station.rightHalfWidth()).average().orElse(0.0);
+        double penalty = 0.0;
+        for (SelectedCandidate prior : selected) {
+            double priorChord = prior.plan.route().length()
+                    / prior.plan.route().teeOrigin().distanceTo(prior.plan.route().greenCenter());
+            double priorImbalance = prior.plan.widthStations().stream().mapToDouble(station ->
+                    station.leftHalfWidth() - station.rightHalfWidth()).average().orElse(0.0);
+            if (StrictMath.abs(chordRatio - priorChord) < .035) penalty += 5.0;
+            if (StrictMath.abs(widthImbalance - priorImbalance) < 1.6) penalty += 2.5;
+        }
+        if (brief.par() >= 4) {
+            long comparable = selected.stream().filter(prior -> prior.par >= 4).count();
+            long straightforward = selected.stream().filter(prior -> prior.par >= 4
+                    && PreviewCourseMetrics.meaningfulTurns(prior.plan.route(), prior.par) == 0).count();
+            boolean candidateTurns = PreviewCourseMetrics.meaningfulTurns(candidate.plan.route(), brief.par()) > 0;
+            // This is a soft pressure against a course becoming corridor-heavy, not a required form quota:
+            // simple long holes remain legal when their other relationships score well.
+            double corridorExcess = straightforward - (comparable + 1) * .30;
+            if (!candidateTurns && corridorExcess > -.25) penalty += 16.0 + corridorExcess * 12.0;
+            if (candidateTurns && corridorExcess > 0.0) penalty -= Math.min(16.0, corridorExcess * 8.0);
+        }
+        return -penalty;
     }
 
     private static Position2d finalDirection(ArchitectureRoute route) {
@@ -182,7 +270,7 @@ final class V5HolePlanner {
         };
     }
 
-    record SelectedCandidate(HoleArchitecturePlan plan, int ordinal) { }
+    record SelectedCandidate(HoleArchitecturePlan plan, int ordinal, int par) { }
     private record Candidate(HoleArchitecturePlan plan, double score, int ordinal) { }
 }
 

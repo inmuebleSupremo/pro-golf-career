@@ -28,6 +28,7 @@ export const CreateWorldDocument = graphql(`
       id
       season
       week
+      courseGeneratorVersion
     }
   }
 `);
@@ -767,6 +768,9 @@ export const PlayingHoleDocument = graphql(`
       pinLateral
       pinDepth
       courseType
+      canonicalBiome
+      courseGeneratorVersion
+      canonicalGeometrySource
       layoutSeed
       effectiveWind { x y magnitude unit }
       geometry {
