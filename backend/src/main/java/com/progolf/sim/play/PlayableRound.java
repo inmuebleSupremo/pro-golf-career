@@ -203,12 +203,11 @@ public final class PlayableRound {
         currentHoleShots.add(outcome);
         lie = outcome.finalSurface();
 
-        boolean holed;
+        boolean holed = outcome.holed();
         if (outcome.settlement() != null) {
             ball = outcome.settlement().ball();
             lie = ball.lie();
             remaining = ball.position().distanceTo(hole.model().cupPosition());
-            holed = !outcome.hazardEntered() && remaining <= SimConstants.HOLED_THRESHOLD;
         } else if (outcome.hazardEntered()) {
             // Penalty-hazard recovery, identical to RoundResolver so simmed == auto (spec: shot-resolution).
             if (outcome.finalSurface() == Surface.WATER) {
@@ -217,10 +216,8 @@ public final class PlayableRound {
             } else {
                 remaining = preShotRemaining; // out of bounds: stroke-and-distance
             }
-            holed = false;
         } else {
             remaining = outcome.distanceRemaining();
-            holed = remaining <= SimConstants.HOLED_THRESHOLD;
         }
         shotNumber++;
         if (holed || shotNumber > SimConstants.MAX_SHOTS_PER_HOLE) {

@@ -108,7 +108,7 @@ export function usePlaySequence({
   // hole it finished; any other shot just plays back while the controls stay locked for trace feedback.
   const onShotResolved = useCallback((outcome: Outcome) => {
     setResultPresentation(showResolvedShot(toResolved(outcome), outcome));
-    if (outcome.distanceRemaining <= 0) {
+    if (outcome.holed) {
       setFrozenHole(holeRef.current);
       setFrozenSit(sitRef.current);
       setFrozen(true);

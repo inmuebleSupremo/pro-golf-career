@@ -823,6 +823,8 @@ type ShotOutcome {
     carry: Float!
     lateral: Float!
     distanceRemaining: Float!
+    "Authoritative simulation result: true only when this shot has holed out."
+    holed: Boolean!
     hazardEntered: Boolean!
     penaltyStrokes: Int!
     strokes: Int!

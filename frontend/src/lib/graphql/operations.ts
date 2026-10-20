@@ -794,6 +794,7 @@ export const PlayShotDocument = graphql(`
         carry
         lateral
         distanceRemaining
+        holed
         hazardEntered
         penaltyStrokes
         strokes
@@ -824,7 +825,7 @@ export const PlayPuttDocument = graphql(`
     playPutt(id: $id, expectedShotRevision: $expectedShotRevision) {
       stale
       outcome {
-        finalSurface carry lateral distanceRemaining hazardEntered penaltyStrokes strokes
+        finalSurface carry lateral distanceRemaining holed hazardEntered penaltyStrokes strokes
         settlement { contact { position { x y } surface } recoveryPosition { x y } recoveryKind ball { position { x y } lie } }
         trace {
           club origin { x y } aimPoint { x y } contact { position { x y } surface }
@@ -846,6 +847,7 @@ export const SimShotDocument = graphql(`
       carry
       lateral
       distanceRemaining
+      holed
       hazardEntered
       penaltyStrokes
       strokes

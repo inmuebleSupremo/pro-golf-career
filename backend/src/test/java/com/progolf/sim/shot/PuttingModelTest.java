@@ -29,7 +29,7 @@ class PuttingModelTest {
         int holed = 0;
         for (int i = 1; i <= N; i++) {
             ShotOutcome o = ShotResolver.resolveShot(putt(attrs, distanceYd, Environment.calm(), i));
-            if (o.distanceRemaining() <= SimConstants.HOLED_THRESHOLD) {
+            if (o.holed()) {
                 holed++;
             }
         }
@@ -40,6 +40,29 @@ class PuttingModelTest {
     void shortPuttsHoleOutNearCertainly() {
         // ~2 feet: a tap-in should fall almost every time.
         assertThat(makeRate(Attributes.uniform(60), 0.6)).isGreaterThan(0.95);
+    }
+
+    @Test
+    void holedStateMatchesTheAuthoritativeThreshold() {
+        ShotOutcome atCup = ShotResolver.resolveShot(putt(Attributes.uniform(60), 0.0, Environment.calm(), 1));
+
+        assertThat(atCup.holed()).isTrue();
+        assertThat(atCup.distanceRemaining()).isLessThanOrEqualTo(SimConstants.HOLED_THRESHOLD);
+    }
+
+    @Test
+    void missedPuttCloseToTheCupRemainsNotHoled() {
+        ShotOutcome miss = null;
+        for (int i = 1; i <= N && miss == null; i++) {
+            ShotOutcome candidate = ShotResolver.resolveShot(putt(Attributes.uniform(60), 1.0, Environment.calm(), i));
+            if (!candidate.holed()) {
+                miss = candidate;
+            }
+        }
+
+        assertThat(miss).isNotNull();
+        assertThat(miss.distanceRemaining()).isGreaterThan(SimConstants.HOLED_THRESHOLD);
+        assertThat(miss.distanceRemaining() * 3).isLessThan(3.0);
     }
 
     @Test
@@ -98,7 +121,7 @@ class PuttingModelTest {
             // Every hole holes out well within the shot cap (no orbiting).
             assertThat(out.shots().size()).isLessThan(SimConstants.MAX_SHOTS_PER_HOLE);
             ShotOutcome last = out.shots().get(out.shots().size() - 1);
-            assertThat(last.distanceRemaining()).isLessThanOrEqualTo(SimConstants.HOLED_THRESHOLD);
+            assertThat(last.holed()).isTrue();
             totalPutts += HoleStats.of(out.shots(), course.holes().get(hole - 1).par()).putts();
         }
         // A believable putting round, not the pre-fix ~140+.

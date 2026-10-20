@@ -55,7 +55,7 @@ public final class RoundResolver {
                 ball = outcome.settlement().ball();
                 lie = ball.lie();
                 remaining = ball.position().distanceTo(hole.cupPosition());
-                if (!outcome.hazardEntered() && remaining <= SimConstants.HOLED_THRESHOLD) {
+                if (outcome.holed()) {
                     break;
                 }
             } else if (outcome.hazardEntered()) {
@@ -72,7 +72,7 @@ public final class RoundResolver {
                 }
             } else {
                 remaining = outcome.distanceRemaining();
-                if (remaining <= SimConstants.HOLED_THRESHOLD) {
+                if (outcome.holed()) {
                     break;
                 }
             }

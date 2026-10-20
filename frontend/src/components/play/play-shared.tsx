@@ -78,6 +78,8 @@ export type Outcome = {
   carry: number;
   lateral: number;
   distanceRemaining: number;
+  /** Server-authoritative result; do not infer this from the display distance. */
+  holed: boolean;
   hazardEntered: boolean;
   penaltyStrokes: number;
   strokes: number;
@@ -155,6 +157,20 @@ export function clampTarget(s: Situation): number {
   return Math.round(Math.min(Math.max(s.distanceToPin, s.minReach), s.maxReach));
 }
 
+/** Formats server distances in yards for player-facing, close-range feedback. */
+export function formatRemainingDistance(distanceYards: number): string {
+  const feet = distanceYards * 3;
+  if (feet < 0.1) return "<0.1 ft";
+  return feet < 10 ? `${feet.toFixed(1)} ft` : `${Math.round(feet)} ft`;
+}
+
+/** The player-facing outcome state, preserving the server's hole-out result verbatim. */
+export function outcomeFeedback(outcome: Outcome): { holed: boolean; remainingDistance: string | null } {
+  return outcome.holed
+    ? { holed: true, remainingDistance: null }
+    : { holed: false, remainingDistance: formatRemainingDistance(outcome.distanceRemaining) };
+}
+
 export function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
@@ -165,18 +181,18 @@ export function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export function OutcomeNote({ outcome }: { outcome: Outcome }) {
-  const holed = outcome.distanceRemaining <= 0;
+  const feedback = outcomeFeedback(outcome);
   return (
     <div className="border-border bg-background flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-4 py-2.5 text-sm">
       <span className="text-muted-foreground">
         Carried <span className="text-foreground font-mono tabular-nums">{Math.round(outcome.carry)}</span> yds to{" "}
       </span>
       <span className="font-medium">{humanize(outcome.finalSurface)}</span>
-      {holed ? (
+      {feedback.holed ? (
         <span className="text-success font-medium">· holed</span>
       ) : (
         <span className="text-muted-foreground">
-          · <span className="text-foreground font-mono tabular-nums">{Math.round(outcome.distanceRemaining)}</span> to
+          · <span className="text-foreground font-mono tabular-nums">{feedback.remainingDistance}</span> to
           the pin
         </span>
       )}

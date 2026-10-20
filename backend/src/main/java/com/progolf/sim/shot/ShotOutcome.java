@@ -44,4 +44,12 @@ public record ShotOutcome(
     public Surface contactSurface() {
         return settlement == null ? finalSurface : settlement.contact().surface();
     }
+
+    /**
+     * Whether this resolved shot has finished the hole under the simulation's authoritative
+     * cup threshold. Consumers should use this rather than interpreting a rounded distance.
+     */
+    public boolean holed() {
+        return !hazardEntered && distanceRemaining <= SimConstants.HOLED_THRESHOLD;
+    }
 }

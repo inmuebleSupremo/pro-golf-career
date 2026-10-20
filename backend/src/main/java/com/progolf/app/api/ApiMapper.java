@@ -265,7 +265,7 @@ public final class ApiMapper {
 
     public static ShotOutcomeDto shotOutcome(ShotOutcome o) {
         return new ShotOutcomeDto(o.finalSurface().name(), o.carry(), o.lateral(), o.distanceRemaining(),
-                o.hazardEntered(), o.penaltyStrokes(), o.strokes(), settlement(o.settlement()), trace(o.trace()));
+                o.holed(), o.hazardEntered(), o.penaltyStrokes(), o.strokes(), settlement(o.settlement()), trace(o.trace()));
     }
 
     private static PlayingGeometryDto geometry(CourseGeometry geometry, Position2d cup) {

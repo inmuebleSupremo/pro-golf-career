@@ -222,11 +222,15 @@ class ApiPlayingHoleMapperTest {
                 null, cupContact.position());
         ShotOutcome holeOut = new ShotOutcome(Surface.GREEN, 200, 0, 0, false, 0, 1,
                 new FactorBreakdown(0, 0, 0, 0), holed, false, holeOutTrace);
-        assertThat(ApiMapper.shotOutcome(holeOut).trace().finalPoint().y()).isEqualTo(200);
+        var holeOutDto = ApiMapper.shotOutcome(holeOut);
+        assertThat(holeOutDto.holed()).isTrue();
+        assertThat(holeOutDto.trace().finalPoint().y()).isEqualTo(200);
 
         ShotOutcome summaryOnly = new ShotOutcome(Surface.PRIMARY_ROUGH, 120, 4, 80, false, 0, 1,
                 new FactorBreakdown(0, 0, 0, 0), settlement, false);
-        assertThat(ApiMapper.shotOutcome(summaryOnly).trace()).isNull();
+        var summaryOnlyDto = ApiMapper.shotOutcome(summaryOnly);
+        assertThat(summaryOnlyDto.holed()).isFalse();
+        assertThat(summaryOnlyDto.trace()).isNull();
     }
 
     private static void assertGeometry(PlayingHoleDto dto, CourseGeometry geometry, PinPosition pin) {
