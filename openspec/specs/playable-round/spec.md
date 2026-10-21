@@ -139,6 +139,20 @@ Human and AI non-putting strokes SHALL submit the same complete `BallStrikeInten
 - **WHEN** human and AI paths resolve equivalent canonical context, seed, handedness, and ball-strike intent
 - **THEN** their contact, settlement, score, and observable trace facts SHALL be equal.
 
+### Requirement: Shared physical putting resolution
+
+For a green lie in a `PHYSICAL_V1` event, human play and AI/simulated play SHALL resolve through the same physical putting solver, GreenSurface, cup, seed hierarchy, settlement, scoring, and completion path. The human may provide direction and intended pace; the AI may plan them, but neither path may substitute a probability hole-out or a different cup-capture rule. The authoritative physical final `BallState` and, when requested, trajectory SHALL remain the outcome used by the integrated round/event path.
+
+#### Scenario: Physical human and AI paths share solver semantics
+
+- **WHEN** equivalent physical putting inputs, golfer state, ball, cup, surface provenance, and seed are resolved for human and AI play
+- **THEN** final position, holed result, settlement, and score SHALL be equal
+
+#### Scenario: Physical miss remains the next stroke's origin
+
+- **WHEN** a physical putt stops without cup capture
+- **THEN** the next playable stroke SHALL begin from that physical final ball position and the hole SHALL not complete
+
 ### Requirement: Observable flight materialization is optional
 Visible human shots and visible simulated/AI shots SHALL materialize authoritative airborne samples through `ShotTrace`. `simHole`, `simRound`, `simEvent`, tournament-field simulation, and calibration corpora SHALL resolve through the same `FlightSolution`/contact logic without requiring `ShotTrace` or sampled-path allocation.
 

@@ -7,6 +7,7 @@ import com.progolf.app.auth.AuthenticatedUser;
 import com.progolf.app.world.WorldService;
 import com.progolf.app.world.WorldSession;
 import com.progolf.sim.world.WorldConfig;
+import com.progolf.sim.putt.PuttingPolicy;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.stereotype.Controller;
@@ -52,5 +53,12 @@ public class WorldMutationController {
     @MutationMapping
     public PinPlacementStatusDto adoptV5PinPlacement(@Argument String id) {
         return worldService.adoptV5PinPlacement(AuthenticatedUser.requireId(), id);
+    }
+
+    /** Deliberate, per-event physical-putting opt-in; never mutates an active or completed event. */
+    @MutationMapping
+    public boolean setEventPuttingPolicy(@Argument String id, @Argument long tournamentId, @Argument String policy) {
+        worldService.setEventPuttingPolicy(AuthenticatedUser.requireId(), id, tournamentId, PuttingPolicy.valueOf(policy));
+        return true;
     }
 }

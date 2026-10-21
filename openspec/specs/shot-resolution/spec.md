@@ -146,7 +146,7 @@ A shot SHALL additionally consume the golfer's active staff-support characterist
 
 ### Requirement: Putting Resolution
 
-A shot played from the green SHALL be resolved by a dedicated putting model rather than the full ball-flight model. The putting model SHALL determine whether the ball is holed from an explicit make probability that increases as distance to the hole decreases and as putting skill increases, so that short putts hole out near-certainly and holing rates fall off realistically with distance. A putt that is not holed SHALL finish a short distance from the hole that converges toward it, so that a hole always holes out in a realistic number of putts without reaching the per-hole shot cap. Because the ball rolls along the green, a putt SHALL be immune to wind and to lie penalties that apply to full ball-flight shots. A putt SHALL still be resolved through the single shared, deterministic model and SHALL produce a complete outcome like any other shot.
+The policy-selected green route and automatic simulation SHALL use the event's explicit putting policy rather than the non-putting ball-flight model. `LEGACY` SHALL retain the established dedicated probability model: make probability increases as distance decreases and putting skill rises; a miss leaves a short converging putt; wind and full-shot lie penalties do not apply. `PHYSICAL_V1` SHALL accept only player/AI intended starting direction and roll pace, then resolve execution variation, rolling resistance, authoritative GreenSurface gradient, final ball position, and cup capture in the deterministic physical solver. Both policies SHALL produce a complete outcome through the shared round and scoring path.
 
 #### Scenario: Short putts hole out near-certainly
 
@@ -167,6 +167,16 @@ A shot played from the green SHALL be resolved by a dedicated putting model rath
 
 - **WHEN** a putt is not holed
 - **THEN** the ball SHALL finish nearer the hole than it started, leaving a distinct short putt, so the hole holes out in a realistic number of strokes
+
+#### Scenario: Physical capture, rather than proximity, holes the ball
+
+- **WHEN** a `PHYSICAL_V1` putt finishes within the legacy proximity threshold without satisfying physical cup capture
+- **THEN** it SHALL remain unholed at the solver's final position and the hole SHALL remain playable
+
+#### Scenario: Physical outcome has a deterministic trajectory
+
+- **WHEN** the same `PHYSICAL_V1` surface provenance, cup, golfer state, intent, and seed coordinate are resolved twice
+- **THEN** both resolutions SHALL return the same ordered trajectory, terminal state, final position, and holed result
 
 ### Requirement: Shots Consume Situational Pressure
 
@@ -293,7 +303,7 @@ Shot resolution SHALL accept an injury-impairment condition input in [0,1] (0 = 
 - **THEN** the injury impairment's effect SHALL be identical in both (mental support relieves fatigue and pressure, not physical injury)
 
 ### Requirement: Canonical ball-strike intent
-The simulation SHALL accept immutable `ShotIntent` values. Its supported non-putting variant, `BallStrikeIntent`, SHALL contain a stable individual `ClubId`, an `AimPoint`, one non-null `ShotFamily`, and one non-null `ShotShape`; its putting variant SHALL be minimal `PuttIntent` and SHALL preserve existing non-spatial putting behavior. Human intent SHALL contain no strategy, target-distance, target-lateral, carry, rollout, launch, height, wind, or random-execution control.
+The simulation SHALL accept immutable `ShotIntent` values. Its supported non-putting variant, `BallStrikeIntent`, SHALL contain a stable individual `ClubId`, an `AimPoint`, one non-null `ShotFamily`, and one non-null `ShotShape`. `LEGACY` putting SHALL retain minimal `PuttIntent`; `PHYSICAL_V1` putting SHALL accept only an intended normalized direction and roll pace. Human input SHALL contain no strategy, target-distance, target-lateral, carry, rollout, launch, height, wind, random-execution, final-position, or cup-capture control.
 
 #### Scenario: Intent states technique and shape but not execution knobs
 - **WHEN** a human submits a ball-strike intent
@@ -366,7 +376,7 @@ The resolver and trace MAY represent deterministic shape curvature, derived heig
 - **AND THEN** it SHALL not use sample points as terrain-intersection authority or expose uncomputed physical events.
 
 ### Requirement: Intentional surface-aware shot family
-Each non-putting `BallStrikeIntent` SHALL contain one non-null `ShotFamily`: `FULL`, `CONTROLLED`, `PITCH`, `CHIP`, or `BUNKER`. The family SHALL express intended technique only; sampled carry, rollout quantity, launch, spin, and randomness remain resolver-derived. A minimal separate `PuttIntent` SHALL retain existing putting behavior without spatial aim, line, speed, break, or family control.
+Each non-putting `BallStrikeIntent` SHALL contain one non-null `ShotFamily`: `FULL`, `CONTROLLED`, `PITCH`, `CHIP`, or `BUNKER`. The family SHALL express intended technique only; sampled carry, rollout quantity, launch, spin, and randomness remain resolver-derived. A `LEGACY` putt remains a minimal separate `PuttIntent`; `PHYSICAL_V1` exposes direction and intended pace but leaves execution, break, trajectory, final position, and cup capture resolver-derived.
 
 #### Scenario: Aim remains intended first contact
 - **WHEN** a player submits any supported ball-strike family

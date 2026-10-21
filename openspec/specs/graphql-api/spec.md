@@ -322,13 +322,29 @@ The GraphQL ball-strike input SHALL accept an additive shot-family value using e
 - **THEN** the API SHALL map it to `FULL`
 - **AND THEN** it SHALL not expose internal execution values.
 
-### Requirement: Explicit existing putting route
-The API SHALL expose dedicated `playPutt(expectedShotRevision)` for minimal `PuttIntent` submission. It SHALL preserve the existing non-spatial putting model and SHALL not require callers to submit a ball-strike family or spatial aiming controls.
+### Requirement: Policy-aware putting API
+The API SHALL expose the backend-authored event putting policy. `LEGACY` SHALL retain dedicated `playPutt(expectedShotRevision)` for minimal `PuttIntent` submission. `PHYSICAL_V1` SHALL expose a distinct physical-putt mutation accepting only intended direction, intended roll feet, and expected shot revision; its result SHALL include the authoritative physical trajectory, final position, and holed outcome. The current playable-hole projection MAY expose read-only solver-derived GreenSurface slope samples and contours for physical presentation. The API SHALL not accept a client-authored surface, trajectory, final position, or capture result.
 
 #### Scenario: Green uses putting operation rather than ball strike
-- **WHEN** current lie is GREEN and a client submits a current expected revision through `playPutt`
+- **WHEN** current lie is GREEN in a `LEGACY` event and a client submits a current expected revision through `playPutt`
 - **THEN** the API SHALL resolve the existing putting route
 - **AND THEN** it SHALL not require or infer a `BallStrikeIntent`.
+
+#### Scenario: Physical route is explicit and authoritative
+
+- **WHEN** current lie is GREEN in a `PHYSICAL_V1` event and a client submits valid physical intent at the current revision
+- **THEN** the API SHALL resolve the physical putting route and return the solver's trajectory and outcome
+- **AND THEN** a physical request outside that policy SHALL be rejected without a stroke.
+
+### Requirement: Explicit Event Putting-Policy API
+
+The authenticated API SHALL expose an owner-authorized way to set an eligible unstarted scheduled event's putting policy. Newly created and historical events SHALL remain `LEGACY` unless explicitly assigned `PHYSICAL_V1`. The mutation SHALL reject unknown, started, or otherwise ineligible events without a partial policy change.
+
+#### Scenario: Explicit activation does not alter unrelated events
+
+- **WHEN** an owner sets one eligible future event to `PHYSICAL_V1`
+- **THEN** that event's policy read model SHALL report `PHYSICAL_V1`
+- **AND THEN** other scheduled and historical events SHALL retain their recorded policy.
 
 ### Requirement: Authoritative family validation
 The API SHALL reject invalid lie/club/family combinations before resolving a stroke. A rejected or stale submission SHALL contain no outcome, trace, roll, or state change.

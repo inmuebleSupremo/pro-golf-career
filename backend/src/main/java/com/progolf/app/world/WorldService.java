@@ -63,6 +63,8 @@ import com.progolf.sim.ranking.RankingStanding;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.BallStrikeIntent;
 import com.progolf.sim.shot.PuttIntent;
+import com.progolf.sim.putt.PhysicalPuttIntent;
+import com.progolf.sim.putt.PuttingPolicy;
 import com.progolf.sim.play.ShotSubmission;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
@@ -394,7 +396,7 @@ public class WorldService {
             Optional<TournamentResult> result = world.resultOf(entry.tournamentId());
             EventResultDto resultDto = result.map(r -> eventResult(r, playerId)).orElse(null);
             calendar.add(new CalendarEntryDto(entry.tournamentId(), entry.week(), entry.tier().name(),
-                    entry.prestige().name(), entry.entered(), entry.name(), entry.location(),
+                    entry.prestige().name(), entry.entered(), entry.name(), entry.location(), entry.puttingPolicy().name(),
                     result.isPresent(), resultDto));
         }
         return calendar;
@@ -425,6 +427,11 @@ public class WorldService {
     /** Re-enters a previously skipped event for the player. */
     public void enterEvent(String ownerId, String sessionId, long tournamentId) {
         required(ownerId, sessionId).world().enterEvent(tournamentId);
+    }
+
+    /** Explicit schedule-level opt-in/out for an upcoming event; stored by the normal world snapshot. */
+    public void setEventPuttingPolicy(String ownerId, String sessionId, long tournamentId, PuttingPolicy policy) {
+        required(ownerId, sessionId).world().setPuttingPolicyForUnstartedEvent(tournamentId, policy);
     }
 
     /** Sets the player's self-chosen career goals. */
@@ -945,7 +952,8 @@ public class WorldService {
         var ball = holeNumber == null ? event.currentBallState()
                 : new com.progolf.sim.shot.BallState(geometry.tee(), com.progolf.sim.spatial.Surface.TEE_BOX);
         return ApiMapper.playingHole(hole, pin, courseType, canonicalBiome, world.courseGeneratorVersion(), ball, geometry,
-                event.cupAt(hole.number()), event.effectiveWindForHole(hole.number()));
+                event.cupAt(hole.number()), event.effectiveWindForHole(hole.number()), event.puttingPolicy(),
+                event.greenSurfaceAt(hole.number()));
     }
 
     /** The live field leaderboard for the player's event. */
@@ -971,6 +979,12 @@ public class WorldService {
     /** Dedicated non-spatial putting route; stale revisions return without mutating event state. */
     public ShotSubmission playPutt(String ownerId, String sessionId, PuttIntent intent, String expectedRevision) {
         return playerEvent(ownerId, sessionId).playPutt(intent, expectedRevision);
+    }
+
+    /** Backend integration seam for an explicitly physical-policy event; no GraphQL/frontend control is exposed yet. */
+    public ShotSubmission playPhysicalPutt(String ownerId, String sessionId, PhysicalPuttIntent intent,
+                                           String expectedRevision) {
+        return playerEvent(ownerId, sessionId).playPhysicalPutt(intent, expectedRevision);
     }
 
     /** Sims the current shot in the player's event. */

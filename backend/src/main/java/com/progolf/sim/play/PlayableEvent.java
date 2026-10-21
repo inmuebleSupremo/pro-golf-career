@@ -8,6 +8,10 @@ import com.progolf.sim.course.EnvironmentClassification;
 import com.progolf.sim.course.GeneratedHole;
 import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.course.PinPlacementVersion;
+import com.progolf.sim.putt.PhysicalPuttIntent;
+import com.progolf.sim.putt.PuttingPolicy;
+import com.progolf.sim.course.GreenSurface;
+import com.progolf.sim.putt.PuttingPolicy;
 import com.progolf.sim.player.DecisionPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.shot.Environment;
@@ -56,6 +60,7 @@ public final class PlayableEvent {
     private final double exposure;
     private final CourseSetup setup;
     private final PinPlacementVersion pinPlacementVersion;
+    private final PuttingPolicy puttingPolicy;
 
     private Phase phase;
     private int currentRoundNo;
@@ -86,6 +91,7 @@ public final class PlayableEvent {
         // identically to the automatic path, so a simmed event matches the auto result (spec: course-setup).
         this.setup = tournament.setup();
         this.pinPlacementVersion = tournament.definition().pinPlacementVersion();
+        this.puttingPolicy = tournament.definition().puttingPolicy();
         this.exposure = course.identity().classification().exposure() * setup.windScale();
         beginRound(1);
     }
@@ -155,7 +161,7 @@ public final class PlayableEvent {
         if (phase == Phase.PLAYOFF && holeNumber == currentPlayoffHole.situation().holeNumber()) {
             return currentEffectiveGeometry();
         }
-        return course.holeModel(holeNumber, currentPinRound(), setup, pinPlacementVersion).geometry();
+        return course.holeModel(holeNumber, currentPinRound(), setup, pinPlacementVersion, puttingPolicy).geometry();
     }
 
     /** The active pin for hole {@code holeNumber} in the round currently in progress, under this event's setup. */
@@ -165,7 +171,17 @@ public final class PlayableEvent {
 
     /** The authoritative V5/legacy cup coordinate used by resolution and presentation for a hole. */
     public com.progolf.sim.course.Position2d cupAt(int holeNumber) {
-        return course.holeModel(holeNumber, currentPinRound(), setup, pinPlacementVersion).cupPosition();
+        return course.holeModel(holeNumber, currentPinRound(), setup, pinPlacementVersion, puttingPolicy).cupPosition();
+    }
+
+    /** The policy pinned to this event; it never changes once interactive play begins. */
+    public PuttingPolicy puttingPolicy() {
+        return puttingPolicy;
+    }
+
+    /** The same reconstructed height field used by physical resolution, exposed only for a physical event. */
+    public GreenSurface greenSurfaceAt(int holeNumber) {
+        return course.holeModel(holeNumber, currentPinRound(), setup, pinPlacementVersion, puttingPolicy).greenSurface();
     }
 
     /** The host course's environment classification (biome), for presentation styling. */
@@ -219,6 +235,16 @@ public final class PlayableEvent {
         requireActive();
         if (!situation().shotRevision().equals(expectedRevision)) return ShotSubmission.staleResult();
         ShotOutcome outcome = phase == Phase.PLAYOFF ? currentPlayoffHole.playPutt(intent) : currentRound.playPutt(intent);
+        syncProgress();
+        return ShotSubmission.resolved(outcome);
+    }
+
+    /** Backend-only physical putting seam; frontend controls are intentionally deferred to Task 3B2. */
+    public synchronized ShotSubmission playPhysicalPutt(PhysicalPuttIntent intent, String expectedRevision) {
+        requireActive();
+        if (!situation().shotRevision().equals(expectedRevision)) return ShotSubmission.staleResult();
+        ShotOutcome outcome = phase == Phase.PLAYOFF ? currentPlayoffHole.playPhysicalPutt(intent)
+                : currentRound.playPhysicalPutt(intent);
         syncProgress();
         return ShotSubmission.resolved(outcome);
     }
@@ -342,7 +368,7 @@ public final class PlayableEvent {
         PlayingConditions conditions = weather.conditionsForRound(roundNo);
         List<HoleToPlay> holes = new ArrayList<>(18);
         for (int hole = 1; hole <= 18; hole++) {
-            HoleModel model = course.holeModel(hole, roundNo, setup, pinPlacementVersion);
+            HoleModel model = course.holeModel(hole, roundNo, setup, pinPlacementVersion, puttingPolicy);
             int par = course.holes().get(hole - 1).par();
             Environment env = conditions.environmentForHole(hole, exposure);
             holes.add(new HoleToPlay(model, par, env));
@@ -441,7 +467,7 @@ public final class PlayableEvent {
         if (playerInPlayoff()) {
             int holeNumber = tournament.playoffHoleNumber();
             long playoffRound = tournament.playoffRound();
-            HoleModel model = course.holeModel(holeNumber, (int) playoffRound, setup, pinPlacementVersion);
+            HoleModel model = course.holeModel(holeNumber, (int) playoffRound, setup, pinPlacementVersion, puttingPolicy);
             int par = course.holes().get(holeNumber - 1).par();
             Environment env = weather.conditionsForRound((int) playoffRound).environmentForHole(holeNumber, exposure);
             SeedCoordinate coord =

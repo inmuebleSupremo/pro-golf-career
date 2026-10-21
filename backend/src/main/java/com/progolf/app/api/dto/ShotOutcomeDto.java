@@ -8,4 +8,5 @@ package com.progolf.app.api.dto;
  */
 public record ShotOutcomeDto(String finalSurface, double carry, double lateral, double distanceRemaining,
                              boolean holed, boolean hazardEntered, int penaltyStrokes, int strokes,
-                             ShotSettlementDto settlement, ShotTraceDto trace) {}
+                             ShotSettlementDto settlement, ShotTraceDto trace,
+                             PhysicalPuttOutcomeDto physicalPutt) {}

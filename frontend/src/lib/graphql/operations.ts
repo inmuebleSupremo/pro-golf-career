@@ -146,6 +146,13 @@ export const AdoptV5PinPlacementDocument = graphql(`
   }
 `);
 
+/** Explicitly selects physical or legacy putting for one future unstarted event. */
+export const SetEventPuttingPolicyDocument = graphql(`
+  mutation SetEventPuttingPolicy($id: ID!, $tournamentId: Long!, $policy: String!) {
+    setEventPuttingPolicy(id: $id, tournamentId: $tournamentId, policy: $policy)
+  }
+`);
+
 /** Current, aggregated career attention. Individual management spokes remain the decision owners. */
 export const CareerInboxDocument = graphql(`
   query CareerInbox($id: ID!) {
@@ -406,6 +413,7 @@ export const PlayerScheduleDocument = graphql(`
       name
       location
       courseType
+      puttingPolicy
     }
   }
 `);
@@ -421,6 +429,7 @@ export const PlayerCalendarDocument = graphql(`
       entered
       name
       location
+      puttingPolicy
       played
       result {
         winner {
@@ -773,6 +782,11 @@ export const PlayingHoleDocument = graphql(`
       canonicalGeometrySource
       layoutSeed
       effectiveWind { x y magnitude unit }
+      puttingPolicy
+      physicalGreen {
+        slopeSamples { position { x y } elevation downhillX downhillY slope }
+        contours { elevation points { x y } }
+      }
       geometry {
         tee { x y }
         cup { x y }
@@ -814,6 +828,7 @@ export const PlayShotDocument = graphql(`
           transition { kind from { x y } to { x y } }
           finalPoint { x y }
         }
+        physicalPutt { trajectory { timeSeconds position { x y } speedYardsPerSecond } finalPosition { x y } holed terminalCondition }
       }
     }
   }
@@ -834,6 +849,21 @@ export const PlayPuttDocument = graphql(`
           transition { kind from { x y } to { x y } }
           finalPoint { x y }
         }
+        physicalPutt { trajectory { timeSeconds position { x y } speedYardsPerSecond } finalPosition { x y } holed terminalCondition }
+      }
+    }
+  }
+`);
+
+/** Plays an eligible physical green putt with an independently chosen line and level-ground pace. */
+export const PlayPhysicalPuttDocument = graphql(`
+  mutation PlayPhysicalPutt($id: ID!, $intent: PhysicalPuttIntentInput!) {
+    playPhysicalPutt(id: $id, intent: $intent) {
+      stale
+      outcome {
+        finalSurface carry lateral distanceRemaining holed hazardEntered penaltyStrokes strokes
+        settlement { contact { position { x y } surface } recoveryPosition { x y } recoveryKind ball { position { x y } lie } }
+        physicalPutt { trajectory { timeSeconds position { x y } speedYardsPerSecond } finalPosition { x y } holed terminalCondition }
       }
     }
   }

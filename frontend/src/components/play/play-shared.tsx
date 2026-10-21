@@ -99,6 +99,12 @@ export type Outcome = {
     transition?: { kind: string; from: { x: number; y: number }; to: { x: number; y: number } } | null;
     finalPoint: { x: number; y: number };
   } | null;
+  physicalPutt?: {
+    trajectory: { timeSeconds: number; position: { x: number; y: number }; speedYardsPerSecond: number }[];
+    finalPosition: { x: number; y: number };
+    holed: boolean;
+    terminalCondition: string;
+  } | null;
 };
 
 export type LeaderboardRow = {

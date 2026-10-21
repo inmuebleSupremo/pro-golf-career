@@ -34,5 +34,7 @@ public record PlayingHoleDto(
         String layoutSeed,
         PlayingGeometryDto geometry,
         BallStateDto ball,
-        EffectiveWindDto effectiveWind) {
+        EffectiveWindDto effectiveWind,
+        String puttingPolicy,
+        PhysicalGreenDto physicalGreen) {
 }

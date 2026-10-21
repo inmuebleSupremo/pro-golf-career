@@ -3,6 +3,7 @@ package com.progolf.sim.course;
 import com.progolf.sim.core.SplitMix64Rng;
 import com.progolf.sim.core.Seeds;
 import com.progolf.sim.shot.HoleModel;
+import com.progolf.sim.putt.PuttingPolicy;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -110,9 +111,14 @@ public record GeneratedHole(
 
     /** Returns the playable model under an explicit pin-placement policy. */
     public HoleModel forRound(int round, CourseSetup setup, PinPlacementVersion pinPlacementVersion) {
+        return forRound(round, setup, pinPlacementVersion, PuttingPolicy.LEGACY);
+    }
+
+    /** Produces a round model under explicit pin and putting policies without mutating retained geometry. */
+    public HoleModel forRound(int round, CourseSetup setup, PinPlacementVersion pinPlacementVersion, PuttingPolicy puttingPolicy) {
         CourseGeometry effectiveGeometry = geometryForWidth(setup.widthScale());
         PinPlacement placement = pinPlacementFor(round, setup, effectiveGeometry, pinPlacementVersion);
-        return new RoundHole(this, placement.pin(), setup, placement.cup());
+        return new RoundHole(this, placement.pin(), setup, placement.cup(), puttingPolicy);
     }
 
     /** Resolves the presentation intent and authoritative cup from one explicit policy. */

@@ -25,6 +25,11 @@ export interface HoleGeom {
   readonly canonicalGeometrySource?: string;
   readonly layoutSeed: string;
   readonly effectiveWind: { readonly x: number; readonly y: number; readonly magnitude: number; readonly unit: string };
+  readonly puttingPolicy?: string;
+  readonly physicalGreen?: {
+    readonly slopeSamples: readonly { readonly position: Point; readonly elevation: number; readonly downhillX: number; readonly downhillY: number; readonly slope: number }[];
+    readonly contours: readonly { readonly elevation: number; readonly points: readonly Point[] }[];
+  } | null;
   readonly geometry?: {
     readonly tee: Point;
     readonly cup: Point;
@@ -55,5 +60,11 @@ export interface ResolvedShot {
     readonly roll?: { readonly from: Point; readonly to: Point } | null;
     readonly transition?: { readonly kind: string; readonly from: Point; readonly to: Point } | null;
     readonly finalPoint: Point;
+  } | null;
+  readonly physicalPutt?: {
+    readonly trajectory: readonly { readonly timeSeconds: number; readonly position: Point; readonly speedYardsPerSecond: number }[];
+    readonly finalPosition: Point;
+    readonly holed: boolean;
+    readonly terminalCondition: string;
   } | null;
 }

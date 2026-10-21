@@ -1,6 +1,6 @@
 # Player Experience Definition — the complete-game target
 
-**Status:** the Version 1 career product is realised — engine + app-service layer + GraphQL API + auth + a full player-facing UI — while the Career Mode 2.5D golf experience remains an active, longer-term evolution (last updated 2026-10-06). This document defines *what the finished game offers the player*, so every build slice can be measured against it and we never discover a hollow "make two decisions then watch a sim" experience. It **synthesises** the authoritative vision in `explore.md` (§1) into the player-facing decision + play surface; where the two ever disagree, `explore.md` wins. It is not itself an implementation.
+**Status:** the Version 1 career product is realised — engine + app-service layer + GraphQL API + auth + a full player-facing UI — while the Career Mode 2.5D golf experience remains an active, longer-term evolution (last updated 2026-10-21). This document defines *what the finished game offers the player*, so every build slice can be measured against it and we never discover a hollow "make two decisions then watch a sim" experience. It **synthesises** the authoritative vision in `explore.md` (§1) into the player-facing decision + play surface; where the two ever disagree, `explore.md` wins. It is not itself an implementation.
 
 > **Where we are (2026-10-06):** every Version 1 decision surface below is **built in the framework-free engine, driven through `WorldService`, exposed over GraphQL, and now playable through a real Next.js UI** — create-your-golfer, shot-by-shot play (always skippable, with a 2D/2.5D hole layer), event-by-event scheduling, development, staff, equipment, sponsorship, self-chosen achievements, career records, and an end-of-season/off-season review. The **depth pass** put real substance behind the pillars: putting that holes out (realistic absolute scores ~par, not +90/round), shot-level stats, a scaled 640-golfer world, per-golfer **AI strategy variety**, and a two-phase **Hall-of-Fame election**. The delivery pipeline that was "next" in the earlier draft is done: **persistence (filesystem save/load), the GraphQL API, JWT auth, and the React/Next UI all exist.** (Original intent named React/Vite; the UI was built with Next.js — see [`tech_stack.md`](tech_stack.md).) The canonical spatial migration is complete, but it is an architectural foundation for a substantially richer golf world—not evidence that the visible golf gameplay is complete. The current direction is recorded in §9.
 
@@ -37,7 +37,7 @@ When your golfer plays a tournament round, you may play it **shot by shot**, mak
 - **Explicitly excluded (§1.7):** swing timing, shot-shaping controls, reflex mechanics. No swing meter, ever.
 - **Always skippable:** sim a shot, "sim to the end of the round," or auto-play a whole round. Because the game is *about decades* (Pillar 2), you never have to grind every shot — but you *can* play the ones that matter (a major Sunday, in contention, a career-defining putt).
 
-*Engine reality:* **done.** The shot engine exposes `resolveShot` (the human, decision-by-decision entry point) alongside `resolveRound` (AI), and `PlayableRound`/`PlayableEvent` now let the player play a real tournament round shot-by-shot (situation → club/target/risk) or sim any part of it, driven through `WorldService`. A fully-simmed player round is provably identical to the automatic resolution (fidelity by construction). Putting now holes out via a make-% model, so those played rounds post believable scores.
+*Engine reality:* **done.** The shot engine exposes `resolveShot` (the human, decision-by-decision entry point) alongside `resolveRound` (AI), and `PlayableRound`/`PlayableEvent` now let the player play a real tournament round shot-by-shot (situation → club/target/risk) or sim any part of it, driven through `WorldService`. A fully-simmed player round is provably identical to the automatic resolution (fidelity by construction). Legacy events retain the make-% putting model; explicitly enabled events offer the first playable physical-putting route described in §9.
 
 ### B. Career management — the decisions *between* rounds
 The strategic spine that makes an age-18 choice matter at 40. All of these are **player decisions**, now exposed through `WorldService` (for the player's golfer; the AI still auto-manages the rest of the field):
@@ -123,13 +123,21 @@ The archived `canonical-course-geometry-and-ball-state` change established canon
 
 Before it, the effective flow was `calculate outcome → assign surface/result → frontend invents a visually convincing representation`. It is now `authoritative course space → actual ball position → authoritative surface/settlement → frontend renders the same golf world`.
 
-This solved a critical architectural blocker. It did **not** finish the course generator, shot controls, physical ball simulation, shot presentation, or green/putting system. Future work must extend this foundation and must not reintroduce separate visual and simulation geometry.
+This solved a critical architectural blocker. It did **not** finish the course generator, all shot controls, physical ball simulation, shot presentation, or green/putting system. The first physical-putting slice now builds on it; future work must not reintroduce separate visual and simulation geometry.
+
+### Physical putting V1: first playable milestone
+
+**Status (2026-10-21):** Task 3B2 is implemented and committed on `feature/putting-green-gameplay` at `889d5e2`; the working tree was clean when this documentation closeout began, and the project owner manually verified the milestone in Docker. It is not merged into `develop` and is not the application's default putting behaviour.
+
+An owner can explicitly enable `PHYSICAL_V1` for an eligible unstarted event. On the green, the player receives a dedicated overhead view, chooses starting direction and intended roll pace independently, can toggle backend-derived contours and downhill indicators, and watches the backend-returned trajectory before the next state is shown. The physical solver owns the GreenSurface, roll, final ball position and cup capture; the frontend does not predict or determine them. The physical UI and AI/simulated path use the same solver, while ordinary and historical events continue to use `LEGACY` probability-based putting.
+
+This is a playable foundation, not a claim of finished putting quality. Professional-performance/attribute calibration, evidence-driven visual refinement (including occasional apparent cup-edge ambiguity), and broader green-shape/contour diversity remain separate future work. See [`physical-putting.md`](physical-putting.md) for the technical boundary.
 
 ### Transitional systems are not target designs
 
 The current conservative / balanced / aggressive human shot-decision model is retained as a compatibility and calibration guardrail during this transition. It is not the intended final human control surface, though similar dispositions may remain useful internally for AI risk preferences or decision-making.
 
-Likewise, the current procedural hole generator is the authoritative spatial platform rather than the final standard of course design; the current putting model is mainly probability/calibration driven rather than spatial green simulation; and current flight animation does not yet visualise authoritative physical shot flight.
+Likewise, the current procedural hole generator is the authoritative spatial platform rather than the final standard of course design. Legacy putting remains probability/calibration driven, while an explicitly enabled physical-putting V1 now provides spatial green roll, player line/pace input and authoritative playback. Current flight animation does not yet visualise authoritative physical shot flight.
 
 ### Desired human decision surface
 
@@ -141,7 +149,7 @@ Human play should increasingly be recognisable golf decision-making without beco
 2. **Real human shot intent.** Replace abstract human risk selection with meaningful bag/club choices, target/aim, shot types, intentional shape, and trajectory where appropriate, bounded by lie and situation.
 3. **Ball flight and terrain response.** Model believable deterministic/stochastic differences in carry, launch, apex, spin, curvature, wind, landing angle, bounce, rollout, slope, firmness, surface, lie, golfer skill, and mishits. This should serve an indie game's credible golf simulation, not scientific aerodynamics for its own sake.
 4. **Authoritative shot-trace presentation.** Have the simulation describe its launch, path/curve, apex, landing, bounce, roll, and final settlement so the frontend animates that result rather than choosing a cosmetic flight independently.
-5. **Short game, greens, and putting.** Evolve toward a spatial subsystem with distinct chip/pitch/flop/bunker/fringe behaviour, landing and rollout, green boundaries, speed and contours, uphill/downhill pace, break, read/aim, variance, putt roll, and cup/lip interaction.
+5. **Short game, greens, and putting.** ✅ First playable physical putting is delivered: an opt-in GreenSurface V1, deterministic roll/cup capture, human line/pace controls, AI parity, and truthful playback/green reading. Further work remains in professional-performance calibration, evidence-driven presentation refinement, green/contour architectural diversity, and broader short-game behaviour.
 
 The working dependency order is: canonical spatial foundation (complete) → stronger course/hole design → real club/target/shot intent → richer flight/landing/terrain response → authoritative shot-trace presentation → short-game/green/putting depth. Workstreams may overlap or be decomposed differently after exploration; this is not a release plan.
 

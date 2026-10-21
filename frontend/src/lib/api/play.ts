@@ -3,13 +3,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { gqlRequest } from "@/lib/api/graphql-client";
-import type { BallStrikeIntentInput } from "@/lib/graphql/generated/graphql";
+import type { BallStrikeIntentInput, PhysicalPuttIntentInput } from "@/lib/graphql/generated/graphql";
 import {
   AdvanceSeasonDocument,
   AdvanceWeekDocument,
   CompleteEventDocument,
   PlayingHoleDocument,
   PlayPuttDocument,
+  PlayPhysicalPuttDocument,
   PlayShotDocument,
   PlayStateDocument,
   SimEventDocument,
@@ -89,6 +90,16 @@ export function usePlayPutt(id: string) {
   const invalidate = useInvalidatePlay(id);
   return useMutation({
     mutationFn: (expectedShotRevision: string) => gqlRequest(PlayPuttDocument, { id, expectedShotRevision }),
+    networkMode: "always",
+    onSuccess: invalidate,
+  });
+}
+
+/** Sends a player-selected physical line and level-ground pace through the normal shot-revision guard. */
+export function usePlayPhysicalPutt(id: string) {
+  const invalidate = useInvalidatePlay(id);
+  return useMutation({
+    mutationFn: (intent: PhysicalPuttIntentInput) => gqlRequest(PlayPhysicalPuttDocument, { id, intent }),
     networkMode: "always",
     onSuccess: invalidate,
   });

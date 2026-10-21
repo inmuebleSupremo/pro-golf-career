@@ -3,6 +3,7 @@ package com.progolf.sim.course;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.spatial.ShotZoneProfile;
+import com.progolf.sim.putt.PuttingPolicy;
 import java.util.Objects;
 
 /**
@@ -17,6 +18,7 @@ public final class RoundHole implements HoleModel {
     private final CourseSetup setup;
     private final CourseGeometry geometry;
     private final Position2d cup;
+    private final PuttingPolicy puttingPolicy;
 
     RoundHole(GeneratedHole hole, PinPosition pin) {
         this(hole, pin, CourseSetup.standard());
@@ -27,12 +29,17 @@ public final class RoundHole implements HoleModel {
     }
 
     RoundHole(GeneratedHole hole, PinPosition pin, CourseSetup setup, Position2d cup) {
+        this(hole, pin, setup, cup, PuttingPolicy.LEGACY);
+    }
+
+    RoundHole(GeneratedHole hole, PinPosition pin, CourseSetup setup, Position2d cup, PuttingPolicy puttingPolicy) {
         this.hole = Objects.requireNonNull(hole, "hole");
         this.pin = Objects.requireNonNull(pin, "pin");
         this.setup = Objects.requireNonNull(setup, "setup");
         this.geometry = hole.geometryForWidth(setup.widthScale());
         this.cup = cup == null ? new Position2d(geometry.greenCenter().x() + pin.lateralOffset(),
                 geometry.greenCenter().y() + pin.depthOffset()) : cup;
+        this.puttingPolicy = Objects.requireNonNull(puttingPolicy, "puttingPolicy");
     }
 
     /** The hole this round-model is derived from. */
@@ -92,5 +99,19 @@ public final class RoundHole implements HoleModel {
     @Override
     public ArchitectureStrategyPlan architectureStrategyPlan() {
         return hole.architectureStrategyPlan();
+    }
+
+    @Override
+    public PuttingPolicy puttingPolicy() {
+        return puttingPolicy;
+    }
+
+    @Override
+    public GreenSurface greenSurface() {
+        if (!puttingPolicy.usesPhysicalPutting()) return null;
+        Position2d approach = hole.spatialPlan() == null
+                ? new Position2d(geometry.greenCenter().x() - geometry.tee().x(), geometry.greenCenter().y() - geometry.tee().y())
+                : hole.spatialPlan().withLateralScale(setup.widthScale()).greenComplex().approachDirection();
+        return GreenSurfaceGenerator.generate(geometry, hole.holeSeed(), approach, puttingPolicy.surfaceVersion());
     }
 }

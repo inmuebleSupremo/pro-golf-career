@@ -2,6 +2,7 @@ package com.progolf.sim.world;
 
 import com.progolf.sim.tournament.EventPrestige;
 import com.progolf.sim.course.PinPlacementVersion;
+import com.progolf.sim.putt.PuttingPolicy;
 import com.progolf.sim.tour.TourTier;
 import java.util.Objects;
 
@@ -11,13 +12,14 @@ import java.util.Objects;
  * course (by pool index) it is played on, its {@link EventPrestige}, and its unique tournament id.
  */
 public record ScheduledTournament(int week, TourTier tier, int courseIndex, EventPrestige prestige,
-                                  long tournamentId, PinPlacementVersion pinPlacementVersion) {
+                                  long tournamentId, PinPlacementVersion pinPlacementVersion, PuttingPolicy puttingPolicy) {
 
     public ScheduledTournament {
         Objects.requireNonNull(tier, "tier");
         Objects.requireNonNull(prestige, "prestige");
         // Jackson supplies null for pre-policy save files; that is explicitly historical LEGACY_V1.
         pinPlacementVersion = pinPlacementVersion == null ? PinPlacementVersion.LEGACY_V1 : pinPlacementVersion;
+        puttingPolicy = puttingPolicy == null ? PuttingPolicy.LEGACY : puttingPolicy;
         if (week < 1) {
             throw new IllegalArgumentException("week must be >= 1: " + week);
         }
@@ -25,11 +27,24 @@ public record ScheduledTournament(int week, TourTier tier, int courseIndex, Even
 
     /** A regular tour event of the given tier (the common case). */
     public ScheduledTournament(int week, TourTier tier, int courseIndex, long tournamentId) {
-        this(week, tier, courseIndex, EventPrestige.REGULAR, tournamentId, PinPlacementVersion.LEGACY_V1);
+        this(week, tier, courseIndex, EventPrestige.REGULAR, tournamentId, PinPlacementVersion.LEGACY_V1, PuttingPolicy.LEGACY);
     }
 
     /** Source-compatible constructor for historical schedule fixtures. */
     public ScheduledTournament(int week, TourTier tier, int courseIndex, EventPrestige prestige, long tournamentId) {
-        this(week, tier, courseIndex, prestige, tournamentId, PinPlacementVersion.LEGACY_V1);
+        this(week, tier, courseIndex, prestige, tournamentId, PinPlacementVersion.LEGACY_V1, PuttingPolicy.LEGACY);
+    }
+
+    /** Source-compatible pin-policy constructor; putting remains legacy unless explicitly opted in. */
+    public ScheduledTournament(int week, TourTier tier, int courseIndex, EventPrestige prestige, long tournamentId,
+                               PinPlacementVersion pinPlacementVersion) {
+        this(week, tier, courseIndex, prestige, tournamentId, pinPlacementVersion, PuttingPolicy.LEGACY);
+    }
+
+    /** Explicit construction seam for a new event that has been deliberately approved for physical putting. */
+    public static ScheduledTournament physicalV1(int week, TourTier tier, int courseIndex, EventPrestige prestige,
+                                                 long tournamentId, PinPlacementVersion pinPlacementVersion) {
+        return new ScheduledTournament(week, tier, courseIndex, prestige, tournamentId, pinPlacementVersion,
+                PuttingPolicy.PHYSICAL_V1);
     }
 }

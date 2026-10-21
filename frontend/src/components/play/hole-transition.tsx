@@ -6,6 +6,7 @@ import { Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { humanize } from "@/lib/play/options";
 import { Hole2d } from "@/components/play/hole-2d";
+import { PhysicalPuttingGreen } from "@/components/play/physical-putting-green";
 import { PostHoleOverlay, PreHoleOverlay } from "@/components/play/hole-overlays";
 import type { HoleGeom, ResolvedShot } from "@/lib/play/hole-geometry";
 import type { PostHoleSummary, SeqPhase } from "@/components/play/use-play-sequence";
@@ -30,6 +31,10 @@ export function StageHole({
   postHole,
   aimPoint,
   onAimPoint,
+  physicalAimDirection,
+  onPhysicalAimDirection,
+  showGreenReading,
+  onPhysicalPlaybackComplete,
 }: {
   displayHole: HoleGeom | null;
   situation: Situation;
@@ -39,6 +44,10 @@ export function StageHole({
   postHole: PostHoleSummary | null;
   aimPoint: { x: number; y: number };
   onAimPoint: (point: { x: number; y: number }) => void;
+  physicalAimDirection: { x: number; y: number };
+  onPhysicalAimDirection: (direction: { x: number; y: number }) => void;
+  showGreenReading: boolean;
+  onPhysicalPlaybackComplete: () => void;
 }) {
   // Chrome (hole chip, pressure) rides with live play and the score beat, but yields to the intro overlay and
   // hides through the wipe so nothing shows over the swap.
@@ -48,7 +57,11 @@ export function StageHole({
     <>
       {displayHole ? (
         <div className="flex h-full w-full items-center justify-center">
-          <Hole2d hole={displayHole} ball={playbackShot} className="block max-h-full w-auto" aimPoint={aimPoint} onAimPoint={onAimPoint} />
+          {displayHole.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN" && displayHole.physicalGreen ? (
+            <PhysicalPuttingGreen hole={displayHole} ball={playbackShot} aimDirection={physicalAimDirection}
+              onAimDirection={onPhysicalAimDirection} showReading={showGreenReading}
+              onPlaybackComplete={onPhysicalPlaybackComplete} />
+          ) : <Hole2d hole={displayHole} ball={playbackShot} className="block max-h-full w-auto" aimPoint={aimPoint} onAimPoint={onAimPoint} />}
         </div>
       ) : (
         <div className="bg-surface-3 aspect-[1/2] h-[70%] animate-pulse rounded-lg" />

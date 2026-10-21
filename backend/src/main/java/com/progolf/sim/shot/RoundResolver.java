@@ -3,6 +3,8 @@ package com.progolf.sim.shot;
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.spatial.Surface;
+import com.progolf.sim.putt.PhysicalPuttPlanner;
+import com.progolf.sim.putt.PhysicalPuttResolution;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -44,10 +46,17 @@ public final class RoundResolver {
 
         for (int shotNo = 1; shotNo <= SimConstants.MAX_SHOTS_PER_HOLE; shotNo++) {
             double preShotRemaining = remaining;
-            ShotContext context = ball == null
-                    ? buildContext(hole, attributes, state, environment, policy, remaining, lie, holeCoordinate, shotNo)
-                    : spatialContext(hole, attributes, state, environment, policy, remaining, lie, holeCoordinate, shotNo, ball);
-            ShotOutcome outcome = ShotResolver.resolveShot(context);
+            ShotOutcome outcome;
+            if (lie == Surface.GREEN && hole.puttingPolicy().usesPhysicalPutting()) {
+                if (ball == null) throw new IllegalStateException("physical putting requires canonical ball geometry");
+                outcome = PhysicalPuttResolution.resolve(hole, attributes, state, holeCoordinate.withShot(shotNo), ball,
+                        PhysicalPuttPlanner.decide(hole.greenSurface(), ball.position(), hole.cupPosition()));
+            } else {
+                ShotContext context = ball == null
+                        ? buildContext(hole, attributes, state, environment, policy, remaining, lie, holeCoordinate, shotNo)
+                        : spatialContext(hole, attributes, state, environment, policy, remaining, lie, holeCoordinate, shotNo, ball);
+                outcome = ShotResolver.resolveShot(context);
+            }
             shots.add(outcome);
             totalStrokes += outcome.strokes();
             lie = outcome.finalSurface(); // updated unconditionally, matching the interactive PlayableRound

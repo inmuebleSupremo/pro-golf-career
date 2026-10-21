@@ -68,6 +68,7 @@ import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.PinPlacementVersion;
 import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.EnvironmentClassification;
+import com.progolf.sim.putt.PuttingPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.play.PlayableEvent;
 import com.progolf.sim.play.PlayedHole;
@@ -108,6 +109,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -254,7 +256,7 @@ public final class World {
         }
         List<ScheduledTournament> migrated = schedule.stream().map(event -> isUnstarted(event)
                 ? new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
-                event.tournamentId(), PinPlacementVersion.V5_EFFECTIVE_GREEN) : event).toList();
+                event.tournamentId(), PinPlacementVersion.V5_EFFECTIVE_GREEN, event.puttingPolicy()) : event).toList();
         defaultPinPlacementVersion = PinPlacementVersion.V5_EFFECTIVE_GREEN;
         schedule = new ArrayList<>(migrated);
     }
@@ -262,6 +264,30 @@ public final class World {
     /** Current-season events remain in the schedule after resolution for calendar/history reads. */
     private boolean isUnstarted(ScheduledTournament event) {
         return seasonResults.stream().noneMatch(result -> result.tournamentId() == event.tournamentId());
+    }
+
+    /** Explicitly changes one upcoming event's putting policy; active and resolved events are immutable. */
+    public void setPuttingPolicyForUnstartedEvent(long tournamentId, PuttingPolicy policy) {
+        Objects.requireNonNull(policy, "policy");
+        if (pendingEvent != null) {
+            throw new IllegalStateException("Cannot change putting policy while a player event is pending");
+        }
+        boolean updated = false;
+        List<ScheduledTournament> revised = new ArrayList<>(schedule.size());
+        for (ScheduledTournament event : schedule) {
+            if (event.tournamentId() == tournamentId) {
+                if (!isUnstarted(event) || event.week() < calendar.currentWeek()) {
+                    throw new IllegalArgumentException("Putting policy can only change for an upcoming unstarted event");
+                }
+                revised.add(new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
+                        event.tournamentId(), event.pinPlacementVersion(), policy));
+                updated = true;
+            } else {
+                revised.add(event);
+            }
+        }
+        if (!updated) throw new IllegalArgumentException("Unknown scheduled tournament: " + tournamentId);
+        schedule = revised;
     }
 
     /** Regenerates the seed-derived course pool (identical for the same seed/config); used by bootstrap and restore. */
@@ -369,7 +395,7 @@ public final class World {
         }
         w.schedule = s.schedule().stream().map(event -> event.pinPlacementVersion() == null
                 ? new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
-                event.tournamentId(), PinPlacementVersion.LEGACY_V1) : event).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+                event.tournamentId(), PinPlacementVersion.LEGACY_V1, event.puttingPolicy()) : event).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         w.announcedProspects.addAll(s.announcedProspects());
         // 6) Player-control state (null/empty for an autonomous world).
         if (s.playerControl() != null) {
@@ -674,7 +700,7 @@ public final class World {
                 nameFor(event), course, tier, event.prestige(),
                 new EntryRequirements(config.fieldSize(), true),
                 PrizeStructure.forEvent(tier, event.prestige(), cutSize), format, date,
-                masterSeed, season, event.tournamentId(), event.pinPlacementVersion());
+                masterSeed, season, event.tournamentId(), event.pinPlacementVersion(), event.puttingPolicy());
 
         // Weather is generated before play from the course's climate and the point in the season; the
         // whole field plays under the same per-round conditions (REQ-228/231/232).
@@ -1854,7 +1880,7 @@ public final class World {
             if (eligibleByTour) {
                 out.add(new PlayerScheduleEntry(event.tournamentId(), event.week(), event.tier(),
                         event.prestige(), !playerSitsOut(event), nameFor(event), locationFor(event),
-                        courseTypeFor(event)));
+                        courseTypeFor(event), event.puttingPolicy()));
             }
         }
         return out;

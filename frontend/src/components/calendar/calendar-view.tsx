@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { SpokeEmpty, useSpokeGate } from "@/components/career/spoke";
 import { SeasonCalendar, type CalendarEntry } from "@/components/calendar/season-calendar";
 import { useCareerOverview, usePinPlacementStatus, usePlayerCalendar, usePlayerFitness } from "@/lib/api/queries";
-import { useAcknowledgeScheduleReview, useAdoptV5PinPlacement, useSetResting } from "@/lib/api/manage";
+import { useAcknowledgeScheduleReview, useAdoptV5PinPlacement, useSetEventPuttingPolicy, useSetResting } from "@/lib/api/manage";
 
 export function CalendarView({ id }: { id: string }) {
   const query = usePlayerCalendar(id);
@@ -39,6 +39,7 @@ export function CalendarView({ id }: { id: string }) {
     <div className="flex flex-col gap-4">
       <AvailabilityBar id={id} />
       <PinPlacementBar id={id} />
+      <PhysicalPuttingBar id={id} entries={entries} currentWeek={world?.week ?? 1} />
 
       {entries.length === 0 ? (
         <SpokeEmpty>No events on the calendar yet.</SpokeEmpty>
@@ -51,6 +52,29 @@ export function CalendarView({ id }: { id: string }) {
           playedCount={playedCount}
         />
       )}
+    </div>
+  );
+}
+
+/** A deliberately narrow opt-in: one selected upcoming event, never an active or historical event. */
+function PhysicalPuttingBar({ id, entries, currentWeek }: { id: string; entries: CalendarEntry[]; currentWeek: number }) {
+  const setPolicy = useSetEventPuttingPolicy(id);
+  const target = entries.filter((entry) => !entry.played && entry.entered && entry.week >= currentWeek)
+    .sort((left, right) => left.week - right.week)[0] ?? null;
+  if (!target) return null;
+  const physical = target.puttingPolicy === "PHYSICAL_V1";
+  return (
+    <div className="border-border bg-surface flex flex-wrap items-center justify-between gap-4 rounded-lg border px-5 py-4">
+      <div className="flex flex-col gap-0.5">
+        <span className="font-medium">{physical ? "Physical putting selected" : "Legacy putting selected"}</span>
+        <span className="text-muted-foreground text-sm">
+          {target.name} is the next entered event. This setting applies only to that unstarted event.
+        </span>
+      </div>
+      <Button variant="secondary" size="sm" disabled={setPolicy.isPending}
+        onClick={() => setPolicy.mutate({ tournamentId: target.tournamentId, policy: physical ? "LEGACY" : "PHYSICAL_V1" })}>
+        {physical ? "Use legacy putting" : "Enable physical putting"}
+      </Button>
     </div>
   );
 }
