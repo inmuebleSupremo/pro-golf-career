@@ -11,7 +11,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** The fresh-world opt-in reaches normal play and survives a save/load without changing default worlds. */
+/** The retained Generator 7 development seam reaches normal play and survives save/load after the default changes. */
 class RefinedV5PlayableWorldTest {
     private static final String OWNER = "refined-v5-test";
     private static final WorldConfig SMALL = new WorldConfig(40, 6, 3, 20, 6);
@@ -50,10 +50,10 @@ class RefinedV5PlayableWorldTest {
 
         WorldSession defaultWorld = normal.create(OWNER, 4243L, SMALL);
         assertThat(normal.status(OWNER, defaultWorld.id()).courseGeneratorVersion())
-                .isEqualTo(CourseGenConstants.V5_GENERATOR_VERSION);
-        normal.save(OWNER, defaultWorld.id(), "retained-v5-career");
-        WorldSession retained = refined.load(OWNER, "retained-v5-career");
+                .isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
+        normal.save(OWNER, defaultWorld.id(), "default-v8-career");
+        WorldSession retained = refined.load(OWNER, "default-v8-career");
         assertThat(refined.status(OWNER, retained.id()).courseGeneratorVersion())
-                .isEqualTo(CourseGenConstants.V5_GENERATOR_VERSION);
+                .isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
     }
 }

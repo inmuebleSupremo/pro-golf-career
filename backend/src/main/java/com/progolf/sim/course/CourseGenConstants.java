@@ -23,12 +23,12 @@ public final class CourseGenConstants {
     /** Experimental V5 architecture refinement; version 6 remains the rejected, never-adopted V6 prototype. */
     public static final int V5_REFINED_GENERATOR_VERSION = 7;
     /**
-     * Opt-in principles-driven architecture. Version 6 remains deliberately unassigned to the rejected
+     * Principles-driven architecture. Version 6 remains deliberately unassigned to the rejected
      * landscape prototype, so this retained implementation takes the next available registry identity.
      */
     public static final int V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION = 8;
-    /** Generator selected only when a new world is created. Restore always uses its persisted pin. */
-    public static final int CURRENT_GENERATOR_VERSION = V5_GENERATOR_VERSION;
+    /** Generator selected for a newly created world. Restore always uses its persisted pin. */
+    public static final int CURRENT_GENERATOR_VERSION = V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION;
     /** @deprecated Use an explicit retained generator version. */
     @Deprecated(forRemoval = false)
     public static final int GENERATOR_VERSION = V1_GENERATOR_VERSION;

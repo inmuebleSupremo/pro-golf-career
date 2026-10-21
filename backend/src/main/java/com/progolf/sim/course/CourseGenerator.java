@@ -218,7 +218,7 @@ public final class CourseGenerator {
         return generateV5(coordinate, classification, plan, architectureProfile, true);
     }
 
-    /** Retained Generator 8 implementation for the opt-in principles-driven architecture. */
+    /** Retained Generator 8 implementation for the principles-driven architecture. */
     private static Course generatePrincipledArchitecture(SeedCoordinate coordinate,
                                                           EnvironmentClassification classification) {
         long courseSeed = Seeds.forCoordinate(coordinate);

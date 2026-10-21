@@ -47,8 +47,9 @@ class V5RefinedArchitectureTest {
     }
 
     @Test
-    void retainedV5RemainsTheDefaultAndItsOwnVersionPath() {
-        assertThat(CourseGenConstants.CURRENT_GENERATOR_VERSION).isEqualTo(CourseGenConstants.V5_GENERATOR_VERSION);
+    void retainedV5RemainsItsOwnVersionPathAfterGeneratorEightBecomesDefault() {
+        assertThat(CourseGenConstants.CURRENT_GENERATOR_VERSION)
+                .isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
         SeedCoordinate coordinate = new SeedCoordinate(WORLD, 5, 4242, EnvironmentClassification.PARKLAND.ordinal(), 0, 0, 0);
         Course original = CourseGenerator.generate(coordinate, EnvironmentClassification.PARKLAND,
                 CourseGenConstants.V5_GENERATOR_VERSION);
