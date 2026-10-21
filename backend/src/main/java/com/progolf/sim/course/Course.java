@@ -1,6 +1,7 @@
 package com.progolf.sim.course;
 
 import com.progolf.sim.shot.HoleModel;
+import com.progolf.sim.putt.PuttingPolicy;
 import java.util.List;
 import java.util.Objects;
 
@@ -67,9 +68,15 @@ public record Course(CourseIdentity identity, List<GeneratedHole> holes, int gen
 
     /** The playable model under an explicitly versioned flag-placement policy. */
     public HoleModel holeModel(int holeNumber, int round, CourseSetup setup, PinPlacementVersion pinPlacementVersion) {
+        return holeModel(holeNumber, round, setup, pinPlacementVersion, PuttingPolicy.LEGACY);
+    }
+
+    /** The exact event-pinned hole model, including the opt-in putting policy. */
+    public HoleModel holeModel(int holeNumber, int round, CourseSetup setup, PinPlacementVersion pinPlacementVersion,
+                               PuttingPolicy puttingPolicy) {
         if (holeNumber < 1 || holeNumber > 18) {
             throw new IllegalArgumentException("Hole number must be 1..18: " + holeNumber);
         }
-        return holes.get(holeNumber - 1).forRound(round, setup, pinPlacementVersion);
+        return holes.get(holeNumber - 1).forRound(round, setup, pinPlacementVersion, puttingPolicy);
     }
 }

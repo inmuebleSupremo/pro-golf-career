@@ -22,6 +22,9 @@ import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.shot.StrategyPolicy;
 import com.progolf.sim.spatial.Surface;
 import com.progolf.sim.course.Position2d;
+import com.progolf.sim.putt.PhysicalPuttIntent;
+import com.progolf.sim.putt.PhysicalPuttPlanner;
+import com.progolf.sim.putt.PhysicalPuttResolution;
 import java.util.Objects;
 
 /**
@@ -109,9 +112,23 @@ public final class PlayableHole {
                 ball == null ? null : model.cupPosition(), true);
     }
 
+    /** Explicit physical line/pace path for an event that has opted into PHYSICAL_V1. */
+    public ShotOutcome playPhysicalPutt(PhysicalPuttIntent intent) {
+        requireNotComplete();
+        Objects.requireNonNull(intent, "intent");
+        if (!model.puttingPolicy().usesPhysicalPutting()) {
+            throw new IllegalStateException("current event does not use physical putting");
+        }
+        if (lie != Surface.GREEN || ball == null) {
+            throw new IllegalArgumentException("physical putting is currently available only from the green");
+        }
+        return resolvePhysicalOne(intent);
+    }
+
     /** Sims the current shot with the automatic policy. */
     public ShotOutcome simShot() {
         requireNotComplete();
+        if (usesPhysicalPuttingNow()) return resolvePhysicalOne(physicalAiIntent());
         SimShot shot = simShotPlan();
         return resolveOne(shot.decision(), shot.aimTarget(), true);
     }
@@ -119,6 +136,10 @@ public final class PlayableHole {
     /** Sims the rest of the hole with the automatic policy. */
     public void simHole() {
         while (!complete) {
+            if (usesPhysicalPuttingNow()) {
+                resolvePhysicalOne(physicalAiIntent());
+                continue;
+            }
             SimShot shot = simShotPlan();
             resolveOne(shot.decision(), shot.aimTarget(), false);
         }
@@ -132,6 +153,16 @@ public final class PlayableHole {
                 : spatialContext(decision, humanAimTarget);
         ShotOutcome outcome = materializeTrace ? ShotResolver.resolveShotWithTrace(context) : ShotResolver.resolveShot(context);
 
+        return applyOutcome(outcome, preShotRemaining);
+    }
+
+    private ShotOutcome resolvePhysicalOne(PhysicalPuttIntent intent) {
+        double preShotRemaining = remaining;
+        ShotOutcome outcome = PhysicalPuttResolution.resolve(model, attributes, state, coordinate.withShot(shotNumber), ball, intent);
+        return applyOutcome(outcome, preShotRemaining);
+    }
+
+    private ShotOutcome applyOutcome(ShotOutcome outcome, double preShotRemaining) {
         strokes += outcome.strokes();
         lie = outcome.finalSurface();
         boolean holed = outcome.holed();
@@ -155,6 +186,14 @@ public final class PlayableHole {
             complete = true;
         }
         return outcome;
+    }
+
+    private boolean usesPhysicalPuttingNow() {
+        return lie == Surface.GREEN && ball != null && model.puttingPolicy().usesPhysicalPutting();
+    }
+
+    private PhysicalPuttIntent physicalAiIntent() {
+        return PhysicalPuttPlanner.decide(model.greenSurface(), ball.position(), model.cupPosition());
     }
 
     /** Total strokes taken on the hole (final once complete). */

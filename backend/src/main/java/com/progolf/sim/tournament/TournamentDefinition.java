@@ -2,6 +2,7 @@ package com.progolf.sim.tournament;
 
 import com.progolf.sim.course.Course;
 import com.progolf.sim.course.PinPlacementVersion;
+import com.progolf.sim.putt.PuttingPolicy;
 import java.time.LocalDate;
 import java.util.Objects;
 
@@ -21,7 +22,8 @@ public record TournamentDefinition(
         long worldSeed,
         long seasonId,
         long tournamentId,
-        PinPlacementVersion pinPlacementVersion) {
+        PinPlacementVersion pinPlacementVersion,
+        PuttingPolicy puttingPolicy) {
 
     public TournamentDefinition {
         Objects.requireNonNull(name, "name");
@@ -33,6 +35,7 @@ public record TournamentDefinition(
         Objects.requireNonNull(format, "format");
         Objects.requireNonNull(scheduledDate, "scheduledDate");
         Objects.requireNonNull(pinPlacementVersion, "pinPlacementVersion");
+        puttingPolicy = puttingPolicy == null ? PuttingPolicy.LEGACY : puttingPolicy;
     }
 
     /**
@@ -53,5 +56,14 @@ public record TournamentDefinition(
                                 long seasonId, long tournamentId) {
         this(name, course, tier, prestige, entryRequirements, prizeStructure, format, scheduledDate,
                 worldSeed, seasonId, tournamentId, PinPlacementVersion.LEGACY_V1);
+    }
+
+    /** Source-compatible explicit pin-policy constructor; physical putting requires an explicit final policy argument. */
+    public TournamentDefinition(String name, Course course, Tier tier, EventPrestige prestige,
+                                EntryRequirements entryRequirements, PrizeStructure prizeStructure,
+                                TournamentFormat format, LocalDate scheduledDate, long worldSeed,
+                                long seasonId, long tournamentId, PinPlacementVersion pinPlacementVersion) {
+        this(name, course, tier, prestige, entryRequirements, prizeStructure, format, scheduledDate,
+                worldSeed, seasonId, tournamentId, pinPlacementVersion, PuttingPolicy.LEGACY);
     }
 }

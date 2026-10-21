@@ -254,7 +254,7 @@ public final class World {
         }
         List<ScheduledTournament> migrated = schedule.stream().map(event -> isUnstarted(event)
                 ? new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
-                event.tournamentId(), PinPlacementVersion.V5_EFFECTIVE_GREEN) : event).toList();
+                event.tournamentId(), PinPlacementVersion.V5_EFFECTIVE_GREEN, event.puttingPolicy()) : event).toList();
         defaultPinPlacementVersion = PinPlacementVersion.V5_EFFECTIVE_GREEN;
         schedule = new ArrayList<>(migrated);
     }
@@ -369,7 +369,7 @@ public final class World {
         }
         w.schedule = s.schedule().stream().map(event -> event.pinPlacementVersion() == null
                 ? new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
-                event.tournamentId(), PinPlacementVersion.LEGACY_V1) : event).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+                event.tournamentId(), PinPlacementVersion.LEGACY_V1, event.puttingPolicy()) : event).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         w.announcedProspects.addAll(s.announcedProspects());
         // 6) Player-control state (null/empty for an autonomous world).
         if (s.playerControl() != null) {
@@ -674,7 +674,7 @@ public final class World {
                 nameFor(event), course, tier, event.prestige(),
                 new EntryRequirements(config.fieldSize(), true),
                 PrizeStructure.forEvent(tier, event.prestige(), cutSize), format, date,
-                masterSeed, season, event.tournamentId(), event.pinPlacementVersion());
+                masterSeed, season, event.tournamentId(), event.pinPlacementVersion(), event.puttingPolicy());
 
         // Weather is generated before play from the course's climate and the point in the season; the
         // whole field plays under the same per-round conditions (REQ-228/231/232).

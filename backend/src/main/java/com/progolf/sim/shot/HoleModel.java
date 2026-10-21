@@ -5,6 +5,8 @@ import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.ArchitectureStrategyPlan;
 import com.progolf.sim.course.HoleSpatialPlan;
 import com.progolf.sim.course.Position2d;
+import com.progolf.sim.course.GreenSurface;
+import com.progolf.sim.putt.PuttingPolicy;
 
 /**
  * The minimal hole geometry consumed by {@link RoundResolver}. Course generation (a separate change)
@@ -63,6 +65,16 @@ public interface HoleModel {
 
     /** Non-persistent V5 preview strategy derived from the exact selected architecture route. */
     default ArchitectureStrategyPlan architectureStrategyPlan() {
+        return null;
+    }
+
+    /** Event-pinned putting policy; absent legacy hole implementations retain probability-based putting. */
+    default PuttingPolicy puttingPolicy() {
+        return PuttingPolicy.LEGACY;
+    }
+
+    /** Reconstructed authoritative field for an explicitly physical green; legacy holes return null. */
+    default GreenSurface greenSurface() {
         return null;
     }
 }

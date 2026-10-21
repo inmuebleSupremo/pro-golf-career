@@ -1,6 +1,7 @@
 package com.progolf.sim.shot;
 
 import com.progolf.sim.spatial.Surface;
+import com.progolf.sim.putt.PhysicalPuttOutcome;
 import java.util.Objects;
 
 /**
@@ -18,7 +19,8 @@ public record ShotOutcome(
         FactorBreakdown factors,
         ShotSettlement settlement,
         boolean putt,
-        ShotTrace trace) {
+        ShotTrace trace,
+        PhysicalPuttOutcome physicalPutt) {
 
     public ShotOutcome {
         Objects.requireNonNull(finalSurface, "finalSurface");
@@ -29,7 +31,7 @@ public record ShotOutcome(
     public ShotOutcome(Surface finalSurface, double carry, double lateral, double distanceRemaining,
                        boolean hazardEntered, int penaltyStrokes, int strokes, FactorBreakdown factors) {
         this(finalSurface, carry, lateral, distanceRemaining, hazardEntered, penaltyStrokes, strokes, factors,
-                null, false, null);
+                null, false, null, null);
     }
 
     /** Compatibility constructor for callers that have settlement metadata but no observable trace. */
@@ -37,7 +39,15 @@ public record ShotOutcome(
                        boolean hazardEntered, int penaltyStrokes, int strokes, FactorBreakdown factors,
                        ShotSettlement settlement, boolean putt) {
         this(finalSurface, carry, lateral, distanceRemaining, hazardEntered, penaltyStrokes, strokes, factors,
-                settlement, putt, null);
+                settlement, putt, null, null);
+    }
+
+    /** Compatibility constructor for existing callers that do not carry a physical-putt trajectory. */
+    public ShotOutcome(Surface finalSurface, double carry, double lateral, double distanceRemaining,
+                       boolean hazardEntered, int penaltyStrokes, int strokes, FactorBreakdown factors,
+                       ShotSettlement settlement, boolean putt, ShotTrace trace) {
+        this(finalSurface, carry, lateral, distanceRemaining, hazardEntered, penaltyStrokes, strokes, factors,
+                settlement, putt, trace, null);
     }
 
     /** Surface at first canonical contact; equals final surface for legacy/non-spatial outcomes. */
@@ -50,6 +60,6 @@ public record ShotOutcome(
      * cup threshold. Consumers should use this rather than interpreting a rounded distance.
      */
     public boolean holed() {
-        return !hazardEntered && distanceRemaining <= SimConstants.HOLED_THRESHOLD;
+        return physicalPutt != null ? physicalPutt.holed() : !hazardEntered && distanceRemaining <= SimConstants.HOLED_THRESHOLD;
     }
 }

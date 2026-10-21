@@ -63,6 +63,7 @@ import com.progolf.sim.ranking.RankingStanding;
 import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.BallStrikeIntent;
 import com.progolf.sim.shot.PuttIntent;
+import com.progolf.sim.putt.PhysicalPuttIntent;
 import com.progolf.sim.play.ShotSubmission;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
@@ -971,6 +972,12 @@ public class WorldService {
     /** Dedicated non-spatial putting route; stale revisions return without mutating event state. */
     public ShotSubmission playPutt(String ownerId, String sessionId, PuttIntent intent, String expectedRevision) {
         return playerEvent(ownerId, sessionId).playPutt(intent, expectedRevision);
+    }
+
+    /** Backend integration seam for an explicitly physical-policy event; no GraphQL/frontend control is exposed yet. */
+    public ShotSubmission playPhysicalPutt(String ownerId, String sessionId, PhysicalPuttIntent intent,
+                                           String expectedRevision) {
+        return playerEvent(ownerId, sessionId).playPhysicalPutt(intent, expectedRevision);
     }
 
     /** Sims the current shot in the player's event. */
