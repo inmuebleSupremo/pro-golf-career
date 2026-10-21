@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronUp, X } from "lucide-react";
+import { ArrowLeft, ChevronUp, Eye, EyeOff, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import { StageHole } from "@/components/play/hole-transition";
 import { usePlaySequence } from "@/components/play/use-play-sequence";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
 import { buildBallStrikeIntent } from "@/lib/play/intent";
+import { currentPhysicalPuttControls, cupDirectedLine, physicalPuttControlSource, validPaceFeet } from "@/lib/play/physical-putting";
 import { shotSubmissionFeedback } from "@/lib/play/shot-feedback";
 import {
   formatScore,
@@ -32,6 +33,7 @@ import {
 import {
   usePlayShot,
   usePlayPutt,
+  usePlayPhysicalPutt,
   useSimEvent,
   useSimHole,
   useSimRound,
@@ -78,6 +80,15 @@ export function PlayMode({
     ? aimState.point
     : situation.guidance?.primary ?? { x: 0, y: 0 };
   const setAimPoint = (point: { x: number; y: number }) => setAimState({ revision: situation.shotRevision, point });
+  const physicalAimBall = hole?.ball?.position ?? hole?.geometry?.tee ?? { x: 0, y: 0 };
+  const physicalAimCup = hole?.geometry?.cup ?? physicalAimBall;
+  const physicalAimSource = physicalPuttControlSource(situation.shotRevision, physicalAimBall, physicalAimCup);
+  const [physicalAimState, setPhysicalAimState] = useState(() => ({ revision: situation.shotRevision, source: physicalAimSource, direction: cupDirection(hole) }));
+  const physicalAimDirection = physicalAimState.revision === situation.shotRevision && physicalAimState.source === physicalAimSource
+    ? physicalAimState.direction : cupDirection(hole);
+  const setPhysicalAimDirection = (direction: { x: number; y: number }) =>
+    setPhysicalAimState({ revision: situation.shotRevision, source: physicalAimSource, direction });
+  const [showGreenReading, setShowGreenReading] = useState(false);
 
   // The client-side sequence: it owns what the stage shows and when the shot controls are locked, so the
   // between-hole ceremony (hole-out → score → wipe → intro) can play out over the server's instant advance.
@@ -122,6 +133,10 @@ export function PlayMode({
             postHole={seq.postHole}
             aimPoint={aimPoint}
             onAimPoint={setAimPoint}
+            physicalAimDirection={physicalAimDirection}
+            onPhysicalAimDirection={setPhysicalAimDirection}
+            showGreenReading={showGreenReading}
+            onPhysicalPlaybackComplete={seq.onPhysicalPlaybackComplete}
           />
         </section>
 
@@ -139,7 +154,7 @@ export function PlayMode({
       </div>
 
       <ActionDock
-        key={`${situation.holeNumber}-${situation.shotNumber}`}
+        key={`${situation.holeNumber}-${situation.shotNumber}-${situation.shotRevision}`}
         id={id}
         situation={situation}
         hole={hole}
@@ -149,9 +164,19 @@ export function PlayMode({
         onSimJump={seq.onSimJump}
         lastOutcome={seq.lastOutcome}
         locked={seq.locked}
+          physicalAimDirection={physicalAimDirection}
+          showGreenReading={showGreenReading}
+          onToggleGreenReading={() => setShowGreenReading((current) => !current)}
       />
     </div>
   );
+}
+
+function cupDirection(hole: HoleGeom | null): { x: number; y: number } {
+  const ball = hole?.ball?.position ?? hole?.geometry?.tee;
+  const cup = hole?.geometry?.cup;
+  if (!ball || !cup) return { x: 0, y: 1 };
+  return cupDirectedLine(ball, cup);
 }
 
 function PlayHud({
@@ -232,6 +257,9 @@ function ActionDock({
   onSimJump,
   lastOutcome,
   locked,
+  physicalAimDirection,
+  showGreenReading,
+  onToggleGreenReading,
 }: {
   id: string;
   situation: Situation;
@@ -243,9 +271,13 @@ function ActionDock({
   lastOutcome: Outcome | null;
   /** True through every transitional phase — the controls are disabled so the sequence can't be broken. */
   locked: boolean;
+  physicalAimDirection: { x: number; y: number };
+  showGreenReading: boolean;
+  onToggleGreenReading: () => void;
 }) {
   const play = usePlayShot(id);
   const putt = usePlayPutt(id);
+  const physicalPutt = usePlayPhysicalPutt(id);
   const [requestedSelection, setRequestedSelection] = useState(() => validShotSelection(situation));
   const [formError, setFormError] = useState<string | null>(null);
   const clubs = situation.guidance?.clubs ?? [];
@@ -257,6 +289,7 @@ function ActionDock({
     family.available && family.shapes.some((candidateShape) => candidateShape.available)));
   const puttingAvailable = situation.lie === "GREEN" || situation.lie === "FRINGE";
   const puttRoute = situation.lie === "GREEN" || technique === "PUTT";
+  const physicalRoute = hole?.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN" && hole.physicalGreen != null;
   const techniques = puttRoute && situation.lie === "GREEN"
     ? [{ family: "PUTT", available: true, reason: null }]
     : [
@@ -266,6 +299,13 @@ function ActionDock({
     ];
   const origin = hole?.ball?.position ?? hole?.geometry?.tee ?? { x: 0, y: 0 };
   const targetDistance = Math.hypot(aimPoint.x - origin.x, aimPoint.y - origin.y);
+  const cup = hole?.geometry?.cup ?? origin;
+  const physicalControlSource = physicalPuttControlSource(situation.shotRevision, origin, cup);
+  const [physicalControls, setPhysicalControls] = useState(() => currentPhysicalPuttControls(physicalControlSource, origin, cup, null));
+  const activePhysicalControls = currentPhysicalPuttControls(physicalControlSource, origin, cup, physicalControls);
+  const physicalDefaultPace = currentPhysicalPuttControls(physicalControlSource, origin, cup, null).paceFeet;
+  const paceFeet = activePhysicalControls.paceFeet;
+  const paceSliderMaximum = Math.max(20, Math.ceil(physicalDefaultPace * 1.5 / 5) * 5);
   const landingTarget = technique === "PITCH" || technique === "CHIP";
   const selectedTechnique = selectedClub?.families.find((candidate) => candidate.family === technique);
   const shapes = selectedTechnique?.shapes.filter((candidate) => candidate.available)
@@ -278,7 +318,10 @@ function ActionDock({
   async function onPlay() {
     setFormError(null);
     try {
-      const submission = puttRoute
+      const submission = physicalRoute
+        ? (await physicalPutt.mutateAsync({ direction: physicalAimDirection, intendedRollFeet: paceFeet,
+          expectedShotRevision: situation.shotRevision })).playPhysicalPutt
+        : puttRoute
         ? (await putt.mutateAsync(situation.shotRevision)).playPutt
         : (await play.mutateAsync(buildBallStrikeIntent(club, aimPoint, technique, shape, situation.shotRevision))).playShot;
       if (submission.stale || !submission.outcome) {
@@ -303,7 +346,7 @@ function ActionDock({
             ))}
           </Select>
         </DockField> : null}
-        <DockField label="Technique">
+        {!physicalRoute ? <DockField label="Technique">
           <Select value={puttRoute && situation.lie === "GREEN" ? "PUTT" : technique} onChange={(e) => updateSelection({ technique: e.target.value })} disabled={situation.lie === "GREEN"}>
             {techniques.map((candidate) => (
               <option key={candidate.family} value={candidate.family}>
@@ -311,7 +354,27 @@ function ActionDock({
               </option>
             ))}
           </Select>
-        </DockField>
+        </DockField> : null}
+        {physicalRoute ? <>
+          <div className="flex flex-col gap-1">
+            <span className="text-subtle-foreground text-[10px] tracking-[0.08em] uppercase">Starting line</span>
+            <span className="text-muted-foreground text-xs">Click the green to aim. The marker is direction only.</span>
+          </div>
+          <DockField label={`Pace · ${paceFeet.toFixed(1)} ft`}>
+            <div className="flex items-center gap-2">
+              <Input type="range" min="0.1" max={paceSliderMaximum} step="0.1" value={Math.min(paceFeet, paceSliderMaximum)}
+                onChange={(event) => setPhysicalControls({ ...activePhysicalControls, paceFeet: validPaceFeet(Number(event.target.value)) })}
+                className="w-40" aria-label="Intended rolling distance in feet" />
+              <Input type="number" min="0.1" step="0.1" value={paceFeet}
+                onChange={(event) => setPhysicalControls({ ...activePhysicalControls, paceFeet: validPaceFeet(Number(event.target.value)) })}
+                className="w-20" aria-label="Exact intended rolling distance in feet" />
+            </div>
+          </DockField>
+          <Button variant="secondary" size="sm" onClick={onToggleGreenReading} aria-pressed={showGreenReading}>
+            {showGreenReading ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+            Green reading
+          </Button>
+        </> : null}
         {!puttRoute ? <DockField label="Flight shape">
           <Select value={shape} onChange={(e) => updateSelection({ shape: e.target.value })}>
             {shapes.map((candidate) => <option key={candidate.shape} value={candidate.shape}>
@@ -336,7 +399,7 @@ function ActionDock({
           </div>
         </details> : null}
         <div className="text-muted-foreground text-xs" aria-live="polite">
-          {puttRoute ? "Putting uses the existing make-and-leave model" : `${landingTarget ? "Landing target" : "Target"} ${Math.round(targetDistance)} yds · ${selectedClub ? `${Math.round(selectedClub.normalReach)} yd normal reach` : "club guidance unavailable"}`}
+          {physicalRoute ? `Neutral pace equals the measured cup distance: ${physicalDefaultPace.toFixed(1)} ft.` : puttRoute ? "Putting uses the existing make-and-leave model" : `${landingTarget ? "Landing target" : "Target"} ${Math.round(targetDistance)} yds · ${selectedClub ? `${Math.round(selectedClub.normalReach)} yd normal reach` : "club guidance unavailable"}`}
         </div>
         {situation.guidance ? <StrategicGuidance options={situation.guidance.strategicOptions}
           fallback={situation.guidance.primary} onAimPoint={onAimPoint} /> : null}
@@ -352,8 +415,8 @@ function ActionDock({
         </div>
 
         <SimMenu id={id} onShot={onShot} onSimJump={onSimJump} disabled={locked} />
-        <Button size="lg" onClick={onPlay} disabled={play.isPending || putt.isPending || locked}>
-          {play.isPending || putt.isPending ? "Playing…" : puttRoute ? "Putt" : "Play shot"}
+        <Button size="lg" onClick={onPlay} disabled={play.isPending || putt.isPending || physicalPutt.isPending || locked}>
+          {play.isPending || putt.isPending || physicalPutt.isPending ? "Playing…" : physicalRoute ? "Roll putt" : puttRoute ? "Putt" : "Play shot"}
         </Button>
       </div>
     </footer>

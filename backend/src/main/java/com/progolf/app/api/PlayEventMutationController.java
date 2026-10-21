@@ -5,6 +5,7 @@ import com.progolf.app.api.dto.BallStrikeIntentInput;
 import com.progolf.app.api.dto.ShotSubmissionDto;
 import com.progolf.app.api.dto.ShotOutcomeDto;
 import com.progolf.app.api.dto.WorldStatusDto;
+import com.progolf.app.api.dto.PhysicalPuttIntentInput;
 import com.progolf.sim.shot.PuttIntent;
 import com.progolf.app.auth.AuthenticatedUser;
 import com.progolf.app.world.WorldService;
@@ -35,6 +36,12 @@ public class PlayEventMutationController {
     @MutationMapping
     public ShotSubmissionDto playPutt(@Argument String id, @Argument String expectedShotRevision) {
         return ApiMapper.submission(worldService.playPutt(AuthenticatedUser.requireId(), id, new PuttIntent(), expectedShotRevision));
+    }
+
+    @MutationMapping
+    public ShotSubmissionDto playPhysicalPutt(@Argument String id, @Argument PhysicalPuttIntentInput intent) {
+        return ApiMapper.submission(worldService.playPhysicalPutt(AuthenticatedUser.requireId(), id,
+                ApiMapper.physicalPuttIntent(intent), intent.expectedShotRevision()));
     }
 
     @MutationMapping

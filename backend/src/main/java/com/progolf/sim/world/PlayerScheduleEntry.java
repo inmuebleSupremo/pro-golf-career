@@ -2,6 +2,7 @@ package com.progolf.sim.world;
 
 import com.progolf.sim.tour.TourTier;
 import com.progolf.sim.tournament.EventPrestige;
+import com.progolf.sim.putt.PuttingPolicy;
 import java.util.Objects;
 
 /**
@@ -11,7 +12,8 @@ import java.util.Objects;
  * choice, independent of transient health). Immutable.
  */
 public record PlayerScheduleEntry(long tournamentId, int week, TourTier tier, EventPrestige prestige,
-                                  boolean entered, String name, String location, String courseType) {
+                                  boolean entered, String name, String location, String courseType,
+                                  PuttingPolicy puttingPolicy) {
 
     public PlayerScheduleEntry {
         Objects.requireNonNull(tier, "tier");
@@ -19,5 +21,6 @@ public record PlayerScheduleEntry(long tournamentId, int week, TourTier tier, Ev
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(location, "location");
         Objects.requireNonNull(courseType, "courseType");
+        Objects.requireNonNull(puttingPolicy, "puttingPolicy");
     }
 }

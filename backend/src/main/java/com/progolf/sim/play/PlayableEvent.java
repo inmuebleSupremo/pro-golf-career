@@ -10,6 +10,8 @@ import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.course.PinPlacementVersion;
 import com.progolf.sim.putt.PhysicalPuttIntent;
 import com.progolf.sim.putt.PuttingPolicy;
+import com.progolf.sim.course.GreenSurface;
+import com.progolf.sim.putt.PuttingPolicy;
 import com.progolf.sim.player.DecisionPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.shot.Environment;
@@ -170,6 +172,16 @@ public final class PlayableEvent {
     /** The authoritative V5/legacy cup coordinate used by resolution and presentation for a hole. */
     public com.progolf.sim.course.Position2d cupAt(int holeNumber) {
         return course.holeModel(holeNumber, currentPinRound(), setup, pinPlacementVersion, puttingPolicy).cupPosition();
+    }
+
+    /** The policy pinned to this event; it never changes once interactive play begins. */
+    public PuttingPolicy puttingPolicy() {
+        return puttingPolicy;
+    }
+
+    /** The same reconstructed height field used by physical resolution, exposed only for a physical event. */
+    public GreenSurface greenSurfaceAt(int holeNumber) {
+        return course.holeModel(holeNumber, currentPinRound(), setup, pinPlacementVersion, puttingPolicy).greenSurface();
     }
 
     /** The host course's environment classification (biome), for presentation styling. */

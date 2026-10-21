@@ -22,6 +22,7 @@ export type CalendarEntry = {
   entered: boolean;
   name: string;
   location: string;
+  puttingPolicy: string;
   played: boolean;
   result: EventResult | null;
 };

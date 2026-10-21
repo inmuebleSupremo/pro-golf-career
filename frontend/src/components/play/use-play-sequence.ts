@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { HoleGeom, ResolvedShot } from "@/lib/play/hole-geometry";
 import { clearResultPresentation, completeNonHolingPlayback, showResolvedShot } from "@/lib/play/playback-presentation";
+import { physicalPuttPlaybackDurationMs } from "@/lib/play/physical-putting";
+import { physicalTransitionObservationMs, resolvedPlaybackDurationMs } from "@/lib/play/play-sequence-timing";
+import { tracePlaybackDurationMs } from "@/lib/play/trace-presentation";
 import type { LeaderboardRow, Outcome, Scorecard, Situation } from "@/components/play/play-shared";
 
 /**
@@ -49,6 +52,8 @@ export interface PlaySequence {
   readonly onShotResolved: (outcome: Outcome) => void;
   /** Called when a multi-hole sim (hole/round/event) jumps the state past one or more holes. */
   readonly onSimJump: () => void;
+  /** Called by the physical renderer at the final authoritative trajectory sample, never by a parallel timer. */
+  readonly onPhysicalPlaybackComplete: () => void;
 }
 
 // Phase durations (ms). Reduced motion collapses movement but still lets the information land.
@@ -56,7 +61,13 @@ const FULL = { intro: 1600, holeout: 1500, score: 2200, wipe: 800, shot: 1600 } 
 const REDUCED = { intro: 800, holeout: 400, score: 1600, wipe: 1, shot: 400 } as const;
 
 function toResolved(o: Outcome): ResolvedShot {
-  return { finalSurface: o.finalSurface, carry: o.carry, lateral: o.lateral, distanceRemaining: o.distanceRemaining, settlement: o.settlement, trace: o.trace };
+  return { finalSurface: o.finalSurface, carry: o.carry, lateral: o.lateral, distanceRemaining: o.distanceRemaining, settlement: o.settlement, trace: o.trace, physicalPutt: o.physicalPutt };
+}
+
+function rendererPlaybackDuration(outcome: Outcome): number {
+  return outcome.physicalPutt
+    ? physicalPuttPlaybackDurationMs(outcome.physicalPutt.trajectory)
+    : tracePlaybackDurationMs(outcome.trace);
 }
 
 function usePrefersReducedMotion(): boolean {
@@ -90,6 +101,10 @@ export function usePlaySequence({
   const [phase, setPhase] = useState<SeqPhase>("intro");
   const [resultPresentation, setResultPresentation] = useState(() => clearResultPresentation<ResolvedShot, Outcome>());
   const [shotAnimating, setShotAnimating] = useState(false);
+  const [observingResult, setObservingResult] = useState(false);
+  const [activePlaybackDuration, setActivePlaybackDuration] = useState<number>(D.shot);
+  const [activePhysicalPutt, setActivePhysicalPutt] = useState(false);
+  const [pendingPhysicalHoleout, setPendingPhysicalHoleout] = useState(false);
   // The finishing hole, snapshotted while the ceremony holds over the server's advance.
   const [frozen, setFrozen] = useState(false);
   const [frozenHole, setFrozenHole] = useState<HoleGeom | null>(null);
@@ -105,27 +120,61 @@ export function usePlaySequence({
   });
 
   // A single resolved shot (played or simmed). A holed shot opens the between-hole ceremony, snapshotting the
-  // hole it finished; any other shot just plays back while the controls stay locked for trace feedback.
+  // hole it finished. Non-holing results also freeze the pre-resolution stage while their trace is shown, which
+  // prevents an immediately refreshed green state from replacing an approach flight with the putting view.
   const onShotResolved = useCallback((outcome: Outcome) => {
     setResultPresentation(showResolvedShot(toResolved(outcome), outcome));
+    const physicalPutt = outcome.physicalPutt != null;
+    setActivePhysicalPutt(physicalPutt);
+    setPendingPhysicalHoleout(physicalPutt && outcome.holed);
+    if (physicalPutt) {
+      // A physical result is complete on the server immediately, but its capture or final position is not
+      // player-visible until the chronological backend trajectory has reached that terminal point.
+      setFrozenHole(holeRef.current);
+      setFrozenSit(sitRef.current);
+      setFrozen(true);
+      setObservingResult(false);
+      setActivePlaybackDuration(resolvedPlaybackDurationMs(rendererPlaybackDuration(outcome), D.shot, reduced));
+      setShotAnimating(true);
+      return;
+    }
     if (outcome.holed) {
       setFrozenHole(holeRef.current);
       setFrozenSit(sitRef.current);
       setFrozen(true);
       setPhase("holeout");
     } else {
+      setFrozenHole(holeRef.current);
+      setFrozenSit(sitRef.current);
+      setFrozen(true);
+      setObservingResult(false);
+      setActivePlaybackDuration(resolvedPlaybackDurationMs(rendererPlaybackDuration(outcome), D.shot, reduced));
       setShotAnimating(true);
     }
-  }, []);
+  }, [D.shot, reduced]);
 
   // A multi-hole sim jumped the state forward — skip the ceremony, drop the finished hole's ball, and greet the
   // landed hole with its intro.
   const onSimJump = useCallback(() => {
     setResultPresentation(clearResultPresentation());
     setShotAnimating(false);
+    setObservingResult(false);
+    setActivePhysicalPutt(false);
+    setPendingPhysicalHoleout(false);
     setFrozen(false);
     setPhase("intro");
   }, []);
+
+  const onPhysicalPlaybackComplete = useCallback(() => {
+    if (!shotAnimating || !activePhysicalPutt) return;
+    setShotAnimating(false);
+    if (pendingPhysicalHoleout) {
+      setPendingPhysicalHoleout(false);
+      setPhase("holeout");
+      return;
+    }
+    setObservingResult(true);
+  }, [shotAnimating, activePhysicalPutt, pendingPhysicalHoleout]);
 
   // Drive the timed progression through each non-interactive phase.
   useEffect(() => {
@@ -157,16 +206,28 @@ export function usePlaySequence({
     return;
   }, [phase, D.intro, D.holeout, D.score, D.wipe]);
 
-  // Release the result-playback lock after a non-holing shot has played out.
+  // Non-physical renderers use their authored duration. Physical rendering reports its terminal solver sample
+  // through onPhysicalPlaybackComplete, so no independent timer can reveal a future physical result early.
   useEffect(() => {
-    if (!shotAnimating) return;
+    if (!shotAnimating || activePhysicalPutt) return;
     const t = setTimeout(() => {
       setShotAnimating(false);
+      setFrozen(false);
       // Preserve textual feedback, but release the completed visual trace so canonical targeting is usable again.
       setResultPresentation((presentation) => completeNonHolingPlayback(presentation));
-    }, D.shot);
+    }, activePlaybackDuration);
     return () => clearTimeout(t);
-  }, [shotAnimating, D.shot]);
+  }, [shotAnimating, activePlaybackDuration, activePhysicalPutt]);
+
+  useEffect(() => {
+    if (!observingResult) return;
+    const t = setTimeout(() => {
+      setObservingResult(false);
+      setFrozen(false);
+      setResultPresentation((presentation) => completeNonHolingPlayback(presentation));
+    }, physicalTransitionObservationMs(reduced));
+    return () => clearTimeout(t);
+  }, [observingResult, reduced]);
 
   const displayHole = frozen ? frozenHole : hole;
   const displaySituation = frozen ? frozenSit ?? situation : situation;
@@ -189,7 +250,7 @@ export function usePlaySequence({
     };
   }, [phase, frozenSit, scorecard, leaderboard, playerGolferId]);
 
-  const locked = phase !== "play" || shotAnimating;
+  const locked = phase !== "play" || shotAnimating || observingResult;
 
   return {
     phase,
@@ -197,9 +258,11 @@ export function usePlaySequence({
     displaySituation,
     playbackShot: resultPresentation.playbackShot,
     postHole,
-    lastOutcome: resultPresentation.lastOutcome,
+    // Textual result details are withheld with future trajectory points, then become available at settlement.
+    lastOutcome: shotAnimating ? null : resultPresentation.lastOutcome,
     locked,
     onShotResolved,
     onSimJump,
+    onPhysicalPlaybackComplete,
   };
 }

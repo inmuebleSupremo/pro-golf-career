@@ -94,9 +94,13 @@ class PhysicalPuttSolverTest {
                 Attributes.uniform(50), 5L, PhysicalPuttExecutionMode.IDEAL);
         assertThat(captured.holed()).isTrue();
         assertThat(captured.terminalCondition()).isEqualTo(PhysicalPuttTerminalCondition.CAPTURED);
+        assertThat(captured.trajectory().get(captured.trajectory().size() - 1).position()).isEqualTo(cup);
         assertThat(fast.holed()).isFalse();
         assertThat(nearMiss.holed()).isFalse();
         assertThat(nearMiss.finalPosition().distanceTo(cup)).isLessThan(SimConstants.HOLED_THRESHOLD);
+        // The visible opening is 4.25 inches. This is the smaller *ball-centre* clearance inside that opening,
+        // not a separate target: a 1.68-inch ball's centre must remain 1.285 inches from the cup centre.
+        assertThat(PhysicalPuttSolver.CUP_CAPTURE_RADIUS_YARDS).isEqualTo((4.25 - 1.68) / 72.0);
         assertThat(PhysicalPuttSolver.CUP_CAPTURE_RADIUS_YARDS).isLessThan(SimConstants.HOLED_THRESHOLD);
         assertThat(SimConstants.HOLED_THRESHOLD).isEqualTo(0.35);
     }
@@ -128,6 +132,42 @@ class PhysicalPuttSolverTest {
     }
 
     @Test
+    void shortPuttSkillMatrixIsDeterministicAndShowsTheExistingAttributeGradient() {
+        Attributes weak = puttingAttributes(35);
+        Attributes medium = puttingAttributes(65);
+        Attributes strong = puttingAttributes(90);
+        int weakMakes = 0;
+        int mediumMakes = 0;
+        int strongMakes = 0;
+        StringBuilder evidence = new StringBuilder("short-putt capture matrix (60 fixed seeds per cell):");
+
+        // Level and a modest 0.4% cross-slope are controlled, representative GreenSurface conditions. No solver
+        // inputs, capture criteria, or player attributes are changed by this diagnostic.
+        for (double crossSlope : new double[] {0.0, 0.004}) {
+            for (double feet : new double[] {1, 2, 3, 5, 10}) {
+                int[] makes = new int[3];
+                Position2d start = new Position2d(-feet / 3.0, 0);
+                for (long seed = 1; seed <= 60; seed++) {
+                    if (resolve(plane(0, crossSlope), start, new Position2d(0, 0), new Position2d(1, 0), feet,
+                            weak, seed, PhysicalPuttExecutionMode.ATTRIBUTE_DRIVEN).holed()) makes[0]++;
+                    if (resolve(plane(0, crossSlope), start, new Position2d(0, 0), new Position2d(1, 0), feet,
+                            medium, seed, PhysicalPuttExecutionMode.ATTRIBUTE_DRIVEN).holed()) makes[1]++;
+                    if (resolve(plane(0, crossSlope), start, new Position2d(0, 0), new Position2d(1, 0), feet,
+                            strong, seed, PhysicalPuttExecutionMode.ATTRIBUTE_DRIVEN).holed()) makes[2]++;
+                }
+                weakMakes += makes[0];
+                mediumMakes += makes[1];
+                strongMakes += makes[2];
+                evidence.append(String.format("%n  slope=%+.1f%% distance=%.0fft: weak=%d medium=%d strong=%d",
+                        crossSlope * 100, feet, makes[0], makes[1], makes[2]));
+            }
+        }
+        System.out.println(evidence);
+        assertThat(mediumMakes).isGreaterThanOrEqualTo(weakMakes);
+        assertThat(strongMakes).isGreaterThanOrEqualTo(mediumMakes);
+    }
+
+    @Test
     void aBallCanLeaveTheSupportedGreenAndCollarWithoutAFabricatedRestingPosition() {
         PhysicalPuttOutcome outcome = resolve(plane(0, 0), new Position2d(49, 0), new Position2d(0, 0),
                 new Position2d(1, 0), 30, Attributes.uniform(50), 6L, PhysicalPuttExecutionMode.IDEAL);
@@ -139,6 +179,10 @@ class PhysicalPuttSolverTest {
                                                 double feet, Attributes attributes, long seed, PhysicalPuttExecutionMode mode) {
         return PhysicalPuttSolver.resolve(new PhysicalPuttRequest(PhysicalPuttModelVersion.V1, surface, start, cup,
                 new PhysicalPuttIntent(direction, feet), attributes, GolferState.fresh(), seed, mode));
+    }
+
+    private static Attributes puttingAttributes(int rating) {
+        return Attributes.uniform(50).with(Attribute.PUTTING_ACCURACY, rating).with(Attribute.PUTTING_PROXIMITY, rating);
     }
 
     private static GreenSurface plane(double gradientX, double gradientY) {

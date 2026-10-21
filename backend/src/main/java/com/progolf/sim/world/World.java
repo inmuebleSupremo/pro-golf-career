@@ -68,6 +68,7 @@ import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.PinPlacementVersion;
 import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.EnvironmentClassification;
+import com.progolf.sim.putt.PuttingPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.play.PlayableEvent;
 import com.progolf.sim.play.PlayedHole;
@@ -108,6 +109,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -262,6 +264,30 @@ public final class World {
     /** Current-season events remain in the schedule after resolution for calendar/history reads. */
     private boolean isUnstarted(ScheduledTournament event) {
         return seasonResults.stream().noneMatch(result -> result.tournamentId() == event.tournamentId());
+    }
+
+    /** Explicitly changes one upcoming event's putting policy; active and resolved events are immutable. */
+    public void setPuttingPolicyForUnstartedEvent(long tournamentId, PuttingPolicy policy) {
+        Objects.requireNonNull(policy, "policy");
+        if (pendingEvent != null) {
+            throw new IllegalStateException("Cannot change putting policy while a player event is pending");
+        }
+        boolean updated = false;
+        List<ScheduledTournament> revised = new ArrayList<>(schedule.size());
+        for (ScheduledTournament event : schedule) {
+            if (event.tournamentId() == tournamentId) {
+                if (!isUnstarted(event) || event.week() < calendar.currentWeek()) {
+                    throw new IllegalArgumentException("Putting policy can only change for an upcoming unstarted event");
+                }
+                revised.add(new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
+                        event.tournamentId(), event.pinPlacementVersion(), policy));
+                updated = true;
+            } else {
+                revised.add(event);
+            }
+        }
+        if (!updated) throw new IllegalArgumentException("Unknown scheduled tournament: " + tournamentId);
+        schedule = revised;
     }
 
     /** Regenerates the seed-derived course pool (identical for the same seed/config); used by bootstrap and restore. */
@@ -1854,7 +1880,7 @@ public final class World {
             if (eligibleByTour) {
                 out.add(new PlayerScheduleEntry(event.tournamentId(), event.week(), event.tier(),
                         event.prestige(), !playerSitsOut(event), nameFor(event), locationFor(event),
-                        courseTypeFor(event)));
+                        courseTypeFor(event), event.puttingPolicy()));
             }
         }
         return out;

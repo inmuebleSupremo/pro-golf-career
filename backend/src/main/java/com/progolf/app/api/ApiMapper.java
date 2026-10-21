@@ -36,6 +36,12 @@ import com.progolf.app.api.dto.ShotSettlementDto;
 import com.progolf.app.api.dto.ShotTraceDto;
 import com.progolf.app.api.dto.ShotTraceTransitionDto;
 import com.progolf.app.api.dto.ShotSituationDto;
+import com.progolf.app.api.dto.PhysicalGreenDto;
+import com.progolf.app.api.dto.GreenSlopeSampleDto;
+import com.progolf.app.api.dto.GreenContourDto;
+import com.progolf.app.api.dto.PhysicalPuttOutcomeDto;
+import com.progolf.app.api.dto.PhysicalPuttTrajectoryPointDto;
+import com.progolf.app.api.dto.PhysicalPuttIntentInput;
 import com.progolf.app.api.dto.SurfaceBandDto;
 import com.progolf.app.api.dto.SurfaceRegionDto;
 import com.progolf.app.api.dto.SponsorshipOfferDto;
@@ -56,6 +62,9 @@ import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.course.Position2d;
+import com.progolf.sim.course.GreenSurface;
+import com.progolf.sim.putt.PuttingPolicy;
+import com.progolf.sim.putt.PhysicalPuttIntent;
 import com.progolf.sim.shot.WindVector;
 import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.ShotSettlement;
@@ -92,6 +101,9 @@ import java.util.List;
  * signature. Pure and static; enum-valued engine fields are surfaced as their {@code name()}.
  */
 public final class ApiMapper {
+    /** Enough solver-owned gradient samples for a close putting viewport without changing GreenSurface itself. */
+    private static final int GREEN_READING_SAMPLE_DIVISIONS = 16;
+    private static final int GREEN_READING_CONTOUR_LEVELS = 9;
 
     private ApiMapper() {
     }
@@ -103,7 +115,7 @@ public final class ApiMapper {
 
     public static ScheduleEntryDto schedule(PlayerScheduleEntry e) {
         return new ScheduleEntryDto(e.tournamentId(), e.week(), e.tier().name(), e.prestige().name(), e.entered(),
-                e.name(), e.location(), e.courseType());
+                e.name(), e.location(), e.courseType(), e.puttingPolicy().name());
     }
 
     public static CareerGoalDto careerGoal(CareerGoalProgress p) {
@@ -220,12 +232,22 @@ public final class ApiMapper {
     public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, String canonicalBiome,
                                               int courseGeneratorVersion, BallState ball, CourseGeometry geometry,
                                               Position2d cup, WindVector wind) {
+        return playingHole(hole, pin, courseType, canonicalBiome, courseGeneratorVersion, ball, geometry, cup, wind,
+                PuttingPolicy.LEGACY, null);
+    }
+
+    /** Projects a policy-bearing playing hole and a sparse, solver-authored green reading when physical. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, String canonicalBiome,
+                                               int courseGeneratorVersion, BallState ball, CourseGeometry geometry,
+                                               Position2d cup, WindVector wind, PuttingPolicy puttingPolicy,
+                                               GreenSurface greenSurface) {
         return new PlayingHoleDto(hole.number(), hole.par(), hole.length(),
                 hole.fairwayHalfWidth(), hole.greenHalfWidth(), hole.greenDepth(), hole.elevationDelta(),
                 hole.hasGreensideBunker(), hole.hasWater(), hole.hasTrees(),
                 pin.lateralOffset(), pin.depthOffset(),
                 courseType, canonicalBiome, courseGeneratorVersion, geometrySource(courseGeneratorVersion),
-                Long.toString(hole.holeSeed()), geometry(geometry, cup), ballState(ball), effectiveWind(wind));
+                Long.toString(hole.holeSeed()), geometry(geometry, cup), ballState(ball), effectiveWind(wind),
+                puttingPolicy.name(), physicalGreen(greenSurface));
     }
 
     /** Compatibility mapper for tests/readers not yet carrying a live ball. */
@@ -265,8 +287,108 @@ public final class ApiMapper {
 
     public static ShotOutcomeDto shotOutcome(ShotOutcome o) {
         return new ShotOutcomeDto(o.finalSurface().name(), o.carry(), o.lateral(), o.distanceRemaining(),
-                o.holed(), o.hazardEntered(), o.penaltyStrokes(), o.strokes(), settlement(o.settlement()), trace(o.trace()));
+                o.holed(), o.hazardEntered(), o.penaltyStrokes(), o.strokes(), settlement(o.settlement()), trace(o.trace()),
+                physicalPutt(o.physicalPutt()));
     }
+
+    private static PhysicalPuttOutcomeDto physicalPutt(com.progolf.sim.putt.PhysicalPuttOutcome outcome) {
+        return outcome == null ? null : new PhysicalPuttOutcomeDto(outcome.trajectory().stream()
+                .map(point -> new PhysicalPuttTrajectoryPointDto(point.timeSeconds(), point(point.position()),
+                        point.speedYardsPerSecond())).toList(), point(outcome.finalPosition()), outcome.holed(),
+                outcome.terminalCondition().name());
+    }
+
+    /** Samples the existing immutable physical field only; no UI-side terrain model is created. */
+    private static PhysicalGreenDto physicalGreen(GreenSurface surface) {
+        if (surface == null) return null;
+        int columnStep = Math.max(1, (surface.columns() - 1) / GREEN_READING_SAMPLE_DIVISIONS);
+        int rowStep = Math.max(1, (surface.rows() - 1) / GREEN_READING_SAMPLE_DIVISIONS);
+        List<GreenSlopeSampleDto> samples = new java.util.ArrayList<>();
+        for (int row = 0; row < surface.rows(); row += rowStep) for (int column = 0; column < surface.columns(); column += columnStep) {
+            Position2d position = surface.gridPoint(column, row);
+            if (!surface.contains(position)) continue;
+            var sample = surface.sampleAt(position);
+            Position2d downhill = sample.gradient().downhillDirection();
+            samples.add(new GreenSlopeSampleDto(point(position), sample.elevation(), downhill.x(), downhill.y(),
+                    sample.gradient().magnitude()));
+        }
+        return new PhysicalGreenDto(List.copyOf(samples), contours(surface));
+    }
+
+    /** Marching-squares contours from the solver-owned grid; the app neither smooths nor invents terrain. */
+    private static List<GreenContourDto> contours(GreenSurface surface) {
+        double range = surface.maximumElevation() - surface.minimumElevation();
+        if (range < 1.0e-9) return List.of();
+        List<GreenContourDto> result = new java.util.ArrayList<>();
+        for (int levelIndex = 1; levelIndex <= GREEN_READING_CONTOUR_LEVELS; levelIndex++) {
+            double elevation = surface.minimumElevation() + range * levelIndex / (GREEN_READING_CONTOUR_LEVELS + 1.0);
+            List<ContourSegment> segments = new java.util.ArrayList<>();
+            for (int row = 0; row < surface.rows() - 1; row++) for (int column = 0; column < surface.columns() - 1; column++) {
+                Position2d[] points = {surface.gridPoint(column, row), surface.gridPoint(column + 1, row),
+                        surface.gridPoint(column + 1, row + 1), surface.gridPoint(column, row + 1)};
+                double[] heights = {surface.gridElevation(column, row), surface.gridElevation(column + 1, row),
+                        surface.gridElevation(column + 1, row + 1), surface.gridElevation(column, row + 1)};
+                List<Position2d> crossings = new java.util.ArrayList<>();
+                contourCrossing(crossings, points[0], heights[0], points[1], heights[1], elevation);
+                contourCrossing(crossings, points[1], heights[1], points[2], heights[2], elevation);
+                contourCrossing(crossings, points[2], heights[2], points[3], heights[3], elevation);
+                contourCrossing(crossings, points[3], heights[3], points[0], heights[0], elevation);
+                if (crossings.size() == 2) addContourSegment(segments, surface, crossings.get(0), crossings.get(1));
+                if (crossings.size() == 4) {
+                    addContourSegment(segments, surface, crossings.get(0), crossings.get(1));
+                    addContourSegment(segments, surface, crossings.get(2), crossings.get(3));
+                }
+            }
+            for (List<Position2d> line : stitchContours(segments)) {
+                if (line.size() >= 2) result.add(new GreenContourDto(elevation, line.stream().map(ApiMapper::point).toList()));
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private static void contourCrossing(List<Position2d> crossings, Position2d a, double heightA, Position2d b,
+                                        double heightB, double elevation) {
+        if ((heightA < elevation && heightB >= elevation) || (heightB < elevation && heightA >= elevation)) {
+            double fraction = (elevation - heightA) / (heightB - heightA);
+            crossings.add(new Position2d(a.x() + (b.x() - a.x()) * fraction, a.y() + (b.y() - a.y()) * fraction));
+        }
+    }
+
+    private static void addContourSegment(List<ContourSegment> segments, GreenSurface surface, Position2d a, Position2d b) {
+        if (surface.contains(a) && surface.contains(b)) segments.add(new ContourSegment(a, b));
+    }
+
+    private static List<List<Position2d>> stitchContours(List<ContourSegment> segments) {
+        List<ContourSegment> remaining = new java.util.ArrayList<>(segments);
+        List<List<Position2d>> lines = new java.util.ArrayList<>();
+        while (!remaining.isEmpty()) {
+            ContourSegment first = remaining.remove(remaining.size() - 1);
+            List<Position2d> line = new java.util.ArrayList<>(List.of(first.a(), first.b()));
+            boolean joined = true;
+            while (joined) {
+                joined = false;
+                for (int index = 0; index < remaining.size(); index++) {
+                    ContourSegment candidate = remaining.get(index);
+                    if (samePoint(line.get(line.size() - 1), candidate.a())) { line.add(candidate.b()); }
+                    else if (samePoint(line.get(line.size() - 1), candidate.b())) { line.add(candidate.a()); }
+                    else if (samePoint(line.get(0), candidate.b())) { line.add(0, candidate.a()); }
+                    else if (samePoint(line.get(0), candidate.a())) { line.add(0, candidate.b()); }
+                    else continue;
+                    remaining.remove(index);
+                    joined = true;
+                    break;
+                }
+            }
+            lines.add(List.copyOf(line));
+        }
+        return lines;
+    }
+
+    private static boolean samePoint(Position2d a, Position2d b) {
+        return a.distanceTo(b) < 1.0e-7;
+    }
+
+    private record ContourSegment(Position2d a, Position2d b) { }
 
     private static PlayingGeometryDto geometry(CourseGeometry geometry, Position2d cup) {
         return new PlayingGeometryDto(point(geometry.tee()), point(cup),
@@ -332,6 +454,11 @@ public final class ApiMapper {
         ShotFamily family = in.shotFamily() == null ? ShotFamily.FULL : ShotFamily.valueOf(in.shotFamily());
         ShotShape shape = in.shotShape() == null ? ShotShape.STRAIGHT : ShotShape.valueOf(in.shotShape());
         return new BallStrikeIntent(ClubId.valueOf(in.club()), new AimPoint(in.aimPoint().x(), in.aimPoint().y()), family, shape);
+    }
+
+    public static PhysicalPuttIntent physicalPuttIntent(PhysicalPuttIntentInput in) {
+        if (in == null || in.direction() == null) throw new IllegalArgumentException("physical putt direction is required");
+        return new PhysicalPuttIntent(new Position2d(in.direction().x(), in.direction().y()), in.intendedRollFeet());
     }
 
     public static CareerGoal careerGoal(CareerGoalInput in) {

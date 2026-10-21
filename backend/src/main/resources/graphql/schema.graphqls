@@ -131,6 +131,9 @@ type Mutation {
     "Explicitly adopts corrected V5 pin placement for future unstarted events at a clean event boundary."
     adoptV5PinPlacement(id: ID!): PinPlacementStatus!
 
+    "Explicitly chooses one unstarted event's putting policy; active and completed events cannot change."
+    setEventPuttingPolicy(id: ID!, tournamentId: Long!, policy: String!): Boolean!
+
     # --- Player control (add-graphql-mutations). Enum args use engine enum names. ---
 
     "Designates an existing golfer as the human-controlled player."
@@ -188,6 +191,9 @@ type Mutation {
 
     "Uses the existing dedicated, non-spatial putting model from green or fringe."
     playPutt(id: ID!, expectedShotRevision: String!): ShotSubmission!
+
+    "Plays a physical-policy green putt from a player-selected line and level-ground pace."
+    playPhysicalPutt(id: ID!, intent: PhysicalPuttIntentInput!): ShotSubmission!
 
     "Sims the current shot in the player's event; returns the resolved outcome."
     simShot(id: ID!): ShotOutcome!
@@ -254,6 +260,8 @@ type ScheduleEntry {
     location: String!
     "The host course's environment classification (e.g. PARKLAND, LINKS, DESERT) — drives scene imagery."
     courseType: String!
+    "The explicitly pinned putting policy for this event."
+    puttingPolicy: String!
 }
 
 "A compact, current-state set of personal career attention items."
@@ -284,6 +292,8 @@ type CalendarEntry {
     name: String!
     "The event's place — a major's hinting location, or the host course's region."
     location: String!
+    "The explicitly pinned putting policy for this event."
+    puttingPolicy: String!
     "Whether the event has been played (its result is available)."
     played: Boolean!
     "The event's result once played; null while it is upcoming."
@@ -685,6 +695,10 @@ type PlayingHole {
     ball: BallState!
     "Effective local wind flow after weather, exposure, and synthetic orientation conversion."
     effectiveWind: EffectiveWind!
+    "Policy pinned to this event; ordinary and historical events remain LEGACY."
+    puttingPolicy: String!
+    "Sparse elevation/gradient samples from the same GreenSurface used by physical resolution."
+    physicalGreen: PhysicalGreen
 }
 
 type Position {
@@ -830,7 +844,21 @@ type ShotOutcome {
     strokes: Int!
     settlement: ShotSettlement
     trace: ShotTrace
+    "Present only for a physical putt; every point is supplied by the authoritative solver."
+    physicalPutt: PhysicalPuttOutcome
 }
+
+type PhysicalPuttOutcome {
+    trajectory: [PhysicalPuttTrajectoryPoint!]!
+    finalPosition: Position!
+    holed: Boolean!
+    terminalCondition: String!
+}
+type PhysicalPuttTrajectoryPoint { timeSeconds: Float!, position: Position!, speedYardsPerSecond: Float! }
+
+type PhysicalGreen { slopeSamples: [GreenSlopeSample!]!, contours: [GreenContour!]! }
+type GreenSlopeSample { position: Position!, elevation: Float!, downhillX: Float!, downhillY: Float!, slope: Float! }
+type GreenContour { elevation: Float!, points: [Position!]! }
 
 input AimPointInput { x: Float!, y: Float! }
 input BallStrikeIntentInput {
@@ -840,6 +868,7 @@ input BallStrikeIntentInput {
     shotShape: String
     expectedShotRevision: String!
 }
+input PhysicalPuttIntentInput { direction: AimPointInput!, intendedRollFeet: Float!, expectedShotRevision: String! }
 
 "A self-chosen career goal. type is a GoalType enum name; target defaults to 1 (boolean-style goal) when omitted."
 input CareerGoalInput {
