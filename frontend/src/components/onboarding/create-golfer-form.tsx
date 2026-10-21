@@ -188,10 +188,6 @@ function CareerCreated({ golfer }: { golfer: CreatedGolfer }) {
         Their career begins on the Development tour. Guide the decisions — the rest is theirs to
         earn.
       </p>
-      <p className="text-subtle-foreground font-mono text-xs">
-        World generator {golfer.courseGeneratorVersion}
-        {golfer.courseGeneratorVersion === 8 ? " · Principled architecture test" : ""}
-      </p>
       <Button
         size="lg"
         onClick={() => {

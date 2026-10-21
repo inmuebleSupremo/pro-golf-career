@@ -50,7 +50,7 @@ public final class PrincipledArchitecturePreviewFixture {
         return "{\"label\":\"" + (experiment ? "Generator 8 principles-driven architecture" : "Retained Generator 7")
                 + "\",\"generatorVersion\":" + course.generatorVersion()
                 + ",\"provenance\":\"" + (experiment
-                ? "Registered Generator 8 output from the same coordinate; playable only through the explicit new-world opt-in."
+                ? "Registered Generator 8 output from the same coordinate; used by ordinary new careers."
                 : "Registered retained Generator 7 output from the same coordinate.") + "\",\"metrics\":"
                 + metrics(PreviewCourseMetrics.inspect(course)) + ",\"holes\":[" + String.join(",", holes) + "]}";
     }

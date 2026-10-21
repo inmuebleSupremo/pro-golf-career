@@ -116,24 +116,17 @@ public class WorldService {
     private final ConcurrentMap<String, Integer> staffReviewAcknowledgements = new ConcurrentHashMap<>();
     private final SaveGameStore saveStore;
     private final boolean refinedV5NewWorlds;
-    private final boolean principledArchitectureNewWorlds;
 
     public WorldService(SaveGameStore saveStore) {
-        this(saveStore, false, false);
+        this(saveStore, false);
     }
 
     /** Compatibility constructor used by the retained Generator 7 opt-in tests. */
-    WorldService(SaveGameStore saveStore, boolean refinedV5NewWorlds) {
-        this(saveStore, refinedV5NewWorlds, false);
-    }
-
     @Autowired
     public WorldService(SaveGameStore saveStore,
-                        @Value("${PROGOLF_REFINED_V5_NEW_WORLDS:false}") boolean refinedV5NewWorlds,
-                        @Value("${PROGOLF_PRINCIPLED_ARCHITECTURE_NEW_WORLDS:false}") boolean principledArchitectureNewWorlds) {
+                        @Value("${PROGOLF_REFINED_V5_NEW_WORLDS:false}") boolean refinedV5NewWorlds) {
         this.saveStore = saveStore;
         this.refinedV5NewWorlds = refinedV5NewWorlds;
-        this.principledArchitectureNewWorlds = principledArchitectureNewWorlds;
     }
 
     /** Creates a new, independent world session owned by {@code ownerId} from a master seed and returns it. */
@@ -143,8 +136,7 @@ public class WorldService {
 
     /** Creates a new owned session from a seed and an explicit world configuration. */
     public WorldSession create(String ownerId, long seed, WorldConfig config) {
-        int version = principledArchitectureNewWorlds ? CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION
-                : refinedV5NewWorlds ? CourseGenConstants.V5_REFINED_GENERATOR_VERSION
+        int version = refinedV5NewWorlds ? CourseGenConstants.V5_REFINED_GENERATOR_VERSION
                 : CourseGenConstants.CURRENT_GENERATOR_VERSION;
         return register(ownerId, seed, World.create(seed, config, version));
     }

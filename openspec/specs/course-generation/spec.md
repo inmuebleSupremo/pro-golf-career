@@ -187,13 +187,13 @@ manual acceptance.
 - **THEN** fairway, rough, boundary, green, recovery and hazards SHALL be backend-authored deterministic polygons
 - **AND THEN** legal pins, surface lookup and human/AI rules SHALL use those same polygons.
 
-### Requirement: Generator 8 principles-driven architecture preserves historical provenance
+### Requirement: Generator 8 is the default for new worlds and preserves historical provenance
 
-Generator 8 SHALL retain the accepted principles-driven routing and composition implementation as a separate deterministic generator version. Version 8 SHALL be available only for newly created worlds through an explicit development opt-in and SHALL NOT replace the configured normal default without separate approval. Restored worlds SHALL continue to use their persisted generator version; Generator 8 SHALL NOT reinterpret V1–V7 courses or saved careers.
+Generator 8 SHALL retain the accepted principles-driven routing and composition implementation as a separate deterministic generator version. A newly created world SHALL select Version 8 without a player-facing version choice, development opt-in, GraphQL flag, or configuration override. Its course pool SHALL retain Version 8 as saved provenance. Restored worlds SHALL continue to use their persisted generator version; Generator 8 SHALL NOT reinterpret V1–V7 courses or saved careers.
 
-#### Scenario: A new world explicitly opts into Generator 8
+#### Scenario: A new world selects Generator 8 by default
 
-- **WHEN** a newly created world requests the explicit Generator 8 development opt-in
+- **WHEN** a newly created world uses the ordinary creation path
 - **THEN** its course pool SHALL be generated through Generator 8 and retain version 8 as its saved provenance
 
 #### Scenario: A historical world is restored after Generator 8 exists
