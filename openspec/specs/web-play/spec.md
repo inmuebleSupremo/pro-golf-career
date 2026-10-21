@@ -133,12 +133,24 @@ For PITCH and CHIP, the UI SHALL identify AimPoint as landing target / intended 
 - **AND THEN** final position remains resolver-owned until the shot resolves.
 
 ### Requirement: Putting boundary remains explicit
-The UI SHALL preserve the existing green putting interaction through dedicated `playPutt` while allowing deliberate eligible fringe ball-strike choices. It SHALL not add spatial putt line, break, speed, or slope controls.
+The UI SHALL select the green putting interaction from the backend-authored event putting policy while allowing deliberate eligible fringe ball-strike choices. For `LEGACY`, it SHALL preserve dedicated `playPutt` with no spatial controls. For an eligible `PHYSICAL_V1` green lie, it SHALL present the dedicated overhead putting view with independently adjustable intended starting direction and pace, optional backend-derived green-reading overlays, and authoritative trajectory playback. It SHALL not calculate a physical outcome, cup capture, or final resting position in the browser.
 
 #### Scenario: Green does not show ball-strike family selector
 - **WHEN** current lie is GREEN
 - **THEN** the UI SHALL use the putting path
 - **AND THEN** it SHALL not present normal ball-strike family choices.
+
+#### Scenario: Legacy putting remains unchanged
+
+- **WHEN** the backend reports `LEGACY` putting policy
+- **THEN** the UI SHALL use the established `playPutt` interaction
+- **AND THEN** it SHALL not expose physical line, pace, or green-reading controls.
+
+#### Scenario: Physical playback does not reveal future state
+
+- **WHEN** a `PHYSICAL_V1` putt is animating
+- **THEN** the UI SHALL render only the already traversed authoritative trajectory
+- **AND THEN** it SHALL defer final resting state and hole-completion presentation until the relevant terminal sample is reached.
 
 ### Requirement: Human play selects only legal shot shape
 For a non-putting shot, the play surface SHALL offer server-derived legal shapes alongside existing club, technique, and literal landing-target selection. It SHALL not expose curvature magnitude, wind compensation, launch, height, spin, endpoint prediction, or execution randomness controls.

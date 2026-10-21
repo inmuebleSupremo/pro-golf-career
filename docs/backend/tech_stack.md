@@ -207,9 +207,8 @@ Backend:
 * JUnit
 * Spring Boot Test
 
-Frontend (as built): no unit-test runner is wired in yet. Quality gates are `pnpm typecheck` (tsc), `pnpm lint`
-(ESLint), and `pnpm format:check` (Prettier). Vitest + React Testing Library remain the intended choice when a
-runner is added.
+Frontend (as built): focused behaviour tests run with Vitest through `pnpm test`. Quality gates are also
+`pnpm typecheck` (tsc), `pnpm lint` (ESLint), and `pnpm format:check` (Prettier).
 
 ---
 

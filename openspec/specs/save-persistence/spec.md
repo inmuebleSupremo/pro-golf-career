@@ -125,6 +125,20 @@ Save persistence SHALL serialize the world's future pin-placement default and ea
 - **WHEN** a V5-adopted career is saved and loaded before one of its future scheduled events begins
 - **THEN** that event and schedules generated later SHALL retain V5 while historical events retain their recorded legacy policy
 
+### Requirement: Backward-Compatible Putting-Policy Provenance
+
+Save persistence SHALL serialize each scheduled/archived event's putting policy needed to reproduce its putting route. A compatible save lacking that field SHALL deserialize it as `LEGACY`, never the newest policy. An explicitly enabled `PHYSICAL_V1` event SHALL restore its recorded policy and regenerate its GreenSurface from existing deterministic event/course provenance rather than serializing a duplicate mutable height field or trajectory history.
+
+#### Scenario: Historical save retains legacy putting
+
+- **WHEN** a compatible save created before putting-policy provenance is loaded
+- **THEN** its events SHALL resolve as `LEGACY` and shall not silently adopt physical putting.
+
+#### Scenario: Physical event survives save/load
+
+- **WHEN** a save containing an explicit `PHYSICAL_V1` scheduled or archived event is restored
+- **THEN** that event SHALL retain `PHYSICAL_V1` and reconstruct the same supported physical-green inputs from provenance.
+
 ### Requirement: Handedness save compatibility
 Player handedness SHALL be persisted and restored with player identity. Snapshots created before handedness exists SHALL load deterministically as `RIGHT` without changing unrelated player, career, world, or pending-event state. Observable `ShotTrace` airborne paths remain immediate result data and SHALL NOT introduce trace-history or replay persistence.
 

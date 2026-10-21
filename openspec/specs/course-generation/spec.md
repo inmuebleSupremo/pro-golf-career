@@ -116,6 +116,20 @@ Course generation SHALL generate authoritative canonical geometry for every hole
 - **WHEN** two courses are generated from the same seed and generator version
 - **THEN** their canonical geometry and their existing hole dimensions SHALL be identical
 
+### Requirement: Deterministic Physical Green Surface
+
+When an event uses `PHYSICAL_V1` putting, the course domain SHALL derive `GreenSurface V1` from the active effective canonical GREEN footprint, recorded hole provenance, active cup/approach frame, and the supported surface version. That surface SHALL be the single authority for elevation and gradient queries used by physical putting. It SHALL not be replaced by a client-authored height field or a separately mutable presentation mesh.
+
+#### Scenario: Reconstructed physical green agrees with the solver
+
+- **WHEN** the same supported event provenance and active hole are reconstructed
+- **THEN** GreenSurface elevation and gradient queries, cup, and physical-putting inputs SHALL be identical
+
+#### Scenario: Legacy event has no implicit physical surface
+
+- **WHEN** an event retains `LEGACY` putting policy
+- **THEN** it SHALL not silently enable `PHYSICAL_V1` surface resolution or change legacy putting outcomes
+
 ### Requirement: Canonical Geometry Migration Compatibility
 
 The course domain SHALL retain a compatibility path for existing `GeneratedHole` consumers and legacy zone-profile fixtures until generated production play has migrated to canonical terrain. New production terrain SHALL not be added exclusively through boolean hazard flags or `HoleZones` after canonical geometry is available.
