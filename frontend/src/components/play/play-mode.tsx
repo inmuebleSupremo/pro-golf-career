@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronUp, Eye, EyeOff, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useForegroundOperation } from "@/components/loading/foreground-loading-provider";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -278,6 +279,7 @@ function ActionDock({
   const play = usePlayShot(id);
   const putt = usePlayPutt(id);
   const physicalPutt = usePlayPhysicalPutt(id);
+  const foreground = useForegroundOperation();
   const [requestedSelection, setRequestedSelection] = useState(() => validShotSelection(situation));
   const [formError, setFormError] = useState<string | null>(null);
   const clubs = situation.guidance?.clubs ?? [];
@@ -414,8 +416,8 @@ function ActionDock({
           ) : null}
         </div>
 
-        <SimMenu id={id} onShot={onShot} onSimJump={onSimJump} disabled={locked} />
-        <Button size="lg" onClick={onPlay} disabled={play.isPending || putt.isPending || physicalPutt.isPending || locked}>
+        <SimMenu id={id} onShot={onShot} onSimJump={onSimJump} onError={setFormError} disabled={locked || foreground.hasPendingForegroundOperation} />
+        <Button size="lg" onClick={onPlay} disabled={play.isPending || putt.isPending || physicalPutt.isPending || foreground.hasPendingForegroundOperation || locked}>
           {play.isPending || putt.isPending || physicalPutt.isPending ? "Playing…" : physicalRoute ? "Roll putt" : puttRoute ? "Putt" : "Play shot"}
         </Button>
       </div>
@@ -463,27 +465,45 @@ function SimMenu({
   id,
   onShot,
   onSimJump,
+  onError,
   disabled,
 }: {
   id: string;
   onShot: (outcome: Outcome) => void;
   onSimJump: () => void;
+  onError: (message: string) => void;
   disabled?: boolean;
 }) {
   const simShot = useSimShot(id);
   const simHole = useSimHole(id);
   const simRound = useSimRound(id);
   const simEvent = useSimEvent(id);
-  const busy = simShot.isPending || simHole.isPending || simRound.isPending || simEvent.isPending || (disabled ?? false);
+  const foreground = useForegroundOperation();
+  const busy = simShot.isPending || simHole.isPending || simRound.isPending || simEvent.isPending || foreground.isPending || (disabled ?? false);
   const [open, setOpen] = useState(false);
+
+  async function simulate<T>(
+    label: string,
+    presentation: "immediate" | "none",
+    work: () => Promise<T>,
+    onSuccess: (result: T) => void,
+  ) {
+    onError("");
+    try {
+      const result = await foreground.run({ label, presentation }, work);
+      if (result !== undefined) onSuccess(result);
+    } catch {
+      onError("The simulation couldn't be completed. Your career state is unchanged; please try again.");
+    }
+  }
 
   // A single simmed shot plays back like a manual one; simming a hole/round/event jumps past whole holes, so it
   // skips the between-hole ceremony and greets the landed hole with its intro.
   const items: { label: string; run: () => void }[] = [
-    { label: "Sim this shot", run: () => simShot.mutateAsync().then((r) => onShot(r.simShot)).catch(() => {}) },
-    { label: "Sim to end of hole", run: () => simHole.mutateAsync().then(onSimJump).catch(() => {}) },
-    { label: "Sim to end of round", run: () => simRound.mutateAsync().then(onSimJump).catch(() => {}) },
-    { label: "Sim to end of event", run: () => simEvent.mutateAsync().then(onSimJump).catch(() => {}) },
+    { label: "Sim this shot", run: () => void simulate("Simulating shot", "none", () => simShot.mutateAsync(), (result) => onShot(result.simShot)) },
+    { label: "Sim to end of hole", run: () => void simulate("Simulating hole", "none", () => simHole.mutateAsync(), onSimJump) },
+    { label: "Sim to end of round", run: () => void simulate("Simulating round", "immediate", () => simRound.mutateAsync(), onSimJump) },
+    { label: "Sim to end of event", run: () => void simulate("Simulating event", "immediate", () => simEvent.mutateAsync(), onSimJump) },
   ];
 
   return (

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ArrowRight, Check, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useForegroundOperation } from "@/components/loading/foreground-loading-provider";
 import { useCareerOverview, usePlayerProfile } from "@/lib/api/queries";
 import { useAdvanceSeason, useAdvanceWeek, useCompleteEvent } from "@/lib/api/play";
 import { formatMoney, ordinalPosition, tourTierLabel } from "@/lib/career/labels";
@@ -102,6 +103,8 @@ function NextAction({
   const router = useRouter();
   const advance = useAdvanceWeek(id);
   const complete = useCompleteEvent(id);
+  const foreground = useForegroundOperation();
+  const [actionError, setActionError] = useState<string | null>(null);
   const seasonBefore = useCareerOverview(id).data?.world?.season ?? null;
 
   // The pending event has been played to its end (the completion screen): the primary action is to finish
@@ -109,19 +112,28 @@ function NextAction({
   // to re-open a finished event. Crossing the season boundary lands on the off-season review (see play-event).
   if (hasPendingEvent && pendingEventFinished) {
     async function onFinish() {
-      const result = await complete.mutateAsync();
-      if (seasonBefore != null && result.completeEvent.season > seasonBefore) {
-        router.push(`/career/${id}/offseason`);
-      } else {
-        router.push(`/career/${id}`);
+      setActionError(null);
+      try {
+        const result = await foreground.run({ label: "Finalizing tournament", presentation: "immediate" }, () => complete.mutateAsync());
+        if (!result) return;
+        if (seasonBefore != null && result.completeEvent.season > seasonBefore) {
+          router.push(`/career/${id}/offseason`);
+        } else {
+          router.push(`/career/${id}`);
+        }
+        router.refresh();
+      } catch {
+        setActionError("The event couldn't be finalized. Please try again.");
       }
-      router.refresh();
     }
     return (
-      <Button onClick={onFinish} disabled={complete.isPending}>
-        <Check className="size-4" aria-hidden="true" />
-        {complete.isPending ? "Finishing…" : "Finish event"}
-      </Button>
+      <div className="flex items-center gap-2">
+        {actionError ? <p role="alert" className="text-destructive text-sm">{actionError}</p> : null}
+        <Button onClick={onFinish} disabled={complete.isPending || foreground.isPending}>
+          <Check className="size-4" aria-hidden="true" />
+          {complete.isPending || foreground.isPending ? "Finishing…" : "Finish event"}
+        </Button>
+      </div>
     );
   }
 
@@ -137,21 +149,28 @@ function NextAction({
   }
 
   async function onAdvance() {
-    const result = await advance.mutateAsync();
-    // Crossing the season boundary is the off-season moment — the review takes priority over any
-    // week-1 event pending in the new season (that event is still there once they begin the season).
-    if (seasonBefore != null && result.advanceWeek.season > seasonBefore) {
-      router.push(`/career/${id}/offseason`);
-      return;
+    setActionError(null);
+    try {
+      const result = await foreground.run({ label: "Advancing week", presentation: "delayed" }, () => advance.mutateAsync());
+      if (!result) return;
+      // Crossing the season boundary is the off-season moment — the review takes priority over any
+      // week-1 event pending in the new season (that event is still there once they begin the season).
+      if (seasonBefore != null && result.advanceWeek.season > seasonBefore) {
+        router.push(`/career/${id}/offseason`);
+        return;
+      }
+      if (result.advanceWeek.hasPendingEvent) router.push(`/career/${id}/play`);
+    } catch {
+      setActionError("The week couldn't be advanced. Please try again.");
     }
-    if (result.advanceWeek.hasPendingEvent) router.push(`/career/${id}/play`);
   }
 
   return (
     <>
       <SimSeasonControl id={id} />
-      <Button variant="secondary" onClick={onAdvance} disabled={advance.isPending}>
-        {advance.isPending ? "Advancing…" : "Advance week"}
+      {actionError ? <p role="alert" className="text-destructive text-sm">{actionError}</p> : null}
+      <Button variant="secondary" onClick={onAdvance} disabled={advance.isPending || foreground.hasPendingForegroundOperation}>
+        {advance.isPending || foreground.isPending ? "Advancing…" : "Advance week"}
         <ArrowRight className="size-4" aria-hidden="true" />
       </Button>
     </>
@@ -166,36 +185,43 @@ function NextAction({
 function SimSeasonControl({ id }: { id: string }) {
   const router = useRouter();
   const advanceSeason = useAdvanceSeason(id);
+  const foreground = useForegroundOperation();
   const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Simming the season always crosses the boundary, so it lands on the off-season review.
-  function onConfirm() {
-    advanceSeason.mutate(undefined, {
-      onSuccess: () => router.push(`/career/${id}/offseason`),
-    });
+  async function onConfirm() {
+    setError(null);
+    try {
+      const result = await foreground.run({ label: "Simulating season", presentation: "immediate" }, () => advanceSeason.mutateAsync());
+      if (result) router.push(`/career/${id}/offseason`);
+    } catch {
+      setError("The season simulation couldn't be completed. Please try again.");
+    }
   }
 
   if (!confirming) {
     return (
-      <Button variant="ghost" onClick={() => setConfirming(true)}>
+      <Button variant="ghost" onClick={() => setConfirming(true)} disabled={foreground.hasPendingForegroundOperation}>
         Sim season
       </Button>
     );
   }
 
   return (
-    <span className="flex items-center gap-1.5">
+    <span className="flex flex-wrap items-center gap-1.5">
       <span className="text-muted-foreground hidden text-sm sm:inline">Sim remaining events?</span>
       <Button
         variant="secondary"
         onClick={onConfirm}
-        disabled={advanceSeason.isPending}
+        disabled={advanceSeason.isPending || foreground.isPending}
       >
-        {advanceSeason.isPending ? "Simming…" : "Confirm"}
+        {advanceSeason.isPending || foreground.isPending ? "Simming…" : "Confirm"}
       </Button>
-      <Button variant="ghost" onClick={() => setConfirming(false)} disabled={advanceSeason.isPending}>
+      <Button variant="ghost" onClick={() => setConfirming(false)} disabled={advanceSeason.isPending || foreground.isPending}>
         Cancel
       </Button>
+      {error ? <span role="alert" className="text-destructive text-sm">{error}</span> : null}
     </span>
   );
 }

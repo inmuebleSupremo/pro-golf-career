@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useForegroundOperation } from "@/components/loading/foreground-loading-provider";
 import { applySceneFallback, sceneBackdrop, type SceneBackdrop } from "@/lib/play/scene";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
 import { PlayMode } from "@/components/play/play-mode";
@@ -130,20 +131,29 @@ function EventComplete({
 }) {
   const router = useRouter();
   const complete = useCompleteEvent(id);
+  const foreground = useForegroundOperation();
+  const [finishError, setFinishError] = useState<string | null>(null);
   const playerRow = playerGolferId ? leaderboard.find((r) => r.golfer.id === playerGolferId) : null;
+  const finishing = complete.isPending || foreground.isPending;
 
   async function onFinish() {
-    const result = await complete.mutateAsync();
+    setFinishError(null);
+    try {
+      const result = await foreground.run({ label: "Finalizing tournament", presentation: "immediate" }, () => complete.mutateAsync());
+      if (!result) return;
     // Finishing the last event of the calendar year resumes the week across the season boundary — that
     // crossing is the off-season moment, so it takes priority over the hub (and over any week-1 event,
     // which is still pending once they begin the new season), mirroring the "advance week" flow.
-    if (result.completeEvent.season > season) {
-      router.push(`/career/${id}/offseason`);
+      if (result.completeEvent.season > season) {
+        router.push(`/career/${id}/offseason`);
+        router.refresh();
+        return;
+      }
+      router.push(`/career/${id}`);
       router.refresh();
-      return;
+    } catch {
+      setFinishError("The event couldn't be finalized. Please try again.");
     }
-    router.push(`/career/${id}`);
-    router.refresh();
   }
 
   return (
@@ -169,6 +179,11 @@ function EventComplete({
         <div className="flex items-center justify-between gap-3">
           <Link
             href={`/career/${id}`}
+            aria-disabled={finishing}
+            tabIndex={finishing ? -1 : undefined}
+            onClick={(event) => {
+              if (finishing) event.preventDefault();
+            }}
             className="text-foreground/80 hover:text-foreground inline-flex items-center gap-1.5 text-sm transition-colors"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
@@ -201,8 +216,9 @@ function EventComplete({
             </div>
           </div>
 
-          <Button size="lg" onClick={onFinish} disabled={complete.isPending}>
-            {complete.isPending ? "Finishing…" : "Finish event"}
+          {finishError ? <p role="alert" className="text-destructive text-sm">{finishError}</p> : null}
+          <Button size="lg" onClick={onFinish} disabled={finishing}>
+            {finishing ? "Finishing…" : "Finish event"}
           </Button>
         </div>
       </div>
