@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import { ForegroundLoadingProvider } from "@/components/loading/foreground-loading-provider";
+
 /*
  * App-wide client providers. The QueryClient is created once per browser session
  * (via useState) so it survives re-renders. Authenticated data is fetched through
@@ -30,5 +32,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }),
   );
 
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ForegroundLoadingProvider>{children}</ForegroundLoadingProvider>
+    </QueryClientProvider>
+  );
 }

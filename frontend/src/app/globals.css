@@ -244,6 +244,22 @@ body {
   }
 }
 
+/* Shared foreground loading: a route trace advances one way across quiet course contours. */
+.foreground-route-trace {
+  stroke-dasharray: 42 180;
+  animation: foreground-route-trace 3.8s var(--ease-out) infinite;
+}
+.foreground-route-trace-static { opacity: 0.85; }
+@keyframes foreground-route-trace {
+  0% { stroke-dashoffset: 222; opacity: 0; }
+  12% { opacity: 0.9; }
+  78% { opacity: 0.9; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .foreground-route-trace { animation: none; opacity: 0.85; }
+}
+
 /*
  * Command Centre (v2) — the dark, broadcast-grade shell for the career surface.
  * Scoped to a wrapper so the redesign lands on the career pages first without
@@ -350,6 +366,23 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .gold-shine::after { display: none; }
+}
+
+/* The loader inherits the command-centre palette but keeps the current screen perceptible beneath it. */
+.foreground-loading-scrim {
+  position: fixed;
+  background: transparent;
+}
+.foreground-loading-scrim::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--background);
+  opacity: var(--opacity-loading);
+}
+.foreground-loading-scrim > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Command-centre card entrance — one restrained, staggered rise on load. */
