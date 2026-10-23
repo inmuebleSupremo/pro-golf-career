@@ -13,6 +13,33 @@ export const MIN_START_AGE = 16;
 export const MAX_START_AGE = 22;
 export const DEFAULT_START_AGE = 21;
 
+/** Creation-only ability levels; Playing Style continues to shape the golfer's attributes and potential. */
+export const STARTING_BACKGROUNDS = [
+  {
+    value: "CLUB_CHAMPION",
+    label: "Club Champion",
+    description: "A challenging climb from a local standout into professional competition.",
+  },
+  {
+    value: "ELITE_AMATEUR",
+    label: "Elite Amateur",
+    description: "The standard journey: strong foundations and room to grow.",
+  },
+  {
+    value: "HIGHLY_RATED_PROSPECT",
+    label: "Highly Rated Prospect",
+    description: "A stronger start with a chance to compete sooner.",
+  },
+] as const;
+
+const BACKGROUND_LABELS = new Map(
+  STARTING_BACKGROUNDS.map((option) => [option.value, option.label]),
+);
+
+export function backgroundLabel(value: string): string {
+  return BACKGROUND_LABELS.get(value as (typeof STARTING_BACKGROUNDS)[number]["value"]) ?? value;
+}
+
 export interface NationalityOption {
   /** Engine `Nationality` enum name (submitted as-is). */
   value: string;

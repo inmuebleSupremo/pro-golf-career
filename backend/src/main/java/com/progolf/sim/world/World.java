@@ -76,6 +76,8 @@ import com.progolf.sim.play.PlayerRoundRecord;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.population.GolferFactory;
+import com.progolf.sim.population.StartingBackground;
+import com.progolf.sim.progression.ManualDevelopment;
 import com.progolf.sim.population.PopulationGenerator;
 import com.progolf.sim.population.StrategyDisposition;
 import com.progolf.sim.progression.ProgressionConstants;
@@ -1560,16 +1562,24 @@ public final class World {
      */
     public String createPlayer(String firstName, String lastName, Nationality nationality, int startAge,
                                Archetype archetype) {
-        return createPlayer(firstName, lastName, nationality, startAge, archetype, com.progolf.sim.core.Handedness.RIGHT);
+        return createPlayer(firstName, lastName, nationality, startAge, archetype,
+                com.progolf.sim.core.Handedness.RIGHT, StartingBackground.ELITE_AMATEUR);
     }
     public String createPlayer(String firstName, String lastName, Nationality nationality, int startAge,
                                Archetype archetype, com.progolf.sim.core.Handedness handedness) {
+        return createPlayer(firstName, lastName, nationality, startAge, archetype,
+                handedness, StartingBackground.ELITE_AMATEUR);
+    }
+
+    public String createPlayer(String firstName, String lastName, Nationality nationality, int startAge,
+                               Archetype archetype, com.progolf.sim.core.Handedness handedness,
+                               StartingBackground background) {
         if (playerControl != null) {
             throw new IllegalStateException("A player has already been assigned to this world");
         }
         String id = "player-" + Long.toUnsignedString(masterSeed, 16);
         ProfessionalGolfer golfer = GolferFactory.createHuman(id, firstName, lastName, nationality, startAge,
-                archetype, WorldConstants.BASE_YEAR, handedness);
+                archetype, WorldConstants.BASE_YEAR, handedness, background);
         admit(golfer, TourTier.DEVELOPMENT);
         assignPlayer(id);
         return id;
@@ -1595,17 +1605,28 @@ public final class World {
         return playerControl == null ? 0 : playerControl.developmentPoints();
     }
 
+    /** Current-season purchase availability for the player, shared by spending, reads, and Inbox. */
+    public List<ManualDevelopment.PurchaseOption> playerDevelopmentOptions() {
+        if (playerControl == null) {
+            return List.of();
+        }
+        var player = golfers.get(playerControl.golferId()).player();
+        return ManualDevelopment.options(player.attributes(), player.potential(), playerControl.developmentPoints(),
+                player.attributeChanges(), calendar.currentSeason());
+    }
+
     /**
      * Spends banked Development Points to raise the player's attributes (spec: player-development): each raise
-     * is clamped to its potential ceiling and priced on the cost curve, and an unaffordable request is
-     * rejected before anything changes. The gains record as DEVELOPMENT changes for the report.
+     * is potential- and season-bounded, then priced on the cost curve. An invalid request is rejected before
+     * anything changes. The gains record as DEVELOPMENT changes for the report and future allowance checks.
      */
     public void spendDevelopmentPoints(Map<Attribute, Integer> raises) {
         requirePlayer();
         ProfessionalGolfer golfer = golfers.get(playerControl.golferId());
         Attributes current = golfer.player().attributes();
         Attributes potential = golfer.player().potential();
-        int cost = ProgressionEngine.costOf(current, potential, raises);
+        int cost = ManualDevelopment.costOfPurchase(raises, playerDevelopmentOptions(),
+                playerControl.developmentPoints());
         playerControl.spendDevelopmentPoints(cost); // validates affordability first (throws if too few)
         Attributes developed = ProgressionEngine.applyRaises(current, potential, raises);
         golfer.player().evolveAttributes(developed, AttributeChange.Reason.DEVELOPMENT, calendar.currentSeason());

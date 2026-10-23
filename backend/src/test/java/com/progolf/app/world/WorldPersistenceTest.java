@@ -9,6 +9,7 @@ import com.progolf.sim.core.Attribute;
 import com.progolf.sim.world.WorldConfig;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -39,6 +40,28 @@ class WorldPersistenceTest {
         assertThat(loaded.world().snapshot()).isEqualTo(original.world().snapshot());
 
         // And it continues identically.
+        service.advanceSeason(OWNER, original.id());
+        service.advanceSeason(OWNER, loaded.id());
+        assertThat(loaded.world().snapshot()).isEqualTo(original.world().snapshot());
+    }
+
+    @Test
+    void developmentAllowanceAndBankSurviveDiskReloadAndContinueDeterministically() {
+        WorldSession original = service.create(OWNER, 124L, SMALL);
+        service.createPlayer(OWNER, original.id(), "Dev", "Saver", com.progolf.sim.player.Nationality.USA,
+                18, com.progolf.sim.player.Archetype.ALL_ROUNDER);
+        service.advanceSeason(OWNER, original.id());
+        service.spendDevelopmentPoints(OWNER, original.id(), Map.of(Attribute.PUTTING_ACCURACY, 3));
+        int bank = original.world().playerDevelopmentPoints();
+        service.save(OWNER, original.id(), "development-slot");
+
+        WorldSession loaded = service.load(OWNER, "development-slot");
+        assertThat(loaded.world().snapshot()).isEqualTo(original.world().snapshot());
+        assertThat(loaded.world().playerDevelopmentPoints()).isEqualTo(bank);
+        assertThat(loaded.world().playerDevelopmentOptions()).isEqualTo(original.world().playerDevelopmentOptions());
+        service.spendDevelopmentPoints(OWNER, original.id(), Map.of(Attribute.PUTTING_ACCURACY, 3));
+        service.spendDevelopmentPoints(OWNER, loaded.id(), Map.of(Attribute.PUTTING_ACCURACY, 3));
+        assertThat(loaded.world().snapshot()).isEqualTo(original.world().snapshot());
         service.advanceSeason(OWNER, original.id());
         service.advanceSeason(OWNER, loaded.id());
         assertThat(loaded.world().snapshot()).isEqualTo(original.world().snapshot());

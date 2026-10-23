@@ -43,6 +43,7 @@ export const CreatePlayerDocument = graphql(`
     $startAge: Int!
     $archetype: String!
     $handedness: String
+    $background: String
   ) {
     createPlayer(
       id: $id
@@ -52,6 +53,7 @@ export const CreatePlayerDocument = graphql(`
       startAge: $startAge
       archetype: $archetype
       handedness: $handedness
+      background: $background
     )
   }
 `);
@@ -312,6 +314,15 @@ export const PlayerDevelopmentDocument = graphql(`
       pointsPerRating
       costGrowth
       costReference
+      options {
+        attribute
+        rating
+        potentialHeadroom
+        nextCost
+        remainingSeasonal
+        purchasable
+        blockingReason
+      }
     }
   }
 `);

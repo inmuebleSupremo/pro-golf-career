@@ -43,7 +43,7 @@ type Query {
     "The player's attribute gains from their most recently developed season (the end-of-season report)."
     developmentReport(id: ID!): [DevelopmentDelta!]!
 
-    "The player's banked Development Points and the cost-curve constants (for previewing spend costs)."
+    "The player's banked Development Points, cost curve, and backend-authoritative purchase availability."
     playerDevelopment(id: ID!): PlayerDevelopment!
 
     "The world's Hall-of-Fame inductions so far."
@@ -140,12 +140,12 @@ type Mutation {
     assignPlayer(id: ID!, golferId: ID!): Boolean!
 
     "Creates a custom human golfer (nationality/archetype as enum names) as the session's player; returns its id."
-    createPlayer(id: ID!, firstName: String!, lastName: String!, nationality: String!, startAge: Int!, archetype: String!, handedness: String): ID!
+    createPlayer(id: ID!, firstName: String!, lastName: String!, nationality: String!, startAge: Int!, archetype: String!, handedness: String, background: String): ID!
 
     "Sets the player's development focus (an ordered list of Attribute enum names)."
     setDevelopmentFocus(id: ID!, focus: [String!]!): Boolean!
 
-    "Spends banked Development Points to raise attributes; returns the new balance. Rejects an unaffordable request."
+    "Spends banked Development Points to raise attributes; returns the new balance. Rejects an unaffordable request or one beyond potential or the seasonal purchase limit."
     spendDevelopmentPoints(id: ID!, raises: [AttributeRaiseInput!]!): Int!
 
     "Sets whether the player's golfer is resting (a blanket sit-out)."
@@ -457,6 +457,19 @@ type PlayerDevelopment {
     pointsPerRating: Float!
     costGrowth: Float!
     costReference: Int!
+    "Current backend-authoritative purchase availability for each attribute."
+    options: [AttributePurchaseOption!]!
+}
+
+type AttributePurchaseOption {
+    attribute: String!
+    rating: Int!
+    potentialHeadroom: Int!
+    nextCost: Int
+    remainingSeasonal: Int!
+    purchasable: Boolean!
+    "NONE, AT_POTENTIAL, SEASON_LIMIT, or INSUFFICIENT_POINTS."
+    blockingReason: String!
 }
 
 input AttributeRaiseInput {

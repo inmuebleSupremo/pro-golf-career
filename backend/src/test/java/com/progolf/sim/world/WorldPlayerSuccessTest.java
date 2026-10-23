@@ -31,6 +31,9 @@ class WorldPlayerSuccessTest {
         Attributes potential = world.careerOf(id).player().potential();
         Map<Attribute, Integer> live = new EnumMap<>(Attribute.class);
         Map<Attribute, Integer> raises = new EnumMap<>(Attribute.class);
+        Map<Attribute, Integer> allowance = new EnumMap<>(Attribute.class);
+        world.playerDevelopmentOptions().forEach(option ->
+                allowance.put(option.attribute(), option.remainingSeasonal()));
         for (Attribute a : Attribute.values()) {
             live.put(a, attrs.get(a));
         }
@@ -38,7 +41,8 @@ class WorldPlayerSuccessTest {
             Attribute cheapest = null;
             int cheapestCost = Integer.MAX_VALUE;
             for (Attribute a : Attribute.values()) {
-                if (live.get(a) >= potential.get(a)) {
+                if (live.get(a) >= potential.get(a)
+                        || raises.getOrDefault(a, 0) >= allowance.get(a)) {
                     continue;
                 }
                 int cost = DevelopmentPoints.costToRaise(live.get(a));

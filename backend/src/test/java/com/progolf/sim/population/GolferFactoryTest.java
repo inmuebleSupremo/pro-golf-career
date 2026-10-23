@@ -7,6 +7,8 @@ import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.ControlType;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.player.ProfessionalGolfer;
+import com.progolf.sim.progression.Maturity;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /** golfer-creation spec: an archetype-shaped, human-controlled created golfer, deterministic from inputs. */
@@ -85,5 +87,43 @@ class GolferFactoryTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(
                 () -> GolferFactory.createHuman("p", "A", "B", Nationality.USA, 12, Archetype.ALL_ROUNDER, 2000))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void backgroundsSetDistinctOpeningLevelsWithoutChangingStyleOrPotential() {
+        List<Archetype> styles = List.of(Archetype.POWER_HITTER, Archetype.PRECISION_PLAYER,
+                Archetype.SHORT_GAME_ARTIST, Archetype.ALL_ROUNDER, Archetype.MENTAL_FORTRESS);
+        for (int age = 16; age <= 22; age++) {
+            for (Archetype style : styles) {
+                var standard = GolferFactory.createHuman("p", "A", "B", Nationality.USA, age, style, 2026);
+                var previous = Maturity.abilityAt(standard.player().potential(), age);
+                for (StartingBackground background : StartingBackground.values()) {
+                    var golfer = GolferFactory.createHuman("p", "A", "B", Nationality.USA, age, style, 2026,
+                            com.progolf.sim.core.Handedness.RIGHT, background);
+                    assertThat(golfer.player().potential()).isEqualTo(standard.player().potential());
+                    for (Attribute attribute : Attribute.values()) {
+                        int expected = Math.max(0, Math.min(standard.player().potential().get(attribute),
+                                previous.get(attribute) + background.initialRatingOffset()));
+                        assertThat(golfer.player().attributes().get(attribute))
+                                .as("%s %s age %s", background, style, age).isEqualTo(expected);
+                    }
+                }
+                assertThat(standard.player().attributes()).isEqualTo(previous);
+            }
+        }
+    }
+
+    @Test
+    void age18AllRounderHitsProvisionalLevelsAndCreationIsDeterministic() {
+        int[] expected = {60, 63, 69};
+        int i = 0;
+        for (StartingBackground background : StartingBackground.values()) {
+            var first = GolferFactory.createHuman("p", "A", "B", Nationality.USA, 18,
+                    Archetype.ALL_ROUNDER, 2026, com.progolf.sim.core.Handedness.RIGHT, background);
+            var second = GolferFactory.createHuman("p", "A", "B", Nationality.USA, 18,
+                    Archetype.ALL_ROUNDER, 2026, com.progolf.sim.core.Handedness.RIGHT, background);
+            assertThat(first.player().attributes()).isEqualTo(second.player().attributes());
+            assertThat(first.player().attributes().get(Attribute.DRIVING_DISTANCE)).isEqualTo(expected[i++]);
+        }
     }
 }
