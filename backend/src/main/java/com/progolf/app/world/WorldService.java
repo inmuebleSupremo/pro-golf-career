@@ -1,6 +1,7 @@
 package com.progolf.app.world;
 
 import com.progolf.app.api.dto.AttributeValueDto;
+import com.progolf.app.api.dto.AttributePurchaseOptionDto;
 import com.progolf.sim.achievement.Achievement;
 import com.progolf.app.api.dto.CalendarEntryDto;
 import com.progolf.app.api.dto.CareerInboxDto;
@@ -56,7 +57,7 @@ import com.progolf.sim.play.ShotSituation;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Identity;
 import com.progolf.sim.player.Nationality;
-import com.progolf.sim.progression.DevelopmentPoints;
+import com.progolf.sim.population.StartingBackground;
 import com.progolf.sim.progression.ProgressionConstants;
 import com.progolf.sim.ranking.RankingSnapshot;
 import com.progolf.sim.ranking.RankingStanding;
@@ -253,7 +254,15 @@ public class WorldService {
     public String createPlayer(String ownerId, String sessionId, String firstName, String lastName,
                                Nationality nationality, int startAge, Archetype archetype,
                                com.progolf.sim.core.Handedness handedness) {
-        return required(ownerId, sessionId).world().createPlayer(firstName, lastName, nationality, startAge, archetype, handedness);
+        return createPlayer(ownerId, sessionId, firstName, lastName, nationality, startAge, archetype,
+                handedness, StartingBackground.ELITE_AMATEUR);
+    }
+
+    public String createPlayer(String ownerId, String sessionId, String firstName, String lastName,
+                               Nationality nationality, int startAge, Archetype archetype,
+                               com.progolf.sim.core.Handedness handedness, StartingBackground background) {
+        return required(ownerId, sessionId).world().createPlayer(firstName, lastName, nationality, startAge,
+                archetype, handedness, background);
     }
 
     /** Sets the player's development focus (attribute priority) in a session. */
@@ -330,7 +339,7 @@ public class WorldService {
         }
 
         int developmentPoints = world.playerDevelopmentPoints();
-        if (hasAllocatableDevelopment(world, playerId, developmentPoints)) {
+        if (world.playerDevelopmentOptions().stream().anyMatch(option -> option.purchasable())) {
             items.add(new CareerInboxItemDto(CareerInboxKind.DEVELOPMENT, developmentPoints));
         }
 
@@ -356,23 +365,6 @@ public class WorldService {
         }
 
         return new CareerInboxDto(items);
-    }
-
-    /** Returns whether the player can make at least one valid Development decision with their banked points. */
-    private static boolean hasAllocatableDevelopment(World world, String playerId, int points) {
-        if (points <= 0) {
-            return false;
-        }
-        Career career = world.careerOf(playerId);
-        Attributes attributes = career.player().attributes();
-        Attributes potential = career.player().potential();
-        for (Attribute attribute : Attribute.values()) {
-            if (attributes.get(attribute) < potential.get(attribute)
-                    && points >= DevelopmentPoints.costToRaise(attributes.get(attribute))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -777,9 +769,15 @@ public class WorldService {
 
     /** The player's banked Development Points plus the cost-curve constants for client-side previews. */
     public PlayerDevelopmentDto playerDevelopment(String ownerId, String sessionId) {
-        int points = required(ownerId, sessionId).world().playerDevelopmentPoints();
+        World world = required(ownerId, sessionId).world();
+        int points = world.playerDevelopmentPoints();
+        var options = world.playerDevelopmentOptions().stream()
+                .map(option -> new AttributePurchaseOptionDto(option.attribute().name(), option.rating(),
+                        option.potentialHeadroom(), option.nextCost(), option.remainingSeasonal(),
+                        option.purchasable(), option.blockingReason().name()))
+                .toList();
         return new PlayerDevelopmentDto(points, ProgressionConstants.POINTS_PER_RATING,
-                ProgressionConstants.COST_GROWTH, ProgressionConstants.COST_REFERENCE);
+                ProgressionConstants.COST_GROWTH, ProgressionConstants.COST_REFERENCE, options);
     }
 
     /** Spends banked Development Points to raise the player's attributes; returns the new balance. */

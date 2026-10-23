@@ -402,6 +402,51 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void backgroundInputDefaultsForOlderClientsAndDevelopmentReadMatchesPurchaseRule() {
+        WorldSession standard = worldService.create(OWNER, 560L, SMALL);
+        WorldSession prospect = worldService.create(OWNER, 561L, SMALL);
+        String mutation = """
+                mutation($id: ID!, $background: String) {
+                  createPlayer(id: $id, firstName: "Ada", lastName: "Rookie",
+                    nationality: "USA", startAge: 18, archetype: "ALL_ROUNDER",
+                    background: $background)
+                }
+                """;
+        graphQlTester.document(mutation).variable("id", standard.id()).execute()
+                .path("createPlayer").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank);
+        graphQlTester.document(mutation).variable("id", prospect.id())
+                .variable("background", "HIGHLY_RATED_PROSPECT").execute()
+                .path("createPlayer").entity(String.class).satisfies(WorldGraphQlApiTest::assertNonBlank);
+
+        var standardPlayer = standard.world().careerOf(standard.world().playerGolferId().orElseThrow()).player();
+        var prospectPlayer = prospect.world().careerOf(prospect.world().playerGolferId().orElseThrow()).player();
+        org.assertj.core.api.Assertions.assertThat(standardPlayer.attributes().get(Attribute.DRIVING_DISTANCE))
+                .isEqualTo(63);
+        org.assertj.core.api.Assertions.assertThat(prospectPlayer.attributes().get(Attribute.DRIVING_DISTANCE))
+                .isEqualTo(69);
+        org.assertj.core.api.Assertions.assertThat(prospectPlayer.potential()).isEqualTo(standardPlayer.potential());
+
+        worldService.advanceSeason(OWNER, standard.id());
+        var expected = standard.world().playerDevelopmentOptions().stream()
+                .filter(o -> o.attribute() == Attribute.PUTTING_ACCURACY).findFirst().orElseThrow();
+        graphQlTester.document("""
+                query($id: ID!) {
+                  playerDevelopment(id: $id) {
+                    points options {
+                      attribute rating potentialHeadroom nextCost remainingSeasonal purchasable blockingReason
+                    }
+                  }
+                }
+                """)
+                .variable("id", standard.id()).execute()
+                .path("playerDevelopment.options").entityList(Object.class).hasSize(Attribute.values().length)
+                .path("playerDevelopment.options[5].attribute").entity(String.class)
+                    .isEqualTo(Attribute.PUTTING_ACCURACY.name())
+                .path("playerDevelopment.options[5].remainingSeasonal").entity(Integer.class)
+                    .isEqualTo(expected.remainingSeasonal());
+    }
+
+    @Test
     void appliedDevelopmentDisappearsFromInboxWhenNoFurtherRaiseIsAffordable() {
         WorldSession session = worldService.create(OWNER, 551L, SMALL);
         worldService.createPlayer(OWNER, session.id(), "Inbox", "Developer", Nationality.USA, 19,
@@ -431,6 +476,7 @@ class WorldGraphQlApiTest {
     private static List<Map<String, Object>> allocatableDevelopmentRaises(WorldSession session) {
         var world = session.world();
         var player = world.careerOf(world.playerGolferId().orElseThrow()).player();
+        var options = world.playerDevelopmentOptions();
         int remaining = world.playerDevelopmentPoints();
         Map<Attribute, Integer> raises = new java.util.EnumMap<>(Attribute.class);
 
@@ -439,7 +485,10 @@ class WorldGraphQlApiTest {
             added = false;
             for (Attribute attribute : Attribute.values()) {
                 int rating = player.attributes().get(attribute) + raises.getOrDefault(attribute, 0);
+                int allowance = options.stream().filter(o -> o.attribute() == attribute).findFirst()
+                        .orElseThrow().remainingSeasonal();
                 if (rating < player.potential().get(attribute)
+                        && raises.getOrDefault(attribute, 0) < allowance
                         && remaining >= DevelopmentPoints.costToRaise(rating)) {
                     raises.merge(attribute, 1, Integer::sum);
                     remaining -= DevelopmentPoints.costToRaise(rating);

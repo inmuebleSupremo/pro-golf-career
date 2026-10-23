@@ -16,6 +16,7 @@ export interface CreateCareerInput {
   lastName: string;
   nationality: string;
   archetype: string;
+  background: string;
   startAge: number;
   handedness?: string;
 }
@@ -54,6 +55,7 @@ export function useCreateCareer() {
         nationality: input.nationality,
         startAge: input.startAge,
         archetype: input.archetype,
+        background: input.background,
         handedness: input.handedness,
       });
 

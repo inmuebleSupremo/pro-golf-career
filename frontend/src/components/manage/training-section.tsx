@@ -11,6 +11,15 @@ import { humanize } from "@/lib/play/options";
 
 type Attribute = { attribute: string; value: number; potential: number };
 type CostCurve = { pointsPerRating: number; costGrowth: number; costReference: number };
+type PurchaseOption = {
+  attribute: string;
+  rating: number;
+  potentialHeadroom: number;
+  nextCost: number | null;
+  remainingSeasonal: number;
+  purchasable: boolean;
+  blockingReason: string;
+};
 type Delta = { attribute: string; delta: number };
 
 const GROUPS: { label: string; attributes: string[] }[] = [
@@ -51,21 +60,26 @@ export function TrainingSection({
   showReport?: boolean;
 }) {
   const { data, isPending, isError, error } = usePlayerProfile(id);
-  const dev = usePlayerDevelopment(id).data?.playerDevelopment ?? null;
+  const development = usePlayerDevelopment(id);
+  const dev = development.data?.playerDevelopment ?? null;
 
   useEffect(() => {
-    if (isError && isUnauthorized(error)) onUnauthorized();
-  }, [isError, error, onUnauthorized]);
+    if (
+      (isError && isUnauthorized(error)) ||
+      (development.isError && isUnauthorized(development.error))
+    )
+      onUnauthorized();
+  }, [isError, error, development.isError, development.error, onUnauthorized]);
 
   const profile = data?.playerProfile ?? null;
 
-  if (isPending) return <SectionSkeleton />;
-  if (isError || !profile) {
+  if (isPending || development.isPending) return <SectionSkeleton />;
+  if (isError || !profile || development.isError || !dev) {
     return (
       <SectionNote>
-        {isNotFound(error)
+        {isNotFound(error) || isNotFound(development.error)
           ? "This session is no longer available. Reopen the career from your saves."
-          : "Couldn't load your golfer. Try again."}
+          : "Couldn't load your golfer's development. Try again."}
       </SectionNote>
     );
   }
@@ -78,6 +92,7 @@ export function TrainingSection({
         attributes={profile.attributes}
         balance={dev?.points ?? 0}
         curve={dev}
+        options={dev?.options ?? []}
       />
     </div>
   );
@@ -88,25 +103,34 @@ function SpendScreen({
   attributes,
   balance,
   curve,
+  options,
 }: {
   id: string;
   attributes: Attribute[];
   balance: number;
   curve: CostCurve | null;
+  options: PurchaseOption[];
 }) {
   const byName = new Map(attributes.map((a) => [a.attribute, a]));
+  const optionByName = new Map(options.map((option) => [option.attribute, option]));
   const spend = useSpendDevelopmentPoints(id);
   const [pending, setPending] = useState<Record<string, number>>({});
 
   const spent = curve
-    ? attributes.reduce((sum, a) => sum + raiseCost(a.value, pending[a.attribute] ?? 0, a.potential, curve), 0)
+    ? attributes.reduce(
+        (sum, a) => sum + raiseCost(a.value, pending[a.attribute] ?? 0, a.potential, curve),
+        0,
+      )
     : 0;
   const remaining = balance - spent;
   const totalPoints = Object.values(pending).reduce((s, n) => s + n, 0);
 
   function increment(attr: Attribute) {
     if (!curve) return;
+    const option = optionByName.get(attr.attribute);
+    if (!option?.purchasable || option.rating !== attr.value) return;
     const added = pending[attr.attribute] ?? 0;
+    if (added >= option.remainingSeasonal || added >= option.potentialHeadroom) return;
     const displayed = attr.value + added;
     if (displayed >= attr.potential) return;
     if (remaining < stepCost(displayed, curve)) return;
@@ -140,14 +164,14 @@ function SpendScreen({
             <Coins className="size-6" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-2xl font-bold tabular-nums tracking-[-0.02em]">
+            <p className="text-2xl font-bold tracking-[-0.02em] tabular-nums">
               {remaining}
               <span className="text-muted-foreground ml-1.5 text-sm font-normal">
                 Development Points
               </span>
             </p>
             <p className="text-muted-foreground text-sm">
-              Earned from your play — spend them to raise your stats.
+              Earned from your play. Unspent points carry forward each season.
             </p>
           </div>
         </div>
@@ -158,7 +182,9 @@ function SpendScreen({
               Applied
             </span>
           ) : null}
-          {spend.isError ? <span className="text-destructive text-sm">Couldn’t apply — try again.</span> : null}
+          {spend.isError ? (
+            <span className="text-destructive text-sm">Couldn’t apply — try again.</span>
+          ) : null}
           {totalPoints > 0 ? (
             <Button variant="ghost" onClick={() => setPending({})} disabled={spend.isPending}>
               Reset
@@ -172,7 +198,10 @@ function SpendScreen({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {GROUPS.map((group) => (
-          <div key={group.label} className="border-border bg-surface flex flex-col gap-3 rounded-xl border p-4">
+          <div
+            key={group.label}
+            className="border-border bg-surface flex flex-col gap-3 rounded-xl border p-4"
+          >
             <h3 className="text-subtle-foreground text-xs font-bold tracking-[0.12em] uppercase">
               {group.label}
             </h3>
@@ -180,11 +209,44 @@ function SpendScreen({
               {group.attributes.map((name) => {
                 const attr = byName.get(name);
                 if (!attr) return null;
+                const option = optionByName.get(name);
                 const added = pending[name] ?? 0;
                 const displayed = attr.value + added;
                 const atCeiling = displayed >= attr.potential;
-                const nextCost = curve && !atCeiling ? stepCost(displayed, curve) : null;
-                const canBuy = curve != null && !atCeiling && remaining >= (nextCost ?? Infinity);
+                const nextCost =
+                  added === 0
+                    ? (option?.nextCost ?? null)
+                    : curve && !atCeiling
+                      ? stepCost(displayed, curve)
+                      : null;
+                const seasonRemaining = Math.max(0, (option?.remainingSeasonal ?? 0) - added);
+                const canBuy =
+                  curve != null &&
+                  option?.purchasable === true &&
+                  option.rating === attr.value &&
+                  seasonRemaining > 0 &&
+                  !atCeiling &&
+                  remaining >= (nextCost ?? Infinity);
+                const backendBlocker =
+                  option?.blockingReason === "AT_POTENTIAL"
+                    ? "At potential"
+                    : option?.blockingReason === "SEASON_LIMIT"
+                      ? "Season limit reached — more available next season"
+                      : option?.blockingReason === "INSUFFICIENT_POINTS"
+                        ? `Need ${option.nextCost} DP for next point`
+                        : null;
+                const blocker =
+                  !option || option.rating !== attr.value
+                    ? "Loading availability"
+                    : added === 0
+                      ? backendBlocker
+                      : atCeiling
+                        ? "At potential"
+                        : seasonRemaining === 0
+                          ? "Season limit reached — more available next season"
+                          : remaining < (nextCost ?? Infinity)
+                            ? `Need ${nextCost} DP for next point`
+                            : null;
                 return (
                   <AttributeRow
                     key={name}
@@ -193,6 +255,8 @@ function SpendScreen({
                     added={added}
                     potential={attr.potential}
                     nextCost={nextCost}
+                    seasonRemaining={seasonRemaining}
+                    blocker={blocker}
                     canBuy={canBuy}
                     onInc={() => increment(attr)}
                     onDec={() => decrement(name)}
@@ -213,6 +277,8 @@ function AttributeRow({
   added,
   potential,
   nextCost,
+  seasonRemaining,
+  blocker,
   canBuy,
   onInc,
   onDec,
@@ -222,6 +288,8 @@ function AttributeRow({
   added: number;
   potential: number;
   nextCost: number | null;
+  seasonRemaining: number;
+  blocker: string | null;
   canBuy: boolean;
   onInc: () => void;
   onDec: () => void;
@@ -248,13 +316,24 @@ function AttributeRow({
         </div>
       </div>
       <div className="bg-divider relative h-2 w-full overflow-hidden rounded-full">
-        <div className="bg-primary/20 absolute inset-y-0 left-0 rounded-full" style={{ width: `${potential}%` }} />
-        <div className="bg-success/70 absolute inset-y-0 left-0 rounded-full" style={{ width: `${displayed}%` }} />
-        <div className="bg-primary absolute inset-y-0 left-0 rounded-full" style={{ width: `${value}%` }} />
+        <div
+          className="bg-primary/20 absolute inset-y-0 left-0 rounded-full"
+          style={{ width: `${potential}%` }}
+        />
+        <div
+          className="bg-success/70 absolute inset-y-0 left-0 rounded-full"
+          style={{ width: `${displayed}%` }}
+        />
+        <div
+          className="bg-primary absolute inset-y-0 left-0 rounded-full"
+          style={{ width: `${value}%` }}
+        />
       </div>
       <span className="text-subtle-foreground text-[0.6875rem] tabular-nums">
-        {nextCost != null ? `Next point: ${nextCost} DP` : "At potential"}
+        {nextCost != null ? `Next point: ${nextCost} DP` : "At potential"} ·{" "}
+        {Math.max(0, potential - displayed)} to potential · {seasonRemaining} available this season
       </span>
+      {blocker ? <span className="text-muted-foreground text-xs">{blocker}</span> : null}
     </div>
   );
 }
@@ -318,5 +397,10 @@ function SectionNote({ children }: { children: React.ReactNode }) {
 }
 
 function SectionSkeleton() {
-  return <div aria-hidden="true" className="border-border bg-surface h-64 animate-pulse rounded-lg border" />;
+  return (
+    <div
+      aria-hidden="true"
+      className="border-border bg-surface h-64 animate-pulse rounded-lg border"
+    />
+  );
 }

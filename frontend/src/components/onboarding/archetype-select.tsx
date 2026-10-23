@@ -3,8 +3,8 @@
 import * as RadioGroup from "@radix-ui/react-radio-group";
 import { Check } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-import { ARCHETYPES } from "@/lib/onboarding/options";
+import { cn } from "../../lib/utils";
+import { ARCHETYPES, STARTING_BACKGROUNDS } from "../../lib/onboarding/options";
 
 /*
  * Archetype selection — a Radix RadioGroup rendered as selectable cards, so the
@@ -27,19 +27,48 @@ export function ArchetypeSelect({
   describedBy,
 }: ArchetypeSelectProps) {
   return (
+    <ChoiceCards
+      value={value}
+      onValueChange={onValueChange}
+      onBlur={onBlur}
+      invalid={invalid}
+      describedBy={describedBy}
+      label="Playing-style archetype"
+      options={ARCHETYPES}
+    />
+  );
+}
+
+export function StartingBackgroundSelect(props: ArchetypeSelectProps) {
+  return <ChoiceCards {...props} label="Starting Background" options={STARTING_BACKGROUNDS} />;
+}
+
+function ChoiceCards({
+  value,
+  onValueChange,
+  onBlur,
+  invalid,
+  describedBy,
+  label,
+  options,
+}: ArchetypeSelectProps & {
+  label: string;
+  options: readonly { value: string; label: string; description: string }[];
+}) {
+  return (
     <RadioGroup.Root
       value={value}
       onValueChange={onValueChange}
       onBlur={onBlur}
-      aria-label="Playing-style archetype"
+      aria-label={label}
       aria-invalid={invalid || undefined}
       aria-describedby={describedBy}
       className="grid gap-3 sm:grid-cols-2"
     >
-      {ARCHETYPES.map((archetype) => (
+      {options.map((option) => (
         <RadioGroup.Item
-          key={archetype.value}
-          value={archetype.value}
+          key={option.value}
+          value={option.value}
           className={cn(
             "group border-border bg-surface flex flex-col items-start gap-1.5 rounded-lg border p-4 text-left",
             "transition-colors duration-[var(--duration-base)] ease-[var(--ease-out)]",
@@ -47,7 +76,7 @@ export function ArchetypeSelect({
           )}
         >
           <span className="flex w-full items-center justify-between gap-2">
-            <span className="text-foreground font-medium">{archetype.label}</span>
+            <span className="text-foreground font-medium">{option.label}</span>
             <span
               aria-hidden="true"
               className="border-border group-data-[state=checked]:border-primary group-data-[state=checked]:bg-primary flex size-[18px] shrink-0 items-center justify-center rounded-full border transition-colors"
@@ -55,7 +84,7 @@ export function ArchetypeSelect({
               <Check className="text-primary-foreground size-3 opacity-0 transition-opacity group-data-[state=checked]:opacity-100" />
             </span>
           </span>
-          <span className="text-muted-foreground text-sm">{archetype.description}</span>
+          <span className="text-muted-foreground text-sm">{option.description}</span>
         </RadioGroup.Item>
       ))}
     </RadioGroup.Root>

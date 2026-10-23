@@ -4,6 +4,7 @@ import com.progolf.app.api.dto.AttributeRaiseInput;
 import com.progolf.app.api.dto.CareerGoalInput;
 import com.progolf.app.auth.AuthenticatedUser;
 import com.progolf.app.world.WorldService;
+import com.progolf.sim.population.StartingBackground;
 import java.util.List;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
@@ -34,10 +35,11 @@ public class PlayerMutationController {
     @MutationMapping
     public String createPlayer(@Argument String id, @Argument String firstName, @Argument String lastName,
                                @Argument String nationality, @Argument int startAge, @Argument String archetype,
-                               @Argument String handedness) {
+                               @Argument String handedness, @Argument String background) {
         return worldService.createPlayer(AuthenticatedUser.requireId(), id, firstName, lastName,
                 ApiMapper.nationality(nationality), startAge, ApiMapper.archetype(archetype),
-                handedness == null ? com.progolf.sim.core.Handedness.RIGHT : com.progolf.sim.core.Handedness.valueOf(handedness));
+                handedness == null ? com.progolf.sim.core.Handedness.RIGHT : com.progolf.sim.core.Handedness.valueOf(handedness),
+                background == null ? StartingBackground.ELITE_AMATEUR : StartingBackground.valueOf(background));
     }
 
     @MutationMapping

@@ -12,13 +12,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
-import { ArchetypeSelect } from "@/components/onboarding/archetype-select";
+import {
+  ArchetypeSelect,
+  StartingBackgroundSelect,
+} from "@/components/onboarding/archetype-select";
 import {
   MAX_START_AGE,
   MIN_START_AGE,
   DEFAULT_START_AGE,
   NATIONALITIES,
+  STARTING_BACKGROUNDS,
   archetypeLabel,
+  backgroundLabel,
   nationalityLabel,
 } from "@/lib/onboarding/options";
 import { useCreateCareer, type CreatedGolfer } from "@/lib/api/mutations";
@@ -31,6 +36,7 @@ const schema = z.object({
   lastName: z.string().trim().min(1, "Enter a last name."),
   nationality: z.string().min(1, "Choose a nationality."),
   archetype: z.string().min(1, "Choose a playing style."),
+  background: z.enum(STARTING_BACKGROUNDS.map((option) => option.value)),
   startAge: z
     .number({ message: `Enter an age. ${ageRange}` })
     .int()
@@ -58,6 +64,7 @@ export function CreateGolferForm() {
       lastName: "",
       nationality: "",
       archetype: "",
+      background: "ELITE_AMATEUR",
       startAge: DEFAULT_START_AGE,
       handedness: "RIGHT",
     },
@@ -123,6 +130,31 @@ export function CreateGolferForm() {
 
       <Controller
         control={control}
+        name="background"
+        render={({ field, fieldState }) => (
+          <div className="flex flex-col gap-2.5">
+            <span className="text-foreground text-sm font-medium">Starting Background</span>
+            <p className="text-muted-foreground text-sm">
+              Set your opening ability. Playing style determines your strengths and potential.
+            </p>
+            <StartingBackgroundSelect
+              value={field.value}
+              onValueChange={field.onChange}
+              onBlur={field.onBlur}
+              invalid={Boolean(fieldState.error)}
+              describedBy={fieldState.error ? "background-error" : undefined}
+            />
+            {fieldState.error ? (
+              <p id="background-error" className="text-destructive text-sm">
+                {fieldState.error.message}
+              </p>
+            ) : null}
+          </div>
+        )}
+      />
+
+      <Controller
+        control={control}
         name="archetype"
         render={({ field, fieldState }) => (
           <div className="flex flex-col gap-2.5">
@@ -181,8 +213,8 @@ function CareerCreated({ golfer }: { golfer: CreatedGolfer }) {
         </h2>
       </div>
       <p className="text-muted-foreground">
-        {archetypeLabel(golfer.archetype)} · {nationalityLabel(golfer.nationality)} · age{" "}
-        {golfer.startAge}
+        {backgroundLabel(golfer.background)} · {archetypeLabel(golfer.archetype)} ·{" "}
+        {nationalityLabel(golfer.nationality)} · age {golfer.startAge}
       </p>
       <p className="text-muted-foreground max-w-sm text-sm">
         Their career begins on the Development tour. Guide the decisions — the rest is theirs to

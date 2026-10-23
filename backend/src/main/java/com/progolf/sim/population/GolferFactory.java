@@ -34,14 +34,24 @@ public final class GolferFactory {
     public static ProfessionalGolfer createHuman(String id, String firstName, String lastName,
                                                  Nationality nationality, int startAge, Archetype archetype,
                                                  int referenceYear) {
-        return createHuman(id, firstName, lastName, nationality, startAge, archetype, referenceYear, Handedness.RIGHT);
+        return createHuman(id, firstName, lastName, nationality, startAge, archetype, referenceYear,
+                Handedness.RIGHT, StartingBackground.ELITE_AMATEUR);
     }
     public static ProfessionalGolfer createHuman(String id, String firstName, String lastName,
                                                  Nationality nationality, int startAge, Archetype archetype,
                                                  int referenceYear, Handedness handedness) {
+        return createHuman(id, firstName, lastName, nationality, startAge, archetype, referenceYear,
+                handedness, StartingBackground.ELITE_AMATEUR);
+    }
+
+    public static ProfessionalGolfer createHuman(String id, String firstName, String lastName,
+                                                 Nationality nationality, int startAge, Archetype archetype,
+                                                 int referenceYear, Handedness handedness,
+                                                 StartingBackground background) {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(nationality, "nationality");
         Objects.requireNonNull(archetype, "archetype");
+        Objects.requireNonNull(background, "background");
         if (startAge < PopulationConstants.CREATION_MIN_AGE || startAge > PopulationConstants.CREATION_MAX_AGE) {
             throw new IllegalArgumentException("start age must be "
                     + PopulationConstants.CREATION_MIN_AGE + "-" + PopulationConstants.CREATION_MAX_AGE + ": " + startAge);
@@ -49,6 +59,12 @@ public final class GolferFactory {
 
         Attributes potential = buildPotential(archetype);
         Attributes attributes = Maturity.abilityAt(potential, startAge);
+        if (background.initialRatingOffset() != 0) {
+            for (Attribute attribute : Attribute.values()) {
+                attributes = attributes.with(attribute, Math.min(potential.get(attribute),
+                        attributes.get(attribute) + background.initialRatingOffset()));
+            }
+        }
         LocalDate dob = LocalDate.of(referenceYear - startAge, 1, 1);
         Identity identity = new Identity(firstName, lastName, nationality, dob, archetype);
 
