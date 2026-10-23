@@ -12,12 +12,6 @@ The career hub brings together the next event, world ranking, finances, player d
 
 ![Career command centre](docs/screenshots/001-career-command-center.png)
 
-### Shot-by-shot event play
-
-During an event, the player chooses how to approach each shot while following hole, round, and leaderboard context.
-
-![Shot-by-shot event gameplay](docs/screenshots/002-shot-by-shot-event.png)
-
 ### Career records
 
 Completed events feed into a persistent career history with results, round scores, and performance statistics.
@@ -27,7 +21,7 @@ Completed events feed into a persistent career history with results, round score
 ## What you do
 
 - Create a professional golfer and develop their attributes over multiple seasons.
-- Schedule events, play tournaments shot by shot or simulate them, and compete against a simulated tour field.
+- Schedule events, play tournaments shot by shot or simulate them, and compete against a simulated tour field. For an ordinary shot, choose a target on the hole, then select club, technique, and flight shape in the compact shot dock; the simulation resolves where the ball finishes.
 - On an explicitly enabled event, use the dedicated putting view to choose a starting line and pace, with optional green-reading aids; the backend resolves the roll and cup capture.
 - Make off-course decisions about fitness, staff, equipment, sponsorships, and finances.
 - Follow rankings, achievements, rivals, records, and season/career results; save and resume a career.
