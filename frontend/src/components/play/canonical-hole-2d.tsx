@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 
 import { BIOME_KITS, LINKS_MATERIAL, PARKLAND_MATERIAL, resolveBiome, VEG_SYMBOLS, type SvgPrim } from "@/lib/play/biomes";
-import { canonicalRenderModel } from "@/lib/play/canonical-geometry";
+import { canonicalRenderModel, pointerWorldTarget } from "@/lib/play/canonical-geometry";
 import { decorationId, planTreeCanopies, type CanopyPlacement } from "@/lib/play/canonical-hole-decoration";
 import type { Point } from "@/lib/play/hole-geometry";
 import { feedbackAimPoint, isAimPointInteractionLocked, tracePlaybackDurationMs, tracePlaybackFrame, tracePlaybackStatus, transitionLabel } from "@/lib/play/trace-presentation";
@@ -139,14 +139,15 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
 
   function selectTarget(event: PointerEvent<SVGSVGElement>) {
     if (!onAimPoint || !svgRef.current || isAimPointInteractionLocked(trace != null)) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    onAimPoint(model.unproject({ x: (event.clientX - rect.left) * W / rect.width, y: (event.clientY - rect.top) * viewHeight / rect.height }));
+    const transform = svgRef.current.getScreenCTM();
+    if (!transform) return;
+    onAimPoint(pointerWorldTarget({ x: event.clientX, y: event.clientY }, transform.inverse(), model.unproject));
   }
 
   const recoveryLabel = transitionLabel(trace);
   const playbackStatus = tracePlaybackStatus(trace, playback);
   return <svg ref={svgRef} viewBox={`0 0 ${W} ${viewHeight}`} className={className} role="img"
-    aria-label={`Hole ${hole.holeNumber}, par ${hole.par}, canonical terrain${trace ? `, ${trace.club} shot result` : ""}`}
+    aria-label={`Hole ${hole.holeNumber}, par ${hole.par}, canonical terrain${trace ? `, ${trace.club} shot result` : onAimPoint ? ", click or tap to aim" : ""}`}
     onPointerDown={selectTarget}>
     {polishedParkland ? <ParklandDefs artId={artId} model={model} treeCanopies={treeCanopies} /> : null}
     {kit.biome === "links" ? <LinksDefs artId={artId} /> : null}
@@ -167,6 +168,8 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     <circle cx={cup.x} cy={cup.y} r="2" fill="#111" /><path d={`M${cup.x} ${cup.y} v-13 l7 2.5 -7 2.5z`} fill="#e23b3b" />
     <WindDisplay wind={hole.effectiveWind} model={model} tee={geometry.tee} />
 
+    {planningTarget ? <path d={`M${finalPoint.x} ${finalPoint.y} L${planningTarget.x} ${planningTarget.y}`}
+      stroke="var(--accent)" strokeWidth="1" strokeDasharray="3 3" opacity=".8" pointerEvents="none" /> : null}
     {traceTarget && contact ? <path d={`M${traceTarget.x} ${traceTarget.y} L${contact.x} ${contact.y}`} stroke="var(--accent)" strokeWidth="1" strokeDasharray="2 2" opacity=".75" /> : null}
     {traceTarget ? <TargetMarker point={traceTarget} label="Intended target" outlined={polishedParkland} /> : null}
     {planningTarget ? <TargetMarker point={planningTarget} label="Selected target" outlined={polishedParkland} /> : null}

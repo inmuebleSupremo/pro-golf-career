@@ -1,4 +1,5 @@
 import { humanize } from "../../lib/play/options";
+import { formatShotDistance } from "../../lib/play/distance";
 
 /** Shared types, helpers, and presentational pieces used by both the play console and the end-of-event screen. */
 
@@ -165,16 +166,14 @@ export function clampTarget(s: Situation): number {
 
 /** Formats server distances in yards for player-facing, close-range feedback. */
 export function formatRemainingDistance(distanceYards: number): string {
-  const feet = distanceYards * 3;
-  if (feet < 0.1) return "<0.1 ft";
-  return feet < 10 ? `${feet.toFixed(1)} ft` : `${Math.round(feet)} ft`;
+  return formatShotDistance(distanceYards);
 }
 
 /** The player-facing outcome state, preserving the server's hole-out result verbatim. */
 export function outcomeFeedback(outcome: Outcome): { holed: boolean; remainingDistance: string | null } {
   return outcome.holed
     ? { holed: true, remainingDistance: null }
-    : { holed: false, remainingDistance: formatRemainingDistance(outcome.distanceRemaining) };
+    : { holed: false, remainingDistance: formatShotDistance(outcome.distanceRemaining, outcome.physicalPutt != null) };
 }
 
 export function Stat({ label, value }: { label: string; value: string }) {
@@ -188,26 +187,27 @@ export function Stat({ label, value }: { label: string; value: string }) {
 
 export function OutcomeNote({ outcome }: { outcome: Outcome }) {
   const feedback = outcomeFeedback(outcome);
+  const physicalPutt = outcome.physicalPutt != null;
   return (
-    <div className="border-border bg-background flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-4 py-2.5 text-sm">
-      <span className="text-muted-foreground">
-        Carried <span className="text-foreground font-mono tabular-nums">{Math.round(outcome.carry)}</span> yds to{" "}
-      </span>
-      <span className="font-medium">{humanize(outcome.finalSurface)}</span>
-      {feedback.holed ? (
-        <span className="text-success font-medium">· holed</span>
-      ) : (
-        <span className="text-muted-foreground">
-          · <span className="text-foreground font-mono tabular-nums">{feedback.remainingDistance}</span> to
-          the pin
-        </span>
-      )}
-      {outcome.hazardEntered ? <span className="text-destructive font-medium">· hazard</span> : null}
-      {outcome.penaltyStrokes > 0 ? (
-        <span className="text-destructive"> · +{outcome.penaltyStrokes} penalty</span>
+    <div className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-2 text-sm min-[400px]:grid-cols-2">
+      <ResultValue label={physicalPutt ? "Ball moved" : "Previous carry"} value={formatShotDistance(outcome.carry, physicalPutt)} />
+      <ResultValue label="Final lie" value={humanize(outcome.finalSurface)} />
+      <ResultValue label="Remaining to pin" value={feedback.holed ? "Holed" : feedback.remainingDistance ?? "—"} />
+      {(outcome.hazardEntered || outcome.penaltyStrokes > 0) ? (
+        <div className="flex flex-wrap gap-x-2 text-destructive min-[400px]:col-span-2">
+          {outcome.hazardEntered ? <span>Hazard</span> : null}
+          {outcome.penaltyStrokes > 0 ? <span>+{outcome.penaltyStrokes} penalty</span> : null}
+        </div>
       ) : null}
     </div>
   );
+}
+
+function ResultValue({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0">
+    <span className="text-subtle-foreground block text-xs">{label}</span>
+    <span className="text-foreground block break-words font-medium tabular-nums">{value}</span>
+  </div>;
 }
 
 export function ScorecardStrip({ scorecard }: { scorecard: Scorecard }) {

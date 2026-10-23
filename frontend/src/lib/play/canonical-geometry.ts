@@ -15,6 +15,18 @@ export interface CanonicalRenderModel {
   readonly terrain: readonly { readonly surface: string; readonly path: string }[];
 }
 
+/** Uses the SVG's actual screen transform, including viewBox scaling and letterboxing. */
+export function pointerWorldTarget(
+  client: Point,
+  screenToSvg: Pick<DOMMatrixReadOnly, "a" | "b" | "c" | "d" | "e" | "f">,
+  unproject: (point: Point) => Point,
+): Point {
+  return unproject({
+    x: screenToSvg.a * client.x + screenToSvg.c * client.y + screenToSvg.e,
+    y: screenToSvg.b * client.x + screenToSvg.d * client.y + screenToSvg.f,
+  });
+}
+
 /** Projects a canonical flow vector into a unit SVG direction; canonical +Y is screen-up. */
 export function projectCanonicalFlow(
   origin: Point,

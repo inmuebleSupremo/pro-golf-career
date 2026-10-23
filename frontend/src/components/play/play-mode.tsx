@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronUp, Eye, EyeOff, X } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useForegroundOperation } from "@/components/loading/foreground-loading-provider";
@@ -13,9 +13,10 @@ import { humanize } from "@/lib/play/options";
 import { StageHole } from "@/components/play/hole-transition";
 import { usePlaySequence } from "@/components/play/use-play-sequence";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
-import { buildBallStrikeIntent } from "@/lib/play/intent";
+import { acceptCourseAim, aimWithinEnvelope, buildBallStrikeIntent, currentAimPoint } from "@/lib/play/intent";
 import { currentPhysicalPuttControls, cupDirectedLine, physicalPuttControlSource, validPaceFeet } from "@/lib/play/physical-putting";
 import { shotSubmissionFeedback } from "@/lib/play/shot-feedback";
+import { formatShotDistance, shotDistanceReadout } from "@/lib/play/distance";
 import {
   formatScore,
   Leaderboard,
@@ -74,13 +75,17 @@ export function PlayMode({
   const router = useRouter();
   const [tab, setTab] = useState<DrawerTab | null>(null);
   const [aimState, setAimState] = useState(() => ({
-    revision: situation.shotRevision,
-    point: situation.guidance?.primary ?? { x: 0, y: 0 },
+    selection: { revision: situation.shotRevision, point: situation.guidance?.primary ?? { x: 0, y: 0 } },
+    usedCourseAim: false,
   }));
-  const aimPoint = aimState.revision === situation.shotRevision
-    ? aimState.point
-    : situation.guidance?.primary ?? { x: 0, y: 0 };
-  const setAimPoint = (point: { x: number; y: number }) => setAimState({ revision: situation.shotRevision, point });
+  const aimPoint = currentAimPoint(aimState.selection, situation.shotRevision, situation.guidance?.primary ?? { x: 0, y: 0 });
+  const setAimPoint = (point: { x: number; y: number }) => {
+    if (aimWithinEnvelope(point, situation.aimEnvelope)) {
+      setAimState((current) => ({ ...current, selection: { revision: situation.shotRevision, point } }));
+    }
+  };
+  const setCourseAimPoint = (point: { x: number; y: number }) =>
+    setAimState((current) => acceptCourseAim(current, situation.shotRevision, aimPoint, point, situation.aimEnvelope));
   const physicalAimBall = hole?.ball?.position ?? hole?.geometry?.tee ?? { x: 0, y: 0 };
   const physicalAimCup = hole?.geometry?.cup ?? physicalAimBall;
   const physicalAimSource = physicalPuttControlSource(situation.shotRevision, physicalAimBall, physicalAimCup);
@@ -133,7 +138,7 @@ export function PlayMode({
             phase={seq.phase}
             postHole={seq.postHole}
             aimPoint={aimPoint}
-            onAimPoint={setAimPoint}
+            onAimPoint={seq.locked ? undefined : setCourseAimPoint}
             physicalAimDirection={physicalAimDirection}
             onPhysicalAimDirection={setPhysicalAimDirection}
             showGreenReading={showGreenReading}
@@ -161,13 +166,14 @@ export function PlayMode({
         hole={hole}
         aimPoint={aimPoint}
         onAimPoint={setAimPoint}
+        usedCourseAim={aimState.usedCourseAim}
         onShot={seq.onShotResolved}
         onSimJump={seq.onSimJump}
         lastOutcome={seq.lastOutcome}
         locked={seq.locked}
-          physicalAimDirection={physicalAimDirection}
-          showGreenReading={showGreenReading}
-          onToggleGreenReading={() => setShowGreenReading((current) => !current)}
+        physicalAimDirection={physicalAimDirection}
+        showGreenReading={showGreenReading}
+        onToggleGreenReading={() => setShowGreenReading((current) => !current)}
       />
     </div>
   );
@@ -254,6 +260,7 @@ function ActionDock({
   hole,
   aimPoint,
   onAimPoint,
+  usedCourseAim,
   onShot,
   onSimJump,
   lastOutcome,
@@ -267,6 +274,7 @@ function ActionDock({
   hole: HoleGeom | null;
   aimPoint: { x: number; y: number };
   onAimPoint: (point: { x: number; y: number }) => void;
+  usedCourseAim: boolean;
   onShot: (outcome: Outcome) => void;
   onSimJump: () => void;
   lastOutcome: Outcome | null;
@@ -288,7 +296,8 @@ function ActionDock({
   const { club, technique, shape } = selection;
   const selectedClub = clubs.find((candidate) => candidate.club === club);
   const playableClubs = clubs.filter((candidate) => candidate.families.some((family) =>
-    family.available && family.shapes.some((candidateShape) => candidateShape.available)));
+    family.available && family.shapes.some((candidateShape) => candidateShape.available)))
+    .sort((a, b) => b.normalReach - a.normalReach);
   const puttingAvailable = situation.lie === "GREEN" || situation.lie === "FRINGE";
   const puttRoute = situation.lie === "GREEN" || technique === "PUTT";
   const physicalRoute = hole?.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN" && hole.physicalGreen != null;
@@ -300,7 +309,7 @@ function ActionDock({
         && candidate.shapes.some((candidateShape) => candidateShape.available)) ?? []),
     ];
   const origin = hole?.ball?.position ?? hole?.geometry?.tee ?? { x: 0, y: 0 };
-  const targetDistance = Math.hypot(aimPoint.x - origin.x, aimPoint.y - origin.y);
+  const distances = shotDistanceReadout(situation, origin, aimPoint, selection);
   const cup = hole?.geometry?.cup ?? origin;
   const physicalControlSource = physicalPuttControlSource(situation.shotRevision, origin, cup);
   const [physicalControls, setPhysicalControls] = useState(() => currentPhysicalPuttControls(physicalControlSource, origin, cup, null));
@@ -312,6 +321,10 @@ function ActionDock({
   const selectedTechnique = selectedClub?.families.find((candidate) => candidate.family === technique);
   const shapes = selectedTechnique?.shapes.filter((candidate) => candidate.available)
     ?? [{ shape: "STRAIGHT", available: true, reason: null }];
+  const controlsDisabled = locked || foreground.hasPendingForegroundOperation;
+  const lastShotText = lastOutcome
+    ? `${lastOutcome.physicalPutt ? "Last putt" : "Last shot"}: ${lastOutcome.holed ? "Holed" : formatShotDistance(lastOutcome.carry, lastOutcome.physicalPutt != null)} · ${humanize(lastOutcome.finalSurface)}`
+    : physicalRoute ? "Tap the green to set a starting line" : usedCourseAim ? "" : "Tap the course to aim";
 
   function updateSelection(update: Partial<typeof selection>) {
     setRequestedSelection((current) => validShotSelection(situation, { ...current, ...update }));
@@ -337,124 +350,129 @@ function ActionDock({
   }
 
   return (
-    <footer className="border-border bg-surface/70 border-t px-4 py-3 backdrop-blur-md md:px-6">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-end gap-x-3 gap-y-2.5">
-        {!puttRoute ? <DockField label="Club">
-          <Select value={club} onChange={(e) => updateSelection({ club: e.target.value })}>
-            {playableClubs.map((candidate) => (
-              <option key={candidate.club} value={candidate.club}>
-                {candidate.label}
-              </option>
-            ))}
-          </Select>
-        </DockField> : null}
-        {!physicalRoute ? <DockField label="Technique">
-          <Select value={puttRoute && situation.lie === "GREEN" ? "PUTT" : technique} onChange={(e) => updateSelection({ technique: e.target.value })} disabled={situation.lie === "GREEN"}>
-            {techniques.map((candidate) => (
-              <option key={candidate.family} value={candidate.family}>
-                {humanize(candidate.family)}{candidate.reason ? ` — ${candidate.reason}` : ""}
-              </option>
-            ))}
-          </Select>
-        </DockField> : null}
-        {physicalRoute ? <>
-          <div className="flex flex-col gap-1">
-            <span className="text-subtle-foreground text-[10px] tracking-[0.08em] uppercase">Starting line</span>
-            <span className="text-muted-foreground text-xs">Click the green to aim. The marker is direction only.</span>
+    <footer className="border-border bg-surface relative z-20 shrink-0 border-t px-4 py-2.5 md:px-6">
+      <div className="mx-auto grid max-w-6xl gap-2">
+        {formError ? <p role="alert" className="text-destructive text-sm">{formError}</p> : null}
+        <div className={cn("flex min-w-0 items-center gap-2", !puttRoute && "lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]")}>
+          <div className={cn("min-w-0 flex-1", !puttRoute && "grid grid-cols-3 gap-1 sm:gap-3 md:mx-auto md:max-w-xl md:gap-6 lg:col-start-2 lg:mx-0 lg:flex lg:w-max lg:max-w-none lg:justify-self-center lg:gap-5")} aria-live="polite">
+            {!puttRoute ? <>
+              <DistanceMeasure mobileLabel="Pin" label="To pin" value={distances.pin} />
+              <DistanceMeasure mobileLabel="Target" label={landingTarget ? "Landing target" : "Target"} value={distances.target} />
+              <DistanceMeasure mobileLabel="Reach" label="Normal reach" value={distances.reach} />
+            </> : <span className="text-muted-foreground whitespace-nowrap text-xs">To pin <strong className="text-foreground font-mono font-medium">{formatShotDistance(situation.distanceToPin, physicalRoute)}</strong></span>}
           </div>
+          <details name="shot-dock-panel" className={cn("group relative shrink-0", !puttRoute && "lg:col-start-3 lg:justify-self-end")}>
+            <summary className="text-muted-foreground hover:text-foreground cursor-pointer select-none text-xs font-medium">Shot details</summary>
+            <div className="border-border bg-surface absolute right-0 bottom-full z-[var(--z-popover)] mb-3 max-h-[30dvh] w-80 max-w-[calc(100vw-2rem)] space-y-3 overflow-y-auto rounded-lg border p-3 shadow-lg sm:w-[28rem]">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <Detail label="Lie" value={humanize(situation.lie)} />
+                {physicalRoute ? <Detail label="Neutral pace" value={`${physicalDefaultPace.toFixed(1)} ft`} /> : null}
+                {hole?.effectiveWind ? <Detail label="Wind speed" value={`${hole.effectiveWind.magnitude} ${hole.effectiveWind.unit}`} /> : null}
+              </div>
+              {!puttRoute ? <div className="flex flex-wrap items-end gap-2">
+                <DockField label={landingTarget ? "Landing X" : "Target X"}>
+                  <Input type="number" value={aimPoint.x} min={situation.aimEnvelope?.minX} max={situation.aimEnvelope?.maxX}
+                    disabled={controlsDisabled} onChange={(e) => onAimPoint({ ...aimPoint, x: Number(e.target.value) })} className="w-24" />
+                </DockField>
+                <DockField label={landingTarget ? "Landing Y" : "Target Y"}>
+                  <Input type="number" value={aimPoint.y} min={situation.aimEnvelope?.minY} max={situation.aimEnvelope?.maxY}
+                    disabled={controlsDisabled} onChange={(e) => onAimPoint({ ...aimPoint, y: Number(e.target.value) })} className="w-24" />
+                </DockField>
+              </div> : null}
+              {lastOutcome ? <div className="border-border border-t pt-3"><p className="text-subtle-foreground mb-2 text-xs">Previous shot</p><OutcomeNote outcome={lastOutcome} /></div> : null}
+            </div>
+          </details>
+        </div>
+        <p className="text-subtle-foreground min-h-4 min-w-0 truncate text-xs" title={lastShotText}>{lastShotText}</p>
+        {physicalRoute ? <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(7rem,1fr)_minmax(12rem,2fr)_auto] lg:items-end">
+          <p className="text-muted-foreground hidden text-xs lg:block">Starting line: tap the green</p>
           <DockField label={`Pace · ${paceFeet.toFixed(1)} ft`}>
-            <div className="flex items-center gap-2">
-              <Input type="range" min="0.1" max={paceSliderMaximum} step="0.1" value={Math.min(paceFeet, paceSliderMaximum)}
+            <div className="flex min-w-0 items-center gap-2">
+              <Input type="range" min="0.1" max={paceSliderMaximum} step="0.1" value={Math.min(paceFeet, paceSliderMaximum)} disabled={controlsDisabled}
                 onChange={(event) => setPhysicalControls({ ...activePhysicalControls, paceFeet: validPaceFeet(Number(event.target.value)) })}
-                className="w-40" aria-label="Intended rolling distance in feet" />
-              <Input type="number" min="0.1" step="0.1" value={paceFeet}
+                className="min-w-0 flex-1" aria-label="Intended rolling distance in feet" />
+              <Input type="number" min="0.1" step="0.1" value={paceFeet} disabled={controlsDisabled}
                 onChange={(event) => setPhysicalControls({ ...activePhysicalControls, paceFeet: validPaceFeet(Number(event.target.value)) })}
-                className="w-20" aria-label="Exact intended rolling distance in feet" />
+                className="w-20 shrink-0" aria-label="Exact intended rolling distance in feet" />
             </div>
           </DockField>
-          <Button variant="secondary" size="sm" onClick={onToggleGreenReading} aria-pressed={showGreenReading}>
-            {showGreenReading ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
-            Green reading
-          </Button>
-        </> : null}
-        {!puttRoute ? <DockField label="Flight shape">
-          <Select value={shape} onChange={(e) => updateSelection({ shape: e.target.value })}>
-            {shapes.map((candidate) => <option key={candidate.shape} value={candidate.shape}>
-              {humanize(candidate.shape)}{candidate.reason ? ` — ${candidate.reason}` : ""}
-            </option>)}
-          </Select>
-        </DockField> : null}
-        {!puttRoute ? <details className="text-muted-foreground text-xs">
-          <summary className="cursor-pointer select-none">Fine adjust target</summary>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <DockField label={landingTarget ? "Landing X" : "Target X"}>
-              <Input
-                type="number"
-                value={aimPoint.x}
-                onChange={(e) => onAimPoint({ ...aimPoint, x: Number(e.target.value) })}
-                className="w-24"
-              />
-            </DockField>
-            <DockField label={landingTarget ? "Landing Y" : "Target Y"}>
-              <Input type="number" value={aimPoint.y} onChange={(e) => onAimPoint({ ...aimPoint, y: Number(e.target.value) })} className="w-24" />
-            </DockField>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={onToggleGreenReading} disabled={controlsDisabled} aria-label="Green reading" aria-pressed={showGreenReading}>
+              {showGreenReading ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+              Read green
+            </Button>
+            <SimMenu id={id} onShot={onShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} />
+            <Button size="lg" onClick={onPlay} disabled={play.isPending || putt.isPending || physicalPutt.isPending || controlsDisabled}>
+              {physicalPutt.isPending ? "Playing…" : "Roll putt"}
+            </Button>
           </div>
-        </details> : null}
-        <div className="text-muted-foreground text-xs" aria-live="polite">
-          {physicalRoute ? `Neutral pace equals the measured cup distance: ${physicalDefaultPace.toFixed(1)} ft.` : puttRoute ? "Putting uses the existing make-and-leave model" : `${landingTarget ? "Landing target" : "Target"} ${Math.round(targetDistance)} yds · ${selectedClub ? `${Math.round(selectedClub.normalReach)} yd normal reach` : "club guidance unavailable"}`}
-        </div>
-        {situation.guidance ? <StrategicGuidance options={situation.guidance.strategicOptions}
-          fallback={situation.guidance.primary} onAimPoint={onAimPoint} /> : null}
-
-        <div className="order-last w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
-          {formError ? (
-            <p role="alert" className="text-destructive text-sm">
-              {formError}
-            </p>
-          ) : lastOutcome ? (
-            <OutcomeNote outcome={lastOutcome} />
-          ) : null}
-        </div>
-
-        <SimMenu id={id} onShot={onShot} onSimJump={onSimJump} onError={setFormError} disabled={locked || foreground.hasPendingForegroundOperation} />
-        <Button size="lg" onClick={onPlay} disabled={play.isPending || putt.isPending || physicalPutt.isPending || foreground.hasPendingForegroundOperation || locked}>
-          {play.isPending || putt.isPending || physicalPutt.isPending ? "Playing…" : physicalRoute ? "Roll putt" : puttRoute ? "Putt" : "Play shot"}
-        </Button>
+        </div> : puttRoute ? <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+          {situation.lie === "FRINGE" ? <ShotTechniqueControl technique={technique} techniques={techniques}
+            onTechnique={(value) => updateSelection({ technique: value })} disabled={controlsDisabled} /> : <span className="text-muted-foreground text-xs">Putting from the green</span>}
+          <div className="col-start-2 row-start-2 sm:row-start-1"><SimMenu id={id} onShot={onShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} /></div>
+          <Button className="col-start-2 row-start-1 sm:col-start-3" size="lg" onClick={onPlay} disabled={putt.isPending || controlsDisabled}>{putt.isPending ? "Playing…" : "Putt"}</Button>
+        </div> : <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 md:flex lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+          <div className="contents lg:col-start-2 lg:flex lg:items-end lg:gap-2">
+            <DockField label="Club" className="md:w-40 md:shrink-0"><Select value={club} disabled={controlsDisabled} onChange={(e) => updateSelection({ club: e.target.value })}>
+              {playableClubs.map((candidate) => <option key={candidate.club} value={candidate.club}>{candidate.label}</option>)}
+            </Select></DockField>
+            <div className="hidden md:flex md:shrink-0 md:gap-2">
+              <div className="w-32"><ShotTechniqueControl technique={technique} techniques={techniques} onTechnique={(value) => updateSelection({ technique: value })} disabled={controlsDisabled || situation.lie === "GREEN"} /></div>
+              <div className="w-32"><ShotShapeControl shape={shape} shapes={shapes} onShape={(value) => updateSelection({ shape: value })} disabled={controlsDisabled} /></div>
+            </div>
+          </div>
+          <details name="shot-dock-panel" className="relative col-start-1 row-start-2 md:hidden">
+            <summary className="border-border bg-background text-foreground flex h-[var(--control-lg)] cursor-pointer items-center rounded-md border px-3 text-sm"><span className="truncate">Shot setup · {humanize(technique)} · {humanize(shape)}</span></summary>
+            <div className="border-border bg-surface absolute bottom-full left-0 z-[var(--z-popover)] mb-3 grid max-h-[30dvh] w-[calc(100vw-2rem)] grid-cols-2 gap-2 overflow-y-auto rounded-lg border p-3 shadow-lg">
+              <ShotTechniqueControl technique={technique} techniques={techniques} onTechnique={(value) => updateSelection({ technique: value })} disabled={controlsDisabled} />
+              <ShotShapeControl shape={shape} shapes={shapes} onShape={(value) => updateSelection({ shape: value })} disabled={controlsDisabled} />
+            </div>
+          </details>
+          <div className="contents lg:col-start-3 lg:flex lg:items-end lg:justify-self-end lg:gap-2">
+            <div className="col-start-2 row-start-2 md:ml-auto"><SimMenu id={id} onShot={onShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} /></div>
+            <Button className="col-start-2 row-start-1 min-w-32 md:shrink-0" size="lg" onClick={onPlay} disabled={play.isPending || putt.isPending || controlsDisabled}>
+              {play.isPending ? "Playing…" : "Play shot"}
+            </Button>
+          </div>
+        </div>}
       </div>
     </footer>
   );
 }
 
-function StrategicGuidance({
-  options,
-  fallback,
-  onAimPoint,
-}: {
-  options: NonNullable<Situation["guidance"]>["strategicOptions"];
-  fallback: { x: number; y: number };
-  onAimPoint: (point: { x: number; y: number }) => void;
-}) {
-  if (options.length === 0) {
-    return <Button variant="secondary" size="sm" onClick={() => onAimPoint(fallback)}>Primary</Button>;
-  }
-  return (
-    <div className="flex flex-wrap items-center gap-1" aria-label="Strategic landing guidance">
-      {options.map((option) => (
-        <Button key={option.role} variant="secondary" size="sm" onClick={() => onAimPoint(option.aimPoint)}
-          title={`${option.routeSummary}. ${option.exposureSummary}. Suggested ${humanize(option.suggestedClub)} ${humanize(option.suggestedFamily)}.`}>
-          {humanize(option.role)}
-        </Button>
-      ))}
-      <span className="text-subtle-foreground max-w-64 text-xs">
-        {options.map((option) => `${humanize(option.role)}: ${option.routeSummary}; ${option.exposureSummary}; suggested ${humanize(option.suggestedClub)} ${humanize(option.suggestedFamily)}`).join(" · ")}
-      </span>
-    </div>
-  );
+function DistanceMeasure({ mobileLabel, label, value }: { mobileLabel: string; label: string; value: string }) {
+  return <div className="min-w-0 whitespace-nowrap md:flex md:items-baseline md:gap-2">
+    <span className="text-muted-foreground block text-[10px] font-medium uppercase sm:text-xs md:normal-case"><span className="md:hidden">{mobileLabel}</span><span className="hidden md:inline">{label}</span></span>
+    <strong className="text-foreground block font-mono text-sm font-semibold tabular-nums md:inline">{value}</strong>
+  </div>;
 }
 
-function DockField({ label, children }: { label: string; children: React.ReactNode }) {
+function Detail({ label, value }: { label: string; value: string }) {
+  return <div className="min-w-0"><span className="text-subtle-foreground block">{label}</span><span className="text-foreground break-words font-medium tabular-nums">{value}</span></div>;
+}
+
+type Technique = { family: string; reason?: string | null };
+type Shape = { shape: string; reason?: string | null };
+
+function ShotTechniqueControl({ technique, techniques, onTechnique, disabled }: {
+  technique: string; techniques: Technique[]; onTechnique: (value: string) => void; disabled: boolean;
+}) {
+  return <DockField label="Technique"><Select value={technique} disabled={disabled} onChange={(event) => onTechnique(event.target.value)}>
+    {techniques.map((candidate) => <option key={candidate.family} value={candidate.family}>{humanize(candidate.family)}{candidate.reason ? ` — ${candidate.reason}` : ""}</option>)}
+  </Select></DockField>;
+}
+
+function ShotShapeControl({ shape, shapes, onShape, disabled }: {
+  shape: string; shapes: Shape[]; onShape: (value: string) => void; disabled: boolean;
+}) {
+  return <DockField label="Flight shape"><Select value={shape} disabled={disabled} onChange={(event) => onShape(event.target.value)}>
+    {shapes.map((candidate) => <option key={candidate.shape} value={candidate.shape}>{humanize(candidate.shape)}{candidate.reason ? ` — ${candidate.reason}` : ""}</option>)}
+  </Select></DockField>;
+}
+
+function DockField({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
-    <label className="flex flex-col gap-1">
+    <label className={cn("flex min-w-0 flex-col gap-1", className)}>
       <span className="text-subtle-foreground text-[10px] tracking-[0.08em] uppercase">{label}</span>
       {children}
     </label>
@@ -480,7 +498,6 @@ function SimMenu({
   const simEvent = useSimEvent(id);
   const foreground = useForegroundOperation();
   const busy = simShot.isPending || simHole.isPending || simRound.isPending || simEvent.isPending || foreground.isPending || (disabled ?? false);
-  const [open, setOpen] = useState(false);
 
   async function simulate<T>(
     label: string,
@@ -507,35 +524,12 @@ function SimMenu({
   ];
 
   return (
-    <div className="relative">
-      <Button variant="secondary" size="lg" disabled={busy} onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open}>
-        Sim
-        <ChevronUp className={cn("size-4 transition-transform", open ? "" : "rotate-180")} aria-hidden="true" />
-      </Button>
-      {open ? (
-        <>
-          <div className="fixed inset-0 z-[var(--z-popover)]" onClick={() => setOpen(false)} aria-hidden="true" />
-          <div
-            role="menu"
-            className="border-border bg-surface absolute right-0 bottom-full z-[var(--z-popover)] mb-2 w-52 overflow-hidden rounded-lg border shadow-lg"
-          >
-            {items.map((it) => (
-              <button
-                key={it.label}
-                role="menuitem"
-                disabled={busy}
-                onClick={() => {
-                  setOpen(false);
-                  it.run();
-                }}
-                className="hover:bg-background block w-full px-3.5 py-2.5 text-left text-sm transition-colors disabled:opacity-50"
-              >
-                {it.label}
-              </button>
-            ))}
-          </div>
-        </>
-      ) : null}
+    <div className="w-24 shrink-0">
+      <Select aria-label="Simulation actions" value="" disabled={busy} className="h-[var(--control-lg)]"
+        onChange={(event) => items[Number(event.target.value)]?.run()}>
+        <option value="" disabled>Sim</option>
+        {items.map((item, index) => <option key={item.label} value={index}>{item.label}</option>)}
+      </Select>
     </div>
   );
 }
