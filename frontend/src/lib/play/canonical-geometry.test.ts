@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalRenderModel, projectCanonicalFlow, type CanonicalPlayingGeometry } from "./canonical-geometry";
+import { canonicalRenderModel, pointerWorldTarget, projectCanonicalFlow, type CanonicalPlayingGeometry } from "./canonical-geometry";
 
 const geometry: CanonicalPlayingGeometry = {
   tee: { x: 0, y: 0 },
@@ -40,6 +40,16 @@ describe("canonicalRenderModel", () => {
     expect(model.unproject(model.project(source))).toEqual(expect.objectContaining({
       x: expect.closeTo(source.x, 8), y: expect.closeTo(source.y, 8),
     }));
+  });
+  it("maps a click through the actual SVG screen transform to the same world target", () => {
+    const model = canonicalRenderModel(geometry);
+    const world = { x: 13.25, y: 71.5 };
+    const svg = model.project(world);
+    // A screen transform with translation and non-uniform scale, as in a fitted viewport.
+    const client = { x: svg.x * 2 + 100, y: svg.y * 1.5 + 30 };
+    const selected = pointerWorldTarget(client, { a: 0.5, b: 0, c: 0, d: 2 / 3, e: -50, f: -20 }, model.unproject);
+    expect(selected.x).toBeCloseTo(world.x, 8);
+    expect(selected.y).toBeCloseTo(world.y, 8);
   });
   it("projects every terrain path from the API geometry without inventing terrain", () => {
     const model = canonicalRenderModel(geometry);

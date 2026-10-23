@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
-import { formatRemainingDistance, outcomeFeedback, type Outcome } from "./play-shared";
+import { formatRemainingDistance, outcomeFeedback, OutcomeNote, type Outcome } from "./play-shared";
 
 function outcome(overrides: Partial<Outcome> = {}): Outcome {
   return {
@@ -31,5 +33,30 @@ describe("putting feedback", () => {
     expect(formatRemainingDistance(0.01)).toBe("<0.1 ft");
     expect(formatRemainingDistance(0.4)).toBe("1.2 ft");
     expect(formatRemainingDistance(10 / 3)).toBe("10 ft");
+    expect(formatRemainingDistance(50.33)).toBe("50 yd");
+  });
+});
+
+describe("completed shot presentation", () => {
+  it("keeps carry, final lie and remaining distance in separate labelled groups", () => {
+    const html = renderToStaticMarkup(createElement(OutcomeNote, { outcome: outcome({
+      carry: 281.3, finalSurface: "PRIMARY_ROUGH", distanceRemaining: 50.33,
+    }) }));
+    expect(html).toContain("Previous carry");
+    expect(html).toContain("281 yd");
+    expect(html).toContain("Primary rough");
+    expect(html).toContain("Remaining to pin");
+    expect(html).toContain("50 yd");
+  });
+
+  it("marks a hole-out from server state and labels physical displacement accurately", () => {
+    const html = renderToStaticMarkup(createElement(OutcomeNote, { outcome: outcome({
+      carry: 0.4, holed: true, physicalPutt: {
+        trajectory: [], finalPosition: { x: 0, y: 0 }, holed: true, terminalCondition: "CAPTURED",
+      },
+    }) }));
+    expect(html).toContain("Ball moved");
+    expect(html).toContain("1.2 ft");
+    expect(html).toContain("Holed");
   });
 });

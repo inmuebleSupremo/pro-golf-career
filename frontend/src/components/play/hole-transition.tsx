@@ -5,6 +5,7 @@ import { Flame } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { humanize } from "@/lib/play/options";
+import { formatShotDistance } from "@/lib/play/distance";
 import { Hole2d } from "@/components/play/hole-2d";
 import { PhysicalPuttingGreen } from "@/components/play/physical-putting-green";
 import { PostHoleOverlay, PreHoleOverlay } from "@/components/play/hole-overlays";
@@ -43,7 +44,7 @@ export function StageHole({
   phase: SeqPhase;
   postHole: PostHoleSummary | null;
   aimPoint: { x: number; y: number };
-  onAimPoint: (point: { x: number; y: number }) => void;
+  onAimPoint?: (point: { x: number; y: number }) => void;
   physicalAimDirection: { x: number; y: number };
   onPhysicalAimDirection: (direction: { x: number; y: number }) => void;
   showGreenReading: boolean;
@@ -61,7 +62,8 @@ export function StageHole({
             <PhysicalPuttingGreen hole={displayHole} ball={playbackShot} aimDirection={physicalAimDirection}
               onAimDirection={onPhysicalAimDirection} showReading={showGreenReading}
               onPlaybackComplete={onPhysicalPlaybackComplete} />
-          ) : <Hole2d hole={displayHole} ball={playbackShot} className="block max-h-full w-auto" aimPoint={aimPoint} onAimPoint={onAimPoint} />}
+          ) : <Hole2d hole={displayHole} ball={playbackShot} className={cn("block max-h-full w-auto touch-manipulation", onAimPoint && "cursor-crosshair")}
+            aimPoint={aimPoint} onAimPoint={onAimPoint} />}
         </div>
       ) : (
         <div className="bg-surface-3 aspect-[1/2] h-[70%] animate-pulse rounded-lg" />
@@ -126,7 +128,7 @@ function StageChip({ situation }: { situation: Situation }) {
       </div>
       <p className="text-muted-foreground mt-1 text-xs tabular-nums">
         Shot <span className="text-foreground font-mono">{situation.shotNumber}</span> ·{" "}
-        <span className="text-foreground font-mono">{Math.round(situation.distanceToPin)}</span> yds · {humanize(situation.lie)}
+        <span className="text-foreground font-mono">{formatShotDistance(situation.distanceToPin, situation.lie === "GREEN")}</span> to pin · {humanize(situation.lie)}
       </p>
     </div>
   );
