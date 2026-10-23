@@ -19,11 +19,12 @@ The system SHALL let the player advance the career one week at a time, and SHALL
 
 ### Requirement: Shot-by-shot play
 
-The system SHALL let the player play a pending event shot by shot, choosing a club, a target distance within the shot's reach range, and a strategy, with the simulation resolving each shot's outcome.
+The system SHALL let the player play a pending event shot by shot. For an ordinary non-putting shot, the player SHALL
+choose a legal club, literal canonical target, shot family, and shape; the simulation SHALL resolve the outcome.
 
 #### Scenario: Play a shot
 
-- **WHEN** the player submits a club, target distance, and strategy for the current shot
+- **WHEN** the player submits the current shot's club, target, family, and shape
 - **THEN** the outcome is resolved and the next shot situation (or event completion) is presented
 
 #### Scenario: Situation and standing are shown
@@ -33,12 +34,13 @@ The system SHALL let the player play a pending event shot by shot, choosing a cl
 
 #### Scenario: Target is constrained to the shot
 
-- **WHEN** the player sets a target distance
-- **THEN** it is constrained to the shot's minimum and maximum reach
+- **WHEN** the player selects a target on the hole
+- **THEN** its coordinates SHALL remain inside the server's inclusive aim envelope
+- **AND THEN** approximate club reach SHALL be information, not a target-selection limit
 
 ### Requirement: Sim shortcuts
 
-The system SHALL let the player skip play at any point by simulating the current shot, the rest of the round, or the rest of the event.
+The system SHALL let the player skip play at any point by simulating the current shot, the rest of the hole, the rest of the round, or the rest of the event.
 
 #### Scenario: Sim the rest of the event
 
@@ -71,29 +73,33 @@ The play surface SHALL handle the absence of a pending event and the usual loadi
 ### Requirement: Spatial manual targeting
 The play UI SHALL let a human choose an individual club and preview/select a literal canonical aim point on the hole display. It SHALL submit that point, not a derived strategy/distance/lateral decision.
 
-#### Scenario: Player selects a suggested or free point
-- **WHEN** a player taps a guidance default or places a custom target
-- **THEN** the UI displays the target marker and its relevant distance/reach feedback
-- **AND THEN** submission uses the displayed coordinates.
+#### Scenario: Player selects a course point
+- **WHEN** a player clicks or taps a legal point on the displayed hole
+- **THEN** the UI displays its target marker and intended direction, with updated target distance
+- **AND THEN** submission uses the displayed canonical coordinates without guaranteeing that landing position.
 
 ### Requirement: Accessible multi-input targeting
-The play UI SHALL support desktop pointer targeting, touch-friendly mobile targeting, and keyboard coarse/fine target adjustment. It SHALL expose target coordinates, selected club, distance, reach/legality messages, and stale-state feedback with accessible labels and non-colour-only indicators.
+The play UI SHALL support desktop pointer targeting and touch-friendly mobile targeting. It SHALL retain labelled
+numerical X/Y target controls in Shot details for precise keyboard adjustment, and SHALL expose selected club,
+distance, normal reach, and stale-state feedback without relying solely on colour.
 
 #### Scenario: Keyboard player adjusts target
-- **WHEN** a keyboard user operates target controls
-- **THEN** the target moves by documented coarse or fine increments
-- **AND THEN** updated position and warnings are announced without relying solely on colour.
+- **WHEN** a keyboard user operates the numerical target controls
+- **THEN** a legal coordinate change updates the same visible target and submitted point
+- **AND THEN** the current distance remains readable without relying solely on colour.
 
 ### Requirement: Human risk control retirement
 The play UI SHALL remove conservative/balanced/aggressive as human shot-selection controls.
 
 #### Scenario: Manual action dock has no strategy input
 - **WHEN** a player prepares a manual ball strike
-- **THEN** the action controls present club, target, guidance, and submit state
+- **THEN** the action controls present legal club, technique, shape, target information, and submit state
 - **AND THEN** no human strategy selector is shown or sent.
 
 ### Requirement: Trace-owned result feedback
-During visible-shot playback and feedback, the play UI SHALL use the returned trace's intended aim, contact, transition, and final point. It SHALL not derive result feedback from current guidance, selected next aim, strategy, carry/lateral, or client-generated terrain.
+During visible-shot playback, the play UI SHALL use the returned trace's intended aim, contact, transition, and final
+point. Previous-shot text MAY use authoritative outcome carry, final lie, remaining distance, and penalty facts. The UI
+SHALL not derive a completed shot's visual path or position from current guidance, selected next aim, or client terrain.
 
 #### Scenario: Refetch cannot replace the completed shot target
 - **WHEN** the server advances to the next pending shot while the prior visible shot is still being presented
@@ -117,12 +123,13 @@ When reduced motion is enabled, the play UI SHALL still expose all trace semanti
 - **AND THEN** it SHALL retain accessible textual result feedback.
 
 ### Requirement: Deliberate technique selection
-The play UI SHALL support the minimal planning sequence Club → Technique → Landing target → Play shot. It SHALL submit the chosen family in `BallStrikeIntent` and SHALL not infer or silently replace technique from club, distance, lie, or human strategy.
+The play UI SHALL support deliberate target, club, technique, and shape choices before Play shot. It SHALL submit the
+chosen legal family in `BallStrikeIntent` and SHALL not infer a technique from distance or a human strategy label.
 
-#### Scenario: Unavailable family is understandable
+#### Scenario: Unavailable family is not submitted
 - **WHEN** current guidance marks a family unavailable for the selected club and lie
-- **THEN** the UI SHALL present it disabled with its concise reason
-- **AND THEN** it SHALL not silently hide or substitute the selection.
+- **THEN** the controls SHALL offer only available families for that selection
+- **AND THEN** a changed shot situation SHALL rederive a legal selection before submission.
 
 ### Requirement: Landing-target semantics
 For PITCH and CHIP, the UI SHALL identify AimPoint as landing target / intended first contact. It SHALL not predict or present an uncomputed final resting position during planning.
@@ -194,21 +201,48 @@ compass labels, and SHALL not provide wind compensation or flight-prediction con
 - **AND THEN** it SHALL not mutate live weather/conditions, player state, ball state, shot intent, resolver inputs,
   or gameplay authority.
 
-### Requirement: Truthful non-binding strategic guidance
+### Requirement: Player-directed shot strategy
 
-The play UI SHALL render only server-authored, distinct strategic guidance options in the existing target-guidance controls. It SHALL display each option's role and concise server-authored route/exposure explanation, and MAY display its suggested club/family. Selecting an option SHALL set its literal aim point only; it SHALL not silently alter the player's club, family, shape, or free manual targeting ability.
+The ordinary human shot dock SHALL allow the player to choose an intended target directly on the course and SHALL
+not present SAFE/PRIMARY/AGGRESSIVE route buttons, prescribed route explanations, or suggested club-and-route
+combinations. Backend route geometry, guidance data, and AI policy SHALL remain available to their existing consumers.
 
-#### Scenario: Player understands and may override a strategic option
+#### Scenario: Strategic options remain internal to ordinary human play
 
-- **WHEN** a V4 shot exposes SAFE and AGGRESSIVE guidance options
-- **THEN** the player can see their different server-authored positional/exposure explanations and select either target
-- **AND THEN** the player can still choose any legal club/family/shape and a free literal target before submitting.
+- **WHEN** a V4 shot exposes distinct SAFE and AGGRESSIVE strategic options
+- **THEN** the ordinary human dock SHALL still accept any legal manual target within the aim envelope
+- **AND THEN** it SHALL not turn those options into prescribed route controls or recommendations.
 
-#### Scenario: No false button triplet
+#### Scenario: Manual aim survives shot setup changes
 
-- **WHEN** the server supplies only ordinary PRIMARY guidance
-- **THEN** the UI SHALL show the ordinary target without duplicate SAFE/AGGRESSIVE controls
-- **AND THEN** it SHALL not infer alternatives from SVG terrain or client calculations.
+- **WHEN** the player selects a legal course target and then changes club, technique, or shape
+- **THEN** the selected target SHALL remain visible and SHALL be submitted with the current legal shot settings
+- **AND THEN** the next shot revision SHALL start from its own default target.
+
+### Requirement: Compact factual shot dock
+
+For ordinary shots, the collapsed responsive dock SHALL show distance to pin, distance to the selected target, and
+the selected club's server-provided normal reach together. Shot details SHALL disclose factual context and precise
+target coordinates without permanently enlarging the dock. Previous-shot feedback SHALL have a concise summary and
+expandable authoritative carry, lie, remaining-distance, and exceptional-result facts.
+
+#### Scenario: Selected club or target changes the comparison
+
+- **WHEN** the player selects another club or legal target
+- **THEN** normal reach or target distance SHALL update from the current server club data or selected world point
+- **AND THEN** the pin distance SHALL remain the current situation's authoritative value.
+
+#### Scenario: A completed shot does not displace the controls
+
+- **WHEN** shot playback completes and result feedback appears
+- **THEN** the dock SHALL show the previous result separately from the next shot's target measurements
+- **AND THEN** primary controls SHALL remain in their compact responsive arrangement.
+
+#### Scenario: Introductory aim hint is dismissed
+
+- **WHEN** a valid new point is selected directly on the course for the first time in a play session
+- **THEN** the introductory aiming hint SHALL stay dismissed through later shots and holes
+- **AND THEN** an invalid or unchanged target interaction SHALL not dismiss it.
 
 ### Requirement: Availability-backed shot controls and click-first aiming
 
@@ -226,7 +260,7 @@ When the server rejects a submitted shot with an expected `BAD_REQUEST` validati
 
 #### Scenario: An invalid manual aim is explained
 
-- **WHEN** a player submits an aim point outside the server's planning envelope
-- **THEN** the server rejects the shot without resolving it
-- **AND THEN** the UI presents the expected validation message so the player can adjust the target.
+- **WHEN** a course interaction would select a point outside the server's planning envelope
+- **THEN** the dock SHALL retain the last legal visible target
+- **AND THEN** any out-of-envelope submission that reaches the API SHALL be rejected without resolving a stroke.
 

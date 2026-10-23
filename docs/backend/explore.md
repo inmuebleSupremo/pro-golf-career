@@ -1820,15 +1820,18 @@ The objective is consistent, strategic and statistically believable gameplay.
 
 # REQ-051 Player Decision Model
 
-Every playable shot shall begin with a player decision.
+Every manually played non-putting shot shall begin with a player decision.
 
-A valid shot requires the player to select:
+The decision includes:
 
 * Club
 * Target
-* Strategy
+* A legal shot technique and flight shape
 
-No shot may be resolved without these required inputs.
+For a manually played non-putting shot, these form a legal ball-strike intent; a suggested initial target may be
+provided, but the player may choose another point within the shot's legal aim envelope. Putting follows the event's
+putting policy, and the player may simulate instead of manually playing a shot. An internal AI or legacy strategy
+value is not a required human-facing control.
 
 Acceptance Criteria:
 
@@ -1898,25 +1901,18 @@ Acceptance Criteria:
 
 ---
 
-# REQ-055 Strategy Selection
+# REQ-055 Strategic Intent
 
-Every shot shall include a strategic intent.
+For manual non-putting play, strategic intent is expressed through the selected target, club, technique, and flight
+shape. The ordinary human interface shall not require a separate Conservative, Balanced, or Aggressive selector.
 
-Version 1 supports three strategy levels.
-
-Conservative
-
-Balanced
-
-Aggressive
-
-Strategy represents the player's willingness to accept additional risk in pursuit of improved outcomes.
+The simulation may retain Conservative, Balanced, and Aggressive dispositions for AI policy and legacy decision
+compatibility. They may affect internal risk/reward resolution but shall not replace the human's literal target.
 
 Acceptance Criteria:
 
-* Exactly one strategy selected.
-* Strategy modifies expected behaviour.
-* Strategy never overrides player attributes.
+* The human may revise legal shot choices before confirmation.
+* Internal AI or legacy strategy never overrides the human's selected target or golfer attributes.
 
 ---
 

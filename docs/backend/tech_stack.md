@@ -84,6 +84,11 @@ Responsibilities:
 > Routing/state are handled by Next.js + TanStack Query rather than React Router + Apollo (the original intent).
 > The full frontend design system is documented in [`../frontend/`](../frontend/).
 
+The shared foreground-loading provider tracks explicitly enrolled operations independently of whether an overlay is
+visible. Known long operations show the dark in-context golf contour/route/flag overlay immediately; selected uncertain
+operations show it after a short delay. Normal shot/hole playback and quick navigation do not use the global overlay.
+The consumer hook prevents duplicate submissions for enrolled actions; tracking clears on success or failure.
+
 ---
 
 # Database / Persistence

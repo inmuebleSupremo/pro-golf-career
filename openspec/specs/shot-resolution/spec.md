@@ -21,7 +21,8 @@ The simulation SHALL resolve all shots through one probability model. Human and 
 
 The shared model SHALL expose two entry points that compose the same per-shot core:
 
-- **resolveShot** — resolves exactly one shot from an explicit decision (club, target, strategy) plus game state, for interactive per-shot play.
+- **resolveShot** — resolves exactly one shot from a complete internal decision plus game state. The current manual
+  spatial path converts `BallStrikeIntent` (club, literal target, family, shape) into that shared decision form.
 - **resolveRound** — resolves a full hole and/or round for a golfer without an interactive loop, by repeatedly composing the per-shot core with automatically-derived decisions.
 
 `resolveRound` SHALL produce outcomes drawn from the same distributions as an equivalent sequence of `resolveShot` calls.
@@ -38,17 +39,20 @@ The shared model SHALL expose two entry points that compose the same per-shot co
 
 ### Requirement: Required Shot Decision Inputs
 
-A shot SHALL NOT be resolved unless a complete decision is supplied: exactly one **club**, one **target**, and one **strategy** (Conservative, Balanced, or Aggressive). Strategy SHALL adjust the risk/reward shape of the outcome distribution but SHALL NOT override attribute influence.
+A manual non-putting spatial shot SHALL require a legal **club**, literal **target**, **family**, and **shape**.
+The internal `ShotDecision` SHALL retain a strategy value for AI policy and legacy compatibility; the manual spatial
+path MAY provide an internal neutral execution value without asking the human to select a strategy. Internal strategy
+SHALL NOT override attribute influence or substitute a route target for the submitted human point.
 
 #### Scenario: Incomplete decision rejected
 
-- **WHEN** `resolveShot` is invoked without a club, target, or strategy
+- **WHEN** a manual ball-strike intent lacks a club, target, family, or shape
 - **THEN** resolution SHALL be rejected before any outcome is produced
 
-#### Scenario: Aggressive strategy widens risk
+#### Scenario: AI strategy remains an internal resolution input
 
-- **WHEN** strategy changes from Conservative to Aggressive with all else held constant
-- **THEN** the outcome distribution SHALL shift toward both greater potential reward and greater dispersion, without changing the underlying attribute contributions
+- **WHEN** AI policy changes its strategy from Conservative to Aggressive with all else held constant
+- **THEN** the outcome distribution SHALL shift toward both greater potential reward and greater dispersion, without changing the underlying attribute contributions or introducing a human strategy selector
 
 ### Requirement: Continuous Controlled Randomness
 

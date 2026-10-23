@@ -89,7 +89,10 @@ V3 SHALL compile route, zones, green complex, and minimal compatible hazard plac
 
 ### Requirement: Existing decision flows receive compatible progression targets
 
-V3 SHALL derive deterministic internal progression targets from its route and zones. Existing AI targeting and the human/default decision path SHALL use the appropriate generated progress target when available; existing strategy labels MAY choose a safe or aggressive recommendation. V1/V2 and absent-target callers SHALL use the deterministic green-centre fallback. This requirement SHALL NOT add player free aiming, new shot types/shapes, or a redesign of current control flows.
+V3 SHALL derive deterministic internal progression targets from its route and zones. Existing AI targeting and an
+initial human/default aim MAY use the appropriate generated progress target when available; the human may replace that
+initial point within the legal aim envelope. V1/V2 and absent-target callers SHALL use the deterministic green-centre
+fallback. Route roles remain internal architectural and policy facts, not mandatory human shot-control choices.
 
 #### Scenario: Dogleg default avoids an inside cut
 
@@ -112,7 +115,7 @@ The V3 implementation SHALL use a committed deterministic corpus and locked pre-
 
 ### Requirement: V4 hazards preserve route-target compatibility
 
-V4 hazard planning SHALL validate the existing deterministic route-progression/default target cores against compiled canonical terrain. PRIMARY and SAFE recommendations SHALL remain hazard-free at their selected target points; AGGRESSIVE recommendations MAY carry bounded surrounding exposure but SHALL not direct existing AI/default-human flow into a hazard. This requirement SHALL NOT add hazard-management AI, free aim, or new player controls.
+V4 hazard planning SHALL validate the existing deterministic route-progression/default target cores against compiled canonical terrain. PRIMARY and SAFE default guidance points SHALL remain hazard-free at their selected target points; AGGRESSIVE guidance MAY carry bounded surrounding exposure but SHALL not direct existing AI or initial human guidance into a hazard. This generator requirement SHALL NOT add hazard-management AI or new player controls.
 
 #### Scenario: Current default play does not target water
 
@@ -122,9 +125,9 @@ V4 hazard planning SHALL validate the existing deterministic route-progression/d
 ### Requirement: Guidance points are literal spatial suggestions
 Strategic routing SHALL expose SAFE, PRIMARY, and AGGRESSIVE guidance as literal canonical `AimPoint` suggestions where applicable. Guidance SHALL remain advisory and SHALL not limit free target selection within the aim envelope.
 
-#### Scenario: Default becomes an ordinary aim point
-- **WHEN** a player chooses the SAFE default
-- **THEN** the client submits its resolved canonical coordinates as `BallStrikeIntent.aimPoint`
+#### Scenario: Guidance point has no special execution status
+- **WHEN** a human submits a canonical point that coincides with SAFE guidance
+- **THEN** the client submits its literal coordinates as `BallStrikeIntent.aimPoint`
 - **AND THEN** the resolver grants it no special execution treatment.
 
 ### Requirement: ShotAim is policy and guidance only
@@ -158,7 +161,9 @@ The simulation SHALL not expose SAFE, PRIMARY, or AGGRESSIVE as distinct choices
 
 ### Requirement: Deterministic shared strategy selection
 
-AI strategy policy SHALL choose only from the same deterministic strategic option facts exposed to human guidance. It SHALL use current geometry, club/family, lie, conditions, and qualitative exposure facts, and SHALL not inspect or consume a future random shot outcome.
+AI strategy policy SHALL choose only from the same deterministic strategic option facts published in shot guidance.
+The ordinary human dock need not display those route options. AI policy SHALL use current geometry, club/family, lie,
+conditions, and qualitative exposure facts, and SHALL not inspect or consume a future random shot outcome.
 
 #### Scenario: Disposition follows published candidates
 
