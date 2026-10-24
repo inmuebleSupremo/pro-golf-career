@@ -41,6 +41,26 @@ describe("canonicalRenderModel", () => {
       x: expect.closeTo(source.x, 8), y: expect.closeTo(source.y, 8),
     }));
   });
+  it("centres all authoritative extents in an optional presentation without changing inverse targeting", () => {
+    const bent: CanonicalPlayingGeometry = {
+      tee: { x: 4, y: 0 }, cup: { x: -18, y: 120 },
+      playableBoundary: [
+        { x: -45, y: 0 }, { x: 10, y: 0 }, { x: 42, y: 48 },
+        { x: 25, y: 86 }, { x: 8, y: 138 }, { x: -43, y: 138 },
+      ],
+      regions: [{ surface: "BUNKER", boundary: [
+        { x: 42, y: 48 }, { x: 48, y: 52 }, { x: 43, y: 59 },
+      ] }],
+    };
+    const model = canonicalRenderModel(bent, { width: 220, height: 440, padding: 16, center: true });
+    const projected = [...bent.playableBoundary, ...bent.regions[0].boundary].map(model.project);
+    expect((Math.min(...projected.map((point) => point.x)) + Math.max(...projected.map((point) => point.x))) / 2)
+      .toBeCloseTo(110, 8);
+    for (const point of [bent.tee, bent.cup, ...bent.regions[0].boundary]) {
+      expect(model.unproject(model.project(point)).x).toBeCloseTo(point.x, 8);
+      expect(model.unproject(model.project(point)).y).toBeCloseTo(point.y, 8);
+    }
+  });
   it("maps a click through the actual SVG screen transform to the same world target", () => {
     const model = canonicalRenderModel(geometry);
     const world = { x: 13.25, y: 71.5 };

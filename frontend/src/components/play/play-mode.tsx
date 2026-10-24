@@ -95,6 +95,7 @@ export function PlayMode({
   const setPhysicalAimDirection = (direction: { x: number; y: number }) =>
     setPhysicalAimState({ revision: situation.shotRevision, source: physicalAimSource, direction });
   const [showGreenReading, setShowGreenReading] = useState(false);
+  const [parklandPresentation, setParklandPresentation] = useState<"polished" | "premium">("polished");
 
   // The client-side sequence: it owns what the stage shows and when the shot controls are locked, so the
   // between-hole ceremony (hole-out → score → wipe → intro) can play out over the server's instant advance.
@@ -110,6 +111,8 @@ export function PlayMode({
   }, []);
 
   const position = playerGolferId ? (leaderboard.find((r) => r.golfer.id === playerGolferId)?.position ?? null) : null;
+  const showParklandPrototype = process.env.NODE_ENV === "development"
+    && hole?.canonicalBiome === "PARKLAND";
   const toggle = (t: DrawerTab) => setTab((prev) => (prev === t ? null : t));
 
   return (
@@ -143,7 +146,17 @@ export function PlayMode({
             onPhysicalAimDirection={setPhysicalAimDirection}
             showGreenReading={showGreenReading}
             onPhysicalPlaybackComplete={seq.onPhysicalPlaybackComplete}
+            presentation={showParklandPrototype ? parklandPresentation : "polished"}
           />
+          {showParklandPrototype && !(hole?.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN") ? (
+            <div className="border-border bg-background/90 absolute right-4 bottom-4 z-10 flex items-center gap-1 rounded-md border p-1 shadow-lg" aria-label="Development Parkland presentation comparison">
+              <span className="text-subtle-foreground px-2 text-[10px] uppercase tracking-wider">Visual test</span>
+              <button type="button" aria-pressed={parklandPresentation === "polished"} onClick={() => setParklandPresentation("polished")}
+                className={cn("rounded px-2 py-1 text-xs", parklandPresentation === "polished" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>Current</button>
+              <button type="button" aria-pressed={parklandPresentation === "premium"} onClick={() => setParklandPresentation("premium")}
+                className={cn("rounded px-2 py-1 text-xs", parklandPresentation === "premium" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>Premium</button>
+            </div>
+          ) : null}
         </section>
 
         <InfoDrawer

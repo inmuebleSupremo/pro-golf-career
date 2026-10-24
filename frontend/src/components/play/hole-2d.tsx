@@ -11,7 +11,7 @@ export interface Hole2dProps {
   readonly aimPoint?: Point;
   readonly onAimPoint?: (point: Point) => void;
   /** Development-only comparison mode; gameplay always uses the polished default. */
-  readonly presentation?: "baseline" | "polished";
+  readonly presentation?: "baseline" | "polished" | "premium";
 }
 
 /** Active play has one terrain and shot authority: canonical backend geometry plus a returned trace. */

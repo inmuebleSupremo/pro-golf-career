@@ -36,6 +36,7 @@ export function StageHole({
   onPhysicalAimDirection,
   showGreenReading,
   onPhysicalPlaybackComplete,
+  presentation = "polished",
 }: {
   displayHole: HoleGeom | null;
   situation: Situation;
@@ -49,6 +50,7 @@ export function StageHole({
   onPhysicalAimDirection: (direction: { x: number; y: number }) => void;
   showGreenReading: boolean;
   onPhysicalPlaybackComplete: () => void;
+  presentation?: "polished" | "premium";
 }) {
   // Chrome (hole chip, pressure) rides with live play and the score beat, but yields to the intro overlay and
   // hides through the wipe so nothing shows over the swap.
@@ -63,7 +65,7 @@ export function StageHole({
               onAimDirection={onPhysicalAimDirection} showReading={showGreenReading}
               onPlaybackComplete={onPhysicalPlaybackComplete} />
           ) : <Hole2d hole={displayHole} ball={playbackShot} className={cn("block max-h-full w-auto touch-manipulation", onAimPoint && "cursor-crosshair")}
-            aimPoint={aimPoint} onAimPoint={onAimPoint} />}
+            aimPoint={aimPoint} onAimPoint={onAimPoint} presentation={presentation} />}
         </div>
       ) : (
         <div className="bg-surface-3 aspect-[1/2] h-[70%] animate-pulse rounded-lg" />
