@@ -41,7 +41,7 @@ When your golfer plays a tournament round, you may play it **shot by shot**, mak
 
 ### B. Career management — the decisions *between* rounds
 The strategic spine that makes an age-18 choice matter at 40. All of these are **player decisions**, now exposed through `WorldService` (for the player's golfer; the AI still auto-manages the rest of the field):
-- **Development** — invest development points to specialise/round-out your golfer (exposed: *focus*).
+- **Development** — manually invest or bank seasonal Development Points to specialise or round out your golfer; purchased gains are limited to +6 per attribute each calendar season (exposed: *training purchases*).
 - **Schedule & workload** — which tournaments to enter, when to rest, balancing prize/ranking/prestige against fatigue and injury risk (exposed: **event-by-event entry** across the calendar, plus a rest toggle).
 - **Health** — manage fatigue and recovery; rehab decisions after injury (managed via scheduling/rest; the sim resolves fatigue + injuries).
 - **Staff** — hire/replace coach, caddie, fitness coach, physiotherapist, sports psychologist (exposed: *pending offers → hire/release*; caddie & psychologist now affect shots).
@@ -55,16 +55,16 @@ The end-to-end experience, with honest current status. **Built** = engine exists
 
 | Stage | Player does | Engine | Exposed to player |
 |---|---|---|---|
-| **Onboarding** | Create/choose your golfer (identity, nationality, archetype, starting build) | Built (population/identity/attributes) | **Exposed** (`createPlayer` — custom golfer at the Development tour) |
+| **Onboarding** | Create/choose your golfer (identity, nationality, Playing Style, starting age, Starting Background) | Built (population/identity/attributes) | **Exposed** (`createPlayer` — custom golfer at the Development tour) |
 | **Season planning** | Choose events to enter; plan rest/training around the calendar | Built (calendar, schedule, tours, health) | **Exposed** (event-by-event skip/enter + rest) |
 | **Preparation** | Set loadout; brief staff; set tactics for the event/conditions | Built (equipment loadout, staff, weather) | **Exposed** (loadout select, staff hire/release); per-event tactics still Missing |
 | **Play the round** | Choose a course target, club, technique, and flight shape shot-by-shot, or sim | Built (`resolveShot`, `PlayableRound`/`PlayableEvent`) | **Exposed** (play/sim via `WorldService` and the shot dock) |
-| **Development** | Invest development points | Built (progression) | **Exposed** (focus) |
+| **Development** | Spend or bank Development Points; plan gradual, season-limited attribute growth | Built (progression) | **Exposed** (manual training purchases) |
 | **Staff** | Hire/replace support team | Built (staff) | **Exposed** (pending offers → hire/release) |
 | **Equipment** | Buy/choose clubs & ball | Built (equipment) | **Exposed** (pending upgrades → buy, select loadout) |
 | **Sponsorship** | Accept/decline & manage agreements | Built (economy) | **Exposed** (accept/decline) |
 | **Finances** | Budget & spend | Built (economy) | **Exposed** (staff/equipment spends are budget-gated) |
-| **Career arc** | Pursue self-chosen goals; navigate promotion/relegation, aging, decline, retirement, Hall-of-Fame | Built (tours, career, ranking, aging, HoF election) | **Exposed** (goals + live progress; HoF induction); attribute progression is automatic |
+| **Career arc** | Pursue self-chosen goals; navigate promotion/relegation, aging, decline, retirement, Hall-of-Fame | Built (tours, career, ranking, aging, HoF election) | **Exposed** (goals + live progress; HoF induction); human attribute purchases are manual |
 | **Experience the world** | Read the news, track your stats/records/ranking, feel rivalries & narrative | Built (media, statistics inc. shot-level, ranking) | Read models exposed; **no UI** |
 
 **Definition of winning (§1.6):** no single win condition — you pursue your own mix of victories, majors, earnings, world ranking, longevity, records, Hall-of-Fame. The game must give *meaningful play in every career phase* (§1.5: Entry → Development → Growth → Prime → Veteran → Decline → Retirement); no phase mechanically abandoned.
@@ -108,7 +108,7 @@ Proving the *game* early took priority over more infrastructure. These delivered
 
 All five confirmed for V1:
 - **Shot-play centrality** — ✅ Strategic shot selection is **available every round, always skippable, and never required to win.** The game is winnable purely on decisions; playing shots is immersion and marginal edge, not a gate.
-- **Create-your-golfer** — ✅ The player **creates a custom golfer** (identity — name/nationality — plus a starting build/archetype) as the career they own, rather than adopting an existing generated one. (Onboarding slice; the engine's population/identity/attributes support it.)
+- **Create-your-golfer** — ✅ The player **creates a custom golfer** (identity — name/nationality — plus a Playing Style, starting age, and Starting Background) as the career they own, rather than adopting an existing generated one. (Onboarding slice; the engine's population/identity/attributes support it.)
 - **Career goals** — ✅ **Lightweight, self-chosen ambitions** (e.g., reach the top tour, win a major, world #1) that frame progress and legacy but **never gate** play (§1.6); surfaced by the narrative/stats layer.
 - **Scheduling depth** — ✅ The player **chooses which events to enter** from the calendar (not merely rest/play), weighing **entry requirements** and **fatigue/travel trade-offs** — a real season-planning decision (Pillars 1, 2, 5).
 - **Tours & majors** — ✅ The game **distinguishes tours and the events within them as real-life golf does.** The tour *ladder* is already modelled (Elite / Primary / Secondary / Development ≈ the tour tiers). This adds **event prestige *within* a tour, including MAJORS** — the pinnacle, cross-tour events that carry the most **ranking points, prize money, prestige, and career legacy**, and are the marquee accomplishments of §1.6. **This is an engine addition** (an event prestige/type — regular vs signature vs major — weighted into ranking/prize/legacy, with majors drawing the strongest fields across tours), not just player-facing exposure. It lands as its own slice within the tournament/scheduling breadth (see §7).

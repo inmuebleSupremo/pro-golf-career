@@ -20,7 +20,8 @@ Completed events feed into a persistent career history with results, round score
 
 ## What you do
 
-- Create a professional golfer and develop their attributes over multiple seasons.
+- Create a professional golfer with a Playing Style, starting age, and a choice of Club Champion, Elite Amateur, or Highly Rated Prospect as the Starting Background.
+- Spend earned Development Points manually to improve attributes over multiple seasons. Unspent points carry forward; purchased gains are limited to +6 per attribute each calendar season.
 - Schedule events, play tournaments shot by shot or simulate them, and compete against a simulated tour field. For an ordinary shot, choose a target on the hole, then select club, technique, and flight shape in the compact shot dock; the simulation resolves where the ball finishes.
 - On an explicitly enabled event, use the dedicated putting view to choose a starting line and pace, with optional green-reading aids; the backend resolves the roll and cup capture.
 - Make off-course decisions about fitness, staff, equipment, sponsorships, and finances.
