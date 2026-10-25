@@ -1,4 +1,5 @@
-import { premiumOpenings, type PremiumTree, type PremiumTreePlan } from "@/lib/play/premium-parkland-decoration";
+import { premiumOpenings, type PremiumTree, type PremiumTreePlan } from "../../lib/play/premium-parkland-decoration";
+import type { PropertyPlan } from "../../lib/play/premium-parkland-property";
 
 type RenderRegion = Readonly<{ surface: string; path: string }>;
 
@@ -11,10 +12,17 @@ const ink = {
   waterDark: "#133b3d", water: "#2b6260", waterLight: "#699a89",
 };
 
-export function PremiumParklandDefs({ artId }: { artId: string }) {
+export function PremiumParklandDefs({ artId, coreX, coreWidth, height, fullStage = false }: {
+  artId: string; coreX: number; coreWidth: number; height: number; fullStage?: boolean;
+}) {
   return <defs>
     <linearGradient id={`${artId}-premium-rough`} x1="0" y1="0" x2=".8" y2="1">
       <stop stopColor="#548046" /><stop offset=".55" stopColor={ink.moss} /><stop offset="1" stopColor={ink.woodland} />
+    </linearGradient>
+    <linearGradient id={`${artId}-premium-wide-rough`} gradientUnits="userSpaceOnUse"
+      x1={coreX} y1="0" x2={coreX + coreWidth * .8} y2={height}>
+      <stop stopColor="#548046" /><stop offset=".55" stopColor={ink.moss} />
+      <stop offset="1" stopColor={ink.woodland} />
     </linearGradient>
     <linearGradient id={`${artId}-premium-fairway`} x1="0" y1="0" x2=".7" y2="1">
       <stop stopColor={ink.turfLight} /><stop offset=".5" stopColor={ink.turf} /><stop offset="1" stopColor={ink.turfDark} />
@@ -50,6 +58,18 @@ export function PremiumParklandDefs({ artId }: { artId: string }) {
       <stop offset=".8" stopColor="#06130f" stopOpacity=".07" />
       <stop offset="1" stopColor="#030a08" stopOpacity=".32" />
     </radialGradient>
+    <linearGradient id={`${artId}-premium-fullstage-atmosphere`} x1="0" y1="0" x2="1" y2="0">
+      <stop stopColor="var(--background)" stopOpacity=".88" />
+      <stop offset=".15" stopColor="var(--background)" stopOpacity=".8" />
+      <stop offset=".25" stopColor="var(--background)" stopOpacity=".58" />
+      <stop offset=".34" stopColor="var(--background)" stopOpacity=".16" />
+      <stop offset=".42" stopColor="var(--background)" stopOpacity="0" />
+      <stop offset=".58" stopColor="var(--background)" stopOpacity="0" />
+      <stop offset=".66" stopColor="var(--background)" stopOpacity=".16" />
+      <stop offset=".75" stopColor="var(--background)" stopOpacity=".58" />
+      <stop offset=".85" stopColor="var(--background)" stopOpacity=".8" />
+      <stop offset="1" stopColor="var(--background)" stopOpacity=".88" />
+    </linearGradient>
     <pattern id={`${artId}-premium-ground-grain`} width="41" height="47" patternUnits="userSpaceOnUse">
       <path d="M2 19l2-3m21 10 2-4m10-8 1-2M10 41l2-3m25 8 1-3" stroke="#9ab16c" strokeWidth=".45" opacity=".24" />
       <circle cx="7" cy="6" r=".45" fill="#a5ba79" opacity=".3" /><circle cx="33" cy="35" r=".35" fill="#a5ba79" opacity=".26" />
@@ -82,12 +102,12 @@ export function PremiumParklandDefs({ artId }: { artId: string }) {
     <filter id={`${artId}-premium-woodland-soften`} x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur stdDeviation="4" />
     </filter>
-    <filter id={`${artId}-premium-corridor-soften`} filterUnits="userSpaceOnUse" x="-160" y="-100" width="540" height="640">
+    {!fullStage ? <filter id={`${artId}-premium-corridor-soften`} filterUnits="userSpaceOnUse" x="-160" y="-100" width="540" height="640">
       <feGaussianBlur stdDeviation="13" />
-    </filter>
-    <filter id={`${artId}-premium-distance-soften`} filterUnits="userSpaceOnUse" x="-160" y="-100" width="540" height="640">
+    </filter> : null}
+    {!fullStage ? <filter id={`${artId}-premium-distance-soften`} filterUnits="userSpaceOnUse" x="-160" y="-100" width="540" height="640">
       <feGaussianBlur stdDeviation="22" />
-    </filter>
+    </filter> : null}
     <symbol id={`${artId}-premium-tree-shadow`} viewBox="-12 -12 24 36">
       <ellipse cx="5.5" cy="8.5" rx="8" ry="12" fill="#071b13" opacity=".27" transform="rotate(-29 5.5 8.5)" />
       <ellipse cx="4.5" cy="6" rx="6.5" ry="8.5" fill="#071b13" opacity=".18" transform="rotate(-29 4.5 6)" />
@@ -130,7 +150,7 @@ function Crown({ artId, tree }: { artId: string; tree: PremiumTree }) {
   const aspect = tree.variant % 3;
   const xScale = tree.size / 10 * (.88 + aspect * .09);
   const yScale = tree.size / 10 * (1.11 - aspect * .07);
-  return <g opacity={.82 + tree.shade * .18}
+  return <g opacity={(tree.opacity ?? 1) * (.82 + tree.shade * .18)}
     transform={`translate(${tree.x.toFixed(2)} ${tree.y.toFixed(2)}) rotate(${tree.rotation.toFixed(0)}) scale(${xScale.toFixed(3)} ${yScale.toFixed(3)})`}>
     <ellipse cx="2" cy="3" rx="9" ry="7" fill="#020e0a" opacity={.3 + tree.shade * .23} />
     <use href={`#${artId}-premium-tree-${tree.variant}`} x="-12" y="-12" width="24" height="24" />
@@ -138,18 +158,20 @@ function Crown({ artId, tree }: { artId: string; tree: PremiumTree }) {
 }
 function CrownShadow({ artId, tree }: { artId: string; tree: PremiumTree }) {
   return <use href={`#${artId}-premium-tree-shadow`}
+    opacity={tree.opacity ?? 1}
     x={(tree.x - tree.size * 1.2).toFixed(2)} y={(tree.y - tree.size * 1.2).toFixed(2)}
     width={(tree.size * 2.4).toFixed(2)} height={(tree.size * 3.6).toFixed(2)} />;
 }
 
-export function PremiumParklandBackdrop({ artId, x, width, height, seed }: {
-  artId: string; x: number; width: number; height: number; seed: string;
+export function PremiumParklandBackdrop({ artId, x, width, height, seed, fullStage = false, coreX = x, coreWidth = width }: {
+  artId: string; x: number; width: number; height: number; seed: string; fullStage?: boolean;
+  coreX?: number; coreWidth?: number;
 }) {
-  const openings = premiumOpenings(seed, x, width, height);
+  const openings = premiumOpenings(seed, coreX, coreWidth, height);
   return <g pointerEvents="none">
-    <rect x={x} width={width} height={height} fill={`url(#${artId}-premium-rough)`} />
+    <rect x={x} width={width} height={height} fill={`url(#${artId}-premium-${fullStage ? "wide-rough" : "rough"})`} />
     <rect x={x} width={width} height={height} fill={`url(#${artId}-premium-ground-grain)`} />
-    <rect x={x} width={width} height={height} fill={`url(#${artId}-premium-rough-mottle)`} />
+    {!fullStage ? <rect x={x} width={width} height={height} fill={`url(#${artId}-premium-rough-mottle)`} /> : null}
     {openings.map((opening, index) => <g key={index} transform={`rotate(${opening.rotation} ${opening.x} ${opening.y})`}>
       <ellipse cx={opening.x} cy={opening.y} rx={opening.rx * 1.55} ry={opening.ry * 1.45}
         fill={`url(#${artId}-premium-grassland)`} />
@@ -158,7 +180,32 @@ export function PremiumParklandBackdrop({ artId, x, width, height, seed }: {
     </g>)}
   </g>;
 }
-export function PremiumParklandSurface({ artId, region }: { artId: string; region: RenderRegion }) {
+
+/** Property fragments are composed outside the playable projection and never receive pointer events. */
+export function PremiumParklandProperty({ artId, plan }: { artId: string; plan: PropertyPlan }) {
+  return <g pointerEvents="none" aria-hidden="true">
+    {plan.paths.map((path, index) => <g key={`path-${index}`} opacity=".45">
+      <path d={path.d} fill="none" stroke="#13271c" strokeWidth={path.width + 2.5} strokeLinecap="round" />
+      <path d={path.d} fill="none" stroke="#9d9b75" strokeWidth={path.width} strokeLinecap="round" />
+    </g>)}
+    {plan.glimpses.map((glimpse, index) => <g key={`glimpse-${index}`} data-property-glimpse={index}
+      data-property-orientation={glimpse.orientation} opacity=".7">
+      {glimpse.regions.filter((region) => region.surface === "FIRST_CUT").map((region, regionIndex) =>
+        <path key={`rough-${regionIndex}`} d={region.path} fill="#24402a" stroke="#24402a" strokeWidth="8" opacity=".72" />)}
+      {glimpse.regions.map((region, regionIndex) => <PremiumParklandSurface
+        key={`${region.surface}-${regionIndex}`} artId={artId} region={region} fullStage />)}
+    </g>)}
+    {plan.building ? <g transform={`translate(${plan.building.x} ${plan.building.y}) scale(${plan.building.scale})`} opacity=".52">
+      <path d="M-21 1 0-10 21 1v4h-42z" fill="#101d17" stroke="#74806a" strokeWidth="1.2" />
+      <path d="M-17 5h34v13h-34z" fill="#687363" /><path d="M-18 18h36" stroke="#19281e" strokeWidth="2" />
+      <path d="M-11 9v7m8-7v7m8-7v7m8-7v7" stroke="#283a2b" strokeWidth="3" />
+    </g> : null}
+  </g>;
+}
+
+export function PremiumParklandSurface({ artId, region, fullStage = false }: {
+  artId: string; region: RenderRegion; fullStage?: boolean;
+}) {
   const { surface, path } = region;
   const fill = surface === "FAIRWAY" ? "fairway"
     : surface === "FIRST_CUT" || surface === "FRINGE" ? "fringe"
@@ -178,7 +225,7 @@ export function PremiumParklandSurface({ artId, region }: { artId: string; regio
     <path d={path} fill={`url(#${artId}-premium-${fill})`} />
     {grain ? <path d={path} fill={`url(#${artId}-premium-${grain})`} opacity={surface === "FAIRWAY" ? ".68" : ".6"} /> : null}
     {surface === "FAIRWAY" ? <path d={path} fill={`url(#${artId}-premium-fairway-mottle)`} /> : null}
-    {surface === "PRIMARY_ROUGH" || surface === "DEEP_ROUGH" || surface === "RECOVERY_AREA" ?
+    {!fullStage && (surface === "PRIMARY_ROUGH" || surface === "DEEP_ROUGH" || surface === "RECOVERY_AREA") ?
       <path d={path} fill={`url(#${artId}-premium-rough-mottle)`} /> : null}
     {bunker ? <><path d={path} fill="none" stroke="#816c48" strokeWidth="2.3" opacity=".65" />
       <path d={path} fill="none" stroke="#f8ebc4" strokeWidth=".75" opacity=".8" /></> : null}
@@ -213,11 +260,11 @@ export function PremiumParklandCanopies({ artId, plans, distantTrees }: {
   </g>;
 }
 
-export function PremiumParklandLight({ artId, x, width, height, corridorPath }: {
-  artId: string; x: number; width: number; height: number; corridorPath: string;
+export function PremiumParklandLight({ artId, x, width, height, corridorPath, fullStage = false }: {
+  artId: string; x: number; width: number; height: number; corridorPath: string; fullStage?: boolean;
 }) {
   return <g pointerEvents="none">
-    <defs><mask id={`${artId}-premium-outside`} maskUnits="userSpaceOnUse" x={x} y="0" width={width} height={height}>
+    {!fullStage ? <defs><mask id={`${artId}-premium-outside`} maskUnits="userSpaceOnUse" x={x} y="0" width={width} height={height}>
       <rect x={x} width={width} height={height} fill="white" />
       <path d={corridorPath} fill="black" stroke="black" strokeWidth="42"
         filter={`url(#${artId}-premium-corridor-soften)`} />
@@ -226,10 +273,11 @@ export function PremiumParklandLight({ artId, x, width, height, corridorPath }: 
       <rect x={x} width={width} height={height} fill="white" />
       <path d={corridorPath} fill="black" stroke="black" strokeWidth="126"
         filter={`url(#${artId}-premium-distance-soften)`} />
-    </mask></defs>
-    <path d={corridorPath} fill="#d9ed9e" opacity=".055" />
-    <rect x={x} width={width} height={height} fill="#06110c" opacity=".34" mask={`url(#${artId}-premium-outside)`} />
-    <rect x={x} width={width} height={height} fill="#030b08" opacity=".62" mask={`url(#${artId}-premium-far-outside)`} />
-    <rect x={x} width={width} height={height} fill={`url(#${artId}-premium-vignette)`} />
+    </mask></defs> : null}
+    {!fullStage ? <path d={corridorPath} fill="#d9ed9e" opacity=".055" /> : null}
+    {!fullStage ? <rect x={x} width={width} height={height} fill="#06110c" opacity=".34" mask={`url(#${artId}-premium-outside)`} /> : null}
+    {!fullStage ? <rect x={x} width={width} height={height} fill="#030b08" opacity=".62" mask={`url(#${artId}-premium-far-outside)`} /> : null}
+    <rect x={x} width={width} height={height}
+      fill={`url(#${artId}-premium-${fullStage ? "fullstage-atmosphere" : "vignette"})`} />
   </g>;
 }

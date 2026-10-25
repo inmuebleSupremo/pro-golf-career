@@ -8,6 +8,7 @@ export type PremiumTree = Readonly<{
   rotation: number;
   variant: number;
   shade: number;
+  opacity?: number;
 }>;
 
 export type PremiumTreePlan = Readonly<{
@@ -75,22 +76,34 @@ export function premiumDistantTrees(
   left: number,
   width: number,
   height: number,
+  maxTrees = 470,
 ): readonly PremiumTree[] {
   const random = seededRandom(`${layoutSeed}:premium-surroundings`);
-  const openings = premiumOpenings(layoutSeed, left, width, height);
+  const wideStage = width > 550;
+  const openings = wideStage ? [] : premiumOpenings(layoutSeed, left, width, height);
   const phase = random() * Math.PI * 2;
   const woodlandAnchors = geometry.regions.filter((region) => region.surface === "TREES" && region.boundary.length >= 3)
     .map((region) => model.project({
       x: region.boundary.reduce((sum, point) => sum + point.x, 0) / region.boundary.length,
       y: region.boundary.reduce((sum, point) => sum + point.y, 0) / region.boundary.length,
     }));
+  // Wider stages gain irregular actual canopy groups, rather than smooth dark grove ellipses.
+  const propertyAnchors = wideStage ? [-1, 1].flatMap((side) => [0, 1].map((row) => ({
+    x: side < 0 ? -80 - random() * Math.max(20, -left - 115)
+      : 300 + random() * Math.max(20, left + width - 335),
+    y: height * (.2 + row * .43 + random() * .17),
+  }))) : [];
   const trees: PremiumTree[] = [];
-  for (let attempt = 0; attempt < 10000 && trees.length < 470; attempt += 1) {
-    const anchor = woodlandAnchors.length > 0 && random() < .58
+  for (let attempt = 0; attempt < (wideStage ? 12000 : 10000) && trees.length < maxTrees; attempt += 1) {
+    const propertyAnchor = propertyAnchors.length > 0 && random() < .52
+      ? propertyAnchors[Math.floor(random() * propertyAnchors.length)] : null;
+    const anchor = !propertyAnchor && woodlandAnchors.length > 0 && random() < (wideStage ? .65 : .58)
       ? woodlandAnchors[Math.floor(random() * woodlandAnchors.length)] : null;
     const outward = anchor && anchor.x < left + width / 2 ? -1 : 1;
-    const x = anchor ? anchor.x + outward * (15 + random() * 48) + (random() - .5) * 36 : left + random() * width;
-    const y = anchor ? anchor.y + (random() + random() - 1) * 85 : random() * height;
+    const x = propertyAnchor ? propertyAnchor.x + (random() + random() + random() - 1.5) * 64
+      : anchor ? anchor.x + outward * (15 + random() * 48) + (random() - .5) * 36 : left + random() * width;
+    const y = propertyAnchor ? propertyAnchor.y + (random() + random() + random() - 1.5) * 76
+      : anchor ? anchor.y + (random() + random() - 1) * 85 : random() * height;
     if (x < left || x > left + width || y < 0 || y > height) continue;
     if (pointInPolygon(model.unproject({ x, y }), geometry.playableBoundary)) continue;
     if (openings.some((opening) => {
@@ -105,9 +118,12 @@ export function premiumDistantTrees(
       + .15 * Math.sin((x + y) * .021 + phase);
     if (random() > density) continue;
     const distance = Math.min(1, Math.abs(x - (left + width / 2)) / (width / 2));
-    const size = (4.8 + random() * 5.2) * (1 - distance * .18);
+    const size = (propertyAnchor ? 7.5 + random() * 5.5 : 4.8 + random() * 5.2) * (1 - distance * .18);
     if (trees.some((tree) => Math.hypot(tree.x - x, tree.y - y) < (tree.size + size) * .39)) continue;
-    trees.push({ x, y, size, rotation: random() * 360, variant: Math.floor(random() * 6), shade: random() });
+    const edgeDistance = Math.min(x - left, left + width - x);
+    const opacity = wideStage ? Math.min(1, Math.max(0, edgeDistance / (width * .18))) : undefined;
+    trees.push({ x, y, size, rotation: random() * 360, variant: Math.floor(random() * 6), shade: random(),
+      ...(wideStage ? { opacity } : {}) });
   }
   return trees;
 }
@@ -129,7 +145,7 @@ export function premiumSurfacePrecedence(surface: string): number {
   }
 }
 
-function seededRandom(value: string): () => number {
+export function seededRandom(value: string): () => number {
   let state = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
     state ^= value.charCodeAt(index);

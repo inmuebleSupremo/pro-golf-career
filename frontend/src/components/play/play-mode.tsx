@@ -95,7 +95,7 @@ export function PlayMode({
   const setPhysicalAimDirection = (direction: { x: number; y: number }) =>
     setPhysicalAimState({ revision: situation.shotRevision, source: physicalAimSource, direction });
   const [showGreenReading, setShowGreenReading] = useState(false);
-  const [parklandPresentation, setParklandPresentation] = useState<"polished" | "premium">("polished");
+  const [parklandPresentation, setParklandPresentation] = useState<"polished" | "premium-v1" | "premium">("polished");
 
   // The client-side sequence: it owns what the stage shows and when the shot controls are locked, so the
   // between-hole ceremony (hole-out → score → wipe → intro) can play out over the server's instant advance.
@@ -153,8 +153,10 @@ export function PlayMode({
               <span className="text-subtle-foreground px-2 text-[10px] uppercase tracking-wider">Visual test</span>
               <button type="button" aria-pressed={parklandPresentation === "polished"} onClick={() => setParklandPresentation("polished")}
                 className={cn("rounded px-2 py-1 text-xs", parklandPresentation === "polished" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>Current</button>
+              <button type="button" aria-pressed={parklandPresentation === "premium-v1"} onClick={() => setParklandPresentation("premium-v1")}
+                className={cn("rounded px-2 py-1 text-xs", parklandPresentation === "premium-v1" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>V1</button>
               <button type="button" aria-pressed={parklandPresentation === "premium"} onClick={() => setParklandPresentation("premium")}
-                className={cn("rounded px-2 py-1 text-xs", parklandPresentation === "premium" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>Premium</button>
+                className={cn("rounded px-2 py-1 text-xs", parklandPresentation === "premium" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>V2</button>
             </div>
           ) : null}
         </section>

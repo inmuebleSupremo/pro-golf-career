@@ -9,8 +9,9 @@ import type { Point } from "@/lib/play/hole-geometry";
 import { feedbackAimPoint, isAimPointInteractionLocked, tracePlaybackDurationMs, tracePlaybackFrame, tracePlaybackStatus, transitionLabel } from "@/lib/play/trace-presentation";
 import type { Hole2dProps } from "@/components/play/hole-2d";
 import { WindDisplay } from "@/components/play/wind-display";
-import { PremiumParklandBackdrop, PremiumParklandCanopies, PremiumParklandDefs, PremiumParklandLight, PremiumParklandShadows, PremiumParklandSurface } from "@/components/play/premium-parkland-art";
+import { PremiumParklandBackdrop, PremiumParklandCanopies, PremiumParklandDefs, PremiumParklandLight, PremiumParklandProperty, PremiumParklandShadows, PremiumParklandSurface } from "@/components/play/premium-parkland-art";
 import { premiumDistantTrees, premiumSurfacePrecedence, premiumTreePlans } from "@/lib/play/premium-parkland-decoration";
+import { inPropertyClearing, isPremiumAimCoordinate, premiumPropertyPlan } from "@/lib/play/premium-parkland-property";
 
 const W = 220;
 const H = 440;
@@ -83,24 +84,66 @@ function usePrefersReducedMotion(): boolean {
 }
 
 /** Canonical renderer: terrain and every visible shot point come from backend yard-space facts. */
-export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, presentation = "polished" }: Hole2dProps) {
+export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, presentation = "polished", previewAspect,
+  unlitAudit = false }: Hole2dProps) {
   const geometry = hole.geometry!;
   const kit = BIOME_KITS[resolveBiome(hole.courseType)];
-  const premiumParkland = resolveBiome(hole.canonicalBiome ?? hole.courseType) === "parkland" && presentation === "premium";
+  const premiumParkland = resolveBiome(hole.canonicalBiome ?? hole.courseType) === "parkland"
+    && (presentation === "premium" || presentation === "premium-v1");
+  const fullStage = premiumParkland && presentation === "premium";
   const viewHeight = useMemo(() => canonicalViewportHeight(geometry), [geometry]);
   const model = useMemo(() => canonicalRenderModel(geometry, { width: W, height: viewHeight, padding: PAD, center: premiumParkland }),
     [geometry, viewHeight, premiumParkland]);
-  const artId = useMemo(() => decorationId(hole.layoutSeed, geometry), [geometry, hole.layoutSeed]);
+  const artId = useMemo(() => `${decorationId(hole.layoutSeed, geometry)}${fullStage ? "-v2" : ""}`,
+    [geometry, hole.layoutSeed, fullStage]);
   const treeCanopies = useMemo(() => planTreeCanopies(geometry, hole.layoutSeed), [geometry, hole.layoutSeed]);
-  const sceneryX = -PARKLAND_SCENERY_MARGIN;
-  const sceneryWidth = W + PARKLAND_SCENERY_MARGIN * 2;
+  const [stageAspect, setStageAspect] = useState(previewAspect ?? 1.8);
+  const sceneryWidth = fullStage ? Math.max(W + 80, viewHeight * stageAspect) : W + PARKLAND_SCENERY_MARGIN * 2;
+  const sceneryX = (W - sceneryWidth) / 2;
+  const v1SceneryX = -PARKLAND_SCENERY_MARGIN;
+  const v1SceneryWidth = W + PARKLAND_SCENERY_MARGIN * 2;
   const premiumTrees = useMemo(() => premiumParkland ? premiumTreePlans(geometry, hole.layoutSeed, model) : [],
     [premiumParkland, geometry, hole.layoutSeed, model]);
-  const distantTrees = useMemo(() => premiumParkland ? premiumDistantTrees(geometry, hole.layoutSeed, model, sceneryX, sceneryWidth, viewHeight) : [],
-    [premiumParkland, geometry, hole.layoutSeed, model, sceneryX, sceneryWidth, viewHeight]);
+  const originalTrees = useMemo(() => premiumParkland
+    ? premiumDistantTrees(geometry, hole.layoutSeed, model, v1SceneryX, v1SceneryWidth, viewHeight) : [],
+  [premiumParkland, geometry, hole.layoutSeed, model, v1SceneryX, v1SceneryWidth, viewHeight]);
+  const protectedTrees = useMemo(() => [...originalTrees, ...premiumTrees.flatMap((plan) => plan.trees)],
+    [originalTrees, premiumTrees]);
+  const property = useMemo(() => fullStage
+    ? premiumPropertyPlan(geometry, model, hole.layoutSeed, hole.par, hole.holeNumber, sceneryX, sceneryWidth,
+      viewHeight, protectedTrees, v1SceneryX, v1SceneryX + v1SceneryWidth)
+    : null, [fullStage, geometry, model, hole.layoutSeed, hole.par, hole.holeNumber, sceneryX, sceneryWidth, viewHeight,
+      protectedTrees, v1SceneryX, v1SceneryWidth]);
+  const distantTrees = useMemo(() => {
+    if (!premiumParkland) return [];
+    if (!fullStage || sceneryWidth <= v1SceneryWidth) return originalTrees;
+    const widerTrees = premiumDistantTrees(geometry, hole.layoutSeed, model, sceneryX, sceneryWidth, viewHeight,
+      Math.min(500, Math.round(470 + Math.max(0, sceneryWidth - v1SceneryWidth) * .07)));
+    const outerTrees = widerTrees.filter((tree) => (tree.x + tree.size * 1.3 + 2 < v1SceneryX
+      || tree.x - tree.size * 1.3 - 2 > v1SceneryX + v1SceneryWidth)
+      && !property?.glimpses.some((glimpse) => inPropertyClearing(tree.x, tree.y, tree.size, glimpse)));
+    return [...originalTrees, ...outerTrees];
+  }, [premiumParkland, geometry, hole.layoutSeed, model, sceneryX, sceneryWidth, viewHeight, fullStage, property,
+    originalTrees, v1SceneryX, v1SceneryWidth]);
   const premiumRegions = useMemo(() => premiumParkland ? [...model.terrain].sort((a, b) =>
     premiumSurfacePrecedence(b.surface) - premiumSurfacePrecedence(a.surface)) : [], [premiumParkland, model]);
   const svgRef = useRef<SVGSVGElement>(null);
+  useLayoutEffect(() => {
+    if (!fullStage || !svgRef.current) return;
+    const svg = svgRef.current;
+    const update = () => {
+      const { width, height } = svg.getBoundingClientRect();
+      if (width > 0 && height > 0) setStageAspect((current) => Math.abs(current - width / height) > .01 ? width / height : current);
+    };
+    update();
+    window.addEventListener("resize", update);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(svg);
+    return () => {
+      window.removeEventListener("resize", update);
+      observer?.disconnect();
+    };
+  }, [fullStage]);
   const reduced = usePrefersReducedMotion();
   const trace = ball?.trace ?? null;
   const polishedParkland = kit.biome === "parkland" && presentation === "polished";
@@ -155,7 +198,7 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     const transform = svgRef.current.getScreenCTM();
     if (!transform) return;
     const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(transform.inverse());
-    if (premiumParkland && (local.x < 0 || local.x > W)) return;
+    if (premiumParkland && !isPremiumAimCoordinate(local.x, local.y, viewHeight)) return;
     onAimPoint(pointerWorldTarget({ x: event.clientX, y: event.clientY }, transform.inverse(), model.unproject));
   }
 
@@ -165,23 +208,27 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     aria-label={`Hole ${hole.holeNumber}, par ${hole.par}, canonical terrain${trace ? `, ${trace.club} shot result` : onAimPoint ? ", click or tap to aim" : ""}`}
     onPointerDown={selectTarget}>
     {polishedParkland ? <ParklandDefs artId={artId} model={model} treeCanopies={treeCanopies} /> : null}
-    {premiumParkland ? <PremiumParklandDefs artId={artId} /> : null}
+    {premiumParkland ? <PremiumParklandDefs artId={artId} coreX={v1SceneryX} coreWidth={v1SceneryWidth}
+      height={viewHeight} fullStage={fullStage} /> : null}
     {kit.biome === "links" ? <LinksDefs artId={artId} /> : null}
     {polishedParkland ? <><rect width={W} height={viewHeight} fill={`url(#${artId}-out)`} />
       <rect width={W} height={viewHeight} fill={`url(#${artId}-parkland-landscape)`} opacity=".36" /></> : null}
     {polishedLinks ? <rect width={W} height={viewHeight} fill={`url(#${artId}-links-distant)`} /> : null}
     {polishedLinks ? <rect width={W} height={viewHeight} fill={`url(#${artId}-links-dunes)`} opacity=".24" /> : null}
-    {premiumParkland ? <PremiumParklandBackdrop artId={artId} x={sceneryX} width={sceneryWidth} height={viewHeight} seed={hole.layoutSeed} /> : null}
+    {premiumParkland ? <PremiumParklandBackdrop artId={artId} x={sceneryX} width={sceneryWidth} height={viewHeight}
+      seed={hole.layoutSeed} fullStage={fullStage} coreX={v1SceneryX} coreWidth={v1SceneryWidth} /> : null}
+    {property ? <PremiumParklandProperty artId={artId} plan={property} /> : null}
     {!premiumParkland ? <path d={model.playableBoundaryPath} fill={polishedParkland ? `url(#${artId}-out)` : polishedLinks ? `url(#${artId}-links-out)` : kit.out} /> : null}
     {polishedLinks ? <path d={model.playableBoundaryPath} fill={`url(#${artId}-links-dunes)`} opacity=".44" /> : null}
     {premiumParkland ? <>
       {premiumRegions.filter((region) => premiumSurfacePrecedence(region.surface) >= 4).map((region, index) =>
-        <PremiumParklandSurface key={`ground-${region.surface}-${index}`} artId={artId} region={region} />)}
+        <PremiumParklandSurface key={`ground-${region.surface}-${index}`} artId={artId} region={region} fullStage={fullStage} />)}
       {premiumRegions.filter((region) => premiumSurfacePrecedence(region.surface) < 4).map((region, index) =>
-        <PremiumParklandSurface key={`feature-${region.surface}-${index}`} artId={artId} region={region} />)}
+        <PremiumParklandSurface key={`feature-${region.surface}-${index}`} artId={artId} region={region} fullStage={fullStage} />)}
       <PremiumParklandShadows artId={artId} plans={premiumTrees} regions={model.terrain} distantTrees={distantTrees} />
       <PremiumParklandCanopies artId={artId} plans={premiumTrees} distantTrees={distantTrees} />
-      <PremiumParklandLight artId={artId} x={sceneryX} width={sceneryWidth} height={viewHeight} corridorPath={model.playableBoundaryPath} />
+      {!(unlitAudit && process.env.NODE_ENV === "development") ? <PremiumParklandLight artId={artId} x={sceneryX} width={sceneryWidth} height={viewHeight}
+        corridorPath={model.playableBoundaryPath} fullStage={fullStage} /> : null}
     </> : model.terrain.map((region, index) => <TerrainRegion key={`${region.surface}-${index}`} surface={region.surface}
       path={region.path} fill={fills(region.surface, kit, artId)} artId={artId} polishedParkland={polishedParkland}
       polishedLinks={polishedLinks} />)}
