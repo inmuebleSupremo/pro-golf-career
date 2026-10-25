@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { PremiumParklandBackdrop, PremiumParklandDefs, PremiumParklandLight, PremiumParklandSurface } from "./premium-parkland-art";
+import { PremiumParklandBackdrop, PremiumParklandDefs, PremiumParklandLight, PremiumParklandProperty, PremiumParklandSurface } from "./premium-parkland-art";
 
 describe("full-stage Parkland lighting", () => {
   it("keeps the horizontal atmosphere while anchoring ground colour to V1", () => {
@@ -45,5 +45,21 @@ describe("active-hole ground detail", () => {
     expect(openings(v1)).toHaveLength(7);
     expect(openings(v2)).toEqual(openings(v1));
     expect(v2).not.toContain("premium-rough-mottle");
+  });
+});
+
+describe("neighbouring property ground", () => {
+  it("blends the first cut through existing rough and fringe materials", () => {
+    const markup = renderToStaticMarkup(<svg><PremiumParklandProperty artId="property"
+      plan={{ paths: [], building: null, glimpses: [{
+        source: "fixture", sourcePar: 4, side: 1, orientation: "diagonal", angle: 30,
+        pixelsPerYard: 1, tee: { x: 0, y: 0 }, cup: { x: 0, y: 0 }, clearing: [],
+        regions: [{ surface: "FIRST_CUT", path: "M0 0L10 0L10 10Z", points: [] }],
+      }] }} /></svg>);
+    expect(markup).toContain("property-premium-rough");
+    expect(markup).toContain("property-premium-fringe");
+    expect(markup).toContain("property-premium-rough-grain");
+    expect(markup).not.toContain("#24402a");
+    expect(markup).toContain('pointer-events="none"');
   });
 });

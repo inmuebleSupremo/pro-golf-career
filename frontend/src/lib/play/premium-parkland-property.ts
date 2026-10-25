@@ -39,12 +39,18 @@ function distanceToSegment(point: Point, start: Point, end: Point): number {
   return Math.hypot(point.x - start.x - t * dx, point.y - start.y - t * dy);
 }
 
-/** Only newly generated outer crowns are excluded from the neighbouring maintained corridor. */
+/** Keep complete crowns off the played surfaces, while letting woodland reach the first-cut edge. */
 export function inPropertyClearing(x: number, y: number, treeSize: number, glimpse: PropertyGlimpse): boolean {
   const point = { x, y };
-  return glimpse.clearing.some((polygon) => pointInPolygon(point, polygon)
-    || polygon.some((vertex, index) => distanceToSegment(point, vertex, polygon[(index + 1) % polygon.length])
-      < treeSize * 1.3 + 3));
+  return glimpse.regions.some((region) => {
+    if (!["FIRST_CUT", "FAIRWAY", "FRINGE", "GREEN", "BUNKER"].includes(region.surface)) return false;
+    const polygon = region.points;
+    if (pointInPolygon(point, polygon)) return true;
+    const crownClearance = region.surface === "FIRST_CUT" ? treeSize * .55 + 1
+      : treeSize * 1.7 + 2;
+    return polygon.some((vertex, index) => distanceToSegment(point, vertex, polygon[(index + 1) % polygon.length])
+      < crownClearance);
+  });
 }
 
 function bounds(points: readonly Point[]) {

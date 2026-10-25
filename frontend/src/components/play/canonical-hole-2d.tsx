@@ -10,7 +10,7 @@ import { feedbackAimPoint, isAimPointInteractionLocked, tracePlaybackDurationMs,
 import type { Hole2dProps } from "@/components/play/hole-2d";
 import { WindDisplay } from "@/components/play/wind-display";
 import { PremiumParklandBackdrop, PremiumParklandCanopies, PremiumParklandDefs, PremiumParklandLight, PremiumParklandProperty, PremiumParklandShadows, PremiumParklandSurface } from "@/components/play/premium-parkland-art";
-import { premiumDistantTrees, premiumSurfacePrecedence, premiumTreePlans } from "@/lib/play/premium-parkland-decoration";
+import { premiumDistantTrees, premiumSceneryWidth, premiumSurfacePrecedence, premiumTreePlans } from "@/lib/play/premium-parkland-decoration";
 import { inPropertyClearing, isPremiumAimCoordinate, premiumPropertyPlan } from "@/lib/play/premium-parkland-property";
 
 const W = 220;
@@ -98,10 +98,11 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     [geometry, hole.layoutSeed, fullStage]);
   const treeCanopies = useMemo(() => planTreeCanopies(geometry, hole.layoutSeed), [geometry, hole.layoutSeed]);
   const [stageAspect, setStageAspect] = useState(previewAspect ?? 1.8);
-  const sceneryWidth = fullStage ? Math.max(W + 80, viewHeight * stageAspect) : W + PARKLAND_SCENERY_MARGIN * 2;
-  const sceneryX = (W - sceneryWidth) / 2;
   const v1SceneryX = -PARKLAND_SCENERY_MARGIN;
   const v1SceneryWidth = W + PARKLAND_SCENERY_MARGIN * 2;
+  // The original crowns span this full width. A smaller V2 viewBox exposes unlit side strips on narrow stages.
+  const sceneryWidth = fullStage ? premiumSceneryWidth(viewHeight, stageAspect, v1SceneryWidth) : v1SceneryWidth;
+  const sceneryX = (W - sceneryWidth) / 2;
   const premiumTrees = useMemo(() => premiumParkland ? premiumTreePlans(geometry, hole.layoutSeed, model) : [],
     [premiumParkland, geometry, hole.layoutSeed, model]);
   const originalTrees = useMemo(() => premiumParkland

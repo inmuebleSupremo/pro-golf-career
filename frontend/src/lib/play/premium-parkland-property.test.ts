@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalRenderModel } from "./canonical-geometry";
 import { premiumDistantTrees, premiumTreePlans } from "./premium-parkland-decoration";
-import { inPropertyClearing, isPremiumAimCoordinate, premiumPropertyPlan } from "./premium-parkland-property";
+import { inPropertyClearing, isPremiumAimCoordinate, premiumPropertyPlan, type PropertyGlimpse } from "./premium-parkland-property";
 import neighborGeometry from "./premium-parkland-neighbor-geometry.json";
 import corpus from "./principled-architecture-preview-fixtures.json";
 
@@ -16,6 +16,24 @@ const plan = (seed: string, par: number, width = 930) =>
   premiumPropertyPlan(geometry, model, seed, par, 9, (220 - width) / 2, width, 440);
 
 describe("premium Parkland property composition", () => {
+  it("clears complete crowns from played surfaces but permits trees along the outer first cut", () => {
+    const square = (left: number, right: number) => [
+      { x: left, y: 0 }, { x: right, y: 0 }, { x: right, y: 100 }, { x: left, y: 100 },
+    ];
+    const firstCut = square(0, 100);
+    const fairway = square(120, 220);
+    const glimpse: PropertyGlimpse = { source: "fixture", sourcePar: 4, side: 1,
+      orientation: "diagonal", angle: 30, pixelsPerYard: 1,
+      tee: { x: 0, y: 0 }, cup: { x: 0, y: 0 }, clearing: [firstCut, fairway], regions: [
+      { surface: "FIRST_CUT", points: firstCut, path: "" },
+      { surface: "FAIRWAY", points: fairway, path: "" },
+    ] };
+    expect(inPropertyClearing(-7, 50, 8, glimpse)).toBe(false);
+    expect(inPropertyClearing(-4, 50, 8, glimpse)).toBe(true);
+    expect(inPropertyClearing(238, 50, 10, glimpse)).toBe(true);
+    expect(inPropertyClearing(240, 50, 10, glimpse)).toBe(false);
+  });
+
   it("is deterministic but changes with the hole seed", () => {
     expect(plan("hole-103", 4)).toEqual(plan("hole-103", 4));
     expect(plan("hole-103", 4)).not.toEqual(plan("hole-887", 4));

@@ -59,12 +59,12 @@ export function StageHole({
   return (
     <>
       {displayHole ? (
-        <div className="flex h-full w-full items-center justify-center">
+        <div className={cn("flex h-full w-full items-center justify-center", presentation === "premium" && "max-sm:overflow-hidden")}>
           {displayHole.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN" && displayHole.physicalGreen ? (
             <PhysicalPuttingGreen hole={displayHole} ball={playbackShot} aimDirection={physicalAimDirection}
               onAimDirection={onPhysicalAimDirection} showReading={showGreenReading}
               onPlaybackComplete={onPhysicalPlaybackComplete} />
-          ) : <Hole2d hole={displayHole} ball={playbackShot} className={cn("block max-h-full touch-manipulation", presentation === "premium" ? "h-full w-full" : "w-auto", onAimPoint && "cursor-crosshair")}
+          ) : <Hole2d hole={displayHole} ball={playbackShot} className={cn("block max-h-full touch-manipulation", presentation === "premium" ? "h-full w-full max-sm:w-auto max-sm:max-w-none max-sm:shrink-0" : "w-auto", onAimPoint && "cursor-crosshair")}
             aimPoint={aimPoint} onAimPoint={onAimPoint} presentation={presentation} />}
         </div>
       ) : (

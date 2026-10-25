@@ -11,6 +11,11 @@ export type PremiumTree = Readonly<{
   opacity?: number;
 }>;
 
+/** A narrow stage may crop the original scenic width, but must never draw less ground behind its crowns. */
+export function premiumSceneryWidth(viewHeight: number, stageAspect: number, originalWidth: number): number {
+  return Math.max(originalWidth, viewHeight * stageAspect);
+}
+
 export type PremiumTreePlan = Readonly<{
   regionIndex: number;
   trees: readonly PremiumTree[];

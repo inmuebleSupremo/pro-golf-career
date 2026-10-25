@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { canonicalRenderModel } from "./canonical-geometry";
 import { pointInPolygon } from "./canonical-hole-decoration";
-import { premiumDistantTrees, premiumOpenings, premiumSurfacePrecedence, premiumTreePlans } from "./premium-parkland-decoration";
+import { premiumDistantTrees, premiumOpenings, premiumSceneryWidth, premiumSurfacePrecedence, premiumTreePlans } from "./premium-parkland-decoration";
 
 const geometry = {
   tee: { x: 0, y: 0 }, cup: { x: 0, y: 250 },
@@ -14,6 +14,11 @@ const geometry = {
 } as const;
 
 describe("premium Parkland decoration", () => {
+  it("covers the entire protected scenic width on narrow stages without changing desktop framing", () => {
+    expect(premiumSceneryWidth(440, .68, 430)).toBe(430);
+    expect(premiumSceneryWidth(440, .87, 430)).toBe(430);
+    expect(premiumSceneryWidth(440, 2.16, 430)).toBeCloseTo(950.4);
+  });
   const model = canonicalRenderModel(geometry);
 
   it("keeps reproducible canopy centers inside the authoritative tree region", () => {

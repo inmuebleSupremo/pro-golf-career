@@ -190,10 +190,17 @@ export function PremiumParklandProperty({ artId, plan }: { artId: string; plan: 
     </g>)}
     {plan.glimpses.map((glimpse, index) => <g key={`glimpse-${index}`} data-property-glimpse={index}
       data-property-orientation={glimpse.orientation} opacity=".7">
-      {glimpse.regions.filter((region) => region.surface === "FIRST_CUT").map((region, regionIndex) =>
-        <path key={`rough-${regionIndex}`} d={region.path} fill="#24402a" stroke="#24402a" strokeWidth="8" opacity=".72" />)}
-      {glimpse.regions.map((region, regionIndex) => <PremiumParklandSurface
-        key={`${region.surface}-${regionIndex}`} artId={artId} region={region} fullStage />)}
+      {glimpse.regions.map((region, regionIndex) => region.surface === "FIRST_CUT"
+        ? <g key={`first-cut-${regionIndex}`}>
+          <path d={region.path} fill={`url(#${artId}-premium-rough)`}
+            stroke={`url(#${artId}-premium-rough)`} strokeWidth="18" opacity=".72" />
+          <path d={region.path} fill={`url(#${artId}-premium-fringe)`} opacity=".52" />
+          <path d={region.path} fill={`url(#${artId}-premium-rough-grain)`} opacity=".34" />
+          <path d={region.path} fill="none" stroke={`url(#${artId}-premium-rough)`}
+            strokeWidth="6" opacity=".48" />
+        </g>
+        : <PremiumParklandSurface key={`${region.surface}-${regionIndex}`} artId={artId}
+          region={region} fullStage />)}
     </g>)}
     {plan.building ? <g transform={`translate(${plan.building.x} ${plan.building.y}) scale(${plan.building.scale})`} opacity=".52">
       <path d="M-21 1 0-10 21 1v4h-42z" fill="#101d17" stroke="#74806a" strokeWidth="1.2" />

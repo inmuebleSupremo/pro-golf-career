@@ -88,6 +88,7 @@ function Panel({ title, hole, aim, onAim, presentation, narrow, unlitAudit }: {
       unlitAudit={unlitAudit}
       previewAspect={presentation === "premium" ? narrow ? .68 : 2.16 : undefined}
       className={cn("block h-[min(58vh,620px)] touch-manipulation cursor-crosshair",
-        presentation === "premium" ? "w-full" : "mx-auto max-w-full w-auto")} />
+        presentation === "premium" && narrow ? "relative left-1/2 w-auto max-w-none -translate-x-1/2"
+          : presentation === "premium" ? "w-full" : "mx-auto max-w-full w-auto")} />
   </figure>;
 }
