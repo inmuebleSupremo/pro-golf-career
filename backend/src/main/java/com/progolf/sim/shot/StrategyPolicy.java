@@ -115,8 +115,11 @@ public final class StrategyPolicy {
     /** Produces the non-putting branch while optionally activating a truthful V4 landing option. */
     public BallStrikeIntent decideIntent(HoleModel hole, BallState ball, double remainingDistance, Surface lie,
                                          Attributes attributes, int par, Environment environment) {
-        ShotGuidance.StrategicOption strategic = StrategicTargetPlanner.preferred(
-                StrategicTargetPlanner.options(hole, ball, remainingDistance, lie, attributes, environment), strategy);
+        // A par-3 shot is an approach. Landing-zone options describe fairway routes, so selecting one
+        // here can force a reachable green into an extra approach, including after a short tee shot.
+        ShotGuidance.StrategicOption strategic = par == 3 ? null
+                : StrategicTargetPlanner.preferred(
+                        StrategicTargetPlanner.options(hole, ball, remainingDistance, lie, attributes, environment), strategy);
         if (strategic != null) {
             return new BallStrikeIntent(strategic.suggestedClub(), strategic.aimPoint(), strategic.suggestedFamily());
         }
