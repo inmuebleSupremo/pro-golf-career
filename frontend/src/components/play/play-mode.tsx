@@ -13,6 +13,7 @@ import { humanize } from "@/lib/play/options";
 import { StageHole } from "@/components/play/hole-transition";
 import { usePlaySequence } from "@/components/play/use-play-sequence";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
+import { playPresentation, type PlayPresentation } from "@/lib/play/play-presentation";
 import { acceptCourseAim, aimWithinEnvelope, buildBallStrikeIntent, currentAimPoint } from "@/lib/play/intent";
 import { currentPhysicalPuttControls, cupDirectedLine, physicalPuttControlSource, validPaceFeet } from "@/lib/play/physical-putting";
 import { shotSubmissionFeedback } from "@/lib/play/shot-feedback";
@@ -95,6 +96,7 @@ export function PlayMode({
   const setPhysicalAimDirection = (direction: { x: number; y: number }) =>
     setPhysicalAimState({ revision: situation.shotRevision, source: physicalAimSource, direction });
   const [showGreenReading, setShowGreenReading] = useState(false);
+  const [parklandPresentation, setParklandPresentation] = useState<PlayPresentation | null>(null);
 
   // The client-side sequence: it owns what the stage shows and when the shot controls are locked, so the
   // between-hole ceremony (hole-out → score → wipe → intro) can play out over the server's instant advance.
@@ -110,6 +112,9 @@ export function PlayMode({
   }, []);
 
   const position = playerGolferId ? (leaderboard.find((r) => r.golfer.id === playerGolferId)?.position ?? null) : null;
+  const showParklandPrototype = process.env.NODE_ENV === "development"
+    && seq.displayHole?.canonicalBiome === "PARKLAND";
+  const selectedPresentation = playPresentation(seq.displayHole, parklandPresentation, showParklandPrototype);
   const toggle = (t: DrawerTab) => setTab((prev) => (prev === t ? null : t));
 
   return (
@@ -143,7 +148,19 @@ export function PlayMode({
             onPhysicalAimDirection={setPhysicalAimDirection}
             showGreenReading={showGreenReading}
             onPhysicalPlaybackComplete={seq.onPhysicalPlaybackComplete}
+            presentation={selectedPresentation}
           />
+          {showParklandPrototype && !(hole?.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN") ? (
+            <div className="border-border bg-background/90 absolute right-4 bottom-4 z-10 flex items-center gap-1 rounded-md border p-1 shadow-lg" aria-label="Development Parkland presentation comparison">
+              <span className="text-subtle-foreground px-2 text-[10px] uppercase tracking-wider">Visual test</span>
+              <button type="button" aria-pressed={selectedPresentation === "polished"} onClick={() => setParklandPresentation("polished")}
+                className={cn("rounded px-2 py-1 text-xs", selectedPresentation === "polished" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>Current</button>
+              <button type="button" aria-pressed={selectedPresentation === "premium-v1"} onClick={() => setParklandPresentation("premium-v1")}
+                className={cn("rounded px-2 py-1 text-xs", selectedPresentation === "premium-v1" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>V1</button>
+              <button type="button" aria-pressed={selectedPresentation === "premium"} onClick={() => setParklandPresentation("premium")}
+                className={cn("rounded px-2 py-1 text-xs", selectedPresentation === "premium" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>V2</button>
+            </div>
+          ) : null}
         </section>
 
         <InfoDrawer

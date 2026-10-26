@@ -10,8 +10,12 @@ export interface Hole2dProps {
   readonly className?: string;
   readonly aimPoint?: Point;
   readonly onAimPoint?: (point: Point) => void;
-  /** Development-only comparison mode; gameplay always uses the polished default. */
-  readonly presentation?: "baseline" | "polished";
+  /** Normal play selects V2 for supported Parkland holes; development can compare all modes. */
+  readonly presentation?: "baseline" | "polished" | "premium-v1" | "premium";
+  /** Development preview's known panel ratio; live play measures its stage. */
+  readonly previewAspect?: number;
+  /** Development preview only: inspect scenery before the stage lighting pass. */
+  readonly unlitAudit?: boolean;
 }
 
 /** Active play has one terrain and shot authority: canonical backend geometry plus a returned trace. */

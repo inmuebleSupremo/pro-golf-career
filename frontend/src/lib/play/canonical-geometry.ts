@@ -42,7 +42,7 @@ export function projectCanonicalFlow(
 /** Builds the canonical-only terrain model used by the SVG renderer. No seed or local landform generation enters this path. */
 export function canonicalRenderModel(
   geometry: CanonicalPlayingGeometry,
-  viewport = { width: 220, height: 440, padding: 16 },
+  viewport: { width: number; height: number; padding: number; center?: boolean } = { width: 220, height: 440, padding: 16 },
 ): CanonicalRenderModel {
   // The canonical boundary remains the playable extent, while terrain vertices also participate in framing.
   // This prevents an authoritative bunker or collar near an edge from disappearing at the SVG viewBox.
@@ -57,13 +57,15 @@ export function canonicalRenderModel(
     (viewport.width - viewport.padding * 2) / Math.max(1, maxX - minX),
     (viewport.height - viewport.padding * 2) / Math.max(1, maxY - minY),
   );
+  const insetX = viewport.center ? (viewport.width - (maxX - minX) * scale) / 2 : viewport.padding;
+  const insetY = viewport.center ? (viewport.height - (maxY - minY) * scale) / 2 : viewport.padding;
   const project = (point: Point): Point => ({
-    x: viewport.padding + (point.x - minX) * scale,
-    y: viewport.height - viewport.padding - (point.y - minY) * scale,
+    x: insetX + (point.x - minX) * scale,
+    y: viewport.height - insetY - (point.y - minY) * scale,
   });
   const unproject = (point: Point): Point => ({
-    x: minX + (point.x - viewport.padding) / scale,
-    y: minY + (viewport.height - viewport.padding - point.y) / scale,
+    x: minX + (point.x - insetX) / scale,
+    y: minY + (viewport.height - insetY - point.y) / scale,
   });
 
   return {

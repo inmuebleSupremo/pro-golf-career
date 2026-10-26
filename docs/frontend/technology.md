@@ -115,6 +115,12 @@ Do not use D3 for general UI.
 
 Use Canvas only when SVG performance becomes a measurable bottleneck.
 
+Normal play uses the canonical SVG renderer. For a live Generator 8 hole with canonical Parkland biome,
+Parkland-resolved scene type, `GENERATOR_8_PRINCIPLED_ARCHITECTURE` provenance, and a playable boundary,
+the stage selects Premium Parkland V2. Earlier-generator saves, other biomes, and holes outside that
+eligibility retain Current. V2 uses the same backend geometry, aim coordinates, and shot trace; its wider
+property is decorative. The Current/V1/V2 selector and fixed-seed preview remain development-only.
+
 ---
 
 # Images
