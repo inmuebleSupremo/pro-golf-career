@@ -45,14 +45,14 @@ Each completed hole SHALL contribute to a competitor's cumulative Tournament sco
 - **WHEN** a competitor completes holes
 - **THEN** their Tournament score SHALL equal total strokes minus the par of the holes played, updated as holes complete
 
-#### Scenario: Lower is better
+#### Scenario: Lower is better among competitors with the same cut status
 
-- **WHEN** two competitors are compared
+- **WHEN** two competitors with the same cut status are compared
 - **THEN** the one with the lower cumulative score SHALL rank ahead
 
 ### Requirement: Live Leaderboard
 
-A Tournament SHALL maintain a live leaderboard ranking active competitors by cumulative score. It SHALL be recomputed whenever a score changes, and ties SHALL be handled consistently (tied competitors share a position).
+A Tournament SHALL maintain a live leaderboard ranking active competitors by cut status and cumulative score. After the cut, competitors who made it SHALL rank ahead of those who missed it, whose totals cover only two rounds. Within the same cut status, lower scores SHALL rank ahead and equal scores SHALL share a competition position. A playoff winner SHALL rank first among competitors tied on the four-round score. The leaderboard SHALL be recomputed whenever a score changes and, after completion, SHALL agree with the official finishing order and positions.
 
 #### Scenario: Leaderboard recomputes on score change
 
@@ -61,8 +61,18 @@ A Tournament SHALL maintain a live leaderboard ranking active competitors by cum
 
 #### Scenario: Ties share a position
 
-- **WHEN** two competitors have identical cumulative scores
+- **WHEN** two competitors have identical cumulative scores and the same cut status, and neither won a playoff against the other
 - **THEN** they SHALL share the same leaderboard position, applied consistently
+
+#### Scenario: Missed cut totals remain below four-round finishers
+
+- **WHEN** a competitor misses the cut after two rounds and another finishes all four rounds
+- **THEN** the four-round finisher SHALL rank ahead even if their cumulative score is higher
+
+#### Scenario: Completed leaderboard matches official result
+
+- **WHEN** a Tournament completes, including any playoff
+- **THEN** each leaderboard row SHALL have the same golfer, position, and score as the corresponding official finish
 
 ### Requirement: Rounds Resolve Under Playing Conditions
 

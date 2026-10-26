@@ -2643,14 +2643,15 @@ Tournament formats without a cut may omit this stage.
 
 Every Tournament shall maintain a live leaderboard.
 
-The leaderboard ranks active competitors according to tournament score.
+The leaderboard ranks active competitors by cut status and tournament score. After the cut, all four-round finishers rank ahead of missed-cut competitors, whose totals cover only two rounds. A playoff winner ranks first among competitors tied for the lead after regulation.
 
 The leaderboard shall update whenever a score changes.
 
 Acceptance Criteria:
 
 * Positions recalculated automatically.
-* Tied scores handled consistently.
+* Tied scores within the same cut status share a position, except that a playoff winner ranks first.
+* Completed leaderboard positions agree with official finishing positions.
 * Historical leaderboard available after tournament completion.
 
 ---

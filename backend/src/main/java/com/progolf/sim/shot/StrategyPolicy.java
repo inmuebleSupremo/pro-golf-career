@@ -115,9 +115,11 @@ public final class StrategyPolicy {
     /** Produces the non-putting branch while optionally activating a truthful V4 landing option. */
     public BallStrikeIntent decideIntent(HoleModel hole, BallState ball, double remainingDistance, Surface lie,
                                          Attributes attributes, int par, Environment environment) {
-        // A par-3 shot is an approach. Landing-zone options describe fairway routes, so selecting one
-        // here can force a reachable green into an extra approach, including after a short tee shot.
-        ShotGuidance.StrategicOption strategic = par == 3 ? null
+        // A par-3 shot is an approach. On a par 4, a green already reachable from the current lie is
+        // also an approach: selecting a still-future fairway landing zone would waste a stroke. Par-5
+        // lay-up choices retain their separate risk policy below.
+        ShotGuidance.StrategicOption strategic = (par == 3
+                || (par == 4 && greenReachable(remainingDistance, lie, attributes, environment))) ? null
                 : StrategicTargetPlanner.preferred(
                         StrategicTargetPlanner.options(hole, ball, remainingDistance, lie, attributes, environment), strategy);
         if (strategic != null) {
@@ -160,6 +162,15 @@ public final class StrategyPolicy {
     private static double normalReach(ClubSpec club, Attributes attributes) {
         return club.baseCarry() * (SimConstants.REACH_FLOOR
                 + SimConstants.REACH_SPAN * attributes.norm(club.distanceAttribute()));
+    }
+
+    private static boolean greenReachable(double remainingDistance, Surface lie, Attributes attributes,
+                                          Environment environment) {
+        return ClubSpec.all().stream()
+                .filter(club -> ShotFamilyEligibility.evaluate(lie, club, ShotFamily.FULL).allowed())
+                .anyMatch(club -> normalReach(club, attributes)
+                        * ShotExecutionProfile.derive(lie, club, ShotFamily.FULL, attributes, environment)
+                        .effectiveCarryCapMultiplier() >= remainingDistance);
     }
 
     /** From a difficult lie (deep rough / bunker / recovery / trees) the golfer plays conservatively. */

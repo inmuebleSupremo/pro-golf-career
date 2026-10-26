@@ -63,4 +63,21 @@ class TournamentScoringCutTest {
         assertThat(result.cutResult().applied()).isFalse();
         assertThat(result.finishingOrder()).allSatisfy(f -> assertThat(f.madeCut()).isTrue());
     }
+
+    @Test
+    void completedLeaderboardAgreesWithOfficialFinishesAcrossTheCut() {
+        Tournament t = TournamentFixtures.openAndRegister(TournamentFixtures.standardDefinition(15), TournamentFixtures.field(80));
+        TournamentResult result = t.playToCompletion();
+        List<LeaderboardEntry> board = t.leaderboard();
+
+        assertThat(board).hasSize(result.finishingOrder().size());
+        for (int i = 0; i < board.size(); i++) {
+            LeaderboardEntry row = board.get(i);
+            TournamentResult.Finish finish = result.finishingOrder().get(i);
+            assertThat(row.golfer().player().id()).isEqualTo(finish.golfer().player().id());
+            assertThat(row.position()).isEqualTo(finish.position());
+            assertThat(row.score()).isEqualTo(finish.score());
+            assertThat(row.roundsPlayed()).isEqualTo(t.roundScoresOf(row.golfer().player().id()).size());
+        }
+    }
 }

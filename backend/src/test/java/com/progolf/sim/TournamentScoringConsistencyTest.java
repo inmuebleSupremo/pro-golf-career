@@ -48,6 +48,39 @@ class TournamentScoringConsistencyTest {
     }
 
     @Test
+    void reachableParFourApproachIgnoresAStillFutureFairwayDetour() {
+        Course course = CourseGenerator.generate(new SeedCoordinate(7L, 0, 1, 0, 0, 0, 0),
+                EnvironmentClassification.PARKLAND, CourseGenConstants.CURRENT_GENERATOR_VERSION);
+        Attributes attributes = Attributes.uniform(70);
+        int detoursAvoided = 0;
+        for (int golfer = 0; golfer < 40; golfer++) {
+            for (int hole = 1; hole <= 18; hole++) {
+                if (course.holes().get(hole - 1).par() != 4) continue;
+                HoleModel model = model(course, hole);
+                RoundOutcome round = RoundResolver.resolveHole(model, attributes, GolferState.fresh(),
+                        Environment.calm(), Strategy.BALANCED, coordinate(golfer, hole));
+                ShotOutcome teeShot = round.shots().getFirst();
+                if (teeShot.hazardEntered() || teeShot.settlement() == null) continue;
+                BallState ball = teeShot.settlement().ball();
+                double remaining = ball.position().distanceTo(model.cupPosition());
+                if (remaining > 200 || ball.lie().recoveryDifficulty() > 0) continue;
+                var option = StrategicTargetPlanner.preferred(StrategicTargetPlanner.options(model, ball,
+                        remaining, ball.lie(), attributes, Environment.calm()), Strategy.BALANCED);
+                if (option == null) continue;
+                Position2d detour = new Position2d(option.aimPoint().x(), option.aimPoint().y());
+                if (detour.distanceTo(model.geometry().greenCenter()) <= 40) continue;
+                BallStrikeIntent intent = new StrategyPolicy(Strategy.BALANCED).decideIntent(model, ball,
+                        remaining, ball.lie(), attributes, 4, Environment.calm());
+                Position2d target = new Position2d(intent.aimPoint().x(), intent.aimPoint().y());
+                assertThat(target.distanceTo(model.geometry().greenCenter()))
+                        .as("hole %d, golfer %d", hole, golfer).isLessThan(25.0);
+                detoursAvoided++;
+            }
+        }
+        assertThat(detoursAvoided).isPositive();
+    }
+
+    @Test
     void automaticAndInteractiveSimulationUseTheSameStrokesAndPenalties() {
         Course course = course();
         ProfessionalGolfer golfer = field().get(0);
@@ -87,9 +120,9 @@ class TournamentScoringConsistencyTest {
         tournament.confirmField();
         TournamentResult result = tournament.playToCompletion();
         assertThat(result.cutResult().madeCutCount()).isEqualTo(11);
-        assertThat(result.finishingOrder().get(0).score()).isEqualTo(6);
+        assertThat(result.finishingOrder().get(0).score()).isEqualTo(-7);
         assertThat(result.finishingOrder().get(0).golfer()).isEqualTo(result.winner());
-        assertThat(result.finishingOrder()).extracting(TournamentResult.Finish::score).startsWith(6, 9, 12);
+        assertThat(result.finishingOrder()).extracting(TournamentResult.Finish::score).startsWith(-7, 0, 0);
         result.finishingOrder().forEach(finish -> {
             List<Integer> rounds = tournament.roundScoresOf(finish.golfer().player().id());
             assertThat(finish.score()).isEqualTo(rounds.stream().mapToInt(Integer::intValue).sum());

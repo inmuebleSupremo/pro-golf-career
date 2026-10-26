@@ -398,14 +398,18 @@ public final class Tournament {
 
     // --- Leaderboard ---
 
-    /** The live leaderboard over active competitors, ranked by cumulative score with shared tie positions. */
+    /** The live leaderboard over active competitors, using the same cut and playoff order as final finishes. */
     public List<LeaderboardEntry> leaderboard() {
         List<CompetitorStanding> ranked = activeStandings();
-        ranked.sort(Comparator.comparingInt(CompetitorStanding::cumulative)
+        CompetitorStanding winnerStanding = winner == null ? null : standingFor(winner);
+        ranked.sort(Comparator.comparingInt(Tournament::rankTier)
+                .thenComparingInt(CompetitorStanding::cumulative)
+                .thenComparingInt(s -> s == winnerStanding ? 0 : 1)
                 .thenComparingInt(CompetitorStanding::fieldIndex));
         List<LeaderboardEntry> board = new ArrayList<>(ranked.size());
         for (CompetitorStanding s : ranked) {
-            int position = 1 + (int) ranked.stream().filter(o -> o.cumulative() < s.cumulative()).count();
+            int position = 1 + (int) ranked.stream()
+                    .filter(o -> o != s && strictlyAhead(o, s, winnerStanding)).count();
             board.add(new LeaderboardEntry(position, s.golfer(), s.cumulative(), s.roundsPlayed()));
         }
         return board;
