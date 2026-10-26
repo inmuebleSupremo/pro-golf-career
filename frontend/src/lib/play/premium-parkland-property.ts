@@ -18,7 +18,8 @@ export type PropertyGlimpse = Readonly<{
   tee: Point; cup: Point; regions: readonly PropertyRegion[];
   clearing: readonly (readonly Point[])[];
 }>;
-export type PropertyPath = Readonly<{ d: string; width: number; side: -1 | 1; points: readonly Point[] }>;
+export type PropertyPath = Readonly<{ d: string; width: number; side: -1 | 1; points: readonly Point[];
+  kind?: "neighbor" | "junction" }>;
 export type PropertyBuilding = Readonly<{
   x: number; y: number; width: number; depth: number; side: -1 | 1;
   kind: "clubhouse" | "halfway";
@@ -80,13 +81,14 @@ export function routeSamples(path: PropertyPath): Point[] {
   }).concat(path.points[path.points.length - 1]);
 }
 
-function pathFromPoints(points: readonly Point[], width: number, side: -1 | 1): PropertyPath {
+function pathFromPoints(points: readonly Point[], width: number, side: -1 | 1,
+  kind?: PropertyPath["kind"]): PropertyPath {
   const d = [`M${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`];
   for (let index = 0; index < points.length - 1; index += 1) {
     const [, first, second, end] = cubicControls(points, index);
     d.push(`C${first.x.toFixed(1)} ${first.y.toFixed(1)} ${second.x.toFixed(1)} ${second.y.toFixed(1)} ${end.x.toFixed(1)} ${end.y.toFixed(1)}`);
   }
-  return { points, width, side, d: d.join(" ") };
+  return kind ? { points, width, side, d: d.join(" "), kind } : { points, width, side, d: d.join(" ") };
 }
 
 function distanceToPolygon(point: Point, polygon: readonly Point[]): number {
@@ -145,10 +147,13 @@ function conflictsWithProtectedScenery(glimpse: PropertyGlimpse, trees: readonly
 
 /** Generated-hole polygons projected at the active hole's pixels per yard, then rotated and translated. */
 function composeGlimpse(source: SourceHole, side: -1 | 1, model: CanonicalRenderModel, activeTee: Point,
-  left: number, right: number, height: number, attempt: number, random: () => number): PropertyGlimpse | null {
-  const orientation = random() < .35 ? "reverse" : "diagonal";
-  const angle = orientation === "reverse" ? 165 + random() * 30
-    : (random() < .5 ? -1 : 1) * (27 + random() * 13);
+  left: number, right: number, height: number, attempt: number, random: () => number,
+  mode: "original" | "reverse" | "return-diagonal" = "original"): PropertyGlimpse | null {
+  const orientation = mode === "original" ? random() < .35 ? "reverse" : "diagonal"
+    : mode === "reverse" ? "reverse" : "diagonal";
+  const angle = mode === "return-diagonal" ? (random() < .5 ? 1 : -1) * (150 + random() * 18)
+    : orientation === "reverse" ? 165 + random() * 30
+      : (random() < .5 ? -1 : 1) * (27 + random() * 13);
   const radians = angle * Math.PI / 180;
   const cosine = Math.cos(radians);
   const sine = Math.sin(radians);
@@ -168,7 +173,8 @@ function composeGlimpse(source: SourceHole, side: -1 | 1, model: CanonicalRender
   const offsetX = side < 0 ? -gap - localBounds.maxX : 220 + gap - localBounds.minX;
   const localTee = rotate(source.tee);
   const edgeCrop = 25 + random() * 55;
-  const offsetY = orientation === "reverse" ? -localTee.y - edgeCrop : height - localTee.y + edgeCrop;
+  const localCup = rotate(source.cup);
+  const offsetY = localCup.y > localTee.y ? -localTee.y - edgeCrop : height - localTee.y + edgeCrop;
   const place = (point: Point): Point => ({ x: point.x + offsetX, y: point.y + offsetY });
   const order = (surface: string) => surface === "FIRST_CUT" ? 0 : surface === "FAIRWAY" ? 1
     : surface === "FRINGE" ? 2 : surface === "GREEN" ? 3 : 4;
@@ -258,6 +264,100 @@ function routeQuality(path: PropertyPath, geometry: CanonicalPlayingGeometry, mo
   return hits * 2 + Math.abs(path.points[1].x - model.project(geometry.tee).x) * .05;
 }
 
+/** Sample the existing transformed fairway in its own tee-to-cup coordinates. */
+function neighborRoute(glimpse: PropertyGlimpse, side: -1 | 1, offset: number): PropertyPath | null {
+  const dx = glimpse.cup.x - glimpse.tee.x, dy = glimpse.cup.y - glimpse.tee.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 85) return null;
+  const forward = { x: dx / length, y: dy / length };
+  const across = { x: forward.y, y: -forward.x };
+  const local = (point: Point): Point => ({ x: (point.x - glimpse.tee.x) * across.x
+    + (point.y - glimpse.tee.y) * across.y,
+  y: (point.x - glimpse.tee.x) * forward.x + (point.y - glimpse.tee.y) * forward.y });
+  const world = (point: Point): Point => ({ x: glimpse.tee.x + across.x * point.x + forward.x * point.y,
+    y: glimpse.tee.y + across.y * point.x + forward.y * point.y });
+  const regions = glimpse.regions.map((region) => ({ ...region, points: region.points.map(local) }));
+  const anchors = Array.from({ length: 9 }, (_, index) => {
+    const y = length * index / 8;
+    const edge = corridorEdgeAtY(regions, y, 0, side);
+    return edge === null ? null : world({ x: edge + side * offset, y });
+  });
+  if (anchors.some((point) => point === null)) return null;
+  const points = anchors as Point[];
+  if (points.some((point, index) => index > 0 && Math.hypot(point.x - points[index - 1].x,
+    point.y - points[index - 1].y) > length / 8 + 32)) return null;
+  const start = local(points[0]), end = local(points.at(-1)!);
+  return pathFromPoints([world({ x: start.x, y: -13 }), ...points,
+    world({ x: end.x, y: length + 13 })], 2.5, glimpse.side, "neighbor");
+}
+
+function clearRoute(path: PropertyPath, geometry: CanonicalPlayingGeometry, model: CanonicalRenderModel,
+  glimpses: readonly PropertyGlimpse[], trees: readonly PremiumTree[], left: number, right: number,
+  height: number): number | null {
+  const blockers = geometry.regions.filter((region) => routeBlockers.has(region.surface))
+    .map((region) => region.boundary.map(model.project));
+  const visible = routeSamples(path).filter((point) => point.x >= left && point.x <= right
+    && point.y >= 0 && point.y <= height);
+  if (visible.length < 16 || visible.some((point) =>
+    blockers.some((polygon) => distanceToPolygon(point, polygon) < path.width / 2 + 2)
+    || maintainedConflict(point, glimpses, path.width / 2 + 2))) return null;
+  let hits = 0, run = 0, longest = 0;
+  for (const point of visible) {
+    if (protectedTreeConflict(point, trees, path.width / 2 + 1)) {
+      hits += 1; run += 1; longest = Math.max(longest, run);
+    } else run = 0;
+  }
+  return hits > visible.length * .38 || longest > 13 ? null : hits;
+}
+
+function networkJunction(active: PropertyPath, neighbor: PropertyPath, glimpse: PropertyGlimpse,
+  geometry: CanonicalPlayingGeometry, model: CanonicalRenderModel, trees: readonly PremiumTree[],
+  left: number, right: number, height: number): PropertyPath | null {
+  const activeSamples = routeSamples(active);
+  const neighborSamples = routeSamples(neighbor);
+  const endpointPairs = [
+    { from: activeSamples.slice(Math.floor(activeSamples.length * .65)),
+      to: neighborSamples.slice(0, Math.ceil(neighborSamples.length * .45)) },
+    { from: activeSamples.slice(0, Math.ceil(activeSamples.length * .35)),
+      to: neighborSamples.slice(Math.floor(neighborSamples.length * .55)) },
+  ];
+  const candidates = endpointPairs.flatMap(({ from, to }) => from.flatMap((a) => to.map((b) => ({ a, b,
+    distance: Math.hypot(a.x - b.x, a.y - b.y) }))).filter(({ a, b, distance }) => distance < 180
+    && a.y > 16 && a.y < height - 16 && b.y > 16 && b.y < height - 16
+    && a.x > left + 12 && a.x < right - 12 && b.x > left + 12 && b.x < right - 12)
+    .sort((a, b) => a.distance - b.distance).slice(0, 24));
+  for (const { a, b } of candidates) {
+    const dx = b.x - a.x;
+    const bendY = Math.min(a.y, b.y) - 8;
+    const spur = pathFromPoints([a,
+      { x: a.x + dx * .32, y: bendY },
+      { x: b.x - dx * .32, y: bendY }, b], 2.3, glimpse.side, "junction");
+    const clearance = clearRoute(spur, geometry, model, [glimpse], trees, left, right, height);
+    if (clearance !== null && clearance <= 3) return spur;
+  }
+  return null;
+}
+
+function connectedNeighbor(glimpse: PropertyGlimpse, active: PropertyPath,
+  geometry: CanonicalPlayingGeometry, model: CanonicalRenderModel, trees: readonly PremiumTree[],
+  left: number, right: number, height: number): readonly [PropertyPath, PropertyPath] | null {
+  const candidates = ([-1, 1] as const).flatMap((side) => [7, 10, 14, 18, 23]
+    .map((offset) => neighborRoute(glimpse, side, offset))
+    .filter((path): path is PropertyPath => path !== null)
+    .map((path) => ({ path, hits: clearRoute(path, geometry, model, [glimpse],
+      trees, left, right, height) }))
+    .filter((candidate): candidate is { path: PropertyPath; hits: number } => candidate.hits !== null)
+    .map(({ path, hits }) => ({ path, hits,
+      junction: networkJunction(active, path, glimpse, geometry, model, trees, left, right, height) }))
+    .filter((candidate): candidate is { path: PropertyPath; hits: number; junction: PropertyPath } =>
+      candidate.junction !== null));
+  candidates.sort((a, b) => Math.hypot(a.junction.points[0].x - a.junction.points.at(-1)!.x,
+    a.junction.points[0].y - a.junction.points.at(-1)!.y)
+    - Math.hypot(b.junction.points[0].x - b.junction.points.at(-1)!.x,
+      b.junction.points[0].y - b.junction.points.at(-1)!.y) || a.hits - b.hits);
+  return candidates[0] ? [candidates[0].path, candidates[0].junction] : null;
+}
+
 function clearBuilding(building: PropertyBuilding, side: -1 | 1, left: number, right: number,
   height: number, coreLeft: number, coreRight: number, glimpses: readonly PropertyGlimpse[],
   protectedTrees: readonly PremiumTree[]): boolean {
@@ -301,32 +401,45 @@ export function premiumPropertyPlan(
 
   // The provisional par caps remain 1/2/2; this visual pass deliberately shows at most one.
   const cap = par === 3 ? 1 : 2;
-  const requested = room.left + room.right < 310 || random() < (par === 3 ? .5 : .22)
+  const requested = room.left + room.right < 310 || random() < (par === 3 ? .35 : .08)
     ? 0 : 1;
-  const glimpses: PropertyGlimpse[] = [];
-  for (const side of preferred) {
-    if (glimpses.length >= Math.min(cap, requested)) break;
-    const available = side < 0 ? room.left : room.right;
-    if (available < 145) continue;
-    const source = par === 3 ? sourceHoles[0] : sourceHoles[1 + Math.floor(neighborRandom() * 2)];
-    for (let attempt = 0; attempt < 7; attempt += 1) {
-      const glimpse = composeGlimpse(source, side, model, geometry.tee, left, right, height, attempt, neighborRandom);
-      if (!glimpse || conflictsWithProtectedScenery(glimpse, protectedTrees, coreLeft, coreRight, activeBoundary)) continue;
-      glimpses.push(glimpse);
-      break;
-    }
-  }
-
   const paths: PropertyPath[] = [];
   if (width > 550) {
     const candidates = ([-1, 1] as const).flatMap((side) => [7, 10, 14, 18, 23, 29]
       .map((offset) => activeRoute(geometry, model, side, offset, height))
       .filter((route): route is PropertyPath => route !== null)
       .map((route) => ({ route, quality: routeQuality(route, geometry, model,
-        glimpses, protectedTrees, left, right, height) }))
+        [], protectedTrees, left, right, height) }))
       .filter((candidate): candidate is { route: PropertyPath; quality: number } => candidate.quality !== null));
     candidates.sort((a, b) => a.quality - b.quality || a.route.side - b.route.side);
     if (candidates[0]) paths.push(candidates[0].route);
+  }
+
+  // A glimpse is accepted only with an on-stage connection to the already selected main route.
+  const glimpses: PropertyGlimpse[] = [];
+  let network: readonly [PropertyPath, PropertyPath] | null = null;
+  if (paths[0] && requested > 0 && cap > 0) {
+    for (const side of preferred) {
+      if (network) break;
+      if (room[side < 0 ? "left" : "right"] < 145) continue;
+      const source = par === 3 ? sourceHoles[0] : sourceHoles[1 + Math.floor(neighborRandom() * 2)];
+      for (let attempt = 0; attempt < 21; attempt += 1) {
+        const mode = attempt < 7 ? "original" : attempt < 13 ? "reverse" : "return-diagonal";
+        const placement = attempt < 7 ? attempt : 4 + (attempt - 7) % 3;
+        const candidateSource = attempt < 7 || par === 3 || attempt % 2 === 0 ? source
+          : sourceHoles[source === sourceHoles[1] ? 2 : 1];
+        const glimpse = composeGlimpse(candidateSource, side, model, geometry.tee,
+          left, right, height, placement, neighborRandom, mode);
+        if (!glimpse || conflictsWithProtectedScenery(glimpse, protectedTrees,
+          coreLeft, coreRight, activeBoundary)) continue;
+        const connected = connectedNeighbor(glimpse, paths[0], geometry, model,
+          protectedTrees, left, right, height);
+        if (!connected) continue;
+        glimpses.push(glimpse);
+        network = connected;
+        break;
+      }
+    }
   }
 
   // A building is optional; the old edge-to-building line is deliberately gone.
@@ -363,6 +476,8 @@ export function premiumPropertyPlan(
       break;
     }
   }
+
+  if (network) paths.push(...network);
 
   return { glimpses, paths, building };
 }

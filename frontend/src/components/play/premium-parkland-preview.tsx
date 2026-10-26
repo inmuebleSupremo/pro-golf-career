@@ -22,12 +22,15 @@ const cases = [
   { course: generated.find((course) => course.seed === "103")!, holeIndex: 6, layout: "dogleg" },
   { course: generated.find((course) => course.seed === "103")!, holeIndex: 1, layout: "dogleg" },
   { course: generated.find((course) => course.seed === "103")!, holeIndex: 8, layout: "building review" },
+  { course: generated.find((course) => course.seed === "271")!, holeIndex: 6, layout: "reverse neighbour route" },
+  { course: generated.find((course) => course.seed === "271")!, holeIndex: 12, layout: "connected diagonal neighbour" },
 ];
 
 /** Fixed backend-emitted V8 cases for visual review; actual play uses the live PlayingHole query. */
 export function PremiumParklandPreview({ initialNarrow = false, unlitAudit = false, noMottleAudit = false,
-  noPathAudit = false }: {
+  noPathAudit = false, noNetworkAudit = false }: {
   initialNarrow?: boolean; unlitAudit?: boolean; noMottleAudit?: boolean; noPathAudit?: boolean;
+  noNetworkAudit?: boolean;
 }) {
   const [narrow, setNarrow] = useState(initialNarrow);
   const [before, setBefore] = useState<"polished" | "premium-v1">("premium-v1");
@@ -35,6 +38,7 @@ export function PremiumParklandPreview({ initialNarrow = false, unlitAudit = fal
     className="command-centre min-h-screen bg-background px-4 py-8 text-foreground md:px-8">
     {noMottleAudit ? <style>{'[data-audit-no-mottle] svg [fill*="premium-rough-mottle"] { display: none; }'}</style> : null}
     {noPathAudit ? <style>{'[data-audit-no-path] [data-property-path] { display: none; }'}</style> : null}
+    {noNetworkAudit ? <style>{'[data-property-path-kind="neighbor"], [data-property-path-kind="junction"] { display: none; }'}</style> : null}
     <div className={cn("mx-auto", narrow ? "max-w-[390px]" : "max-w-6xl")}>
       <p className="text-primary text-xs font-semibold uppercase tracking-[0.16em]">Development visual checkpoint</p>
       <h1 className="mt-2 font-serif text-3xl">Premium Parkland SVG V2</h1>

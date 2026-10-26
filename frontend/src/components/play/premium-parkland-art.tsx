@@ -230,7 +230,9 @@ export function PremiumParklandProperty({ artId, plan }: { artId: string; plan: 
 /** Cart access lies above turf and below the unchanged crowns, so existing trees can interrupt it naturally. */
 export function PremiumParklandPaths({ plan }: { plan: PropertyPlan }) {
   return <g pointerEvents="none" aria-hidden="true">
-    {plan.paths.map((path, index) => <g key={`path-${index}`} opacity=".51" data-property-path={index}>
+    {plan.paths.map((path, index) => <g key={`path-${index}`}
+      opacity={path.kind === "neighbor" ? ".34" : path.kind === "junction" ? ".43" : ".51"}
+      data-property-path={index} data-property-path-kind={path.kind ?? "active"}>
       <path d={path.d} fill="none" stroke="#263a29" strokeWidth={path.width + 2.2} strokeLinecap="round" strokeLinejoin="round" />
       <path d={path.d} fill="none" stroke="#77765d" strokeWidth={path.width + .5} strokeLinecap="round" strokeLinejoin="round" />
       <path d={path.d} fill="none" stroke="#b0a684" strokeWidth={path.width - .8} strokeLinecap="round" strokeLinejoin="round" />

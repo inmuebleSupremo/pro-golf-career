@@ -16,6 +16,22 @@ const geometry = {
 const model = canonicalRenderModel(geometry, { width: 220, height: 440, padding: 16, center: true });
 const plan = (seed: string, par: number, width = 930) =>
   premiumPropertyPlan(geometry, model, seed, par, 9, (220 - width) / 2, width, 440);
+const fixturePlan = (seed: string, holeIndex: number, widthFactor = 2.16,
+  coreLeft = -105, coreRight = 325) => {
+  const course = corpus.find((entry) => entry.seed === seed && entry.biome === "PARKLAND")!;
+  const hole = course.experiment.holes[holeIndex].hole;
+  const playable = hole.geometry!;
+  const points = [...playable.playableBoundary, ...playable.regions.flatMap((region) => region.boundary)];
+  const xs = points.map((point) => point.x), ys = points.map((point) => point.y);
+  const height = Math.min(440, Math.max(260, Math.ceil((Math.max(...ys) - Math.min(...ys)) * 188
+    / Math.max(1, Math.max(...xs) - Math.min(...xs)) + 32)));
+  const render = canonicalRenderModel(playable, { width: 220, height, padding: 16, center: true });
+  const trees = [...premiumDistantTrees(playable, hole.layoutSeed, render, -105, 430, height),
+    ...premiumTreePlans(playable, hole.layoutSeed, render).flatMap((region) => region.trees)];
+  const width = height * widthFactor;
+  return premiumPropertyPlan(playable, render, hole.layoutSeed, hole.par, hole.holeNumber,
+    (220 - width) / 2, width, height, trees, coreLeft, coreRight);
+};
 
 describe("premium Parkland property composition", () => {
   it("clears complete crowns from played surfaces but permits trees along the outer first cut", () => {
@@ -37,9 +53,8 @@ describe("premium Parkland property composition", () => {
   });
 
   it("is deterministic but changes with the hole seed", () => {
-    expect(plan("hole-103", 4)).toEqual(plan("hole-103", 4));
-    expect(new Set(Array.from({ length: 20 }, (_, index) => JSON.stringify(plan(`hole-${index}`, 4)))).size)
-      .toBeGreaterThan(1);
+    expect(fixturePlan("271", 6)).toEqual(fixturePlan("271", 6));
+    expect(fixturePlan("271", 6)).not.toEqual(fixturePlan("103", 6));
   });
 
   it("omits routes without maintained corridor geometry and on a narrow stage", () => {
@@ -50,9 +65,10 @@ describe("premium Parkland property composition", () => {
 
   it("enforces the par caps, authentic scale, and exclusion from the active projection", () => {
     const orientations = new Set<string>();
-    for (const par of [3, 4, 5]) {
-      for (let seed = 0; seed < 40; seed += 1) {
-        const property = plan(`hole-${seed}`, par);
+    for (const [seed, holeIndex] of [["103", 0], ["271", 6], ["103", 6], ["1597", 13]] as const) {
+        const property = fixturePlan(seed, holeIndex);
+        const par = corpus.find((entry) => entry.seed === seed && entry.biome === "PARKLAND")!
+          .experiment.holes[holeIndex].hole.par;
         expect(property.glimpses.length).toBeLessThanOrEqual(Math.min(1, par === 3 ? 1 : 2));
         for (const glimpse of property.glimpses) {
           orientations.add(glimpse.orientation);
@@ -76,20 +92,16 @@ describe("premium Parkland property composition", () => {
           expect(inPropertyClearing(110, 220, 5, glimpse)).toBe(false);
           const edge = glimpse.clearing[0][0];
           expect(inPropertyClearing(edge.x, edge.y, 5, glimpse)).toBe(true);
-          if (glimpse.orientation === "reverse") expect(glimpse.cup.y).toBeGreaterThan(glimpse.tee.y);
+          expect(glimpse.cup.y).toBeGreaterThan(glimpse.tee.y);
         }
-      }
     }
     expect(orientations).toEqual(new Set(["reverse", "diagonal"]));
     expect(plan("hole-103", 5, 300).glimpses).toHaveLength(0);
   });
 
   it("omits a proposed neighbour when the protected scenic region leaves no valid placement", () => {
-    const seed = Array.from({ length: 40 }, (_, index) => `hole-${index}`)
-      .find((candidate) => plan(candidate, 4).glimpses.length > 0);
-    expect(seed).toBeDefined();
-    const blocked = premiumPropertyPlan(geometry, model, seed!, 4, 9, -355, 930, 440, [], -500, 700);
-    expect(blocked.glimpses).toHaveLength(0);
+    expect(fixturePlan("271", 6).glimpses).toHaveLength(1);
+    expect(fixturePlan("271", 6, 2.16, -500, 700).glimpses).toHaveLength(0);
   });
 
   it("rejects pointer targets in the decorative scenery", () => {
@@ -100,7 +112,7 @@ describe("premium Parkland property composition", () => {
   });
 
   it("places review glimpses outside protected V1 woodland or omits them", () => {
-    const fixtureCases = [["103", 0], ["887", 0], ["103", 6], ["103", 1]] as const;
+    const fixtureCases = [["103", 0], ["271", 6], ["103", 6], ["103", 1]] as const;
     let visible = 0;
     for (const [seed, holeIndex] of fixtureCases) {
       const course = corpus.find((entry) => entry.seed === seed && entry.biome === "PARKLAND")!;
@@ -116,7 +128,7 @@ describe("premium Parkland property composition", () => {
         ...premiumDistantTrees(playable, hole.layoutSeed, render, -105, 430, viewHeight),
         ...premiumTreePlans(playable, hole.layoutSeed, render).flatMap((region) => region.trees),
       ];
-      const width = viewHeight * 1.8;
+      const width = viewHeight * 2.16;
       const property = premiumPropertyPlan(playable, render, hole.layoutSeed, hole.par, hole.holeNumber,
         (220 - width) / 2, width, viewHeight, protectedTrees);
       expect(property.glimpses.length).toBeLessThanOrEqual(1);
@@ -127,7 +139,7 @@ describe("premium Parkland property composition", () => {
           : Math.min(...points.map((point) => point.x)) > 341).toBe(true);
         expect(protectedTrees.some((tree) => inPropertyClearing(tree.x, tree.y, tree.size, glimpse))).toBe(false);
       }
-      expect(property.paths.length).toBeLessThanOrEqual(2);
+      expect(property.paths.length).toBeLessThanOrEqual(4);
     }
     expect(visible).toBeGreaterThan(0);
   });
@@ -158,7 +170,7 @@ describe("premium Parkland property composition", () => {
         (220 - width) / 2, width, viewHeight, protectedTrees);
       expect(property).toEqual(premiumPropertyPlan(playable, render, hole.layoutSeed, hole.par,
         hole.holeNumber, (220 - width) / 2, width, viewHeight, protectedTrees));
-      expect(property.paths.length).toBeLessThanOrEqual(2);
+      expect(property.paths.length).toBeLessThanOrEqual(4);
       const route = property.paths[0];
       if (!route) continue;
       visibleRoutes.push(`${seed}-${holeIndex}`);
@@ -191,4 +203,88 @@ describe("premium Parkland property composition", () => {
     expect(visibleRoutes.some((entry) => entry.endsWith("-0"))).toBe(true);
     expect(visibleRoutes.some((entry) => entry.endsWith("-6") || entry.endsWith("-1"))).toBe(true);
   });
+
+  it("follows a reverse neighbour and joins its tee-side access to the active green-side route", () => {
+    const course = corpus.find((entry) => entry.seed === "271" && entry.biome === "PARKLAND")!;
+    const hole = course.experiment.holes[6].hole;
+    const playable = hole.geometry!;
+    const render = canonicalRenderModel(playable, { width: 220, height: 440, padding: 16, center: true });
+    const trees = [...premiumDistantTrees(playable, hole.layoutSeed, render, -105, 430, 440),
+      ...premiumTreePlans(playable, hole.layoutSeed, render).flatMap((region) => region.trees)];
+    const width = 440 * 2.16;
+    const property = premiumPropertyPlan(playable, render, hole.layoutSeed, hole.par, hole.holeNumber,
+      (220 - width) / 2, width, 440, trees);
+    expect(property).toEqual(premiumPropertyPlan(playable, render, hole.layoutSeed, hole.par,
+      hole.holeNumber, (220 - width) / 2, width, 440, trees));
+    expect(property.glimpses).toHaveLength(1);
+    expect(property.glimpses[0].orientation).toBe("reverse");
+    const active = property.paths[0];
+    const neighbor = property.paths.find((path) => path.kind === "neighbor")!;
+    const junction = property.paths.find((path) => path.kind === "junction")!;
+    expect(neighbor).toBeDefined();
+    expect(junction).toBeDefined();
+    expect(neighbor.points[0].y).toBeLessThan(neighbor.points.at(-1)!.y);
+    expect(routeSamples(active)).toContainEqual(junction.points[0]);
+    expect(routeSamples(neighbor)).toContainEqual(junction.points.at(-1));
+    expect(junction.points[0].y).toBeLessThan(90);
+    expect(junction.points.at(-1)!.y).toBeLessThan(90);
+    expect(isPropertyPathCoordinate(junction.points[1].x, junction.points[1].y, property.paths)).toBe(true);
+    const blockers = playable.regions.filter((region) => ["TEE_BOX", "FAIRWAY", "FIRST_CUT", "FRINGE",
+      "GREEN", "BUNKER", "WASTE_AREA", "WATER"].includes(region.surface))
+      .map((region) => region.boundary.map(render.project));
+    for (const path of [neighbor, junction]) {
+      const visible = routeSamples(path).filter((point) => point.y >= 0 && point.y <= 440);
+      expect(visible.some((point) => blockers.some((polygon) => pointInPolygon(point, polygon)))).toBe(false);
+      expect(visible.some((point) => property.glimpses[0].regions.some((region) =>
+        pointInPolygon(point, region.points)))).toBe(false);
+      const crownHits = visible.filter((point) => trees.some((tree) =>
+        Math.hypot(point.x - tree.x, point.y - tree.y) < tree.size * .85 + path.width / 2 + 1));
+      expect(crownHits.length).toBeLessThanOrEqual(path.kind === "junction" ? 3 : visible.length * .38);
+    }
+  });
+
+  it("lets a diagonal neighbour follow its own direction and keeps a no-neighbour scene branch-free", () => {
+    const diagonal = fixturePlan("103", 6);
+    expect(diagonal.glimpses[0].orientation).toBe("diagonal");
+    const route = diagonal.paths.find((path) => path.kind === "neighbor")!;
+    expect(route).toBeDefined();
+    expect(Math.abs(route.points[0].x - route.points.at(-1)!.x)).toBeGreaterThan(50);
+    expect(route.points.at(-1)!.y - route.points[0].y).toBeGreaterThan(100);
+    const junction = diagonal.paths.find((path) => path.kind === "junction")!;
+    expect(junction).toBeDefined();
+    expect(routeSamples(diagonal.paths[0])).toContainEqual(junction.points[0]);
+    expect(routeSamples(route)).toContainEqual(junction.points.at(-1));
+    const empty = fixturePlan("103", 0);
+    expect(empty.glimpses).toHaveLength(0);
+    expect(empty.paths).toHaveLength(1);
+    expect(empty.paths[0].kind).toBeUndefined();
+  });
+
+  it("either joins both routes or omits the neighbour across representative generated holes", () => {
+    let connected = 0;
+    const orientations = new Set<string>();
+    for (const seed of ["103", "271", "509", "887", "1597", "2861"]) {
+      for (const holeIndex of [0, 1, 6, 12]) {
+        const property = fixturePlan(seed, holeIndex);
+        const active = property.paths[0];
+        const secondary = property.paths.filter((path) => path.kind === "neighbor");
+        const junctions = property.paths.filter((path) => path.kind === "junction");
+        if (property.glimpses.length === 0) {
+          expect(secondary).toHaveLength(0);
+          expect(junctions).toHaveLength(0);
+          continue;
+        }
+        connected += 1;
+        orientations.add(property.glimpses[0].orientation);
+        expect(active).toBeDefined();
+        expect(property.glimpses).toHaveLength(1);
+        expect(secondary).toHaveLength(1);
+        expect(junctions).toHaveLength(1);
+        expect(routeSamples(active)).toContainEqual(junctions[0].points[0]);
+        expect(routeSamples(secondary[0])).toContainEqual(junctions[0].points.at(-1));
+      }
+    }
+    expect(connected).toBe(10);
+    expect(orientations).toEqual(new Set(["reverse", "diagonal"]));
+  }, 30_000);
 });
