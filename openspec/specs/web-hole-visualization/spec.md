@@ -107,6 +107,26 @@ The 2D hole SHALL be styled by a visual theme selected from the host course's en
 - **WHEN** a hole on a Coastal-classified course is rendered
 - **THEN** it SHALL use the water-heavy Tropical theme
 
+### Requirement: Premium Parkland V2 selection in normal play
+
+Normal gameplay SHALL select Premium Parkland V2 for a live hole with canonical Parkland biome, a
+Parkland-resolved scene type, Generator 8 provenance (`GENERATOR_8_PRINCIPLED_ARCHITECTURE`), and a valid
+canonical playable boundary. V2 SHALL consume the supplied playing-hole geometry and layout seed for its
+presentation without changing aiming, terrain classification, shot outcomes, or save data.
+Holes outside that supported scope SHALL retain the Current canonical renderer when playable canonical
+geometry is available. Current, V1, and V2 comparison controls MAY remain available in development only.
+
+#### Scenario: Supported Parkland hole plays with V2
+
+- **WHEN** normal play displays an eligible Generator 8 Parkland hole
+- **THEN** the stage SHALL render Premium Parkland V2 from that hole's authoritative geometry
+- **AND THEN** decorative property scenery SHALL not accept aim targets or affect shot resolution
+
+#### Scenario: Historical or other-biome hole retains Current
+
+- **WHEN** normal play displays an earlier-generator hole or a non-Parkland hole
+- **THEN** the stage SHALL use the Current canonical renderer without changing the saved course
+
 ### Requirement: Shot Playback Animation
 
 Each resolved shot SHALL be played back visually on the 2D hole using spatial settlement data: the ball travels from the authoritative pre-shot ball position to its sampled contact, then, when a penalty recovery or replay applies, visibly transitions to the resulting playable ball state. The final next-shot marker SHALL be on the authoritative settlement position and surface.

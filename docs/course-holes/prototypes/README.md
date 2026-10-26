@@ -1,19 +1,18 @@
 # 2D hole restyle — biome prototypes
 
-Approved visual prototypes for the parametric 2D hole renderer, one per course biome. Each is a
-self-contained HTML file that renders six representative holes to show the biome's look and its
-variance. They are the **design source of truth** for the live renderer
-(`frontend/src/components/play/hole-2d.tsx`, `frontend/src/lib/play/biomes.ts`,
-`frontend/src/lib/play/hole-geometry.ts`).
+Historical visual studies for the 2D hole renderer, one per course biome. Each is a self-contained
+HTML file that renders six representative holes. Their local landform generator and cart-path-free
+Parkland design do not describe normal play: the live renderer uses backend canonical geometry, and
+supported Generator 8 Parkland holes use Premium Parkland V2. See `docs/frontend/technology.md` and
+`openspec/specs/web-hole-visualization/spec.md` for current behaviour.
 
 Open any file in a browser (or serve the folder) to view.
 
-## Shared engine (identical across all six)
+## Shared prototype engine (identical across all six)
 
-- **Frame**: mirrors `projectHole` — but the fairway spine is a **cubic** bezier with the tee offset
-  *opposite* the dogleg, so holes swing hard across the frame (pronounced + blind doglegs, L/R, par 4 & 5).
-  The live port must switch `hole-geometry.ts` to this cubic and update `ballPosition` to sample the
-  same cubic so shot playback stays aligned.
+- **Frame**: the studies use a **cubic** bezier fairway spine with the tee offset *opposite* the
+  dogleg. This is prototype-only geometry; live playable holes use the backend's canonical polygons
+  and shot traces.
 - **`ribbon()`** — organic filled corridor via normal-offset + jitter; `holdTop` variant holds full width
   into the green so the fairway forms a continuous flow (no pinch).
 - **`blob()`** — smooth closed organic shapes (greens, bunkers, water).
@@ -21,7 +20,7 @@ Open any file in a browser (or serve the folder) to view.
   fairway flows around and above it. No lollipop heads.
 - Deterministic seeded PRNG (`mulberry32`) for reproducible cosmetic placement.
 
-## Global design rules (apply to every biome)
+## Historical prototype design rules (apply to every HTML study)
 
 1. Vegetation/scatter fills the frame where appropriate; **drawn over bunkers but under the green**
    (canopies overhang bunkers slightly; greens are never under a tree).

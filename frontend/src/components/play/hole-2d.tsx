@@ -10,7 +10,7 @@ export interface Hole2dProps {
   readonly className?: string;
   readonly aimPoint?: Point;
   readonly onAimPoint?: (point: Point) => void;
-  /** Development-only comparison modes; gameplay always uses the polished default. */
+  /** Normal play selects V2 for supported Parkland holes; development can compare all modes. */
   readonly presentation?: "baseline" | "polished" | "premium-v1" | "premium";
   /** Development preview's known panel ratio; live play measures its stage. */
   readonly previewAspect?: number;
