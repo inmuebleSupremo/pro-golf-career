@@ -18,16 +18,30 @@ export type PropertyGlimpse = Readonly<{
   tee: Point; cup: Point; regions: readonly PropertyRegion[];
   clearing: readonly (readonly Point[])[];
 }>;
-export type PropertyPath = Readonly<{ d: string; width: number }>;
+export type PropertyPath = Readonly<{ d: string; width: number; side: -1 | 1; points: readonly Point[] }>;
+export type PropertyBuilding = Readonly<{
+  x: number; y: number; width: number; depth: number; side: -1 | 1;
+  kind: "clubhouse" | "halfway";
+}>;
 export type PropertyPlan = Readonly<{
   glimpses: readonly PropertyGlimpse[];
   paths: readonly PropertyPath[];
-  building: Readonly<{ x: number; y: number; scale: number }> | null;
+  building: PropertyBuilding | null;
 }>;
 
 /** Scenic SVG space is never a valid aim surface, even when it depicts turf. */
 export function isPremiumAimCoordinate(x: number, y: number, height: number): boolean {
   return x >= 0 && x <= 220 && y >= 0 && y <= height;
+}
+
+/** The cosmetic cart track itself never becomes an aiming surface. */
+export function isPropertyPathCoordinate(x: number, y: number, paths: readonly PropertyPath[]): boolean {
+  const point = { x, y };
+  return paths.some((path) => {
+    const samples = routeSamples(path);
+    return samples.some((start, index) => index < samples.length - 1
+      && distanceToSegment(point, start, samples[index + 1]) <= path.width / 2 + 1);
+  });
 }
 
 function distanceToSegment(point: Point, start: Point, end: Point): number {
@@ -37,6 +51,58 @@ function distanceToSegment(point: Point, start: Point, end: Point): number {
   const t = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1,
     ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
   return Math.hypot(point.x - start.x - t * dx, point.y - start.y - t * dy);
+}
+
+function cubicPoint(points: readonly Point[], t: number): Point {
+  const u = 1 - t;
+  return {
+    x: u ** 3 * points[0].x + 3 * u ** 2 * t * points[1].x
+      + 3 * u * t ** 2 * points[2].x + t ** 3 * points[3].x,
+    y: u ** 3 * points[0].y + 3 * u ** 2 * t * points[1].y
+      + 3 * u * t ** 2 * points[2].y + t ** 3 * points[3].y,
+  };
+}
+
+function cubicControls(points: readonly Point[], index: number): readonly Point[] {
+  const previous = points[Math.max(0, index - 1)];
+  const start = points[index];
+  const end = points[index + 1];
+  const next = points[Math.min(points.length - 1, index + 2)];
+  return [start,
+    { x: start.x + (end.x - previous.x) / 6, y: start.y + (end.y - previous.y) / 6 },
+    { x: end.x - (next.x - start.x) / 6, y: end.y - (next.y - start.y) / 6 }, end];
+}
+
+export function routeSamples(path: PropertyPath): Point[] {
+  return path.points.slice(0, -1).flatMap((_, index) => {
+    const controls = cubicControls(path.points, index);
+    return Array.from({ length: 8 }, (_, step) => cubicPoint(controls, step / 8));
+  }).concat(path.points[path.points.length - 1]);
+}
+
+function pathFromPoints(points: readonly Point[], width: number, side: -1 | 1): PropertyPath {
+  const d = [`M${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const [, first, second, end] = cubicControls(points, index);
+    d.push(`C${first.x.toFixed(1)} ${first.y.toFixed(1)} ${second.x.toFixed(1)} ${second.y.toFixed(1)} ${end.x.toFixed(1)} ${end.y.toFixed(1)}`);
+  }
+  return { points, width, side, d: d.join(" ") };
+}
+
+function distanceToPolygon(point: Point, polygon: readonly Point[]): number {
+  if (pointInPolygon(point, polygon)) return 0;
+  return Math.min(...polygon.map((vertex, index) =>
+    distanceToSegment(point, vertex, polygon[(index + 1) % polygon.length])));
+}
+
+function maintainedConflict(point: Point, glimpses: readonly PropertyGlimpse[], clearance: number): boolean {
+  return glimpses.some((glimpse) => glimpse.regions.some((region) =>
+    distanceToPolygon(point, region.points) < clearance));
+}
+
+function protectedTreeConflict(point: Point, trees: readonly PremiumTree[], clearance: number): boolean {
+  return trees.some((tree) => Math.hypot(point.x - tree.x, point.y - tree.y)
+    < tree.size * .85 + clearance);
 }
 
 /** Keep complete crowns off the played surfaces, while letting woodland reach the first-cut edge. */
@@ -121,6 +187,93 @@ function composeGlimpse(source: SourceHole, side: -1 | 1, model: CanonicalRender
   };
 }
 
+const routeBlockers = new Set(["TEE_BOX", "FAIRWAY", "FIRST_CUT", "FRINGE", "GREEN",
+  "BUNKER", "WASTE_AREA", "WATER"]);
+
+function corridorEdgeAtY(regions: readonly PropertyRegion[], y: number, guideX: number, side: -1 | 1): number | null {
+  const intervals = regions.filter((region) => ["FIRST_CUT", "FAIRWAY", "FRINGE", "GREEN", "TEE_BOX"]
+    .includes(region.surface)).flatMap((region) => {
+    const crossings = region.points.flatMap((point, index) => {
+      const next = region.points[(index + 1) % region.points.length];
+      return (point.y <= y && next.y > y) || (next.y <= y && point.y > y)
+        ? [point.x + (y - point.y) * (next.x - point.x) / (next.y - point.y)] : [];
+    }).sort((a, b) => a - b);
+    const pairs: { left: number; right: number }[] = [];
+    for (let index = 0; index + 1 < crossings.length; index += 2) {
+      pairs.push({ left: crossings[index], right: crossings[index + 1] });
+    }
+    return pairs;
+  }).filter((interval) => Math.abs((interval.left + interval.right) / 2 - guideX) < 85);
+  if (intervals.length === 0) return null;
+  return side < 0 ? Math.min(...intervals.map((interval) => interval.left))
+    : Math.max(...intervals.map((interval) => interval.right));
+}
+
+function activeRoute(geometry: CanonicalPlayingGeometry, model: CanonicalRenderModel,
+  side: -1 | 1, offset: number, height: number): PropertyPath | null {
+  const tee = model.project(geometry.tee);
+  const cup = model.project(geometry.cup);
+  if (tee.y - cup.y < 95) return null;
+  const regions = geometry.regions.filter((region) => routeBlockers.has(region.surface))
+    .map((region) => ({ surface: region.surface, points: region.boundary.map(model.project), path: "" }));
+  if (!regions.some((region) => region.surface === "FAIRWAY")) return null;
+  const anchors = Array.from({ length: 9 }, (_, index) => {
+    const t = index / 8;
+    const y = tee.y + (cup.y - tee.y) * t;
+    const guideX = tee.x + (cup.x - tee.x) * t;
+    const edge = corridorEdgeAtY(regions, y, guideX, side);
+    return { x: (edge ?? guideX) + side * offset, y };
+  });
+  if (anchors.some((point, index) => index > 0 && Math.abs(point.x - anchors[index - 1].x) > 55)) return null;
+  const first = anchors[0], second = anchors[1], last = anchors[anchors.length - 1];
+  const beforeLast = anchors[anchors.length - 2];
+  const points = [
+    { x: first.x + (first.x - second.x) * .28, y: Math.max(height + 12, tee.y + 22) },
+    ...anchors,
+    { x: last.x + (last.x - beforeLast.x) * .28, y: Math.min(-12, cup.y - 22) },
+  ];
+  return pathFromPoints(points, 2.9, side);
+}
+
+function routeQuality(path: PropertyPath, geometry: CanonicalPlayingGeometry, model: CanonicalRenderModel,
+  glimpses: readonly PropertyGlimpse[], trees: readonly PremiumTree[], left: number, right: number,
+  height: number): number | null {
+  const blockers = geometry.regions.filter((region) => routeBlockers.has(region.surface))
+    .map((region) => region.boundary.map(model.project));
+  const visible = routeSamples(path).filter((point) => point.y >= 0 && point.y <= height);
+  if (visible.length < 24 || visible.some((point) => point.x < left + 6 || point.x > right - 6
+    || blockers.some((polygon) => distanceToPolygon(point, polygon) < path.width / 2 + 2.5)
+    || maintainedConflict(point, glimpses, path.width / 2 + 3))) return null;
+  let hits = 0;
+  let run = 0;
+  let longestRun = 0;
+  for (const point of visible) {
+    if (protectedTreeConflict(point, trees, path.width / 2 + 1)) {
+      hits += 1;
+      run += 1;
+      longestRun = Math.max(longestRun, run);
+    } else run = 0;
+  }
+  if (hits > visible.length * .38 || longestRun > 13) return null;
+  return hits * 2 + Math.abs(path.points[1].x - model.project(geometry.tee).x) * .05;
+}
+
+function clearBuilding(building: PropertyBuilding, side: -1 | 1, left: number, right: number,
+  height: number, coreLeft: number, coreRight: number, glimpses: readonly PropertyGlimpse[],
+  protectedTrees: readonly PremiumTree[]): boolean {
+  if (building.x - building.width / 2 < left + 20 || building.x + building.width / 2 > right - 20
+    || building.y - building.depth / 2 < 20 || building.y + building.depth / 2 > height - 20
+    || (side < 0 ? building.x + building.width / 2 + 15 >= coreLeft
+      : building.x - building.width / 2 - 15 <= coreRight)) return false;
+  const footprint = [-1, 0, 1].flatMap((dx) => [-1, 0, 1].map((dy) => ({
+    x: building.x + dx * (building.width / 2 + 5),
+    y: building.y + dy * (building.depth / 2 + 5),
+  })));
+  return footprint.every((point) => !maintainedConflict(point, glimpses, 8)
+    && !protectedTreeConflict(point, protectedTrees, 5));
+}
+
+
 /** Decorative property cues in SVG space. Maintained regions stay outside the active 0..220 projection. */
 export function premiumPropertyPlan(
   geometry: CanonicalPlayingGeometry,
@@ -165,24 +318,51 @@ export function premiumPropertyPlan(
   }
 
   const paths: PropertyPath[] = [];
-  const pathSide: -1 | 1 = glimpses.length > 0 ? (glimpses[0].side === -1 ? 1 : -1)
-    : room[preferred[0] < 0 ? "left" : "right"] > 95 ? preferred[0] : preferred[1];
-  if (room[pathSide < 0 ? "left" : "right"] > 95) {
-    const desiredX = pathSide < 0 ? -34 - Math.min(room.left * .3, 75) : 254 + Math.min(room.right * .3, 75);
-    const sweep = pathSide * (22 + random() * 27);
-    const pathWidth = 2.8 + random() * 1.5;
-    const clearance = Math.abs(sweep) + pathWidth / 2 + 4;
-    const x = pathSide < 0 ? Math.min(desiredX, coreLeft - clearance)
-      : Math.max(desiredX, coreRight + clearance);
-    paths.push({ d: `M${x - sweep * .35} ${height + 12} C${x + sweep} ${height * .75} ${x - sweep} ${height * .44} ${x + sweep * .35} ${-12}`,
-      width: pathWidth });
+  if (width > 550) {
+    const candidates = ([-1, 1] as const).flatMap((side) => [7, 10, 14, 18, 23, 29]
+      .map((offset) => activeRoute(geometry, model, side, offset, height))
+      .filter((route): route is PropertyPath => route !== null)
+      .map((route) => ({ route, quality: routeQuality(route, geometry, model,
+        glimpses, protectedTrees, left, right, height) }))
+      .filter((candidate): candidate is { route: PropertyPath; quality: number } => candidate.quality !== null));
+    candidates.sort((a, b) => a.quality - b.quality || a.route.side - b.route.side);
+    if (candidates[0]) paths.push(candidates[0].route);
   }
 
-  const buildingSide: -1 | 1 = room.left > room.right ? -1 : 1;
-  const building = (holeNumber === 9 || holeNumber === 18)
-    && room[buildingSide < 0 ? "left" : "right"] > 180 && random() > .38
-    ? { x: buildingSide < 0 ? left + 88 : right - 88,
-      y: height * (.13 + random() * .17), scale: .65 + random() * .25 } : null;
+  // A building is optional; the old edge-to-building line is deliberately gone.
+  // Keep the existing roof artwork available, but omit a building without a short connection to this route.
+  let building: PropertyBuilding | null = null;
+  const buildingKind = holeNumber === 9 ? "halfway" : holeNumber === 1 || holeNumber === 18 ? "clubhouse" : null;
+  const route = paths[0];
+  if (route && buildingKind && random() < .56 && room[route.side < 0 ? "left" : "right"] > 175) {
+    const side = route.side;
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const buildingWidth = buildingKind === "clubhouse" ? 23 : 16;
+      const depth = buildingKind === "clubhouse" ? 15 : 11;
+      const distance = 46 + random() * Math.min(86, room[side < 0 ? "left" : "right"] - 90);
+      const candidate: PropertyBuilding = { kind: buildingKind, width: buildingWidth, depth, side: -side as -1 | 1,
+        x: side < 0 ? coreLeft - distance : coreRight + distance,
+        y: height * (.18 + random() * .28) };
+      if (!clearBuilding(candidate, side, left, right, height, coreLeft, coreRight,
+        glimpses, protectedTrees)) continue;
+      const nearest = routeSamples(route).reduce((best, point) =>
+        Math.hypot(point.x - candidate.x, point.y - candidate.y)
+          < Math.hypot(best.x - candidate.x, best.y - candidate.y) ? point : best);
+      if (Math.hypot(nearest.x - candidate.x, nearest.y - candidate.y) > 55) continue;
+      const door = { x: candidate.x - side * (candidate.width / 2 + 1), y: candidate.y };
+      const spur = pathFromPoints([door,
+        { x: door.x - side * 10, y: door.y },
+        { x: nearest.x + side * 8, y: nearest.y }, nearest], 2.5, side);
+      const blockers = geometry.regions.filter((region) => routeBlockers.has(region.surface))
+        .map((region) => region.boundary.map(model.project));
+      if (routeSamples(spur).slice(0, -1).some((point) =>
+        blockers.some((polygon) => distanceToPolygon(point, polygon) < spur.width / 2 + 2)
+        || protectedTreeConflict(point, protectedTrees, spur.width / 2 + 1))) continue;
+      building = candidate;
+      paths.push(spur);
+      break;
+    }
+  }
 
   return { glimpses, paths, building };
 }

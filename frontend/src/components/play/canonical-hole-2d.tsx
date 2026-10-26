@@ -9,9 +9,9 @@ import type { Point } from "@/lib/play/hole-geometry";
 import { feedbackAimPoint, isAimPointInteractionLocked, tracePlaybackDurationMs, tracePlaybackFrame, tracePlaybackStatus, transitionLabel } from "@/lib/play/trace-presentation";
 import type { Hole2dProps } from "@/components/play/hole-2d";
 import { WindDisplay } from "@/components/play/wind-display";
-import { PremiumParklandBackdrop, PremiumParklandCanopies, PremiumParklandDefs, PremiumParklandLight, PremiumParklandProperty, PremiumParklandShadows, PremiumParklandSurface } from "@/components/play/premium-parkland-art";
+import { PremiumParklandBackdrop, PremiumParklandCanopies, PremiumParklandDefs, PremiumParklandLight, PremiumParklandPaths, PremiumParklandProperty, PremiumParklandShadows, PremiumParklandSurface } from "@/components/play/premium-parkland-art";
 import { premiumDistantTrees, premiumSceneryWidth, premiumSurfacePrecedence, premiumTreePlans } from "@/lib/play/premium-parkland-decoration";
-import { inPropertyClearing, isPremiumAimCoordinate, premiumPropertyPlan } from "@/lib/play/premium-parkland-property";
+import { inPropertyClearing, isPremiumAimCoordinate, isPropertyPathCoordinate, premiumPropertyPlan } from "@/lib/play/premium-parkland-property";
 
 const W = 220;
 const H = 440;
@@ -200,6 +200,7 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     if (!transform) return;
     const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(transform.inverse());
     if (premiumParkland && !isPremiumAimCoordinate(local.x, local.y, viewHeight)) return;
+    if (property && isPropertyPathCoordinate(local.x, local.y, property.paths)) return;
     onAimPoint(pointerWorldTarget({ x: event.clientX, y: event.clientY }, transform.inverse(), model.unproject));
   }
 
@@ -226,6 +227,7 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
         <PremiumParklandSurface key={`ground-${region.surface}-${index}`} artId={artId} region={region} fullStage={fullStage} />)}
       {premiumRegions.filter((region) => premiumSurfacePrecedence(region.surface) < 4).map((region, index) =>
         <PremiumParklandSurface key={`feature-${region.surface}-${index}`} artId={artId} region={region} fullStage={fullStage} />)}
+      {property ? <PremiumParklandPaths plan={property} /> : null}
       <PremiumParklandShadows artId={artId} plans={premiumTrees} regions={model.terrain} distantTrees={distantTrees} />
       <PremiumParklandCanopies artId={artId} plans={premiumTrees} distantTrees={distantTrees} />
       {!(unlitAudit && process.env.NODE_ENV === "development") ? <PremiumParklandLight artId={artId} x={sceneryX} width={sceneryWidth} height={viewHeight}

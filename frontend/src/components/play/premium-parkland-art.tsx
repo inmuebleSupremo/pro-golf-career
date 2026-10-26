@@ -184,10 +184,6 @@ export function PremiumParklandBackdrop({ artId, x, width, height, seed, fullSta
 /** Property fragments are composed outside the playable projection and never receive pointer events. */
 export function PremiumParklandProperty({ artId, plan }: { artId: string; plan: PropertyPlan }) {
   return <g pointerEvents="none" aria-hidden="true">
-    {plan.paths.map((path, index) => <g key={`path-${index}`} opacity=".45">
-      <path d={path.d} fill="none" stroke="#13271c" strokeWidth={path.width + 2.5} strokeLinecap="round" />
-      <path d={path.d} fill="none" stroke="#9d9b75" strokeWidth={path.width} strokeLinecap="round" />
-    </g>)}
     {plan.glimpses.map((glimpse, index) => <g key={`glimpse-${index}`} data-property-glimpse={index}
       data-property-orientation={glimpse.orientation} opacity=".7">
       {glimpse.regions.map((region, regionIndex) => region.surface === "FIRST_CUT"
@@ -202,11 +198,43 @@ export function PremiumParklandProperty({ artId, plan }: { artId: string; plan: 
         : <PremiumParklandSurface key={`${region.surface}-${regionIndex}`} artId={artId}
           region={region} fullStage />)}
     </g>)}
-    {plan.building ? <g transform={`translate(${plan.building.x} ${plan.building.y}) scale(${plan.building.scale})`} opacity=".52">
-      <path d="M-21 1 0-10 21 1v4h-42z" fill="#101d17" stroke="#74806a" strokeWidth="1.2" />
-      <path d="M-17 5h34v13h-34z" fill="#687363" /><path d="M-18 18h36" stroke="#19281e" strokeWidth="2" />
-      <path d="M-11 9v7m8-7v7m8-7v7m8-7v7" stroke="#283a2b" strokeWidth="3" />
+    {plan.building ? <g transform={`translate(${plan.building.x} ${plan.building.y})`} opacity=".7"
+      data-property-building={plan.building.kind}>
+      <ellipse rx={plan.building.width * 1.15} ry={plan.building.depth * 1.4}
+        fill="#8b9d68" opacity=".16" />
+      <rect x={-plan.building.width / 2 + 3} y={-plan.building.depth / 2 + 3}
+        width={plan.building.width} height={plan.building.depth} fill="#081a12" opacity=".48" />
+      <path d={`M${-plan.building.width / 2} ${-plan.building.depth / 2}
+        L0 ${-plan.building.depth / 2 - 2} L${plan.building.width / 2} ${-plan.building.depth / 2}
+        L${plan.building.width / 2} ${plan.building.depth / 2}
+        L0 ${plan.building.depth / 2 + 2} L${-plan.building.width / 2} ${plan.building.depth / 2} Z`}
+        fill="#686b5c" stroke="#303d32" strokeWidth=".9" />
+      <path d={`M0 ${-plan.building.depth / 2 - 2} L0 ${plan.building.depth / 2 + 2}
+        L${plan.building.width / 2} ${plan.building.depth / 2}
+        L${plan.building.width / 2} ${-plan.building.depth / 2} Z`}
+        fill="#454d42" opacity=".66" />
+      <path d={`M0 ${-plan.building.depth / 2 - 2} V${plan.building.depth / 2 + 2}`}
+        stroke="#a5a78c" strokeWidth=".7" opacity=".7" />
+      {plan.building.kind === "clubhouse" ? <>
+        <rect x={-plan.building.width / 2 + 3} y={-plan.building.depth / 2 - 4}
+          width="7" height="5" fill="#5a6254" stroke="#303d32" strokeWidth=".6" />
+        <rect x={plan.building.width / 2 - 7} y={plan.building.depth / 2 - 1}
+          width="6" height="4" fill="#4d5548" stroke="#303d32" strokeWidth=".6" />
+      </> : null}
+      <path d={`M${plan.building.side * (plan.building.width / 2 + 1)} -2
+        v5 h${plan.building.side * 3}`} fill="none" stroke="#a69c7d" strokeWidth=".8" opacity=".65" />
     </g> : null}
+  </g>;
+}
+
+/** Cart access lies above turf and below the unchanged crowns, so existing trees can interrupt it naturally. */
+export function PremiumParklandPaths({ plan }: { plan: PropertyPlan }) {
+  return <g pointerEvents="none" aria-hidden="true">
+    {plan.paths.map((path, index) => <g key={`path-${index}`} opacity=".51" data-property-path={index}>
+      <path d={path.d} fill="none" stroke="#263a29" strokeWidth={path.width + 2.2} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={path.d} fill="none" stroke="#77765d" strokeWidth={path.width + .5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={path.d} fill="none" stroke="#b0a684" strokeWidth={path.width - .8} strokeLinecap="round" strokeLinejoin="round" />
+    </g>)}
   </g>;
 }
 

@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { PremiumParklandBackdrop, PremiumParklandDefs, PremiumParklandLight, PremiumParklandProperty, PremiumParklandSurface } from "./premium-parkland-art";
+import { PremiumParklandBackdrop, PremiumParklandDefs, PremiumParklandLight, PremiumParklandPaths, PremiumParklandProperty, PremiumParklandSurface } from "./premium-parkland-art";
 
 describe("full-stage Parkland lighting", () => {
   it("keeps the horizontal atmosphere while anchoring ground colour to V1", () => {
@@ -61,5 +61,18 @@ describe("neighbouring property ground", () => {
     expect(markup).toContain("property-premium-rough-grain");
     expect(markup).not.toContain("#24402a");
     expect(markup).toContain('pointer-events="none"');
+  });
+
+  it("keeps paths and a course building decorative and outside the aim layer", () => {
+    const plan = { glimpses: [], paths: [{ d: "M350 40 C375 45 400 70 430 80", width: 3, side: 1 as const,
+      points: [{ x: 350, y: 40 }, { x: 375, y: 45 }, { x: 400, y: 70 }, { x: 430, y: 80 }] }],
+      building: { x: 350, y: 40, width: 16, depth: 11, kind: "halfway" as const, side: 1 as const } };
+    const markup = renderToStaticMarkup(<svg><PremiumParklandProperty artId="property" plan={plan} />
+      <PremiumParklandPaths plan={plan} /></svg>);
+    expect(markup).toContain('pointer-events="none"');
+    expect(markup).toContain('aria-hidden="true"');
+    expect(markup).toContain('data-property-path="0"');
+    expect(markup).toContain('data-property-building="halfway"');
+    expect(markup).toContain("M350 40 C375 45 400 70 430 80");
   });
 });
