@@ -255,6 +255,7 @@ export function Leaderboard({
   const top = rows.slice(0, 10);
   const playerRow = playerGolferId ? rows.find((r) => r.golfer.id === playerGolferId) : null;
   const showPlayerBelow = playerRow && !top.some((r) => r.golfer.id === playerGolferId);
+  const cutHasPassed = rows.some((row) => row.roundsPlayed > 2);
   const listClass = embedded
     ? "divide-border/50 flex flex-col divide-y"
     : "divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border";
@@ -271,12 +272,13 @@ export function Leaderboard({
       ) : (
         <ul className={listClass}>
           {top.map((row) => (
-            <LeaderboardRowItem key={row.golfer.id} row={row} isPlayer={row.golfer.id === playerGolferId} />
+            <LeaderboardRowItem key={row.golfer.id} row={row} isPlayer={row.golfer.id === playerGolferId}
+              missedCut={cutHasPassed && row.roundsPlayed === 2} />
           ))}
           {showPlayerBelow ? (
             <>
               <li className="text-subtle-foreground px-4 py-1 text-center text-xs">···</li>
-              <LeaderboardRowItem row={playerRow} isPlayer />
+              <LeaderboardRowItem row={playerRow} isPlayer missedCut={cutHasPassed && playerRow.roundsPlayed === 2} />
             </>
           ) : null}
         </ul>
@@ -285,7 +287,7 @@ export function Leaderboard({
   );
 }
 
-function LeaderboardRowItem({ row, isPlayer }: { row: LeaderboardRow; isPlayer: boolean }) {
+function LeaderboardRowItem({ row, isPlayer, missedCut }: { row: LeaderboardRow; isPlayer: boolean; missedCut: boolean }) {
   return (
     <li className={`flex items-center justify-between gap-3 px-4 py-2.5 ${isPlayer ? "bg-primary/[0.08]" : ""}`}>
       <span className="flex min-w-0 items-center gap-3">
@@ -294,6 +296,7 @@ function LeaderboardRowItem({ row, isPlayer }: { row: LeaderboardRow; isPlayer: 
           {row.golfer.name}
           {isPlayer ? " (you)" : ""}
         </span>
+        {missedCut ? <span className="text-destructive text-xs" title="Missed cut after two rounds" aria-label="Missed cut after two rounds">MC</span> : null}
       </span>
       <span className="font-mono text-sm tabular-nums">{formatScore(row.score)}</span>
     </li>

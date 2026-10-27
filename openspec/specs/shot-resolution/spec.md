@@ -238,6 +238,13 @@ The distance remaining after a shot SHALL be measured to the actual pin — incl
 
 The simulation decision policy SHALL choose each shot from the situation — the remaining distance, the ball's lie, the pin placement, the golfer's attributes, and the hole's par — not from a fixed per-golfer strategy alone. From a difficult lie (deep rough, bunker, recovery, trees) the golfer SHALL play conservatively to recover, regardless of disposition; from a clean lie it SHALL keep its disposition. On a scoring approach the golfer SHALL aim a fraction of the way toward the pin determined by its disposition and by shot confidence (the fraction fading to zero as the shot lengthens). On a long approach to a **par 5** (never a tee shot, and never a par 4/3, which have no stroke to spare) the golfer SHALL decide whether to go for the green or lay up: an aggressive disposition, or any golfer who can reach the green comfortably given their own reach, SHALL go for it; otherwise the golfer SHALL lay up to leave a comfortable full-wedge distance, aimed at the green centre. The policy SHALL remain pure and deterministic.
 
+On a par 3, or when a par-4 green is reachable with a legal full shot from the current lie, the policy SHALL treat the shot as an approach instead of selecting a fairway landing-zone target. Par-5 lay-up choices remain subject to the separate risk policy above.
+
+#### Scenario: Reachable par-4 approach bypasses landing zone
+
+- **WHEN** a golfer can reach a par-4 green with a legal full shot from the current lie and a future fairway landing zone is available
+- **THEN** AI policy SHALL select its green approach rather than spend a stroke on that landing zone
+
 #### Scenario: A difficult lie forces conservative recovery
 
 - **WHEN** the policy decides a shot from a bunker or deep rough
