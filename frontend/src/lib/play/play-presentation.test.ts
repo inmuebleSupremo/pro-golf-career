@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { HoleGeom } from "./hole-geometry";
 import { defaultPlayPresentation, playPresentation } from "./play-presentation";
+import { resolveBiome } from "./biomes";
+import { resolveScene } from "./scene";
 
 const generator8Parkland: HoleGeom = {
   holeNumber: 1, par: 4, length: 410, fairwayHalfWidth: 20, greenHalfWidth: 12,
@@ -18,6 +20,26 @@ const generator8Parkland: HoleGeom = {
 };
 
 describe("normal play presentation", () => {
+  it("keeps the core and historical scene/biome routing available", () => {
+    for (const [token, scene, biome] of [
+      ["PARKLAND", "parkland", "parkland"],
+      ["WOODLAND", "heathland", "heathland"],
+      ["HEATHLAND", "heathland", "heathland"],
+      ["LINKS", "links", "links"],
+      ["DESERT", "desert", "desert"],
+      ["MOUNTAIN", "mountain", "alpine"],
+      ["COASTAL", "coastal", "tropical"],
+      ["TROPICAL", "tropical", "tropical"],
+    ]) {
+      expect(resolveScene(token)).toBe(scene);
+      expect(resolveBiome(token)).toBe(biome);
+    }
+    for (const token of ["WOODLAND", "MOUNTAIN", "COASTAL", "TROPICAL"]) {
+      expect(defaultPlayPresentation({ ...generator8Parkland, courseType: token, canonicalBiome: token }))
+        .toBe("polished");
+    }
+  });
+
   it("uses V2 for authoritative Generator 8 Parkland geometry in production", () => {
     expect(defaultPlayPresentation(generator8Parkland)).toBe("premium");
     expect(playPresentation(generator8Parkland, "polished", false)).toBe("premium");

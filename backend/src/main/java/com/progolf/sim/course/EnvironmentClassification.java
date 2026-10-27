@@ -1,7 +1,8 @@
 package com.progolf.sim.course;
 
 /**
- * The six Version 1 course environment classifications (REQ-080). Classification is data other domains
+ * The six persisted course environment classifications (REQ-080), including retired new-world selections.
+ * Classification is data other domains
  * (e.g. Weather) read to influence conditions and strategic character; the Course domain itself
  * generates no weather. The per-classification biases below only shape generation (exposure, hazard mix).
  */

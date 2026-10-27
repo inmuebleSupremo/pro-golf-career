@@ -97,6 +97,8 @@ stale visual placement.
 
 The 2D hole SHALL be styled by a visual theme selected from the host course's environment classification, so that each biome reads distinctly (grass shades, vegetation type, bunker and hazard styling). The mapping SHALL be: Parkland, Links, Desert, Alpine (Mountain), Heathland (Woodland), and a water-heavy Tropical theme for the Coastal classification.
 
+New-world procedural courses use the Parkland, Links, Desert, and Heathland presentation families. Alpine and Tropical remain available for historical courses. Curated Pro event scene tokens can also continue to use Mountain, Coastal, or Tropical independently of their generated host course's classification.
+
 #### Scenario: Theme follows the course classification
 
 - **WHEN** a hole on a Links course and a hole on a Desert course are rendered

@@ -2370,6 +2370,8 @@ Woodland
 
 Environmental classification influences weather generation and strategic character.
 
+As implemented, six classifications remain valid for saved careers. Newly created worlds generate course pools from Links, Parkland, Desert, and Woodland only; Woodland currently presents as Heathland. Mountain and Coastal remain supported for older saves. The four current procedural presentation families are Parkland, Links, Heathland, and Desert. A denser Woodland variation of Parkland is a future visual-calibration goal, not the current Woodland mapping. Curated Pro event scenes can still show Mountain, Coastal, or Tropical while their host courses are selected from the world pool.
+
 ---
 
 # REQ-081 Course Mastery Eligibility
