@@ -145,10 +145,18 @@ function conflictsWithProtectedScenery(glimpse: PropertyGlimpse, trees: readonly
       < tree.size * 1.3 + 4)));
 }
 
+function glimpsesConflict(first: PropertyGlimpse, second: PropertyGlimpse): boolean {
+  const a = bounds(first.regions.flatMap((region) => region.points));
+  const b = bounds(second.regions.flatMap((region) => region.points));
+  return a.minX < b.maxX + 12 && b.minX < a.maxX + 12
+    && a.minY < b.maxY + 12 && b.minY < a.maxY + 12;
+}
+
 /** Generated-hole polygons projected at the active hole's pixels per yard, then rotated and translated. */
 function composeGlimpse(source: SourceHole, side: -1 | 1, model: CanonicalRenderModel, activeTee: Point,
   left: number, right: number, height: number, attempt: number, random: () => number,
-  mode: "original" | "reverse" | "return-diagonal" = "original"): PropertyGlimpse | null {
+  mode: "original" | "reverse" | "return-diagonal" = "original",
+  band?: "upper" | "lower"): PropertyGlimpse | null {
   const orientation = mode === "original" ? random() < .35 ? "reverse" : "diagonal"
     : mode === "reverse" ? "reverse" : "diagonal";
   const angle = mode === "return-diagonal" ? (random() < .5 ? 1 : -1) * (150 + random() * 18)
@@ -169,12 +177,15 @@ function composeGlimpse(source: SourceHole, side: -1 | 1, model: CanonicalRender
   const localRegions = source.regions.map((region) => ({ surface: region.surface,
     points: region.points.map(rotate) }));
   const localBounds = bounds(localRegions.flatMap((region) => region.points));
-  const gap = 24 + random() * 24 + attempt * 24;
+  // Start beyond the retained V1 scenery, then search several realistic strips of the outer property.
+  const gap = 122 + random() * 24 + (attempt % 4) * 11;
   const offsetX = side < 0 ? -gap - localBounds.maxX : 220 + gap - localBounds.minX;
   const localTee = rotate(source.tee);
   const edgeCrop = 25 + random() * 55;
   const localCup = rotate(source.cup);
-  const offsetY = localCup.y > localTee.y ? -localTee.y - edgeCrop : height - localTee.y + edgeCrop;
+  const offsetY = band === "upper" ? 16 - localBounds.minY
+    : band === "lower" ? height - 16 - localBounds.maxY
+      : localCup.y > localTee.y ? -localTee.y - edgeCrop : height - localTee.y + edgeCrop;
   const place = (point: Point): Point => ({ x: point.x + offsetX, y: point.y + offsetY });
   const order = (surface: string) => surface === "FIRST_CUT" ? 0 : surface === "FAIRWAY" ? 1
     : surface === "FRINGE" ? 2 : surface === "GREEN" ? 3 : 4;
@@ -216,21 +227,23 @@ function corridorEdgeAtY(regions: readonly PropertyRegion[], y: number, guideX: 
 }
 
 function activeRoute(geometry: CanonicalPlayingGeometry, model: CanonicalRenderModel,
-  side: -1 | 1, offset: number, height: number): PropertyPath | null {
+  side: -1 | 1, offset: number | readonly [number, number], height: number): PropertyPath | null {
   const tee = model.project(geometry.tee);
   const cup = model.project(geometry.cup);
   if (tee.y - cup.y < 95) return null;
   const regions = geometry.regions.filter((region) => routeBlockers.has(region.surface))
     .map((region) => ({ surface: region.surface, points: region.boundary.map(model.project), path: "" }));
-  if (!regions.some((region) => region.surface === "FAIRWAY")) return null;
-  const anchors = Array.from({ length: 9 }, (_, index) => {
-    const t = index / 8;
+  if (!regions.some((region) => region.surface === "GREEN")
+    || !regions.some((region) => region.surface === "FIRST_CUT" || region.surface === "FAIRWAY")) return null;
+  const anchors = Array.from({ length: 17 }, (_, index) => {
+    const t = index / 16;
     const y = tee.y + (cup.y - tee.y) * t;
     const guideX = tee.x + (cup.x - tee.x) * t;
     const edge = corridorEdgeAtY(regions, y, guideX, side);
-    return { x: (edge ?? guideX) + side * offset, y };
+    const clearance = typeof offset === "number" ? offset : offset[0] * (1 - t) + offset[1] * t;
+    return { x: (edge ?? guideX) + side * clearance, y };
   });
-  if (anchors.some((point, index) => index > 0 && Math.abs(point.x - anchors[index - 1].x) > 55)) return null;
+  if (anchors.some((point, index) => index > 0 && Math.abs(point.x - anchors[index - 1].x) > 75)) return null;
   const first = anchors[0], second = anchors[1], last = anchors[anchors.length - 1];
   const beforeLast = anchors[anchors.length - 2];
   const points = [
@@ -399,44 +412,73 @@ export function premiumPropertyPlan(
   const preferred: (-1 | 1)[] = turn > 0 ? [-1, 1] : [1, -1];
   if (random() < .35) preferred.reverse();
 
-  // The provisional par caps remain 1/2/2; this visual pass deliberately shows at most one.
   const cap = par === 3 ? 1 : 2;
-  const requested = room.left + room.right < 310 || random() < (par === 3 ? .35 : .08)
-    ? 0 : 1;
+  const requested = room.left + room.right < 310 ? 0 : cap;
   const paths: PropertyPath[] = [];
   if (width > 550) {
-    const candidates = ([-1, 1] as const).flatMap((side) => [7, 10, 14, 18, 23, 29]
+    const candidates = ([-1, 1] as const).flatMap((side) => [10, 14, 18, 23, 29, 36, 45, 55, 70]
       .map((offset) => activeRoute(geometry, model, side, offset, height))
       .filter((route): route is PropertyPath => route !== null)
       .map((route) => ({ route, quality: routeQuality(route, geometry, model,
         [], protectedTrees, left, right, height) }))
       .filter((candidate): candidate is { route: PropertyPath; quality: number } => candidate.quality !== null));
+    // A fixed offset can trap a path against a bunker or a long tree stand. Search a gentle
+    // tee-to-green clearance change before omitting access to the hole altogether.
+    if (candidates.length === 0) {
+      candidates.push(...([-1, 1] as const).flatMap((side) => [18, 23, 29, 36, 45]
+        .flatMap((start) => [18, 23, 29, 36, 45].map((end) => activeRoute(geometry, model,
+          side, [start, end], height)))
+        .filter((route): route is PropertyPath => route !== null)
+        .map((route) => ({ route, quality: routeQuality(route, geometry, model,
+          [], protectedTrees, left, right, height) }))
+        .filter((candidate): candidate is { route: PropertyPath; quality: number } => candidate.quality !== null)));
+    }
     candidates.sort((a, b) => a.quality - b.quality || a.route.side - b.route.side);
     if (candidates[0]) paths.push(candidates[0].route);
   }
 
   // A glimpse is accepted only with an on-stage connection to the already selected main route.
   const glimpses: PropertyGlimpse[] = [];
-  let network: readonly [PropertyPath, PropertyPath] | null = null;
+  const network: PropertyPath[] = [];
   if (paths[0] && requested > 0 && cap > 0) {
     for (const side of preferred) {
-      if (network) break;
+      if (glimpses.length >= requested) break;
       if (room[side < 0 ? "left" : "right"] < 145) continue;
       const source = par === 3 ? sourceHoles[0] : sourceHoles[1 + Math.floor(neighborRandom() * 2)];
-      for (let attempt = 0; attempt < 21; attempt += 1) {
+      for (let attempt = 0; attempt < 32; attempt += 1) {
         const mode = attempt < 7 ? "original" : attempt < 13 ? "reverse" : "return-diagonal";
         const placement = attempt < 7 ? attempt : 4 + (attempt - 7) % 3;
         const candidateSource = attempt < 7 || par === 3 || attempt % 2 === 0 ? source
           : sourceHoles[source === sourceHoles[1] ? 2 : 1];
         const glimpse = composeGlimpse(candidateSource, side, model, geometry.tee,
           left, right, height, placement, neighborRandom, mode);
-        if (!glimpse || conflictsWithProtectedScenery(glimpse, protectedTrees,
+        if (!glimpse) continue;
+        if (conflictsWithProtectedScenery(glimpse, protectedTrees,
           coreLeft, coreRight, activeBoundary)) continue;
         const connected = connectedNeighbor(glimpse, paths[0], geometry, model,
           protectedTrees, left, right, height);
         if (!connected) continue;
         glimpses.push(glimpse);
-        network = connected;
+        network.push(...connected);
+        break;
+      }
+    }
+    if (cap === 2 && glimpses.length === 1 && glimpses[0].side === paths[0].side) {
+      const first = glimpses[0];
+      const firstBounds = bounds(first.regions.flatMap((region) => region.points));
+      const oppositeBand = (firstBounds.minY + firstBounds.maxY) / 2 < height / 2 ? "lower" : "upper";
+      for (let attempt = 0; attempt < 24; attempt += 1) {
+        const glimpse = composeGlimpse(sourceHoles[0], paths[0].side, model, geometry.tee,
+          left, right, height, attempt, neighborRandom,
+          attempt % 2 === 0 ? "reverse" : "return-diagonal", oppositeBand);
+        if (!glimpse || glimpsesConflict(first, glimpse)
+          || conflictsWithProtectedScenery(glimpse, protectedTrees, coreLeft, coreRight, activeBoundary)) continue;
+        const connected = connectedNeighbor(glimpse, paths[0], geometry, model,
+          protectedTrees, left, right, height);
+        if (!connected || connected.some((path) => routeSamples(path).some((point) =>
+          point.y >= 0 && point.y <= height && maintainedConflict(point, glimpses, path.width / 2 + 3)))) continue;
+        glimpses.push(glimpse);
+        network.push(...connected);
         break;
       }
     }
@@ -477,7 +519,7 @@ export function premiumPropertyPlan(
     }
   }
 
-  if (network) paths.push(...network);
+  paths.push(...network);
 
   return { glimpses, paths, building };
 }

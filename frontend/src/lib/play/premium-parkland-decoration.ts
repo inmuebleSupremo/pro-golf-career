@@ -25,11 +25,14 @@ export type PremiumOpening = Readonly<{
   x: number; y: number; rx: number; ry: number; rotation: number;
 }>;
 
+export type ParklandVariation = "open" | "woodland";
+
 /** Cosmetic crowns are reproducible and remain inside the backend's tree polygons. */
 export function premiumTreePlans(
   geometry: CanonicalPlayingGeometry,
   layoutSeed: string,
   model: CanonicalRenderModel,
+  variation: ParklandVariation | "legacy" = "legacy",
 ): readonly PremiumTreePlan[] {
   return geometry.regions.flatMap((region, regionIndex) => {
     if (region.surface !== "TREES" || region.boundary.length < 3) return [];
@@ -43,7 +46,10 @@ export function premiumTreePlans(
       const next = region.boundary[(index + 1) % region.boundary.length];
       return sum + point.x * next.y - next.x * point.y;
     }, 0) / 2);
-    const target = Math.min(55, Math.max(7, Math.round(area / 21)));
+    const target = variation === "woodland"
+      ? Math.min(78, Math.max(10, Math.round(area / 15)))
+      : variation === "legacy" ? Math.min(55, Math.max(7, Math.round(area / 21)))
+        : Math.min(36, Math.max(5, Math.round(area / 35)));
     const random = seededRandom(`${layoutSeed}:premium-trees:${regionIndex}:${region.boundary.length}`);
     const trees: PremiumTree[] = [];
     const pixelsPerYard = Math.abs(model.project({ x: minX + 1, y: minY }).x - model.project({ x: minX, y: minY }).x);
@@ -53,7 +59,8 @@ export function premiumTreePlans(
       if (!pointInPolygon(world, region.boundary)) continue;
       const screen = model.project(world);
       const size = Math.max(3.5, Math.min(9, (4.6 + random() * 3.6) * pixelsPerYard));
-      if (trees.some((tree) => Math.hypot(tree.x - screen.x, tree.y - screen.y) < (tree.size + size) * .38)) continue;
+      if (trees.some((tree) => Math.hypot(tree.x - screen.x, tree.y - screen.y)
+        < (tree.size + size) * (variation === "woodland" ? .32 : .38))) continue;
       trees.push({ x: screen.x, y: screen.y, size, rotation: random() * 360,
         variant: Math.floor(random() * 6), shade: random() });
     }
@@ -62,13 +69,16 @@ export function premiumTreePlans(
 }
 
 /** Broad grassland breaks up the cosmetic woodland without adding a gameplay surface. */
-export function premiumOpenings(layoutSeed: string, left: number, width: number, height: number): readonly PremiumOpening[] {
+export function premiumOpenings(layoutSeed: string, left: number, width: number, height: number,
+  variation: ParklandVariation | "legacy" = "legacy"): readonly PremiumOpening[] {
   const random = seededRandom(`${layoutSeed}:premium-openings`);
-  return Array.from({ length: 7 }, (_, index) => ({
+  return Array.from({ length: variation === "woodland" ? 4 : variation === "open" ? 10 : 7 }, (_, index) => ({
     x: index % 2 === 0 ? left + 18 + random() * 70 : left + width - 18 - random() * 70,
     y: 22 + random() * (height - 44),
-    rx: 24 + random() * 22,
-    ry: 28 + random() * 37,
+    rx: variation === "woodland" ? 16 + random() * 15 : variation === "open" ? 34 + random() * 25
+      : 24 + random() * 22,
+    ry: variation === "woodland" ? 22 + random() * 23 : variation === "open" ? 38 + random() * 42
+      : 28 + random() * 37,
     rotation: -35 + random() * 70,
   }));
 }
@@ -82,10 +92,11 @@ export function premiumDistantTrees(
   width: number,
   height: number,
   maxTrees = 470,
+  variation: ParklandVariation | "legacy" = "legacy",
 ): readonly PremiumTree[] {
   const random = seededRandom(`${layoutSeed}:premium-surroundings`);
   const wideStage = width > 550;
-  const openings = wideStage ? [] : premiumOpenings(layoutSeed, left, width, height);
+  const openings = wideStage ? [] : premiumOpenings(layoutSeed, left, width, height, variation);
   const phase = random() * Math.PI * 2;
   const woodlandAnchors = geometry.regions.filter((region) => region.surface === "TREES" && region.boundary.length >= 3)
     .map((region) => model.project({
@@ -121,7 +132,7 @@ export function premiumDistantTrees(
     })) continue;
     const density = .53 + .23 * Math.sin(x * .039 + phase) * Math.cos(y * .027 - phase)
       + .15 * Math.sin((x + y) * .021 + phase);
-    if (random() > density) continue;
+    if (random() > Math.min(1, density + (variation === "woodland" ? .14 : 0))) continue;
     const distance = Math.min(1, Math.abs(x - (left + width / 2)) / (width / 2));
     const size = (propertyAnchor ? 7.5 + random() * 5.5 : 4.8 + random() * 5.2) * (1 - distance * .18);
     if (trees.some((tree) => Math.hypot(tree.x - x, tree.y - y) < (tree.size + size) * .39)) continue;

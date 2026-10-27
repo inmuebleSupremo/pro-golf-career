@@ -68,6 +68,26 @@ describe("premium Parkland decoration", () => {
       `);
   });
 
+  it("makes Woodland denser only inside canonical tree regions and beyond the playable boundary", () => {
+    const openCanopies = premiumTreePlans(geometry, "hole-103", model, "open");
+    const legacyCanopies = premiumTreePlans(geometry, "hole-103", model, "legacy");
+    const woodlandCanopies = premiumTreePlans(geometry, "hole-103", model, "woodland");
+    expect(legacyCanopies[0].trees.length).toBeGreaterThan(openCanopies[0].trees.length);
+    expect(woodlandCanopies[0].trees.length).toBeGreaterThan(openCanopies[0].trees.length);
+    for (const tree of woodlandCanopies[0].trees) {
+      expect(pointInPolygon(model.unproject(tree), geometry.regions[0].boundary)).toBe(true);
+    }
+    const openScenery = premiumDistantTrees(geometry, "hole-103", model, -105, 430, 440, 260, "open");
+    const woodlandScenery = premiumDistantTrees(geometry, "hole-103", model, -105, 430, 440, 570, "woodland");
+    expect(woodlandScenery.length).toBeGreaterThan(openScenery.length);
+    expect(woodlandScenery).toEqual(premiumDistantTrees(geometry, "hole-103", model, -105, 430, 440, 570, "woodland"));
+    for (const tree of woodlandScenery) {
+      expect(pointInPolygon(model.unproject(tree), geometry.playableBoundary)).toBe(false);
+    }
+    expect(premiumOpenings("hole-103", -105, 430, 440, "woodland")).toHaveLength(4);
+    expect(premiumOpenings("hole-103", -105, 430, 440, "open")).toHaveLength(10);
+  });
+
   it("paints overlapping hazards over tree and fairway surfaces", () => {
     expect(premiumSurfacePrecedence("WATER")).toBeLessThan(premiumSurfacePrecedence("BUNKER"));
     expect(premiumSurfacePrecedence("BUNKER")).toBeLessThan(premiumSurfacePrecedence("TREES"));

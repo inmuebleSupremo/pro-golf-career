@@ -40,7 +40,7 @@ Capturing a world SHALL be permitted only at a clean boundary — when no player
 
 Continuing a restored world SHALL be indistinguishable from continuing the original. For the same world, snapshotting then restoring then advancing any number of steps SHALL produce a world identical to advancing the original by the same number of steps — same rankings, standings, careers, finances, statistics, and history.
 
-The seed-derived course pool SHALL retain its selection policy as well as its generator version. New snapshots SHALL pin the core-four selection policy. A snapshot without that policy SHALL restore the historical six-class cycle so existing course indices continue to identify the same venues.
+The seed-derived course pool SHALL retain its selection policy as well as its generator version. New snapshots SHALL pin the four-family policy with five classification identifiers. Snapshots pinned to the earlier core-four policy SHALL retain its Woodland-as-Heathland meaning. A snapshot without a policy SHALL restore the historical six-class cycle so existing course indices continue to identify the same venues.
 
 #### Scenario: Restore-then-advance equals advance
 
@@ -51,6 +51,11 @@ The seed-derived course pool SHALL retain its selection policy as well as its ge
 
 - **WHEN** a snapshot without course-pool policy is restored and saved again
 - **THEN** its original six-class course cycle SHALL be regenerated and the historical policy SHALL be pinned in the new snapshot
+
+#### Scenario: Previously consolidated course pool survives restore
+
+- **WHEN** a snapshot pinned to the earlier four-identifier pool is restored
+- **THEN** its course indices and Woodland-as-Heathland presentation SHALL remain unchanged
 
 ### Requirement: Explicit Future Pin-Policy Adoption
 

@@ -163,11 +163,12 @@ function CrownShadow({ artId, tree }: { artId: string; tree: PremiumTree }) {
     width={(tree.size * 2.4).toFixed(2)} height={(tree.size * 3.6).toFixed(2)} />;
 }
 
-export function PremiumParklandBackdrop({ artId, x, width, height, seed, fullStage = false, coreX = x, coreWidth = width }: {
+export function PremiumParklandBackdrop({ artId, x, width, height, seed, fullStage = false, coreX = x, coreWidth = width,
+  openVariation = false }: {
   artId: string; x: number; width: number; height: number; seed: string; fullStage?: boolean;
-  coreX?: number; coreWidth?: number;
+  coreX?: number; coreWidth?: number; openVariation?: boolean;
 }) {
-  const openings = premiumOpenings(seed, coreX, coreWidth, height);
+  const openings = premiumOpenings(seed, coreX, coreWidth, height, openVariation ? "open" : "legacy");
   return <g pointerEvents="none">
     <rect x={x} width={width} height={height} fill={`url(#${artId}-premium-${fullStage ? "wide-rough" : "rough"})`} />
     <rect x={x} width={width} height={height} fill={`url(#${artId}-premium-ground-grain)`} />

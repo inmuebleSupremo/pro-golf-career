@@ -27,13 +27,12 @@ final class EventNaming {
      * The canonical visual-character token for a course — the single source of truth the whole client renders
      * from: the play/hub scene backdrop photo AND the 2D hole biome both key on it, so an event's place, name,
      * imagery, and hole illustration always agree (spec: play-event imagery, web-hole-visualization). A sibling
-     * of {@link EnvironmentClassification} that trades the sim-only {@code WOODLAND} for the presentation
-     * {@code HEATHLAND} (its khaki-heather look) and adds {@code TROPICAL} (a Florida-style feel the sim has no
-     * separate classification for). Authored per curated Pro event below; derived from the host course's
-     * classification for the (procedural) Development tour, whose region already matches its classification.
+     * of {@link EnvironmentClassification} that retains historical Woodland-as-Heathland while allowing new
+     * Woodland-as-Parkland scenes. {@code TROPICAL} is a Florida-style feel without a persisted classification.
+     * Authored per curated Pro event below; derived from the host course and pool policy for Development.
      */
     enum Scene {
-        PARKLAND, LINKS, DESERT, TROPICAL, MOUNTAIN, COASTAL, HEATHLAND
+        PARKLAND, WOODLAND, LINKS, DESERT, TROPICAL, MOUNTAIN, COASTAL, HEATHLAND
     }
 
     /** Fixed fictional major names, in season order — evocative of the four real majors without copying them. */
@@ -140,26 +139,32 @@ final class EventNaming {
      */
     static String courseType(EventPrestige prestige, TourTier tier, Course course, int majorOrdinal,
                              int proEventOrdinal) {
+        return courseType(prestige, tier, course, majorOrdinal, proEventOrdinal, CoursePoolPolicy.CORE_FOUR);
+    }
+
+    static String courseType(EventPrestige prestige, TourTier tier, Course course, int majorOrdinal,
+                             int proEventOrdinal, CoursePoolPolicy poolPolicy) {
         return switch (prestige) {
             case MAJOR -> MAJOR_SCENES[Math.floorMod(majorOrdinal, MAJOR_SCENES.length)].name();
             case TOUR_CHAMPIONSHIP -> tier == TourTier.PRO
                     ? PRO_CHAMPIONSHIP_SCENE.name()
-                    : sceneFor(course).name();
+                    : sceneFor(course, poolPolicy).name();
             case SIGNATURE, REGULAR -> proEventOrdinal >= 0
                     ? PRO_EVENTS[Math.floorMod(proEventOrdinal, PRO_EVENTS.length)].scene().name()
-                    : sceneFor(course).name();
+                    : sceneFor(course, poolPolicy).name();
         };
     }
 
-    /** The scene for a procedurally-generated course, from its environment (WOODLAND reads as heathland imagery). */
-    private static Scene sceneFor(Course course) {
+    /** The scene for a procedurally-generated course, with historical Woodland provenance retained. */
+    private static Scene sceneFor(Course course, CoursePoolPolicy poolPolicy) {
         EnvironmentClassification classification = course.identity().classification();
         return switch (classification) {
             case LINKS -> Scene.LINKS;
             case DESERT -> Scene.DESERT;
             case MOUNTAIN -> Scene.MOUNTAIN;
             case COASTAL -> Scene.COASTAL;
-            case WOODLAND -> Scene.HEATHLAND;
+            case WOODLAND -> poolPolicy == CoursePoolPolicy.FOUR_FAMILIES ? Scene.WOODLAND : Scene.HEATHLAND;
+            case HEATHLAND -> Scene.HEATHLAND;
             case PARKLAND -> Scene.PARKLAND;
         };
     }

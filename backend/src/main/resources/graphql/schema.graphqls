@@ -692,10 +692,12 @@ type PlayingHole {
     pinLateral: Float!
     "The active round's pin depth offset (a back pin plays longer)."
     pinDepth: Float!
-    "The host course's environment classification name, mapped by the client to a biome style."
+    "The authored event scene token; this can differ from the host course identity."
     courseType: String!
     "The actual generated course's environment classification; this can differ from a major's presentation scene."
     canonicalBiome: String!
+    "The host course's visual family under its persisted world-pool policy (legacy Mountain/Coastal remain valid)."
+    courseFamily: String!
     "The retained generator identity used by this active course."
     courseGeneratorVersion: Int!
     "The backend canonical geometry implementation used by this active course."

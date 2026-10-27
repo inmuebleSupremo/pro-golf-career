@@ -21,6 +21,8 @@ export interface HoleGeom {
   readonly courseType: string;
   /** Active GraphQL rounds provide these; retained development-preview fixtures predate provenance fields. */
   readonly canonicalBiome?: string;
+  /** Explicit world-policy interpretation; WOODLAND can be Parkland in new worlds or Heathland in older saves. */
+  readonly courseFamily?: string;
   readonly courseGeneratorVersion?: number;
   readonly canonicalGeometrySource?: string;
   readonly layoutSeed: string;

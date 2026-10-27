@@ -943,7 +943,7 @@ public class WorldService {
                 : new com.progolf.sim.shot.BallState(geometry.tee(), com.progolf.sim.spatial.Surface.TEE_BOX);
         return ApiMapper.playingHole(hole, pin, courseType, canonicalBiome, world.courseGeneratorVersion(), ball, geometry,
                 event.cupAt(hole.number()), event.effectiveWindForHole(hole.number()), event.puttingPolicy(),
-                event.greenSurfaceAt(hole.number()));
+                event.greenSurfaceAt(hole.number()), world.courseFamilyFor(event.classification()));
     }
 
     /** The live field leaderboard for the player's event. */

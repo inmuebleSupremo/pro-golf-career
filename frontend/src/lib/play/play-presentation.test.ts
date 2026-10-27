@@ -9,7 +9,7 @@ const generator8Parkland: HoleGeom = {
   holeNumber: 1, par: 4, length: 410, fairwayHalfWidth: 20, greenHalfWidth: 12,
   greenDepth: 22, elevationDelta: 0, hasGreensideBunker: false, hasWater: false,
   hasTrees: true, pinLateral: 0, pinDepth: 0, courseType: "PARKLAND",
-  canonicalBiome: "PARKLAND", courseGeneratorVersion: 8,
+  canonicalBiome: "PARKLAND", courseFamily: "PARKLAND", courseGeneratorVersion: 8,
   canonicalGeometrySource: "GENERATOR_8_PRINCIPLED_ARCHITECTURE", layoutSeed: "123",
   effectiveWind: { x: 0, y: 0, magnitude: 0, unit: "EFFECTIVE_YARDS" },
   geometry: {
@@ -23,7 +23,7 @@ describe("normal play presentation", () => {
   it("keeps the core and historical scene/biome routing available", () => {
     for (const [token, scene, biome] of [
       ["PARKLAND", "parkland", "parkland"],
-      ["WOODLAND", "heathland", "heathland"],
+      ["WOODLAND", "parkland", "parkland"],
       ["HEATHLAND", "heathland", "heathland"],
       ["LINKS", "links", "links"],
       ["DESERT", "desert", "desert"],
@@ -34,10 +34,21 @@ describe("normal play presentation", () => {
       expect(resolveScene(token)).toBe(scene);
       expect(resolveBiome(token)).toBe(biome);
     }
-    for (const token of ["WOODLAND", "MOUNTAIN", "COASTAL", "TROPICAL"]) {
-      expect(defaultPlayPresentation({ ...generator8Parkland, courseType: token, canonicalBiome: token }))
+    for (const token of ["MOUNTAIN", "COASTAL", "TROPICAL"]) {
+      expect(defaultPlayPresentation({ ...generator8Parkland, courseType: token, canonicalBiome: token,
+        courseFamily: token }))
         .toBe("polished");
     }
+  });
+
+  it("uses the Parkland V2 foundation for new Woodland and retains historical Heathland routing", () => {
+    const woodland = { ...generator8Parkland, canonicalBiome: "WOODLAND", courseFamily: "PARKLAND",
+      courseType: "WOODLAND" };
+    expect(defaultPlayPresentation(woodland)).toBe("premium");
+    expect(defaultPlayPresentation({ ...woodland, courseFamily: "HEATHLAND", courseType: "HEATHLAND" }))
+      .toBe("polished");
+    expect(defaultPlayPresentation({ ...woodland, canonicalBiome: "HEATHLAND", courseFamily: "HEATHLAND",
+      courseType: "HEATHLAND" })).toBe("polished");
   });
 
   it("uses V2 for authoritative Generator 8 Parkland geometry in production", () => {

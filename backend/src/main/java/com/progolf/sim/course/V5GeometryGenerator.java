@@ -681,7 +681,7 @@ final class V5GeometryGenerator {
             case LINKS -> .32;
             case COASTAL -> .24;
             case PARKLAND -> .16;
-            case WOODLAND -> .12;
+            case WOODLAND, HEATHLAND -> .12;
             case DESERT -> .08;
             case MOUNTAIN -> .05;
         };
@@ -708,7 +708,7 @@ final class V5GeometryGenerator {
             case PARKLAND -> .40;
             case LINKS -> .30;
             case COASTAL -> .22;
-            case WOODLAND -> .12;
+            case WOODLAND, HEATHLAND -> .12;
             default -> .04;
         };
         boolean fairwaySet = brief.par() != 3 && rng.nextDouble() < Math.min(.92, .26 + architecture.widthRhythm() * .38 + fairwayBias)

@@ -789,6 +789,7 @@ export const PlayingHoleDocument = graphql(`
       pinDepth
       courseType
       canonicalBiome
+      courseFamily
       courseGeneratorVersion
       canonicalGeometrySource
       layoutSeed

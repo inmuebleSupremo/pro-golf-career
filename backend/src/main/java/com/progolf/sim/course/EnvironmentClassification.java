@@ -1,7 +1,7 @@
 package com.progolf.sim.course;
 
 /**
- * The six persisted course environment classifications (REQ-080), including retired new-world selections.
+ * Persisted course environment classifications (REQ-080), including retired new-world selections.
  * Classification is data other domains
  * (e.g. Weather) read to influence conditions and strategic character; the Course domain itself
  * generates no weather. The per-classification biases below only shape generation (exposure, hazard mix).
@@ -12,7 +12,9 @@ public enum EnvironmentClassification {
     DESERT(0.55, 0.05, 0.05),
     MOUNTAIN(0.60, 0.15, 0.25),
     COASTAL(0.85, 0.35, 0.10),
-    WOODLAND(0.35, 0.15, 0.55);
+    WOODLAND(0.35, 0.15, 0.55),
+    /** Separate new-world identity; generation reuses the established Woodland architecture calibration. */
+    HEATHLAND(0.35, 0.15, 0.55);
 
     private final double exposure;
     private final double waterBias;

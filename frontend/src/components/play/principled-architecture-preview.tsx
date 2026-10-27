@@ -98,7 +98,7 @@ export function PrincipledArchitecturePreview() {
         “Straightforward” counts only par 4/5 holes without a measured material turn. A meaningful turn must occur at a
         credible route distance, change heading by at least 18°, and depart materially from the tee-to-green chord.
         Repeated structures are a coarse diagnostic, not a golf-quality score. Experimental decision examples use the
-        shared target evaluator's literal canonical aim points.
+        shared target evaluator&apos;s literal canonical aim points.
       </p>
       <div className="mt-8 space-y-8">
         {holes.map((preview) => <HoleComparison key={preview.hole.holeNumber} retained={course.retained.holes[preview.hole.holeNumber - 1]}

@@ -95,9 +95,9 @@ stale visual placement.
 
 ### Requirement: Biome-Styled Visual Themes
 
-The 2D hole SHALL be styled by a visual theme selected from the host course's environment classification, so that each biome reads distinctly (grass shades, vegetation type, bunker and hazard styling). The mapping SHALL be: Parkland, Links, Desert, Alpine (Mountain), Heathland (Woodland), and a water-heavy Tropical theme for the Coastal classification.
+The 2D hole SHALL be styled using the host course's explicit world-policy-resolved family as well as its persisted classification. New-world Woodland SHALL use the Parkland theme with a denser Woodland vegetation variation; explicit Heathland SHALL retain the Heathland theme. Historical Woodland SHALL retain Heathland presentation. Links and Desert retain their themes; legacy Mountain uses Alpine and legacy Coastal uses the water-heavy Tropical theme.
 
-New-world procedural courses use the Parkland, Links, Desert, and Heathland presentation families. Alpine and Tropical remain available for historical courses. Curated Pro event scene tokens can also continue to use Mountain, Coastal, or Tropical independently of their generated host course's classification.
+Curated Pro event scene tokens can continue to use Mountain, Coastal, or Tropical independently of their generated host course's classification. Gameplay terrain and hazard boundaries SHALL still come only from canonical geometry.
 
 #### Scenario: Theme follows the course classification
 
@@ -111,7 +111,7 @@ New-world procedural courses use the Parkland, Links, Desert, and Heathland pres
 
 ### Requirement: Premium Parkland V2 selection in normal play
 
-Normal gameplay SHALL select Premium Parkland V2 for a live hole with canonical Parkland biome, a
+Normal gameplay SHALL select Premium Parkland V2 for a live hole in the Parkland family (open Parkland or new Woodland variation), a
 Parkland-resolved scene type, Generator 8 provenance (`GENERATOR_8_PRINCIPLED_ARCHITECTURE`), and a valid
 canonical playable boundary. V2 SHALL consume the supplied playing-hole geometry and layout seed for its
 presentation without changing aiming, terrain classification, shot outcomes, or save data.
@@ -124,9 +124,22 @@ geometry is available. Current, V1, and V2 comparison controls MAY remain availa
 - **THEN** the stage SHALL render Premium Parkland V2 from that hole's authoritative geometry
 - **AND THEN** decorative property scenery SHALL not accept aim targets or affect shot resolution
 
+#### Scenario: Woodland variation shares the accepted V2 renderer
+
+- **WHEN** normal play displays a new-world Woodland hole eligible for Parkland V2
+- **THEN** the same V2 renderer SHALL show denser deterministic canopies only within canonical tree regions and denser distant woodland outside the playable boundary
+- **AND THEN** Open Parkland SHALL retain the accepted tree artwork, surfaces, lighting, targeting, and gameplay while using fewer decorative crowns and larger managed grassland openings
+
+#### Scenario: Desktop property access stays connected
+
+- **WHEN** Premium Parkland V2 displays a generated hole on a sufficiently wide stage
+- **THEN** its cart path SHALL follow a clear tee-to-green access route where one can avoid maintained surfaces and hazards, including on par-3 holes without fairway polygons
+- **AND THEN** up to two authentic-scale neighbouring holes MAY appear only when each secondary cart path has a visible, clear junction with the active route
+- **AND THEN** decorative property paths and neighbouring turf SHALL remain outside aiming and shot-resolution geometry
+
 #### Scenario: Historical or other-biome hole retains Current
 
-- **WHEN** normal play displays an earlier-generator hole or a non-Parkland hole
+- **WHEN** normal play displays an earlier-generator hole, Heathland hole, or historical Woodland hole
 - **THEN** the stage SHALL use the Current canonical renderer without changing the saved course
 
 ### Requirement: Shot Playback Animation

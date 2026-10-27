@@ -60,5 +60,16 @@ class EventNamingCourseTypeTest {
                 CourseGenerator.generate(new SeedCoordinate(2L, 2, 2, 0, 0, 0, 0), EnvironmentClassification.WOODLAND);
         assertThat(EventNaming.courseType(EventPrestige.REGULAR, TourTier.DEVELOPMENT, woodland, -1, -1))
                 .isEqualTo("HEATHLAND");
+        assertThat(EventNaming.courseType(EventPrestige.REGULAR, TourTier.DEVELOPMENT, woodland, -1, -1,
+                CoursePoolPolicy.FOUR_FAMILIES)).isEqualTo("WOODLAND");
+    }
+
+    @Test
+    void newHeathlandIdentityHasItsOwnScene() {
+        Course heathland = CourseGenerator.generate(new SeedCoordinate(2L, 2, 2, 0, 0, 0, 0),
+                EnvironmentClassification.HEATHLAND);
+        assertThat(heathland.identity().classification()).isEqualTo(EnvironmentClassification.HEATHLAND);
+        assertThat(EventNaming.courseType(EventPrestige.REGULAR, TourTier.DEVELOPMENT, heathland, -1, -1,
+                CoursePoolPolicy.FOUR_FAMILIES)).isEqualTo("HEATHLAND");
     }
 }

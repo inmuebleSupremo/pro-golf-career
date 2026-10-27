@@ -222,7 +222,7 @@ public final class World {
 
     /** Explicit provenance for a fresh world; restore always uses the version pinned in its snapshot. */
     public static World create(long masterSeed, WorldConfig config, int courseGeneratorVersion) {
-        World world = new World(masterSeed, config, courseGeneratorVersion, CoursePoolPolicy.CORE_FOUR);
+        World world = new World(masterSeed, config, courseGeneratorVersion, CoursePoolPolicy.FOUR_FAMILIES);
         world.bootstrap();
         return world;
     }
@@ -230,6 +230,11 @@ public final class World {
     /** Generator provenance for this world's fixed course pool; not a player-facing configuration control. */
     public int courseGeneratorVersion() {
         return courseGeneratorVersion;
+    }
+
+    /** Stable course-family interpretation pinned by this world's pool policy. */
+    public String courseFamilyFor(EnvironmentClassification classification) {
+        return coursePoolPolicy.familyFor(classification);
     }
 
     /** Policy that will be pinned to tournaments scheduled after the current boundary. */
@@ -1353,7 +1358,7 @@ public final class World {
     public String courseTypeFor(ScheduledTournament event) {
         Course course = coursePool.get(event.courseIndex());
         return EventNaming.courseType(event.prestige(), event.tier(), course, majorOrdinal(event),
-                proEventOrdinal(event));
+                proEventOrdinal(event), coursePoolPolicy);
     }
 
     /**
