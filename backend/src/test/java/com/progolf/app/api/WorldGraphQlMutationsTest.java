@@ -156,11 +156,13 @@ class WorldGraphQlMutationsTest {
         var response = graphQlTester.document("""
                         query($id: ID!){
                           current: playingHole(id: $id){
+                            courseFamily
                             geometry { tee { x y } cup { x y } playableBoundary { x y } regions { surface boundary { x y } } }
                             ball { position { x y } lie }
                             effectiveWind { x y magnitude unit }
                           }
                           prefetched: playingHole(id: $id, hole: 2){
+                            courseFamily
                             geometry { playableBoundary { x y } regions { surface boundary { x y } } }
                             effectiveWind { x y magnitude unit }
                           }
@@ -169,6 +171,10 @@ class WorldGraphQlMutationsTest {
                 .variable("id", session.id()).execute();
         response.path("current.geometry.playableBoundary").entityList(Object.class).satisfies(points ->
                         assertThat(points).hasSizeGreaterThanOrEqualTo(3))
+                .path("current.courseFamily").entity(String.class)
+                .isEqualTo(session.world().courseFamilyFor(event.classification()))
+                .path("prefetched.courseFamily").entity(String.class)
+                .isEqualTo(session.world().courseFamilyFor(event.classification()))
                 .path("current.geometry.regions").entityList(Object.class).satisfies(regions ->
                         assertThat(regions).isNotEmpty())
                 .path("current.ball.lie").entity(String.class).isEqualTo("TEE_BOX")

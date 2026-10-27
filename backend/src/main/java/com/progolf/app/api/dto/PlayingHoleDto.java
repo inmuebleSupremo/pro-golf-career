@@ -29,6 +29,7 @@ public record PlayingHoleDto(
         double pinDepth,
         String courseType,
         String canonicalBiome,
+        String courseFamily,
         int courseGeneratorVersion,
         String canonicalGeometrySource,
         String layoutSeed,

@@ -22,7 +22,7 @@ final class V5EnvironmentPlanner {
         switch (environment) {
             case PARKLAND -> promote(enclosure, 8 + (int) StrictMath.round(architecture.widthRhythm() * 3.0),
                     TreeEnclosure.BROKEN_LINED, courseSeed, 0x5041524bL);
-            case WOODLAND -> {
+            case WOODLAND, HEATHLAND -> {
                 promote(enclosure, 7 + (int) StrictMath.round(architecture.greenDefence() * 3.0),
                         TreeEnclosure.BROKEN_LINED, courseSeed, 0x574f4f44L);
                 promote(enclosure, 5 + (int) StrictMath.round(architecture.lateralAsymmetry() * 3.0),
@@ -44,7 +44,7 @@ final class V5EnvironmentPlanner {
         Rng rng = new SplitMix64Rng(Seeds.deriveSeed(courseSeed, ENVIRONMENT_SALT + index));
         return switch (environment) {
             case PARKLAND -> rng.nextDouble() < .48 ? TreeEnclosure.SCATTERED : TreeEnclosure.BROKEN_LINED;
-            case WOODLAND -> rng.nextDouble() < .35 ? TreeEnclosure.BROKEN_LINED : TreeEnclosure.WOODED;
+            case WOODLAND, HEATHLAND -> rng.nextDouble() < .35 ? TreeEnclosure.BROKEN_LINED : TreeEnclosure.WOODED;
             case MOUNTAIN -> rng.nextDouble() < .42 ? TreeEnclosure.SCATTERED : TreeEnclosure.OPEN;
             case COASTAL -> rng.nextDouble() < .18 ? TreeEnclosure.SCATTERED : TreeEnclosure.OPEN;
             case LINKS, DESERT -> rng.nextDouble() < .08 ? TreeEnclosure.SCATTERED : TreeEnclosure.OPEN;

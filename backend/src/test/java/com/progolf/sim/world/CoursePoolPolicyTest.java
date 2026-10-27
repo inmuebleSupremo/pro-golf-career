@@ -14,16 +14,17 @@ class CoursePoolPolicyTest {
     private static final WorldConfig CONFIG = new WorldConfig(8, 4, 1, 4, 8);
 
     @Test
-    void newWorldUsesOnlyCoreCourseFamiliesForBothTours() {
+    void newWorldUsesFiveIdentitiesAcrossFourFamiliesForBothTours() {
         World world = World.create(SEED, CONFIG);
         assertThat(world.courseGeneratorVersion())
                 .isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
-        assertThat(world.snapshot().coursePoolPolicy()).isEqualTo(CoursePoolPolicy.CORE_FOUR);
+        assertThat(world.snapshot().coursePoolPolicy()).isEqualTo(CoursePoolPolicy.FOUR_FAMILIES);
         assertThat(world.currentSchedule()).extracting(ScheduledTournament::tier)
                 .contains(TourTier.PRO, TourTier.DEVELOPMENT);
         EnvironmentClassification[] expected = {
                 EnvironmentClassification.LINKS, EnvironmentClassification.PARKLAND,
-                EnvironmentClassification.DESERT, EnvironmentClassification.WOODLAND
+                EnvironmentClassification.DESERT, EnvironmentClassification.WOODLAND,
+                EnvironmentClassification.HEATHLAND
         };
         for (int i = 0; i < CONFIG.coursePoolSize(); i++) {
             assertThat(world.courseAt(i).identity().classification()).isEqualTo(expected[i % expected.length]);
@@ -33,10 +34,12 @@ class CoursePoolPolicyTest {
         }
         assertThat(world.currentSchedule()).allSatisfy(event -> assertThat(
                 world.courseAt(event.courseIndex()).identity().classification())
-                .isIn(expected[0], expected[1], expected[2], expected[3]));
+                .isIn(expected[0], expected[1], expected[2], expected[3], expected[4]));
         assertThat(world.currentSchedule().stream().filter(event -> event.tier() == TourTier.DEVELOPMENT))
                 .allSatisfy(event -> assertThat(world.courseTypeFor(event))
-                        .isIn("LINKS", "PARKLAND", "DESERT", "HEATHLAND"));
+                        .isIn("LINKS", "PARKLAND", "DESERT", "WOODLAND", "HEATHLAND"));
+        assertThat(world.courseFamilyFor(EnvironmentClassification.WOODLAND)).isEqualTo("PARKLAND");
+        assertThat(world.courseFamilyFor(EnvironmentClassification.HEATHLAND)).isEqualTo("HEATHLAND");
         assertThat(World.create(SEED, CONFIG).currentSchedule()).isEqualTo(world.currentSchedule());
     }
 
@@ -54,9 +57,39 @@ class CoursePoolPolicyTest {
         assertThat(legacy.courseAt(3).identity().classification()).isEqualTo(EnvironmentClassification.MOUNTAIN);
         assertThat(legacy.courseAt(4).identity().classification()).isEqualTo(EnvironmentClassification.COASTAL);
         assertThat(World.restore(SEED, CONFIG, legacy.snapshot()).snapshot()).isEqualTo(legacy.snapshot());
+        assertThat(legacy.courseFamilyFor(EnvironmentClassification.WOODLAND)).isEqualTo("HEATHLAND");
+    }
+
+    @Test
+    void previousCoreFourSnapshotKeepsWoodlandAsHeathland() {
+        World fresh = World.create(SEED, CONFIG);
+        World previous = World.restore(SEED, CONFIG, withPoolPolicy(fresh.snapshot(), CoursePoolPolicy.CORE_FOUR));
+        assertThat(previous.courseAt(3).identity().classification()).isEqualTo(EnvironmentClassification.WOODLAND);
+        assertThat(previous.courseAt(4).identity().classification()).isEqualTo(EnvironmentClassification.LINKS);
+        assertThat(previous.courseFamilyFor(EnvironmentClassification.WOODLAND)).isEqualTo("HEATHLAND");
+        assertThat(previous.snapshot().coursePoolPolicy()).isEqualTo(CoursePoolPolicy.CORE_FOUR);
+        assertThat(World.restore(SEED, CONFIG, previous.snapshot()).courseAt(3)).isEqualTo(previous.courseAt(3));
+    }
+
+    @Test
+    void heathlandReusesWoodlandArchitectureWithoutChangingHistoricalWoodland() {
+        SeedCoordinate coordinate = new SeedCoordinate(SEED, 0, 4, 0, 0, 0, 0);
+        var woodland = CourseGenerator.generate(coordinate, EnvironmentClassification.WOODLAND,
+                CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
+        var heathland = CourseGenerator.generate(coordinate, EnvironmentClassification.HEATHLAND,
+                CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
+        assertThat(heathland.holes()).isEqualTo(woodland.holes());
+        assertThat(heathland.identity().classification()).isEqualTo(EnvironmentClassification.HEATHLAND);
+        assertThat(heathland.identity().region()).isNotEqualTo(woodland.identity().region());
+        assertThat(CourseGenerator.generate(coordinate, EnvironmentClassification.HEATHLAND,
+                CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION)).isEqualTo(heathland);
     }
 
     private static WorldSnapshot withoutPoolPolicy(WorldSnapshot s) {
+        return withPoolPolicy(s, null);
+    }
+
+    private static WorldSnapshot withPoolPolicy(WorldSnapshot s, CoursePoolPolicy policy) {
         return new WorldSnapshot(s.season(), s.week(), s.nextTournamentId(), s.replenishCounter(), s.previousNumberOne(),
                 s.golfers(), s.careers(), s.activeGolfers(), s.accounts(), s.physicalStates(), s.supportTeams(),
                 s.equipment(), s.loadouts(), s.tours(), s.ranking(), s.statistics(), s.media(),
@@ -66,6 +99,6 @@ class CoursePoolPolicyTest {
                 s.playerPendingStaff(), s.playerPendingEquipment(), s.achievedGoals(), s.staffPool(),
                 s.playerActiveEquipmentDeal(), s.playerPendingEquipmentDeals(), s.unlockedAchievements(),
                 s.majorsWonThisSeason(), s.playerCareerRecords(), s.courseGeneratorVersion(),
-                s.defaultPinPlacementVersion(), null);
+                s.defaultPinPlacementVersion(), policy);
     }
 }

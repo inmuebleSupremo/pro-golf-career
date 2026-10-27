@@ -83,7 +83,8 @@ const MAJOR_TOURNAMENT_IMAGES = {
 
 /**
  * The scene for an event, from the backend's authoritative `courseType` token (PARKLAND, LINKS, DESERT,
- * TROPICAL, MOUNTAIN, COASTAL, HEATHLAND). The legacy WOODLAND token still resolves to heathland. Defaults to
+ * TROPICAL, MOUNTAIN, COASTAL, HEATHLAND, WOODLAND). New Woodland uses the Parkland photo family;
+ * historical Woodland arrives as HEATHLAND. Defaults to
  * Parkland — the majority case — for anything unrecognised.
  */
 export function resolveScene(courseType?: string | null): Scene {
@@ -91,8 +92,9 @@ export function resolveScene(courseType?: string | null): Scene {
     case "LINKS":
       return "links";
     case "HEATHLAND":
-    case "WOODLAND":
       return "heathland";
+    case "WOODLAND":
+      return "parkland";
     case "DESERT":
       return "desert";
     case "TROPICAL":

@@ -15,6 +15,7 @@ import com.progolf.sim.course.LandingZoneRole;
 import com.progolf.sim.course.PinPosition;
 import com.progolf.sim.course.Position2d;
 import com.progolf.sim.play.ShotSituation;
+import com.progolf.sim.putt.PuttingPolicy;
 import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.AimPoint;
 import com.progolf.sim.shot.ClubId;
@@ -44,6 +45,25 @@ class ApiPlayingHoleMapperTest {
 
     private static Course course(long seed) {
         return CourseGenerator.generate(new SeedCoordinate(seed, 0, 0, 0, 0, 0, 0), CLASSIFICATION);
+    }
+
+    @Test
+    void playingHoleKeepsWoodlandIdentitySeparateFromPolicyResolvedFamily() {
+        GeneratedHole hole = CourseGenerator.generate(new SeedCoordinate(1234L, 0, 0, 0, 0, 0, 0),
+                EnvironmentClassification.WOODLAND).holes().get(0);
+        CourseGeometry geometry = hole.geometry();
+        PinPosition pin = hole.pinFor(1);
+        BallState ball = new BallState(geometry.tee(), Surface.TEE_BOX);
+
+        PlayingHoleDto newWorld = ApiMapper.playingHole(hole, pin, "WOODLAND", "WOODLAND", 1,
+                ball, geometry, geometry.greenCenter(), new WindVector(0, 0), PuttingPolicy.LEGACY, null, "PARKLAND");
+        PlayingHoleDto historical = ApiMapper.playingHole(hole, pin, "HEATHLAND", "WOODLAND", 1,
+                ball, geometry, geometry.greenCenter(), new WindVector(0, 0), PuttingPolicy.LEGACY, null, "HEATHLAND");
+
+        assertThat(newWorld.canonicalBiome()).isEqualTo("WOODLAND");
+        assertThat(newWorld.courseFamily()).isEqualTo("PARKLAND");
+        assertThat(historical.canonicalBiome()).isEqualTo("WOODLAND");
+        assertThat(historical.courseFamily()).isEqualTo("HEATHLAND");
     }
 
     @Test

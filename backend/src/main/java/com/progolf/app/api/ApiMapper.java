@@ -241,11 +241,21 @@ public final class ApiMapper {
                                                int courseGeneratorVersion, BallState ball, CourseGeometry geometry,
                                                Position2d cup, WindVector wind, PuttingPolicy puttingPolicy,
                                                GreenSurface greenSurface) {
+        return playingHole(hole, pin, courseType, canonicalBiome, courseGeneratorVersion, ball, geometry,
+                cup, wind, puttingPolicy, greenSurface,
+                canonicalBiome.equals("WOODLAND") ? "HEATHLAND" : canonicalBiome);
+    }
+
+    /** Live world mapping carries the persisted family interpretation separately from course identity. */
+    public static PlayingHoleDto playingHole(GeneratedHole hole, PinPosition pin, String courseType, String canonicalBiome,
+                                               int courseGeneratorVersion, BallState ball, CourseGeometry geometry,
+                                               Position2d cup, WindVector wind, PuttingPolicy puttingPolicy,
+                                               GreenSurface greenSurface, String courseFamily) {
         return new PlayingHoleDto(hole.number(), hole.par(), hole.length(),
                 hole.fairwayHalfWidth(), hole.greenHalfWidth(), hole.greenDepth(), hole.elevationDelta(),
                 hole.hasGreensideBunker(), hole.hasWater(), hole.hasTrees(),
                 pin.lateralOffset(), pin.depthOffset(),
-                courseType, canonicalBiome, courseGeneratorVersion, geometrySource(courseGeneratorVersion),
+                courseType, canonicalBiome, courseFamily, courseGeneratorVersion, geometrySource(courseGeneratorVersion),
                 Long.toString(hole.holeSeed()), geometry(geometry, cup), ballState(ball), effectiveWind(wind),
                 puttingPolicy.name(), physicalGreen(greenSurface));
     }

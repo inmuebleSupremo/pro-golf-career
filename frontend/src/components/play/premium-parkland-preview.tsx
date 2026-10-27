@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Hole2d } from "@/components/play/hole-2d";
 import corpus from "@/lib/play/principled-architecture-preview-fixtures.json";
+import familyCorpus from "@/lib/play/course-family-preview-fixtures.json";
 import type { HoleGeom, Point } from "@/lib/play/hole-geometry";
 import { cn } from "@/lib/utils";
 
@@ -13,9 +14,11 @@ type GeneratedCase = {
   unseen: boolean;
   experiment: { generatorVersion: number; holes: readonly { hole: HoleGeom; bunkers: number; trees: number; water: number }[] };
 };
+type FamilyCase = { identity: string; hole: HoleGeom };
 
 const generated = (corpus as readonly GeneratedCase[]).filter((course) =>
   course.biome === "PARKLAND" && course.experiment.generatorVersion === 8);
+const familyCases = familyCorpus as readonly FamilyCase[];
 const cases = [
   { course: generated.find((course) => course.seed === "103")!, holeIndex: 0, layout: "straight" },
   { course: generated.find((course) => course.seed === "887")!, holeIndex: 0, layout: "straight" },
@@ -55,6 +58,14 @@ export function PremiumParklandPreview({ initialNarrow = false, unlitAudit = fal
         className="border-border bg-surface text-foreground ml-2 mt-4 rounded-md border px-3 py-1.5 text-xs">
         {before === "polished" ? "Compare with V1" : "Compare with Current"}
       </button>
+      <section id="family-variations" className="mt-8">
+        <h2 className="font-serif text-xl">Open Parkland and Woodland</h2>
+        <p className="text-muted-foreground mt-2 text-sm">Actual Generator 8 holes from the same seed and scale.
+          Both use Premium Parkland V2; Woodland has denser canonical tree corridors and seeded vegetation.</p>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          {familyCases.map((sample) => <FamilyPanel key={sample.identity} sample={sample} narrow={narrow} />)}
+        </div>
+      </section>
       <div className="mt-8 space-y-10">
         {cases.map(({ course, holeIndex, layout }) =>
           <Comparison key={`${course.seed}-${holeIndex}`} course={course} holeIndex={holeIndex} layout={layout}
@@ -62,6 +73,17 @@ export function PremiumParklandPreview({ initialNarrow = false, unlitAudit = fal
       </div>
     </div>
   </main>;
+}
+
+function FamilyPanel({ sample, narrow }: { sample: FamilyCase; narrow: boolean }) {
+  const [aim, setAim] = useState<Point>(sample.hole.geometry?.cup ?? { x: 0, y: sample.hole.length });
+  const trees = sample.hole.geometry?.regions.filter((region) => region.surface === "TREES").length ?? 0;
+  return <div>
+    <p className="text-muted-foreground mb-2 text-xs">{sample.identity === "WOODLAND" ? "Woodland variation" : "Open Parkland"}
+      {` · ${trees} tree regions`}</p>
+    <Panel title={sample.identity === "WOODLAND" ? "Woodland · Premium V2" : "Open Parkland · Premium V2"}
+      hole={sample.hole} aim={aim} onAim={setAim} presentation="premium" narrow={narrow} unlitAudit={false} />
+  </div>;
 }
 
 function Comparison({ course, holeIndex, layout, before, narrow, unlitAudit }: {

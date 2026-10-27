@@ -201,8 +201,9 @@ export const LINKS_MATERIAL = {
 /**
  * Resolves the schematic biome from the event's canonical scene token (`courseType`) — the same token the scene
  * backdrop keys on, so the hole illustration always agrees with the event's photo, name, and place. HEATHLAND
- * (the presentation face of the sim's WOODLAND) gets its khaki-heather look; COASTAL maps to the water-heavy
- * Tropical look (LINKS already covers the seaside). The legacy WOODLAND token is still accepted as a safety net.
+ * HEATHLAND gets its khaki-heather look; new-world WOODLAND shares the Parkland foundation.
+ * Historical Woodland events are sent as HEATHLAND by the backend's persisted pool policy.
+ * COASTAL maps to the water-heavy Tropical look (LINKS already covers the seaside).
  * An unknown token falls back to Parkland.
  */
 export function resolveBiome(courseType?: string | null): Biome {
@@ -214,8 +215,9 @@ export function resolveBiome(courseType?: string | null): Biome {
     case "MOUNTAIN":
       return "alpine";
     case "HEATHLAND":
-    case "WOODLAND":
       return "heathland";
+    case "WOODLAND":
+      return "parkland";
     case "COASTAL":
     case "TROPICAL":
       return "tropical";

@@ -19,6 +19,14 @@ public final class CourseGenerator {
 
     /** Generates a course through one retained, explicitly selected implementation. */
     public static Course generate(SeedCoordinate coordinate, EnvironmentClassification classification, int version) {
+        if (classification == EnvironmentClassification.HEATHLAND) {
+            // Reuse the established Woodland architecture, retaining every old generator's exact output.
+            // Only the new course identity is different; no second generator or geometry migration is needed.
+            Course architecture = generate(coordinate, EnvironmentClassification.WOODLAND, version);
+            return new Course(CourseNames.generate(Seeds.forCoordinate(coordinate), classification),
+                    architecture.holes(), architecture.generatorVersion(), architecture.designProfile(),
+                    architecture.coursePlan(), architecture.architecturePlan());
+        }
         return switch (version) {
             case CourseGenConstants.V1_GENERATOR_VERSION -> generateV1(coordinate, classification);
             case CourseGenConstants.V2_GENERATOR_VERSION -> generateV2(coordinate, classification);

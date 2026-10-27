@@ -32,6 +32,7 @@ final class CourseNames {
             case MOUNTAIN -> new String[] {"Cascades", "Rockies", "Sierra", "Blue Ridge", "Aspen", "Tahoe"};
             case COASTAL -> new String[] {"Algarve", "Monterey", "Amalfi", "Costa Brava", "The Cape", "Cabo"};
             case WOODLAND -> new String[] {"Pine Barrens", "Carolina Pines", "Black Forest", "Sherwood", "Ardennes", "Pinelands"};
+            case HEATHLAND -> new String[] {"Surrey Heath", "Hampshire Heath", "Dorset Heath", "Berkshire Heath", "Sandbelt", "New Forest"};
         };
     }
 

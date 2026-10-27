@@ -11,6 +11,7 @@ import type { Hole2dProps } from "@/components/play/hole-2d";
 import { WindDisplay } from "@/components/play/wind-display";
 import { PremiumParklandBackdrop, PremiumParklandCanopies, PremiumParklandDefs, PremiumParklandLight, PremiumParklandPaths, PremiumParklandProperty, PremiumParklandShadows, PremiumParklandSurface } from "@/components/play/premium-parkland-art";
 import { premiumDistantTrees, premiumSceneryWidth, premiumSurfacePrecedence, premiumTreePlans } from "@/lib/play/premium-parkland-decoration";
+import { isParklandFamily, isWoodlandVariation } from "@/lib/play/play-presentation";
 import { inPropertyClearing, isPremiumAimCoordinate, isPropertyPathCoordinate, premiumPropertyPlan } from "@/lib/play/premium-parkland-property";
 
 const W = 220;
@@ -88,8 +89,9 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
   unlitAudit = false }: Hole2dProps) {
   const geometry = hole.geometry!;
   const kit = BIOME_KITS[resolveBiome(hole.courseType)];
-  const premiumParkland = resolveBiome(hole.canonicalBiome ?? hole.courseType) === "parkland"
+  const premiumParkland = isParklandFamily(hole)
     && (presentation === "premium" || presentation === "premium-v1");
+  const variation = isWoodlandVariation(hole) ? "woodland" : "open";
   const fullStage = premiumParkland && presentation === "premium";
   const viewHeight = useMemo(() => canonicalViewportHeight(geometry), [geometry]);
   const model = useMemo(() => canonicalRenderModel(geometry, { width: W, height: viewHeight, padding: PAD, center: premiumParkland }),
@@ -103,11 +105,14 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
   // The original crowns span this full width. A smaller V2 viewBox exposes unlit side strips on narrow stages.
   const sceneryWidth = fullStage ? premiumSceneryWidth(viewHeight, stageAspect, v1SceneryWidth) : v1SceneryWidth;
   const sceneryX = (W - sceneryWidth) / 2;
-  const premiumTrees = useMemo(() => premiumParkland ? premiumTreePlans(geometry, hole.layoutSeed, model) : [],
-    [premiumParkland, geometry, hole.layoutSeed, model]);
+  const premiumTrees = useMemo(() => premiumParkland ? premiumTreePlans(geometry, hole.layoutSeed, model,
+    fullStage || variation === "woodland" ? variation : "legacy") : [],
+  [premiumParkland, geometry, hole.layoutSeed, model, variation, fullStage]);
   const originalTrees = useMemo(() => premiumParkland
-    ? premiumDistantTrees(geometry, hole.layoutSeed, model, v1SceneryX, v1SceneryWidth, viewHeight) : [],
-  [premiumParkland, geometry, hole.layoutSeed, model, v1SceneryX, v1SceneryWidth, viewHeight]);
+    ? premiumDistantTrees(geometry, hole.layoutSeed, model, v1SceneryX, v1SceneryWidth, viewHeight,
+      variation === "woodland" ? 570 : fullStage ? 260 : 470,
+      fullStage || variation === "woodland" ? variation : "legacy") : [],
+  [premiumParkland, geometry, hole.layoutSeed, model, v1SceneryX, v1SceneryWidth, viewHeight, variation, fullStage]);
   const protectedTrees = useMemo(() => [...originalTrees, ...premiumTrees.flatMap((plan) => plan.trees)],
     [originalTrees, premiumTrees]);
   const property = useMemo(() => fullStage
@@ -119,13 +124,15 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     if (!premiumParkland) return [];
     if (!fullStage || sceneryWidth <= v1SceneryWidth) return originalTrees;
     const widerTrees = premiumDistantTrees(geometry, hole.layoutSeed, model, sceneryX, sceneryWidth, viewHeight,
-      Math.min(500, Math.round(470 + Math.max(0, sceneryWidth - v1SceneryWidth) * .07)));
+      variation === "woodland"
+        ? Math.min(620, Math.round(570 + Math.max(0, sceneryWidth - v1SceneryWidth) * .07))
+        : Math.min(320, Math.round(260 + Math.max(0, sceneryWidth - v1SceneryWidth) * .07)), variation);
     const outerTrees = widerTrees.filter((tree) => (tree.x + tree.size * 1.3 + 2 < v1SceneryX
       || tree.x - tree.size * 1.3 - 2 > v1SceneryX + v1SceneryWidth)
       && !property?.glimpses.some((glimpse) => inPropertyClearing(tree.x, tree.y, tree.size, glimpse)));
     return [...originalTrees, ...outerTrees];
   }, [premiumParkland, geometry, hole.layoutSeed, model, sceneryX, sceneryWidth, viewHeight, fullStage, property,
-    originalTrees, v1SceneryX, v1SceneryWidth]);
+    originalTrees, v1SceneryX, v1SceneryWidth, variation]);
   const premiumRegions = useMemo(() => premiumParkland ? [...model.terrain].sort((a, b) =>
     premiumSurfacePrecedence(b.surface) - premiumSurfacePrecedence(a.surface)) : [], [premiumParkland, model]);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -218,7 +225,8 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     {polishedLinks ? <rect width={W} height={viewHeight} fill={`url(#${artId}-links-distant)`} /> : null}
     {polishedLinks ? <rect width={W} height={viewHeight} fill={`url(#${artId}-links-dunes)`} opacity=".24" /> : null}
     {premiumParkland ? <PremiumParklandBackdrop artId={artId} x={sceneryX} width={sceneryWidth} height={viewHeight}
-      seed={hole.layoutSeed} fullStage={fullStage} coreX={v1SceneryX} coreWidth={v1SceneryWidth} /> : null}
+      seed={hole.layoutSeed} fullStage={fullStage} coreX={v1SceneryX} coreWidth={v1SceneryWidth}
+      openVariation={fullStage && variation === "open"} /> : null}
     {property ? <PremiumParklandProperty artId={artId} plan={property} /> : null}
     {!premiumParkland ? <path d={model.playableBoundaryPath} fill={polishedParkland ? `url(#${artId}-out)` : polishedLinks ? `url(#${artId}-links-out)` : kit.out} /> : null}
     {polishedLinks ? <path d={model.playableBoundaryPath} fill={`url(#${artId}-links-dunes)`} opacity=".44" /> : null}

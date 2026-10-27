@@ -19,9 +19,9 @@ Every Course SHALL possess a unique, stable identity comprising a unique identif
 
 ### Requirement: Environment Classification
 
-Every Course SHALL belong to exactly one environment classification from: Links, Parkland, Desert, Mountain, Coastal, Woodland. Classification is data that other domains read to influence weather generation and strategic character; the Course domain SHALL NOT itself generate weather.
+Every Course SHALL belong to exactly one persisted environment classification from: Links, Parkland, Desert, Mountain, Coastal, Woodland, Heathland. Classification is data that other domains read to influence weather generation and strategic character; the Course domain SHALL NOT itself generate weather.
 
-New worlds SHALL select pool courses only from Links, Parkland, Desert, and Woodland. Mountain and Coastal SHALL remain valid classifications for restored worlds. The current visual mapping presents Woodland as Heathland; it is not currently a Parkland presentation variant.
+New worlds SHALL select pool courses only from Links, Parkland, Desert, Woodland, and Heathland. Their four core course families are Parkland (open Parkland and Woodland variations), Links, Heathland, and Desert. The snapshot-pinned pool policy SHALL determine whether persisted Woodland is a Parkland or Heathland presentation; historical worlds SHALL retain their previous Woodland interpretation. Mountain and Coastal SHALL remain valid for restored worlds.
 
 #### Scenario: Exactly one classification per course
 
@@ -31,7 +31,13 @@ New worlds SHALL select pool courses only from Links, Parkland, Desert, and Wood
 #### Scenario: New world selects the core course set
 
 - **WHEN** a new world generates its course pool
-- **THEN** every course SHALL be classified as Links, Parkland, Desert, or Woodland
+- **THEN** every course SHALL be classified as Links, Parkland, Desert, Woodland, or Heathland
+- **AND THEN** Woodland SHALL belong to the Parkland family while Heathland SHALL have its own persisted identity
+
+#### Scenario: Historical Woodland interpretation is retained
+
+- **WHEN** a world with a historical course-pool policy is restored
+- **THEN** its Woodland courses SHALL still present as Heathland without changing their identity or geometry
 
 #### Scenario: Historical classifications remain valid
 

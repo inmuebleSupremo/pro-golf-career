@@ -13,7 +13,7 @@ import { humanize } from "@/lib/play/options";
 import { StageHole } from "@/components/play/hole-transition";
 import { usePlaySequence } from "@/components/play/use-play-sequence";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
-import { playPresentation, type PlayPresentation } from "@/lib/play/play-presentation";
+import { isParklandFamily, playPresentation, type PlayPresentation } from "@/lib/play/play-presentation";
 import { acceptCourseAim, aimWithinEnvelope, buildBallStrikeIntent, currentAimPoint } from "@/lib/play/intent";
 import { currentPhysicalPuttControls, cupDirectedLine, physicalPuttControlSource, validPaceFeet } from "@/lib/play/physical-putting";
 import { shotSubmissionFeedback } from "@/lib/play/shot-feedback";
@@ -113,7 +113,7 @@ export function PlayMode({
 
   const position = playerGolferId ? (leaderboard.find((r) => r.golfer.id === playerGolferId)?.position ?? null) : null;
   const showParklandPrototype = process.env.NODE_ENV === "development"
-    && seq.displayHole?.canonicalBiome === "PARKLAND";
+    && isParklandFamily(seq.displayHole);
   const selectedPresentation = playPresentation(seq.displayHole, parklandPresentation, showParklandPrototype);
   const toggle = (t: DrawerTab) => setTab((prev) => (prev === t ? null : t));
 
