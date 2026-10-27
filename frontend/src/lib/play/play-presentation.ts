@@ -14,11 +14,13 @@ export function isWoodlandVariation(hole: HoleGeom | null): boolean {
   return isParklandFamily(hole) && hole?.canonicalBiome === "WOODLAND";
 }
 
-/** V2 is enabled only for live Generator 8 Parkland geometry; other saves retain Current. */
+/** Premium art is enabled only for supported live Generator 8 geometry; other saves retain Current. */
 export function defaultPlayPresentation(hole: HoleGeom | null): "polished" | "premium" {
-  return isParklandFamily(hole)
-    && (hole?.courseFamily === "PARKLAND" || hole?.canonicalBiome === "PARKLAND")
-    && resolveBiome(hole.courseType) === "parkland"
+  return hole
+    && ((isParklandFamily(hole)
+      && (hole.courseFamily === "PARKLAND" || hole.canonicalBiome === "PARKLAND")
+      && resolveBiome(hole.courseType) === "parkland")
+      || (hole.courseFamily === "LINKS" && resolveBiome(hole.courseType) === "links"))
     && hole.courseGeneratorVersion === 8
     && hole.canonicalGeometrySource === "GENERATOR_8_PRINCIPLED_ARCHITECTURE"
     && !!hole.geometry

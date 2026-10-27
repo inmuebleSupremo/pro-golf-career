@@ -4,12 +4,12 @@ import type { CanonicalPlayingGeometry, CanonicalRenderModel } from "./canonical
 import neighborGeometry from "./premium-parkland-neighbor-geometry.json";
 import { seededRandom, type PremiumTree } from "./premium-parkland-decoration";
 
-/** Rounded yard-space surface polygons from checked-in Parkland preview fixtures (seeds 103 and 887). */
-type SourceHole = Readonly<{
+/** Rounded yard-space surface polygons from checked-in backend-generated preview holes. */
+export type SourceHole = Readonly<{
   source: string; par: number; tee: readonly number[]; cup: readonly number[];
   regions: readonly Readonly<{ surface: string; points: readonly (readonly number[])[] }>[];
 }>;
-const sourceHoles: readonly SourceHole[] = neighborGeometry;
+const parklandSourceHoles: readonly SourceHole[] = neighborGeometry;
 
 export type PropertyRegion = Readonly<{ surface: string; path: string; points: readonly Point[] }>;
 export type PropertyGlimpse = Readonly<{
@@ -81,7 +81,7 @@ export function routeSamples(path: PropertyPath): Point[] {
   }).concat(path.points[path.points.length - 1]);
 }
 
-function pathFromPoints(points: readonly Point[], width: number, side: -1 | 1,
+export function pathFromPoints(points: readonly Point[], width: number, side: -1 | 1,
   kind?: PropertyPath["kind"]): PropertyPath {
   const d = [`M${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`];
   for (let index = 0; index < points.length - 1; index += 1) {
@@ -153,10 +153,10 @@ function glimpsesConflict(first: PropertyGlimpse, second: PropertyGlimpse): bool
 }
 
 /** Generated-hole polygons projected at the active hole's pixels per yard, then rotated and translated. */
-function composeGlimpse(source: SourceHole, side: -1 | 1, model: CanonicalRenderModel, activeTee: Point,
+export function composeGlimpse(source: SourceHole, side: -1 | 1, model: CanonicalRenderModel, activeTee: Point,
   left: number, right: number, height: number, attempt: number, random: () => number,
   mode: "original" | "reverse" | "return-diagonal" = "original",
-  band?: "upper" | "lower"): PropertyGlimpse | null {
+  band?: "upper" | "lower", links = false): PropertyGlimpse | null {
   const orientation = mode === "original" ? random() < .35 ? "reverse" : "diagonal"
     : mode === "reverse" ? "reverse" : "diagonal";
   const angle = mode === "return-diagonal" ? (random() < .5 ? 1 : -1) * (150 + random() * 18)
@@ -178,7 +178,7 @@ function composeGlimpse(source: SourceHole, side: -1 | 1, model: CanonicalRender
     points: region.points.map(rotate) }));
   const localBounds = bounds(localRegions.flatMap((region) => region.points));
   // Start beyond the retained V1 scenery, then search several realistic strips of the outer property.
-  const gap = 122 + random() * 24 + (attempt % 4) * 11;
+  const gap = (links ? 62 : 122) + random() * 24 + (attempt % 4) * 11;
   const offsetX = side < 0 ? -gap - localBounds.maxX : 220 + gap - localBounds.minX;
   const localTee = rotate(source.tee);
   const edgeCrop = 25 + random() * 55;
@@ -278,7 +278,7 @@ function routeQuality(path: PropertyPath, geometry: CanonicalPlayingGeometry, mo
 }
 
 /** Sample the existing transformed fairway in its own tee-to-cup coordinates. */
-function neighborRoute(glimpse: PropertyGlimpse, side: -1 | 1, offset: number): PropertyPath | null {
+export function neighborRoute(glimpse: PropertyGlimpse, side: -1 | 1, offset: number): PropertyPath | null {
   const dx = glimpse.cup.x - glimpse.tee.x, dy = glimpse.cup.y - glimpse.tee.y;
   const length = Math.hypot(dx, dy);
   if (length < 85) return null;
@@ -400,7 +400,10 @@ export function premiumPropertyPlan(
   protectedTrees: readonly PremiumTree[] = [],
   coreLeft = -105,
   coreRight = 325,
+  sourceHoles: readonly SourceHole[] = parklandSourceHoles,
+  mainOnly = false,
 ): PropertyPlan {
+  const linksSource = sourceHoles !== parklandSourceHoles;
   const random = seededRandom(`${layoutSeed}:property-v2`);
   const neighborRandom = seededRandom(`${layoutSeed}:authentic-neighbor`);
   const right = left + width;
@@ -440,7 +443,7 @@ export function premiumPropertyPlan(
   // A glimpse is accepted only with an on-stage connection to the already selected main route.
   const glimpses: PropertyGlimpse[] = [];
   const network: PropertyPath[] = [];
-  if (paths[0] && requested > 0 && cap > 0) {
+  if (!mainOnly && paths[0] && requested > 0 && cap > 0) {
     for (const side of preferred) {
       if (glimpses.length >= requested) break;
       if (room[side < 0 ? "left" : "right"] < 145) continue;
@@ -484,10 +487,28 @@ export function premiumPropertyPlan(
     }
   }
 
+  // Open Links ground can show a partial neighbouring hole even when a visible walking-track
+  // junction cannot be routed through the dunes. Keep its genuine geometry at this hole's scale.
+  if (!mainOnly && linksSource && requested > 0 && glimpses.length === 0) {
+    for (const side of preferred) {
+      if (room[side < 0 ? "left" : "right"] < 145 || glimpses.length >= cap) continue;
+      const source = side < 0 ? sourceHoles[0] : sourceHoles[1 + Math.floor(neighborRandom() * 2)];
+      for (let attempt = 0; attempt < 24; attempt += 1) {
+        const glimpse = composeGlimpse(source, side, model, geometry.tee, left, right, height,
+          attempt, neighborRandom, attempt < 12 ? "reverse" : "return-diagonal", undefined, true);
+        if (!glimpse || conflictsWithProtectedScenery(glimpse, [], coreLeft, coreRight, activeBoundary)
+          || glimpses.some((existing) => glimpsesConflict(existing, glimpse))) continue;
+        glimpses.push(glimpse);
+        break;
+      }
+    }
+  }
+
   // A building is optional; the old edge-to-building line is deliberately gone.
   // Keep the existing roof artwork available, but omit a building without a short connection to this route.
   let building: PropertyBuilding | null = null;
-  const buildingKind = holeNumber === 9 ? "halfway" : holeNumber === 1 || holeNumber === 18 ? "clubhouse" : null;
+  const buildingKind = linksSource ? null
+    : holeNumber === 9 ? "halfway" : holeNumber === 1 || holeNumber === 18 ? "clubhouse" : null;
   const route = paths[0];
   if (route && buildingKind && random() < .56 && room[route.side < 0 ? "left" : "right"] > 175) {
     const side = route.side;

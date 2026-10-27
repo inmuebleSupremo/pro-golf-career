@@ -56,6 +56,16 @@ describe("normal play presentation", () => {
     expect(playPresentation(generator8Parkland, "polished", false)).toBe("premium");
   });
 
+  it("uses Premium Links only for supported Generator 8 Links holes", () => {
+    const links: HoleGeom = { ...generator8Parkland, courseType: "LINKS", canonicalBiome: "LINKS",
+      courseFamily: "LINKS" };
+    expect(defaultPlayPresentation(links)).toBe("premium");
+    expect(defaultPlayPresentation({ ...links, courseGeneratorVersion: 7 })).toBe("polished");
+    expect(defaultPlayPresentation({ ...links, canonicalGeometrySource: undefined })).toBe("polished");
+    expect(defaultPlayPresentation({ ...links, courseFamily: undefined })).toBe("polished");
+    expect(defaultPlayPresentation({ ...links, geometry: undefined })).toBe("polished");
+  });
+
   it("keeps Current for legacy saves, unsupported geometry and other biomes", () => {
     const unsupported: (HoleGeom | null)[] = [
       null,
