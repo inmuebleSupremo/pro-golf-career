@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.PinPlacementVersion;
+import com.progolf.sim.world.CoursePoolPolicy;
 import com.progolf.sim.world.World;
 import com.progolf.sim.world.WorldConfig;
 import java.io.IOException;
@@ -100,6 +101,7 @@ class FilesystemSaveGameStoreTest {
         SaveEnvelope current = mapper.readValue(Files.readString(file), SaveEnvelope.class);
         ObjectNode payload = (ObjectNode) mapper.readTree(current.payload());
         ((ObjectNode) payload.get("snapshot")).remove("courseGeneratorVersion");
+        ((ObjectNode) payload.get("snapshot")).remove("coursePoolPolicy");
         ((ObjectNode) payload.get("snapshot")).remove("defaultPinPlacementVersion");
         for (var event : ((ObjectNode) payload.get("snapshot")).withArray("schedule")) {
             ((ObjectNode) event).remove("pinPlacementVersion");
@@ -109,9 +111,11 @@ class FilesystemSaveGameStoreTest {
 
         SaveGame loaded = store.load(OWNER, "legacy");
         assertThat(loaded.snapshot().courseGeneratorVersion()).isNull();
+        assertThat(loaded.snapshot().coursePoolPolicy()).isNull();
         assertThat(World.restore(loaded.seed(), loaded.config(), loaded.snapshot()).courseGeneratorVersion())
                 .isEqualTo(CourseGenConstants.V1_GENERATOR_VERSION);
         World restored = World.restore(loaded.seed(), loaded.config(), loaded.snapshot());
+        assertThat(restored.snapshot().coursePoolPolicy()).isEqualTo(CoursePoolPolicy.LEGACY_SIX);
         assertThat(restored.defaultPinPlacementVersion()).isEqualTo(PinPlacementVersion.LEGACY_V1);
         assertThat(restored.snapshot().schedule()).allSatisfy(event ->
                 assertThat(event.pinPlacementVersion()).isEqualTo(PinPlacementVersion.LEGACY_V1));

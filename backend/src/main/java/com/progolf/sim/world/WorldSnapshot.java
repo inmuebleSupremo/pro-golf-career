@@ -32,7 +32,8 @@ import java.util.Set;
 /**
  * A true, immutable state capture of an autonomous {@link World} (spec: world-snapshot). Everything that a
  * running world accumulates is here; the seed-derived parts (course pool, weather system, stateless markets)
- * are NOT stored — they are regenerated from {@code (masterSeed, config)} on {@link World#restore}. This
+ * are NOT stored — they are regenerated from seed, config, generator version and course-pool policy on
+ * {@link World#restore}. This
  * slice captures an autonomous world; player-control state is the next slice.
  *
  * <p>Records that reference golfers are captured by golfer id ({@link ResultSnapshot}) and re-linked to the
@@ -79,7 +80,8 @@ public record WorldSnapshot(
         Set<Integer> majorsWonThisSeason,
         CareerRecordBook.Snapshot playerCareerRecords,
         Integer courseGeneratorVersion,
-        PinPlacementVersion defaultPinPlacementVersion) {
+        PinPlacementVersion defaultPinPlacementVersion,
+        CoursePoolPolicy coursePoolPolicy) {
 
     /** An archived season captured by id (its schedule is immutable; its results re-link on restore). */
     public record ArchiveSnapshot(int season, List<ScheduledTournament> schedule,

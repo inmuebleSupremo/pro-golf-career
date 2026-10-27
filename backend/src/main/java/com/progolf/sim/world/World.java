@@ -135,6 +135,7 @@ public final class World {
     private final WorldCalendar calendar;
 
     private final List<Course> coursePool = new ArrayList<>();
+    private final CoursePoolPolicy coursePoolPolicy;
     private final WeatherSystem weatherSystem;
     private final List<EnvironmentalRecord> environmentalHistory = new ArrayList<>();
     private final SponsorshipMarket sponsorshipMarket = new SponsorshipMarket();
@@ -201,13 +202,14 @@ public final class World {
     private long nextTournamentId = 1;
     private int replenishCounter = 0;
 
-    private World(long masterSeed, WorldConfig config, int courseGeneratorVersion) {
+    private World(long masterSeed, WorldConfig config, int courseGeneratorVersion, CoursePoolPolicy coursePoolPolicy) {
         if (!CourseGenerator.supports(courseGeneratorVersion)) {
             throw new IllegalArgumentException("Unsupported course generator version: " + courseGeneratorVersion);
         }
         this.masterSeed = masterSeed;
         this.config = config;
         this.courseGeneratorVersion = courseGeneratorVersion;
+        this.coursePoolPolicy = Objects.requireNonNull(coursePoolPolicy, "coursePoolPolicy");
         this.defaultPinPlacementVersion = PinPlacementVersion.V5_EFFECTIVE_GREEN;
         this.weatherSystem = new WeatherSystem(masterSeed);
         this.calendar = new WorldCalendar(config.weeksPerSeason(), WorldConstants.BASE_YEAR);
@@ -220,7 +222,7 @@ public final class World {
 
     /** Explicit provenance for a fresh world; restore always uses the version pinned in its snapshot. */
     public static World create(long masterSeed, WorldConfig config, int courseGeneratorVersion) {
-        World world = new World(masterSeed, config, courseGeneratorVersion);
+        World world = new World(masterSeed, config, courseGeneratorVersion, CoursePoolPolicy.CORE_FOUR);
         world.bootstrap();
         return world;
     }
@@ -294,11 +296,15 @@ public final class World {
 
     /** Regenerates the seed-derived course pool (identical for the same seed/config); used by bootstrap and restore. */
     private void generateCoursePool() {
-        EnvironmentClassification[] classes = EnvironmentClassification.values();
         for (int i = 0; i < config.coursePoolSize(); i++) {
             SeedCoordinate coord = new SeedCoordinate(masterSeed, 0, i, 0, 0, 0, 0);
-            coursePool.add(CourseGenerator.generate(coord, classes[i % classes.length], courseGeneratorVersion));
+            coursePool.add(CourseGenerator.generate(coord, coursePoolPolicy.classificationAt(i), courseGeneratorVersion));
         }
+    }
+
+    /** Package-visible for checking seed-derived pool provenance without changing the player-facing API. */
+    Course courseAt(int index) {
+        return coursePool.get(index);
     }
 
     /** Creates a default-sized World. */
@@ -346,14 +352,15 @@ public final class World {
                 staffPool.available(),
                 playerActiveEquipmentDeal, new ArrayList<>(playerPendingEquipmentDeals),
                 new EnumMap<>(unlockedAchievements), new LinkedHashSet<>(majorsWonThisSeason),
-                playerCareerRecords.snapshot(), courseGeneratorVersion, defaultPinPlacementVersion);
+                playerCareerRecords.snapshot(), courseGeneratorVersion, defaultPinPlacementVersion, coursePoolPolicy);
     }
 
     /** Rebuilds an identical world from a snapshot, regenerating the seed-derived parts (spec: world-snapshot). */
     public static World restore(long masterSeed, WorldConfig config, WorldSnapshot s) {
         int version = s.courseGeneratorVersion() == null
                 ? CourseGenConstants.V1_GENERATOR_VERSION : s.courseGeneratorVersion();
-        World w = new World(masterSeed, config, version);
+        World w = new World(masterSeed, config, version, s.coursePoolPolicy() == null
+                ? CoursePoolPolicy.LEGACY_SIX : s.coursePoolPolicy());
         w.defaultPinPlacementVersion = s.defaultPinPlacementVersion() == null
                 ? PinPlacementVersion.LEGACY_V1 : s.defaultPinPlacementVersion();
         w.generateCoursePool();

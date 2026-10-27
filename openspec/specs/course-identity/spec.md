@@ -21,10 +21,22 @@ Every Course SHALL possess a unique, stable identity comprising a unique identif
 
 Every Course SHALL belong to exactly one environment classification from: Links, Parkland, Desert, Mountain, Coastal, Woodland. Classification is data that other domains read to influence weather generation and strategic character; the Course domain SHALL NOT itself generate weather.
 
+New worlds SHALL select pool courses only from Links, Parkland, Desert, and Woodland. Mountain and Coastal SHALL remain valid classifications for restored worlds. The current visual mapping presents Woodland as Heathland; it is not currently a Parkland presentation variant.
+
 #### Scenario: Exactly one classification per course
 
 - **WHEN** a Course is generated
 - **THEN** it SHALL declare exactly one environment classification from the defined set
+
+#### Scenario: New world selects the core course set
+
+- **WHEN** a new world generates its course pool
+- **THEN** every course SHALL be classified as Links, Parkland, Desert, or Woodland
+
+#### Scenario: Historical classifications remain valid
+
+- **WHEN** a world created before core-family consolidation is restored
+- **THEN** Mountain and Coastal course identities SHALL remain loadable and playable
 
 #### Scenario: Classification is read, not acted upon, by the course
 

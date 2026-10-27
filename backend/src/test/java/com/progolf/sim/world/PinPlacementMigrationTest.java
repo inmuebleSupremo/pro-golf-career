@@ -80,7 +80,8 @@ class PinPlacementMigrationTest {
                 s.schedule().stream().map(PinPlacementMigrationTest::legacy).toList(), s.announcedProspects(),
                 s.playerControl(), s.playerPendingOffers(), s.playerPendingStaff(), s.playerPendingEquipment(),
                 s.achievedGoals(), s.staffPool(), s.playerActiveEquipmentDeal(), s.playerPendingEquipmentDeals(),
-                s.unlockedAchievements(), s.majorsWonThisSeason(), s.playerCareerRecords(), s.courseGeneratorVersion(), null);
+                s.unlockedAchievements(), s.majorsWonThisSeason(), s.playerCareerRecords(), s.courseGeneratorVersion(),
+                null, s.coursePoolPolicy());
     }
 
     private static ScheduledTournament legacy(ScheduledTournament event) {
