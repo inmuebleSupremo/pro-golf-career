@@ -118,10 +118,13 @@ Use Canvas only when SVG performance becomes a measurable bottleneck.
 Normal play uses the canonical SVG renderer. For a live Generator 8 hole with Parkland family,
 Parkland-resolved scene type, `GENERATOR_8_PRINCIPLED_ARCHITECTURE` provenance, and a playable boundary,
 the stage selects Premium Parkland V2. Generator 8 Links family holes with the same provenance and a
-playable boundary select Premium Links. Earlier-generator saves and holes outside those eligibility rules
-retain Current. Both premium presentations use the same backend geometry, aim coordinates, and shot trace;
+playable boundary select Premium Links. Generator 8 Heathland family holes additionally require the
+`HEATHLAND` canonical biome and a Heathland-resolved course type to select Premium Heathland. Earlier
+saves and holes outside those eligibility rules retain Current. Historical `WOODLAND` identity is
+preserved. All premium presentations use the same backend geometry, aim coordinates, and shot trace;
 their wider property is decorative. The Parkland Current/V1/V2 selector and fixed-seed previews remain
-development-only. See [Premium Links](premium-links.md) for the Links art and evidence.
+development-only. See [Premium Links](premium-links.md) and [Premium Heathland](premium-heathland.md)
+for their art, geometry, and evidence.
 
 ---
 

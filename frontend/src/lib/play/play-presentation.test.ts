@@ -34,7 +34,7 @@ describe("normal play presentation", () => {
       expect(resolveScene(token)).toBe(scene);
       expect(resolveBiome(token)).toBe(biome);
     }
-    for (const token of ["MOUNTAIN", "COASTAL", "TROPICAL"]) {
+    for (const token of ["DESERT", "MOUNTAIN", "COASTAL", "TROPICAL"]) {
       expect(defaultPlayPresentation({ ...generator8Parkland, courseType: token, canonicalBiome: token,
         courseFamily: token }))
         .toBe("polished");
@@ -47,8 +47,12 @@ describe("normal play presentation", () => {
     expect(defaultPlayPresentation(woodland)).toBe("premium");
     expect(defaultPlayPresentation({ ...woodland, courseFamily: "HEATHLAND", courseType: "HEATHLAND" }))
       .toBe("polished");
-    expect(defaultPlayPresentation({ ...woodland, canonicalBiome: "HEATHLAND", courseFamily: "HEATHLAND",
-      courseType: "HEATHLAND" })).toBe("polished");
+    const heathland = { ...woodland, canonicalBiome: "HEATHLAND", courseFamily: "HEATHLAND",
+      courseType: "HEATHLAND", geometry: { ...woodland.geometry!, regions: [
+        { surface: "GREEN", boundary: [{ x: -10, y: 390 }, { x: 10, y: 390 }, { x: 0, y: 410 }] },
+      ] } };
+    expect(defaultPlayPresentation(heathland)).toBe("premium");
+    expect(defaultPlayPresentation({ ...heathland, geometry: woodland.geometry })).toBe("polished");
   });
 
   it("uses V2 for authoritative Generator 8 Parkland geometry in production", () => {
