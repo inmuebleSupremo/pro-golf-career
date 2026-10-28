@@ -23,6 +23,9 @@ export function defaultPlayPresentation(hole: HoleGeom | null): "polished" | "pr
       || (hole.courseFamily === "LINKS" && resolveBiome(hole.courseType) === "links")
       || (hole.courseFamily === "HEATHLAND" && hole.canonicalBiome === "HEATHLAND"
         && resolveBiome(hole.courseType) === "heathland"
+        && hole.geometry?.regions.some((region) => region.surface === "GREEN" && region.boundary.length >= 3))
+      || (hole.courseFamily === "DESERT" && hole.canonicalBiome === "DESERT"
+        && resolveBiome(hole.courseType) === "desert"
         && hole.geometry?.regions.some((region) => region.surface === "GREEN" && region.boundary.length >= 3)))
     && hole.courseGeneratorVersion === 8
     && hole.canonicalGeometrySource === "GENERATOR_8_PRINCIPLED_ARCHITECTURE"

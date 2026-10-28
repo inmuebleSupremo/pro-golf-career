@@ -70,6 +70,17 @@ describe("normal play presentation", () => {
     expect(defaultPlayPresentation({ ...links, geometry: undefined })).toBe("polished");
   });
 
+  it("selects Premium Desert only for complete Generator 8 Desert geometry", () => {
+    const desert: HoleGeom = { ...generator8Parkland, courseType: "DESERT", canonicalBiome: "DESERT",
+      courseFamily: "DESERT", geometry: { ...generator8Parkland.geometry!, regions: [
+        { surface: "GREEN", boundary: [{ x: -10, y: 390 }, { x: 10, y: 390 }, { x: 0, y: 410 }] },
+      ] } };
+    expect(defaultPlayPresentation(desert)).toBe("premium");
+    expect(defaultPlayPresentation({ ...desert, courseGeneratorVersion: 7 })).toBe("polished");
+    expect(defaultPlayPresentation({ ...desert, courseFamily: undefined })).toBe("polished");
+    expect(defaultPlayPresentation({ ...desert, geometry: generator8Parkland.geometry })).toBe("polished");
+  });
+
   it("keeps Current for legacy saves, unsupported geometry and other biomes", () => {
     const unsupported: (HoleGeom | null)[] = [
       null,
