@@ -74,7 +74,7 @@ describe("physical putting presentation", () => {
 
   it("keeps ball, cup and a finite direct guide usable across the fixed distance matrix", () => {
     const green = [{ x: -40, y: -25 }, { x: 40, y: -25 }, { x: 40, y: 25 }, { x: -40, y: 25 }];
-    for (const feet of [0.5, 2, 10, 30, 60]) {
+    for (const feet of [0.5, 2, 10, 30, 60, 92]) {
       const ball = { x: 0, y: 0 };
       const cup = { x: feet / 3, y: 0 };
       const projector = physicalPuttingProjector(ball, cup, green);
