@@ -63,7 +63,7 @@ export function StageHole({
           {displayHole.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN" && displayHole.physicalGreen ? (
             <PhysicalPuttingGreen hole={displayHole} ball={playbackShot} aimDirection={physicalAimDirection}
               onAimDirection={onPhysicalAimDirection} showReading={showGreenReading}
-              onPlaybackComplete={onPhysicalPlaybackComplete} />
+              onPlaybackComplete={onPhysicalPlaybackComplete} presentation={presentation} />
           ) : <Hole2d hole={displayHole} ball={playbackShot} className={cn("block max-h-full touch-manipulation", presentation === "premium" ? "h-full w-full max-sm:w-auto max-sm:max-w-none max-sm:shrink-0" : "w-auto", onAimPoint && "cursor-crosshair")}
             aimPoint={aimPoint} onAimPoint={onAimPoint} presentation={presentation} />}
         </div>

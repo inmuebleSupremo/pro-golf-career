@@ -40,10 +40,10 @@ export type PhysicalPuttingProjector = {
  * Keeps a real, uniform yard-to-screen scale while framing the current decision instead of three times its
  * length. The optional footprint only constrains panning; it never changes ball/cup coordinates or scale.
  */
-export function physicalPuttingProjector(ball: Point, cup: Point, green: readonly Point[]): PhysicalPuttingProjector {
+export function physicalPuttingProjector(ball: Point, cup: Point, green: readonly Point[], visualPaddingYards?: number): PhysicalPuttingProjector {
   const { width, height, minimumViewHeightYards, contextPaddingYards } = PHYSICAL_PUTTING_PRESENTATION;
   const distance = Math.hypot(cup.x - ball.x, cup.y - ball.y);
-  const spanY = Math.max(minimumViewHeightYards, distance + contextPaddingYards * 2);
+  const spanY = Math.max(minimumViewHeightYards, distance + (visualPaddingYards ?? contextPaddingYards) * 2);
   const spanX = spanY * width / height;
   const centreX = (ball.x + cup.x) / 2;
   const centreY = (ball.y + cup.y) / 2;
