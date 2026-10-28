@@ -12,10 +12,13 @@ import { WindDisplay } from "@/components/play/wind-display";
 import { PremiumParklandBackdrop, PremiumParklandCanopies, PremiumParklandDefs, PremiumParklandLight, PremiumParklandPaths, PremiumParklandProperty, PremiumParklandShadows, PremiumParklandSurface } from "@/components/play/premium-parkland-art";
 import { PremiumLinksAtmosphere, PremiumLinksDefs, PremiumLinksLandscape, PremiumLinksProperty, PremiumLinksSurface } from "@/components/play/premium-links-art";
 import { PremiumHeathlandAtmosphere, PremiumHeathlandCanonicalPines, PremiumHeathlandDefs, PremiumHeathlandLandscape, PremiumHeathlandProperty, PremiumHeathlandSurface, planHeathlandDecoration } from "@/components/play/premium-heathland-art";
+import { PremiumDesertAtmosphere, PremiumDesertBunkerMask, PremiumDesertCanonicalTrees, PremiumDesertDefs, PremiumDesertLandscape, PremiumDesertProperty, PremiumDesertSurface, planDesertDecoration } from "@/components/play/premium-desert-art";
 import { premiumLinksCorridor } from "@/lib/play/premium-links-corridor";
 import { premiumLinksPropertyPlan } from "@/lib/play/premium-links-property";
 import { premiumHeathlandCorridor } from "@/lib/play/premium-heathland-corridor";
 import { premiumHeathlandPropertyPlan } from "@/lib/play/premium-heathland-property";
+import { premiumDesertCorridor } from "@/lib/play/premium-desert-corridor";
+import { premiumDesertPropertyPlan } from "@/lib/play/premium-desert-property";
 import { premiumDistantTrees, premiumSceneryWidth, premiumSurfacePrecedence, premiumTreePlans } from "@/lib/play/premium-parkland-decoration";
 import { isParklandFamily, isWoodlandVariation } from "@/lib/play/play-presentation";
 import { inPropertyClearing, isPremiumAimCoordinate, isPropertyPathCoordinate, premiumPropertyPlan } from "@/lib/play/premium-parkland-property";
@@ -104,11 +107,16 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     && hole.canonicalBiome === "HEATHLAND" && presentation === "premium"
     && hole.courseGeneratorVersion === 8
     && hole.canonicalGeometrySource === "GENERATOR_8_PRINCIPLED_ARCHITECTURE";
+  const premiumDesert = kit.biome === "desert" && hole.courseFamily === "DESERT"
+    && hole.canonicalBiome === "DESERT" && presentation === "premium"
+    && hole.courseGeneratorVersion === 8
+    && hole.canonicalGeometrySource === "GENERATOR_8_PRINCIPLED_ARCHITECTURE"
+    && geometry.regions.some((region) => region.surface === "GREEN" && region.boundary.length >= 3);
   const variation = isWoodlandVariation(hole) ? "woodland" : "open";
-  const fullStage = premiumLinks || premiumHeathland || premiumParkland && presentation === "premium";
+  const fullStage = premiumLinks || premiumHeathland || premiumDesert || premiumParkland && presentation === "premium";
   const viewHeight = useMemo(() => canonicalViewportHeight(geometry), [geometry]);
-  const model = useMemo(() => canonicalRenderModel(geometry, { width: W, height: viewHeight, padding: PAD, center: premiumParkland || premiumLinks || premiumHeathland }),
-    [geometry, viewHeight, premiumParkland, premiumLinks, premiumHeathland]);
+  const model = useMemo(() => canonicalRenderModel(geometry, { width: W, height: viewHeight, padding: PAD, center: premiumParkland || premiumLinks || premiumHeathland || premiumDesert }),
+    [geometry, viewHeight, premiumParkland, premiumLinks, premiumHeathland, premiumDesert]);
   const artId = useMemo(() => `${decorationId(hole.layoutSeed, geometry)}${fullStage ? "-v2" : ""}`,
     [geometry, hole.layoutSeed, fullStage]);
   const treeCanopies = useMemo(() => planTreeCanopies(geometry, hole.layoutSeed), [geometry, hole.layoutSeed]);
@@ -116,7 +124,7 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
   const v1SceneryX = -PARKLAND_SCENERY_MARGIN;
   const v1SceneryWidth = W + PARKLAND_SCENERY_MARGIN * 2;
   // The original crowns span this full width. A smaller V2 viewBox exposes unlit side strips on narrow stages.
-  const sceneryWidth = premiumLinks || premiumHeathland ? Math.max(W, viewHeight * stageAspect)
+  const sceneryWidth = premiumLinks || premiumHeathland || premiumDesert ? Math.max(W, viewHeight * stageAspect)
     : fullStage ? premiumSceneryWidth(viewHeight, stageAspect, v1SceneryWidth) : v1SceneryWidth;
   const sceneryX = (W - sceneryWidth) / 2;
   const premiumTrees = useMemo(() => premiumParkland ? premiumTreePlans(geometry, hole.layoutSeed, model,
@@ -129,14 +137,16 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
   [premiumParkland, geometry, hole.layoutSeed, model, v1SceneryX, v1SceneryWidth, viewHeight, variation, fullStage]);
   const protectedTrees = useMemo(() => [...originalTrees, ...premiumTrees.flatMap((plan) => plan.trees)],
     [originalTrees, premiumTrees]);
-  const property = useMemo(() => premiumHeathland
+  const property = useMemo(() => premiumDesert
+    ? premiumDesertPropertyPlan(geometry, model, hole.layoutSeed, hole.par, hole.holeNumber, sceneryX, sceneryWidth, viewHeight)
+    : premiumHeathland
     ? premiumHeathlandPropertyPlan(geometry, model, hole.layoutSeed, hole.par, hole.holeNumber, sceneryX, sceneryWidth, viewHeight)
     : premiumLinks
     ? premiumLinksPropertyPlan(geometry, model, hole.layoutSeed, hole.par, hole.holeNumber, sceneryX, sceneryWidth, viewHeight)
     : fullStage
     ? premiumPropertyPlan(geometry, model, hole.layoutSeed, hole.par, hole.holeNumber, sceneryX, sceneryWidth,
       viewHeight, protectedTrees, v1SceneryX, v1SceneryX + v1SceneryWidth)
-    : null, [fullStage, premiumLinks, premiumHeathland, geometry, model, hole.layoutSeed, hole.par, hole.holeNumber, sceneryX, sceneryWidth, viewHeight,
+    : null, [fullStage, premiumLinks, premiumHeathland, premiumDesert, geometry, model, hole.layoutSeed, hole.par, hole.holeNumber, sceneryX, sceneryWidth, viewHeight,
       protectedTrees, v1SceneryX, v1SceneryWidth]);
   const distantTrees = useMemo(() => {
     if (!premiumParkland) return [];
@@ -165,6 +175,18 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     ? planHeathlandDecoration(geometry, model, heathlandCorridor, property, hole.layoutSeed,
       sceneryX, sceneryWidth, viewHeight) : [],
   [premiumHeathland, geometry, model, heathlandCorridor, property, hole.layoutSeed, sceneryX, sceneryWidth, viewHeight]);
+  const desertRegions = useMemo(() => premiumDesert ? [...model.terrain].sort((a, b) =>
+    premiumSurfacePrecedence(b.surface) - premiumSurfacePrecedence(a.surface)) : [], [premiumDesert, model]);
+  const desertCorridor = useMemo(() => premiumDesert ? premiumDesertCorridor(geometry, model, viewHeight) : null,
+    [premiumDesert, geometry, model, viewHeight]);
+  const desertDecoration = useMemo(() => premiumDesert
+    ? planDesertDecoration(geometry, model, desertCorridor, property, hole.layoutSeed,
+      sceneryX, sceneryWidth, viewHeight) : [],
+  [premiumDesert, geometry, model, desertCorridor, property, hole.layoutSeed, sceneryX, sceneryWidth, viewHeight]);
+  const desertBunkers = useMemo(() => premiumDesert ? [
+    ...model.terrain.filter((region) => region.surface === "BUNKER").map((region) => region.path),
+    ...(property?.glimpses.flatMap((glimpse) => glimpse.regions.filter((region) => region.surface === "BUNKER")
+      .map((region) => region.path)) ?? [])] : [], [premiumDesert, model, property]);
   const svgRef = useRef<SVGSVGElement>(null);
   useLayoutEffect(() => {
     if (!fullStage || !svgRef.current) return;
@@ -244,7 +266,7 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
   const recoveryLabel = transitionLabel(trace);
   const playbackStatus = tracePlaybackStatus(trace, playback);
   return <svg ref={svgRef} viewBox={`${fullStage || premiumParkland ? sceneryX : 0} 0 ${fullStage || premiumParkland ? sceneryWidth : W} ${viewHeight}`} className={className} role="img"
-    style={premiumLinks || premiumHeathland ? { overflow: "hidden", backgroundColor: premiumHeathland ? "#728257" : "#b5a863" } : undefined}
+    style={premiumLinks || premiumHeathland || premiumDesert ? { overflow: "hidden", backgroundColor: premiumDesert ? "#aa8357" : premiumHeathland ? "#728257" : "#b5a863" } : undefined}
     aria-label={`Hole ${hole.holeNumber}, par ${hole.par}, canonical terrain${trace ? `, ${trace.club} shot result` : onAimPoint ? ", click or tap to aim" : ""}`}
     onPointerDown={selectTarget}>
     {polishedParkland ? <ParklandDefs artId={artId} model={model} treeCanopies={treeCanopies} /> : null}
@@ -252,6 +274,9 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
       height={viewHeight} fullStage={fullStage} /> : null}
     {premiumLinks ? <PremiumLinksDefs id={artId} left={sceneryX} width={sceneryWidth} height={viewHeight} /> : null}
     {premiumHeathland ? <PremiumHeathlandDefs id={artId} /> : null}
+    {premiumDesert ? <PremiumDesertDefs id={artId} /> : null}
+    {premiumDesert ? <PremiumDesertBunkerMask id={artId} left={sceneryX} width={sceneryWidth}
+      height={viewHeight} bunkers={desertBunkers} /> : null}
     {premiumLinks && linksCorridor ? <defs>
       <linearGradient id={`${artId}-links-terrain-fade`} gradientUnits="userSpaceOnUse" x1="0"
         y1={linksCorridor.greenBounds.maxY + 12} x2="0" y2={linksCorridor.greenBounds.maxY + 67}>
@@ -272,6 +297,21 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
         <rect x={sceneryX} width={sceneryWidth} height={viewHeight} fill={`url(#${artId}-heath-terrain-fade)`} />
       </mask>
     </defs> : null}
+    {premiumDesert && desertCorridor ? <defs>
+      <linearGradient id={`${artId}-desert-terrain-fade`} gradientUnits="userSpaceOnUse" x1="0"
+        y1="0" x2="0" y2={viewHeight}>
+        <stop offset="0" stopColor="black" />
+        <stop offset={Math.min(1, (desertCorridor.greenBounds.maxY + 12) / viewHeight)} stopColor="black" />
+        <stop offset={Math.min(1, (desertCorridor.greenBounds.maxY + 67) / viewHeight)} stopColor="white" />
+        <stop offset={Math.max(0, (tee.y - 48) / viewHeight)} stopColor="white" />
+        <stop offset={Math.max(0, (tee.y + 12) / viewHeight)} stopColor="black" />
+        <stop offset="1" stopColor="black" />
+      </linearGradient>
+      <mask id={`${artId}-desert-terrain-mask`} maskUnits="userSpaceOnUse" x={sceneryX} y="0"
+        width={sceneryWidth} height={viewHeight}>
+        <rect x={sceneryX} width={sceneryWidth} height={viewHeight} fill={`url(#${artId}-desert-terrain-fade)`} />
+      </mask>
+    </defs> : null}
     {kit.biome === "links" && !premiumLinks ? <LinksDefs artId={artId} /> : null}
     {polishedParkland ? <><rect width={W} height={viewHeight} fill={`url(#${artId}-out)`} />
       <rect width={W} height={viewHeight} fill={`url(#${artId}-parkland-landscape)`} opacity=".36" /></> : null}
@@ -283,12 +323,31 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     {premiumLinks ? <PremiumLinksLandscape id={artId} left={sceneryX} width={sceneryWidth} height={viewHeight} seed={hole.layoutSeed} /> : null}
     {premiumHeathland ? <PremiumHeathlandLandscape id={artId} left={sceneryX} width={sceneryWidth}
       height={viewHeight} vegetation={heathlandVegetation} /> : null}
+    {premiumDesert ? <PremiumDesertLandscape id={artId} left={sceneryX} width={sceneryWidth}
+      height={viewHeight} decoration={desertDecoration} /> : null}
     {property && premiumParkland ? <PremiumParklandProperty artId={artId} plan={property} /> : null}
     {property && premiumLinks ? <PremiumLinksProperty id={artId} plan={property} /> : null}
     {property && premiumHeathland ? <PremiumHeathlandProperty id={artId} plan={property} /> : null}
-    {!premiumParkland && !premiumLinks && !premiumHeathland ? <path d={model.playableBoundaryPath} fill={polishedParkland ? `url(#${artId}-out)` : polishedLinks ? `url(#${artId}-links-out)` : kit.out} /> : null}
+    {property && premiumDesert ? <PremiumDesertProperty id={artId} plan={property} /> : null}
+    {!premiumParkland && !premiumLinks && !premiumHeathland && !premiumDesert ? <path d={model.playableBoundaryPath} fill={polishedParkland ? `url(#${artId}-out)` : polishedLinks ? `url(#${artId}-links-out)` : kit.out} /> : null}
     {polishedLinks ? <path d={model.playableBoundaryPath} fill={`url(#${artId}-links-dunes)`} opacity=".44" /> : null}
-    {premiumHeathland ? <>
+    {premiumDesert ? <>
+      <g mask={`url(#${artId}-desert-bunker-cutouts)`} pointerEvents="none">
+        {desertCorridor?.bands.map((band, index) => <path key={index} d={band.path}
+          fill={index === 4 ? `url(#${artId}-desert-turf)` : ["#c39b69", "#5c7c42", "#6f9c47", "#80b250"][index]}
+          data-desert-cap-band={index} />)}
+        <g mask={desertCorridor ? `url(#${artId}-desert-terrain-mask)` : undefined}>
+          {desertRegions.filter((region) => ["DEEP_ROUGH", "PRIMARY_ROUGH", "FIRST_CUT", "FAIRWAY"].includes(region.surface))
+            .map((region, index) => <PremiumDesertSurface key={`desert-terrain-${region.surface}-${index}`} id={artId} region={region} />)}
+        </g>
+        {desertRegions.filter((region) => !["DEEP_ROUGH", "PRIMARY_ROUGH", "FIRST_CUT", "FAIRWAY", "BUNKER", "WATER"].includes(region.surface))
+          .map((region, index) => <PremiumDesertSurface key={`desert-top-${region.surface}-${index}`} id={artId} region={region} />)}
+      </g>
+      {desertRegions.filter((region) => region.surface === "BUNKER" || region.surface === "WATER")
+        .map((region, index) => <PremiumDesertSurface key={`desert-hazard-${index}`} id={artId} region={region} />)}
+      <PremiumDesertCanonicalTrees id={artId} decoration={desertDecoration} />
+      <PremiumDesertAtmosphere id={artId} left={sceneryX} width={sceneryWidth} height={viewHeight} />
+    </> : premiumHeathland ? <>
       {heathlandCorridor?.bands.map((band, index) => <path key={index} d={band.path}
         fill={index === 3 ? `url(#${artId}-heath-fairway)` : ["#556a4c", "#687d50", "#8dae62"][index]}
         pointerEvents="none" data-heathland-cap-band={index} />)}
@@ -325,7 +384,7 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
       path={region.path} fill={fills(region.surface, kit, artId)} artId={artId} polishedParkland={polishedParkland}
       polishedLinks={polishedLinks} />)}
     {polishedParkland ? <ParklandCanopies artId={artId} model={model} treeCanopies={treeCanopies} /> : null}
-    {!premiumParkland && !premiumLinks && !premiumHeathland ? <path d={model.playableBoundaryPath} fill="none" stroke={polishedLinks ? LINKS_MATERIAL.duneContour : "rgba(255,255,255,.28)"}
+    {!premiumParkland && !premiumLinks && !premiumHeathland && !premiumDesert ? <path d={model.playableBoundaryPath} fill="none" stroke={polishedLinks ? LINKS_MATERIAL.duneContour : "rgba(255,255,255,.28)"}
       strokeWidth={polishedLinks ? ".8" : "1"} opacity={polishedLinks ? ".7" : undefined} pointerEvents="none" /> : null}
     <rect x={tee.x - 7} y={tee.y - 3} width="14" height="6" rx="2" fill={kit.tee}
       stroke={polishedParkland || premiumParkland ? PARKLAND_MATERIAL.markerOutline : undefined} strokeWidth={polishedParkland || premiumParkland ? ".7" : undefined} />

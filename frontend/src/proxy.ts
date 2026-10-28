@@ -10,7 +10,7 @@ import { ACCESS_COOKIE, REFRESH_COOKIE } from "@/lib/auth/cookie-names";
  * gate: a present-but-invalid cookie passes here and is rejected at the API.
  */
 const PUBLIC_PATHS = ["/", "/login", "/register", "/scenes",
-  ...(process.env.NODE_ENV === "development" ? ["/dev/wind-preview", "/dev/parkland-preview", "/dev/links-preview", "/dev/architecture-preview", "/dev/premium-parkland-preview", "/dev/premium-links-preview", "/dev/premium-links-source", "/dev/premium-heathland-preview", "/dev/premium-heathland-source"] : []),
+  ...(process.env.NODE_ENV === "development" ? ["/dev/wind-preview", "/dev/parkland-preview", "/dev/links-preview", "/dev/architecture-preview", "/dev/premium-parkland-preview", "/dev/premium-links-preview", "/dev/premium-links-source", "/dev/premium-heathland-preview", "/dev/premium-heathland-source", "/dev/premium-desert-preview", "/dev/premium-desert-source"] : []),
 ];
 
 function isPublic(pathname: string): boolean {
