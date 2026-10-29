@@ -59,7 +59,7 @@ export function StageHole({
   return (
     <>
       {displayHole ? (
-        <div className={cn("flex h-full w-full items-center justify-center", presentation === "premium" && "max-sm:overflow-hidden")}>
+        <div className={cn("relative flex h-full w-full items-center justify-center", presentation === "premium" && "max-sm:overflow-hidden")}>
           {displayHole.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN" && displayHole.physicalGreen ? (
             <PhysicalPuttingGreen hole={displayHole} ball={playbackShot} aimDirection={physicalAimDirection}
               onAimDirection={onPhysicalAimDirection} showReading={showGreenReading}
