@@ -3,6 +3,7 @@ import { isParklandFamily } from "./play-presentation";
 import type { PhysicalPuttingProjector } from "./physical-putting";
 
 export type PuttingFamily = "parkland" | "links" | "heathland" | "desert";
+export type PuttingScene = { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
 
 /** A presentation choice only. The physical-putting route and solver remain unchanged. */
 export function premiumPuttingFamily(hole: HoleGeom, presentation: string): PuttingFamily | null {
@@ -63,7 +64,8 @@ export function distanceToPolygon(point: Point, polygon: readonly Point[]): numb
 }
 
 /** One deterministic plan per green/camera. Objects are excluded from physical surfaces. */
-export function puttingDecoration(hole: HoleGeom, projector: PhysicalPuttingProjector, family: PuttingFamily) {
+export function puttingDecoration(hole: HoleGeom, projector: PhysicalPuttingProjector, family: PuttingFamily,
+  scene: PuttingScene = { x: 0, y: 0, width: projector.width, height: projector.height }) {
   const regions = hole.geometry!.regions;
   const protectedAreas = regions.filter((r) => ["GREEN", "FRINGE", "BUNKER", "WATER", "FAIRWAY"].includes(r.surface) && validPolygon(r.boundary));
   const treeAreas = regions.filter((r) => r.surface === "TREES" && validPolygon(r.boundary));
@@ -71,9 +73,11 @@ export function puttingDecoration(hole: HoleGeom, projector: PhysicalPuttingProj
   let state = [...`${hole.layoutSeed}:${hole.holeNumber}:${family}`].reduce((hash, char) => Math.imul(hash ^ char.charCodeAt(0), 16777619), 2166136261) >>> 0;
   const random = () => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 4294967296);
   const objects: { x: number; y: number; radius: number; kind: "tree" | "heather" | "gorse" | "fescue" | "rock" | "shrub" | "cactus" }[] = [];
-  const count = family === "parkland" ? hole.canonicalBiome === "WOODLAND" ? 155 : 130 : family === "heathland" ? 105 : 95;
-  for (let i = 0; i < count * 8 && objects.length < count; i++) {
-    const x = random() * projector.width, y = random() * projector.height;
+  const extent = scene.width * scene.height / (projector.width * projector.height);
+  const count = Math.round((family === "parkland" ? hole.canonicalBiome === "WOODLAND" ? 190 : 160
+    : family === "heathland" ? 145 : family === "links" ? 155 : 125) * extent);
+  for (let i = 0; i < count * 12 && objects.length < count; i++) {
+    const x = scene.x + random() * scene.width, y = scene.y + random() * scene.height;
     const world = projector.unproject({ x, y });
     const radius = family === "parkland" ? 5 + random() * 8 : 2 + random() * 6;
     const worldRadius = radius / projector.pixelsPerYard;
@@ -82,9 +86,10 @@ export function puttingDecoration(hole: HoleGeom, projector: PhysicalPuttingProj
     const onPlayableGround = pointInPolygon(world, playable);
     if (objects.some((other) => Math.hypot(other.x - x, other.y - y) < (other.radius + radius) * .75)) continue;
     const choice = random();
-    const woodlandEdge = x < 70 || x > projector.width - 70 || y < 40 || y > projector.height - 40;
-    const kind = family === "parkland" ? (!onPlayableGround || inTrees || woodlandEdge && distanceToPolygon(world, regions.find((r) => r.surface === "FRINGE")!.boundary) > worldRadius + 3 ? "tree" : "shrub")
-      : family === "links" ? (choice < .84 ? "fescue" : "rock")
+    const woodlandCanopy = hole.canonicalBiome === "WOODLAND" && choice < .58
+      && distanceToPolygon(world, regions.find((r) => r.surface === "FRINGE")!.boundary) > worldRadius + 4;
+    const kind = family === "parkland" ? (!onPlayableGround || inTrees || woodlandCanopy ? "tree" : "shrub")
+      : family === "links" ? "fescue"
       : family === "heathland" ? (choice < .56 ? "heather" : choice < .82 ? "gorse" : choice < .89 && (!onPlayableGround || inTrees) ? "tree" : "rock")
       : (choice < .52 ? "shrub" : choice < .70 ? "cactus" : "rock");
     objects.push({ x, y, radius, kind });

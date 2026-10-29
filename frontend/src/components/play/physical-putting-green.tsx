@@ -26,11 +26,32 @@ export function PhysicalPuttingGreen({
   presentation?: string;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const [stageAspect, setStageAspect] = useState(16 / 9);
   const clipId = useId().replace(/:/g, "");
   const trajectory = useMemo(() => ball?.physicalPutt?.trajectory ?? [], [ball?.physicalPutt?.trajectory]);
   const origin = trajectory[0]?.position ?? hole.ball?.position ?? hole.geometry!.tee;
   const green = useMemo(() => hole.geometry!.regions.find((region) => region.surface === "GREEN")?.boundary ?? [], [hole.geometry]);
   const premiumFamily = premiumPuttingFamily(hole, presentation);
+  useLayoutEffect(() => {
+    if (!premiumFamily || !svgRef.current) return;
+    const svg = svgRef.current;
+    const update = () => {
+      const { width, height } = svg.getBoundingClientRect();
+      if (width > 0 && height > 0) setStageAspect((current) => Math.abs(current - width / height) > .01 ? width / height : current);
+    };
+    update();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(svg);
+    window.addEventListener("resize", update);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", update); };
+  }, [premiumFamily]);
+  const scene = useMemo(() => {
+    const { width, height } = PHYSICAL_PUTTING_PRESENTATION;
+    if (!premiumFamily) return { x: 0, y: 0, width, height };
+    const sceneWidth = Math.max(width, height * stageAspect);
+    const sceneHeight = Math.max(height, width / stageAspect);
+    return { x: (width - sceneWidth) / 2, y: (height - sceneHeight) / 2, width: sceneWidth, height: sceneHeight };
+  }, [premiumFamily, stageAspect]);
   const cupDistanceFeet = Math.hypot(hole.geometry!.cup.x - origin.x, hole.geometry!.cup.y - origin.y) * 3;
   const visualPadding = premiumFamily ? cupDistanceFeet >= 45 ? 6 : cupDistanceFeet >= 15 ? 3.5 : 2 : undefined;
   const projector = useMemo(() => physicalPuttingProjector(origin, hole.geometry!.cup, green, visualPadding), [green, origin, hole.geometry, visualPadding]);
@@ -79,6 +100,11 @@ export function PhysicalPuttingGreen({
     Math.hypot(hole.geometry!.cup.x - origin.x, hole.geometry!.cup.y - origin.y)));
   const cupMarkerRadius = physicalWorldMarkerRadius(PHYSICAL_CUP_RADIUS_YARDS, projector.pixelsPerYard);
   const ballMarkerRadius = physicalWorldMarkerRadius(PHYSICAL_BALL_RADIUS_YARDS, projector.pixelsPerYard);
+  // Flag artwork follows the existing yard-to-screen scale; physical ball/cup dimensions stay separate.
+  const flagScale = Math.max(1, Math.min(1.8, Math.sqrt(projector.pixelsPerYard / 9)));
+  const flagHeight = 15 * flagScale;
+  const flagWidth = 8 * flagScale;
+  const flagHalfHeight = 3 * flagScale;
   const cupLocatorRadius = physicalCupLocatorRadius(cupMarkerRadius);
   const ballLocatorRadius = physicalBallLocatorRadius(ballMarkerRadius);
 
@@ -87,7 +113,7 @@ export function PhysicalPuttingGreen({
     const screenMatrix = svgRef.current.getScreenCTM();
     if (!screenMatrix) return;
     const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(screenMatrix.inverse());
-    if (local.x < 0 || local.x > projector.width || local.y < 0 || local.y > projector.height) return;
+    if (local.x < scene.x || local.x > scene.x + scene.width || local.y < scene.y || local.y > scene.y + scene.height) return;
     const target = projector.unproject({ x: local.x, y: local.y });
     const dx = target.x - origin.x;
     const dy = target.y - origin.y;
@@ -95,9 +121,9 @@ export function PhysicalPuttingGreen({
     if (length > 0.01) onAimDirection({ x: dx / length, y: dy / length });
   }
 
-  return <svg ref={svgRef} viewBox={`0 0 ${PHYSICAL_PUTTING_PRESENTATION.width} ${PHYSICAL_PUTTING_PRESENTATION.height}`} className={premiumFamily ? "block h-full w-full touch-manipulation" : "block max-h-full max-w-full"} role="img"
+  return <svg ref={svgRef} viewBox={`${scene.x} ${scene.y} ${scene.width} ${scene.height}`} className={premiumFamily ? "absolute inset-0 block h-full w-full touch-manipulation" : "block max-h-full max-w-full"} role="img"
     aria-label="Physical putting green: choose a starting line by clicking the green" onPointerDown={chooseLine}>
-    {premiumFamily ? <PremiumPuttingTerrain hole={hole} projector={projector} family={premiumFamily} id={clipId} greenPath={greenPath}/>
+    {premiumFamily ? <PremiumPuttingTerrain hole={hole} projector={projector} family={premiumFamily} id={clipId} greenPath={greenPath} scene={scene}/>
       : <rect width={PHYSICAL_PUTTING_PRESENTATION.width} height={PHYSICAL_PUTTING_PRESENTATION.height} fill={PHYSICAL_PUTTING_SVG_STYLE.canvasFill} />}
     <defs><clipPath id={clipId}><path d={greenPath} /></clipPath></defs>
     {!premiumFamily ? <><path d={greenPath} fill={PHYSICAL_PUTTING_SVG_STYLE.greenFill} fillOpacity=".62" stroke="var(--border-strong)" strokeWidth="2" />
@@ -116,7 +142,10 @@ export function PhysicalPuttingGreen({
     <g aria-label="Physical cup opening, 4.25 inches">
       {premiumFamily ? <ellipse cx={cup.x + 1.2} cy={cup.y + 1.7} rx={Math.max(2, cupMarkerRadius * 1.3)} ry={Math.max(1.3, cupMarkerRadius * .8)} fill="#223e23" opacity=".38" pointerEvents="none"/> : null}
       <circle cx={cup.x} cy={cup.y} r={cupMarkerRadius} fill={premiumFamily ? "#0c1811" : PHYSICAL_PUTTING_SVG_STYLE.cupFill} stroke={premiumFamily ? "#c8d9b0" : "var(--gold)"} strokeWidth={Math.max(.6, cupMarkerRadius * .22)} pointerEvents="none" />
-      {premiumFamily ? <g pointerEvents="none" opacity=".86"><path d={`M${cup.x + 1} ${cup.y - 2} v -15`} stroke="#f3eee1" strokeWidth="1"/><path d={`M${cup.x + 2} ${cup.y - 17} l 8 3 -8 3 Z`} fill="#e45d48"/></g> : null}
+      {premiumFamily ? <g pointerEvents="none" opacity=".86" aria-label="Flag anchored at cup">
+        <path d={`M${cup.x} ${cup.y} v ${-flagHeight}`} stroke="#f3eee1" strokeWidth={Math.min(1.5, flagScale)}/>
+        <path d={`M${cup.x} ${cup.y - flagHeight} l ${flagWidth} ${flagHalfHeight} ${-flagWidth} ${flagHalfHeight} Z`} fill="#e45d48"/>
+      </g> : null}
     </g>
     {ballLocatorRadius ? <g aria-label="Ball location aid, not to scale" pointerEvents="none">
       <circle cx={ballPoint.x} cy={ballPoint.y} r={ballLocatorRadius} fill="none" stroke={premiumFamily ? "#fff" : "var(--foreground)"} strokeWidth="1.2" strokeOpacity=".88" />
