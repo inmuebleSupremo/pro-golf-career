@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, EyeOff, X } from "lucide-react";
 
@@ -18,6 +18,7 @@ import { acceptCourseAim, aimWithinEnvelope, buildBallStrikeIntent, currentAimPo
 import { currentPhysicalPuttControls, cupDirectedLine, physicalPuttControlSource, validPaceFeet } from "@/lib/play/physical-putting";
 import { shotSubmissionFeedback } from "@/lib/play/shot-feedback";
 import { formatShotDistance, shotDistanceReadout } from "@/lib/play/distance";
+import type { StageViewport } from "@/lib/play/stage-viewport";
 import {
   formatScore,
   Leaderboard,
@@ -62,6 +63,7 @@ export function PlayMode({
   pressure,
   playerGolferId,
   courseGeneratorVersion,
+  layoutOverride,
 }: {
   id: string;
   event: CurrentEvent | null;
@@ -72,6 +74,8 @@ export function PlayMode({
   pressure: number | null;
   playerGolferId: string | null;
   courseGeneratorVersion: number;
+  /** Development evidence only: the same production stage with its previous stacked composition. */
+  layoutOverride?: "stacked";
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<DrawerTab | null>(null);
@@ -97,6 +101,33 @@ export function PlayMode({
     setPhysicalAimState({ revision: situation.shotRevision, source: physicalAimSource, direction });
   const [showGreenReading, setShowGreenReading] = useState(false);
   const [parklandPresentation, setParklandPresentation] = useState<PlayPresentation | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const [stageViewport, setStageViewport] = useState<StageViewport>();
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const header = headerRef.current;
+    const dock = dockRef.current;
+    if (!root || !header || !dock) return;
+    const update = () => {
+      const bounds = root.getBoundingClientRect();
+      const headerBounds = header.getBoundingClientRect();
+      const dockBounds = dock.getBoundingClientRect();
+      const next = { width: bounds.width, height: bounds.height,
+        safeTop: headerBounds.bottom - bounds.top + 16,
+        safeBottom: bounds.bottom - dockBounds.top + 16 };
+      setStageViewport((current) => current?.width === next.width && current.height === next.height
+        && current.safeTop === next.safeTop && current.safeBottom === next.safeBottom ? current : next);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(root);
+    observer.observe(header);
+    observer.observe(dock);
+    return () => observer.disconnect();
+  }, []);
 
   // The client-side sequence: it owns what the stage shows and when the shot controls are locked, so the
   // between-hole ceremony (hole-out → score → wipe → intro) can play out over the server's instant advance.
@@ -112,18 +143,19 @@ export function PlayMode({
   }, []);
 
   const position = playerGolferId ? (leaderboard.find((r) => r.golfer.id === playerGolferId)?.position ?? null) : null;
-  const showParklandPrototype = process.env.NODE_ENV === "development"
+  const showParklandPrototype = process.env.NODE_ENV === "development" && id !== "fixture-evidence"
     && isParklandFamily(seq.displayHole);
   const selectedPresentation = playPresentation(seq.displayHole, parklandPresentation, showParklandPrototype);
+  const fullBleed = selectedPresentation === "premium" && !!seq.displayHole && layoutOverride !== "stacked";
   const toggle = (t: DrawerTab) => setTab((prev) => (prev === t ? null : t));
 
   return (
-    <div
+    <div ref={rootRef}
       role="dialog"
       aria-label={`Playing ${event?.name ?? "your event"}`}
-      className="bg-background fixed inset-0 z-[var(--z-modal)] flex flex-col"
+      className="bg-background fixed inset-0 z-[var(--z-modal)] isolate flex flex-col overflow-hidden"
     >
-      <PlayHud
+      <div ref={headerRef} className={cn(fullBleed && "relative z-20 shrink-0")}><PlayHud
         event={event}
         round={scorecard?.roundNumber ?? null}
         toPar={scorecard?.toPar ?? null}
@@ -131,10 +163,10 @@ export function PlayMode({
         tab={tab}
         onToggle={toggle}
         onLeave={() => router.push(`/career/${id}`)}
-      />
+      /></div>
 
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
-        <section className="relative flex min-w-0 flex-1 items-center justify-center overflow-hidden p-4">
+      <div className={cn("relative flex min-h-0 flex-1 overflow-hidden", fullBleed && "absolute inset-0 z-0")}>
+        <section className={cn("relative flex min-w-0 flex-1 items-center justify-center overflow-hidden", !fullBleed && "p-4")}>
           <StageHole
             displayHole={seq.displayHole}
             situation={seq.displaySituation}
@@ -149,6 +181,7 @@ export function PlayMode({
             showGreenReading={showGreenReading}
             onPhysicalPlaybackComplete={seq.onPhysicalPlaybackComplete}
             presentation={selectedPresentation}
+            stageViewport={fullBleed ? stageViewport : undefined}
           />
           {showParklandPrototype && !(hole?.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN") ? (
             <div className="border-border bg-background/90 absolute right-4 bottom-4 z-10 flex items-center gap-1 rounded-md border p-1 shadow-lg" aria-label="Development Parkland presentation comparison">
@@ -162,21 +195,9 @@ export function PlayMode({
             </div>
           ) : null}
         </section>
-
-        <InfoDrawer
-          tab={tab}
-          onTab={setTab}
-          onClose={() => setTab(null)}
-          event={event}
-          scorecard={scorecard}
-          leaderboard={leaderboard}
-          playerGolferId={playerGolferId}
-          courseGeneratorVersion={courseGeneratorVersion}
-          hole={hole}
-        />
       </div>
 
-      <ActionDock
+      <div ref={dockRef} className={cn(fullBleed && "relative z-20 mt-auto shrink-0")}><ActionDock
         key={`${situation.holeNumber}-${situation.shotNumber}-${situation.shotRevision}`}
         id={id}
         situation={situation}
@@ -191,7 +212,13 @@ export function PlayMode({
         physicalAimDirection={physicalAimDirection}
         showGreenReading={showGreenReading}
         onToggleGreenReading={() => setShowGreenReading((current) => !current)}
-      />
+        floating={fullBleed}
+      /></div>
+      <div className="pointer-events-none absolute inset-0 z-30" aria-hidden={!tab}>
+        <InfoDrawer tab={tab} onTab={setTab} onClose={() => setTab(null)} event={event}
+          scorecard={scorecard} leaderboard={leaderboard} playerGolferId={playerGolferId}
+          courseGeneratorVersion={courseGeneratorVersion} hole={hole} />
+      </div>
     </div>
   );
 }
@@ -221,7 +248,7 @@ function PlayHud({
   onLeave: () => void;
 }) {
   return (
-    <header className="border-border bg-surface/70 flex items-center gap-4 border-b px-4 py-2.5 backdrop-blur-md md:px-6">
+    <header className="border-border bg-background/70 flex items-center gap-4 border-b px-4 py-2.5 backdrop-blur-md md:px-6">
       <button
         onClick={onLeave}
         className="text-muted-foreground hover:text-foreground inline-flex shrink-0 items-center gap-1.5 text-sm transition-colors"
@@ -285,6 +312,7 @@ function ActionDock({
   physicalAimDirection,
   showGreenReading,
   onToggleGreenReading,
+  floating,
 }: {
   id: string;
   situation: Situation;
@@ -300,6 +328,7 @@ function ActionDock({
   physicalAimDirection: { x: number; y: number };
   showGreenReading: boolean;
   onToggleGreenReading: () => void;
+  floating: boolean;
 }) {
   const play = usePlayShot(id);
   const putt = usePlayPutt(id);
@@ -367,7 +396,9 @@ function ActionDock({
   }
 
   return (
-    <footer className="border-border bg-surface relative z-20 shrink-0 border-t px-4 py-2.5 md:px-6">
+    <footer className={cn("border-border relative shrink-0 px-4 py-2.5 md:px-6", floating
+      ? "bg-background/80 mx-3 mb-3 rounded-xl border shadow-lg backdrop-blur-md md:mx-6"
+      : "bg-surface border-t")}>
       <div className="mx-auto grid max-w-6xl gap-2">
         {formError ? <p role="alert" className="text-destructive text-sm">{formError}</p> : null}
         <div className={cn("flex min-w-0 items-center gap-2", !puttRoute && "lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]")}>
@@ -576,12 +607,13 @@ function InfoDrawer({
   return (
     <>
       {open ? (
-        <div className="bg-background/40 absolute inset-0 z-[var(--z-backdrop)]" onClick={onClose} aria-hidden="true" />
+        <div className="bg-background/40 pointer-events-auto absolute inset-0 z-0" onClick={onClose} aria-hidden="true" />
       ) : null}
       <aside
         aria-hidden={!open}
+        inert={!open}
         className={cn(
-          "border-border bg-surface absolute top-0 right-0 bottom-0 z-[var(--z-drawer)] flex w-full max-w-sm flex-col border-l shadow-2xl transition-transform duration-200 ease-out motion-reduce:transition-none",
+          "border-border bg-surface pointer-events-auto absolute top-0 right-0 bottom-0 z-10 flex w-full max-w-sm flex-col border-l shadow-2xl transition-transform duration-200 ease-out motion-reduce:transition-none",
           open ? "translate-x-0" : "translate-x-full",
         )}
       >

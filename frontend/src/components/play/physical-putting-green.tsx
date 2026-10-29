@@ -6,6 +6,7 @@ import type { HoleGeom, Point, ResolvedShot } from "../../lib/play/hole-geometry
 import { PHYSICAL_BALL_RADIUS_YARDS, PHYSICAL_CUP_RADIUS_YARDS, PHYSICAL_PUTTING_PRESENTATION, PHYSICAL_PUTTING_SVG_STYLE, physicalAimGuideEndpoint, physicalAimGuideVisible, physicalBallLocatorRadius, physicalCupLocatorRadius, physicalPuttPlaybackDurationMs, physicalPuttingProjector, physicalTrajectoryPoint, physicalTraversedTrajectory, physicalWorldMarkerRadius, type PhysicalPuttingProjector, visibleSlopeSamples } from "../../lib/play/physical-putting";
 import { premiumPuttingFamily, puttingPolygonPath } from "../../lib/play/premium-putting";
 import { PremiumPuttingTerrain } from "./premium-putting-terrain";
+import { scenicFrame, type StageViewport } from "@/lib/play/stage-viewport";
 
 /** A green-local SVG: all terrain facts, slope arrows and ball motion come from backend physical data. */
 export function PhysicalPuttingGreen({
@@ -16,6 +17,7 @@ export function PhysicalPuttingGreen({
   showReading,
   onPlaybackComplete,
   presentation = "polished",
+  stageViewport,
 }: {
   hole: HoleGeom;
   ball: ResolvedShot | null;
@@ -24,9 +26,10 @@ export function PhysicalPuttingGreen({
   showReading: boolean;
   onPlaybackComplete?: () => void;
   presentation?: string;
+  stageViewport?: StageViewport;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [stageAspect, setStageAspect] = useState(16 / 9);
+  const [measuredAspect, setMeasuredAspect] = useState(16 / 9);
   const clipId = useId().replace(/:/g, "");
   const trajectory = useMemo(() => ball?.physicalPutt?.trajectory ?? [], [ball?.physicalPutt?.trajectory]);
   const origin = trajectory[0]?.position ?? hole.ball?.position ?? hole.geometry!.tee;
@@ -37,7 +40,7 @@ export function PhysicalPuttingGreen({
     const svg = svgRef.current;
     const update = () => {
       const { width, height } = svg.getBoundingClientRect();
-      if (width > 0 && height > 0) setStageAspect((current) => Math.abs(current - width / height) > .01 ? width / height : current);
+      if (width > 0 && height > 0) setMeasuredAspect((current) => Math.abs(current - width / height) > .01 ? width / height : current);
     };
     update();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
@@ -45,15 +48,25 @@ export function PhysicalPuttingGreen({
     window.addEventListener("resize", update);
     return () => { observer?.disconnect(); window.removeEventListener("resize", update); };
   }, [premiumFamily]);
+  const frame = scenicFrame(premiumFamily ? stageViewport : undefined, PHYSICAL_PUTTING_PRESENTATION.height);
+  const stageAspect = premiumFamily && stageViewport ? frame.aspect : measuredAspect;
   const scene = useMemo(() => {
     const { width, height } = PHYSICAL_PUTTING_PRESENTATION;
     if (!premiumFamily) return { x: 0, y: 0, width, height };
-    const sceneWidth = Math.max(width, height * stageAspect);
-    const sceneHeight = Math.max(height, width / stageAspect);
-    return { x: (width - sceneWidth) / 2, y: (height - sceneHeight) / 2, width: sceneWidth, height: sceneHeight };
-  }, [premiumFamily, stageAspect]);
+    if (!stageViewport) {
+      const sceneWidth = Math.max(width, height * stageAspect);
+      const sceneHeight = Math.max(height, width / stageAspect);
+      return { x: (width - sceneWidth) / 2, y: (height - sceneHeight) / 2, width: sceneWidth, height: sceneHeight };
+    }
+    const sceneWidth = frame.height * stageAspect;
+    return { x: (width - sceneWidth) / 2, y: -frame.safeTop, width: sceneWidth, height: frame.height };
+  }, [premiumFamily, stageAspect, frame.height, frame.safeTop, stageViewport]);
   const cupDistanceFeet = Math.hypot(hole.geometry!.cup.x - origin.x, hole.geometry!.cup.y - origin.y) * 3;
-  const visualPadding = premiumFamily ? cupDistanceFeet >= 45 ? 6 : cupDistanceFeet >= 15 ? 3.5 : 2 : undefined;
+  const basePadding = cupDistanceFeet >= 45 ? 6 : cupDistanceFeet >= 15 ? 3.5 : 2;
+  const safeSceneWidth = Math.min(PHYSICAL_PUTTING_PRESENTATION.width, scene.width);
+  const horizontalSpan = Math.abs(hole.geometry!.cup.x - origin.x);
+  const neededVerticalSpan = horizontalSpan * PHYSICAL_PUTTING_PRESENTATION.width / Math.max(40, safeSceneWidth - 40);
+  const visualPadding = premiumFamily ? Math.max(basePadding, (neededVerticalSpan - cupDistanceFeet / 3) / 2) : undefined;
   const projector = useMemo(() => physicalPuttingProjector(origin, hole.geometry!.cup, green, visualPadding), [green, origin, hole.geometry, visualPadding]);
   const [animation, setAnimation] = useState<{ trajectory: typeof trajectory | null; elapsed: number }>({ trajectory: null, elapsed: 0 });
   const elapsed = animation.trajectory === trajectory ? animation.elapsed : 0;
