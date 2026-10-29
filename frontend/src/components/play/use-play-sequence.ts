@@ -148,7 +148,8 @@ export function usePlaySequence({
       setFrozenSit(sitRef.current);
       setFrozen(true);
       setObservingResult(false);
-      setActivePlaybackDuration(resolvedPlaybackDurationMs(rendererPlaybackDuration(outcome), D.shot, reduced));
+      // The SVG starts on the next animation frame; leave one painted terminal frame before unlocking.
+      setActivePlaybackDuration(resolvedPlaybackDurationMs(rendererPlaybackDuration(outcome), D.shot, reduced) + (reduced ? 0 : 50));
       setShotAnimating(true);
     }
   }, [D.shot, reduced]);

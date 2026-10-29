@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { feedbackAimPoint, interpolatedContactPoint, isAimPointInteractionLocked, tracePlaybackDurationMs, tracePlaybackFrame, tracePlaybackStatus, transitionLabel, type ShotTrace } from "./trace-presentation";
+import { feedbackAimPoint, interpolatedContactPoint, isAimPointInteractionLocked, traceBallProjection, traceHeightCue, tracePlaybackDurationMs, tracePlaybackFrame, tracePlaybackStatus, tracePlaybackTiming, transitionLabel, type ShotTrace } from "./trace-presentation";
 import { buildBallStrikeIntent } from "./intent";
 import { completeNonHolingPlayback, showResolvedShot } from "./playback-presentation";
 
@@ -69,7 +69,8 @@ describe("trace presentation", () => {
 
   it("sequences authoritative airborne, roll, and final phases without rendering the final point early", () => {
     expect(tracePlaybackFrame(rollingTrace, 0.4)).toMatchObject({ phase: "airborne", finalVisible: false });
-    expect(tracePlaybackFrame(rollingTrace, 0.5)).toMatchObject({ phase: "contact", finalVisible: false });
+    const timing = tracePlaybackTiming(rollingTrace);
+    expect(tracePlaybackFrame(rollingTrace, timing.flightMs / timing.totalMs)).toMatchObject({ phase: "contact", finalVisible: false });
     expect(tracePlaybackFrame(rollingTrace, 0.86)).toMatchObject({ phase: "roll", finalVisible: false });
     expect(tracePlaybackFrame(rollingTrace, 1)).toEqual({ phase: "final", point: rollingTrace.finalPoint, finalVisible: true });
   });
@@ -81,11 +82,13 @@ describe("trace presentation", () => {
     expect(trace.roll?.from).toEqual(trace.contact.position);
     expect(Math.hypot((trace.roll?.to.x ?? 0) - (trace.roll?.from.x ?? 0), (trace.roll?.to.y ?? 0) - (trace.roll?.from.y ?? 0)))
       .toBeCloseTo(rollYards, 10);
-    expect(tracePlaybackDurationMs(trace)).toBe(1050);
+    expect(tracePlaybackDurationMs(trace)).toBeGreaterThan(1000);
     expect(tracePlaybackStatus(trace, tracePlaybackFrame(trace, 0.2))).toBe("Airborne");
-    expect(tracePlaybackFrame(trace, 0.5)).toMatchObject({ phase: "contact", point: trace.contact.position, finalVisible: false });
-    expect(tracePlaybackStatus(trace, tracePlaybackFrame(trace, 0.5))).toBe("Contact");
-    const rolling = tracePlaybackFrame(trace, 0.8);
+    const timing = tracePlaybackTiming(trace);
+    const contact = tracePlaybackFrame(trace, timing.flightMs / timing.totalMs);
+    expect(contact).toMatchObject({ phase: "contact", point: trace.contact.position, finalVisible: false });
+    expect(tracePlaybackStatus(trace, contact)).toBe("Contact");
+    const rolling = tracePlaybackFrame(trace, (timing.flightMs + timing.contactMs + timing.rollMs / 2) / timing.totalMs);
     expect(rolling).toMatchObject({ phase: "roll", finalVisible: false });
     expect(tracePlaybackStatus(trace, rolling)).toBe("Rolling");
     expect(tracePlaybackFrame(trace, 1)).toEqual({ phase: "final", point: trace.finalPoint, finalVisible: true });
@@ -99,14 +102,86 @@ describe("trace presentation", () => {
       transition: null,
       finalPoint: rollingTrace.contact.position,
     };
-    expect(tracePlaybackFrame(noRoll, 0.99)).toMatchObject({ phase: "airborne", finalVisible: false });
+    expect(tracePlaybackFrame(noRoll, 0.99)).toMatchObject({ phase: "contact", finalVisible: false });
     expect(tracePlaybackFrame(noRoll, 1)).toEqual({ phase: "final", point: noRoll.contact.position, finalVisible: true });
-    expect(tracePlaybackDurationMs(noRoll)).toBe(650);
-    expect(tracePlaybackStatus(noRoll, tracePlaybackFrame(noRoll, 0.99))).toBe("Airborne");
+    expect(tracePlaybackDurationMs(noRoll)).toBeGreaterThan(650);
+    expect(tracePlaybackStatus(noRoll, tracePlaybackFrame(noRoll, 0.99))).toBe("Contact");
     expect(tracePlaybackStatus(noRoll, tracePlaybackFrame(noRoll, 1))).toBe("Final");
     expect(tracePlaybackFrame(trace, 0.86)).toMatchObject({ phase: "transition", finalVisible: false });
     expect(tracePlaybackFrame(trace, 1)).toEqual({ phase: "final", point: trace.finalPoint, finalVisible: true });
     expect(tracePlaybackStatus(trace, tracePlaybackFrame(trace, 0.86))).toBeNull();
+  });
+
+  it("generalizes the approved tempos from carry and release, without club-specific duration presets", () => {
+    const sample = (club: string, carry: number, release: number): ShotTrace => ({
+      club, origin: { x: 0, y: 0 }, aimPoint: { x: 0, y: carry },
+      contact: { position: { x: 0, y: carry }, surface: "GREEN" },
+      airbornePath: [
+        { progress: 0, position: { x: 0, y: 0 }, height: 0 },
+        { progress: .5, position: { x: 0, y: carry / 2 }, height: carry * .12 },
+        { progress: 1, position: { x: 0, y: carry }, height: 0 },
+      ],
+      roll: release ? { from: { x: 0, y: carry }, to: { x: 0, y: carry + release } } : null,
+      transition: null, finalPoint: { x: 0, y: carry + release },
+    });
+    const iron = sample("SEVEN_IRON", 155, 2.94);
+    const driver = sample("DRIVER", 255, 22);
+    const wedge = sample("PITCHING_WEDGE", 105, .6);
+    const pitch = sample("GAP_WEDGE", 42, .75);
+    const chip = sample("EIGHT_IRON", 16, 2.55);
+    for (const [shot, target] of [[iron, 1990], [driver, 2702], [pitch, 1346], [chip, 843]] as const) {
+      const timing = tracePlaybackTiming(shot);
+      expect(timing.totalMs).toBeGreaterThan(target - 100);
+      expect(timing.totalMs).toBeLessThan(target + 100);
+      expect(tracePlaybackFrame(shot, 0).point).toEqual(shot.origin);
+      expect(tracePlaybackFrame(shot, timing.flightMs / timing.totalMs).point).toEqual(shot.contact.position);
+      expect(tracePlaybackFrame(shot, 1).point).toEqual(shot.finalPoint);
+    }
+    expect(tracePlaybackTiming(driver).rollMs).toBeGreaterThan(tracePlaybackTiming(iron).rollMs);
+    expect(tracePlaybackTiming(wedge).rollMs).toBeLessThan(tracePlaybackTiming(iron).rollMs);
+    expect(tracePlaybackTiming(wedge).flightMs).toBeLessThan(tracePlaybackTiming(iron).flightMs);
+    expect(tracePlaybackTiming(chip).flightMs).toBeLessThan(tracePlaybackTiming(pitch).flightMs);
+    const apex = tracePlaybackFrame(iron, tracePlaybackTiming(iron).flightMs / tracePlaybackTiming(iron).totalMs / 2);
+    expect(apex.point).toEqual({ x: 0, y: 77.5 });
+    expect(apex.height).toBeCloseTo(18.6);
+    expect(traceHeightCue(apex.height!).lift).toBeGreaterThan(0);
+    expect(traceHeightCue(0)).toMatchObject({ lift: 0, scale: 1 });
+    const ironTiming = tracePlaybackTiming(iron);
+    const project = ({ x, y }: { x: number; y: number }) => ({ x: x * 2 + 10, y: 400 - y * 2 });
+    const airborne = traceBallProjection(apex, project);
+    expect(airborne.ground).toEqual(project(apex.point));
+    expect(airborne.ball.x).toBe(airborne.ground.x);
+    expect(airborne.ball.y).toBeLessThan(airborne.ground.y);
+    const landed = traceBallProjection(tracePlaybackFrame(iron, ironTiming.flightMs / ironTiming.totalMs), project);
+    expect(landed.ball).toEqual(landed.ground);
+    const rollStart = ironTiming.flightMs + ironTiming.contactMs;
+    const early = tracePlaybackFrame(iron, (rollStart + ironTiming.rollMs * .25) / ironTiming.totalMs).point.y;
+    const late = tracePlaybackFrame(iron, (rollStart + ironTiming.rollMs * .75) / ironTiming.totalMs).point.y;
+    expect(early - iron.contact.position.y).toBeGreaterThan(iron.finalPoint.y - late);
+  });
+
+  it("bounds very short, very long, no-roll and recovery playback without changing endpoints", () => {
+    const short = { ...rollingTrace, contact: { position: { x: 0, y: 0 }, surface: "BUNKER" },
+      roll: null, transition: null, finalPoint: { x: 0, y: 0 } } satisfies ShotTrace;
+    const bunkerEscape = { ...rollingTrace, club: "SAND_WEDGE", origin: { x: 0, y: 0 },
+      contact: { position: { x: 0, y: 18 }, surface: "GREEN" }, roll: null,
+      transition: null, finalPoint: { x: 0, y: 18 } } satisfies ShotTrace;
+    const long = { ...rollingTrace, contact: { position: { x: 0, y: 10000 }, surface: "FAIRWAY" },
+      roll: { from: { x: 0, y: 10000 }, to: { x: 0, y: 20000 } }, finalPoint: { x: 0, y: 20000 } } satisfies ShotTrace;
+    expect(tracePlaybackTiming(short).totalMs).toBeGreaterThan(400);
+    expect(tracePlaybackTiming(long).totalMs).toBeLessThanOrEqual(3140);
+    expect(tracePlaybackFrame(short, 1).point).toEqual(short.finalPoint);
+    expect(tracePlaybackFrame(bunkerEscape, 1).point).toEqual(bunkerEscape.finalPoint);
+    expect(tracePlaybackTiming(bunkerEscape).rollMs).toBe(0);
+    expect(tracePlaybackFrame(long, 1).point).toEqual(long.finalPoint);
+    expect(tracePlaybackFrame(trace, 1).point).toEqual(trace.finalPoint);
+    expect(tracePlaybackFrame(rollingTrace, 0.25).height).toBe(0);
+    const sparse = { ...rollingTrace, airbornePath: [
+      { progress: .5, position: { x: 2, y: 70 }, height: 12 },
+    ] } satisfies ShotTrace;
+    expect(tracePlaybackFrame(sparse, 0).point).toEqual(sparse.origin);
+    const timing = tracePlaybackTiming(sparse);
+    expect(tracePlaybackFrame(sparse, timing.flightMs / timing.totalMs).point).toEqual(sparse.contact.position);
   });
 
   it("unlocks canonical targeting after completed playback and builds the next literal intent", () => {
