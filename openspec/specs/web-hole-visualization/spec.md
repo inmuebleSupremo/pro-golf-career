@@ -3,6 +3,22 @@
 ## Purpose
 TBD - created by archiving change add-2d-hole-graphics. Update Purpose after archive.
 ## Requirements
+### Requirement: Full-bleed Premium Gameplay Composition
+
+Supported premium Generator 8 normal holes and physical putting SHALL render one continuous scenic viewport beneath the gameplay header, hole information, and command dock. The stage SHALL distinguish that viewport from the measured unobstructed gameplay-safe area. Its camera SHALL keep authoritative ball, cup or pin, target, and guidance readable in the safe area while preserving one projection and its inverse for pointer input. Interface controls SHALL intercept their own pointer events; decorative layers SHALL NOT block valid aiming. Legacy and unsupported presentations SHALL retain a valid stacked fallback.
+
+#### Scenario: Premium play at wide and narrow viewports
+
+- **WHEN** the player views a supported premium hole or physical green at a desktop or narrow viewport
+- **THEN** the accepted renderer SHALL paint scenery behind translucent HUD and dock surfaces without a separate background image or scenic strip
+- **AND THEN** the ball and target or cup SHALL remain visible outside the obstructed controls
+
+#### Scenario: Aiming and overlays
+
+- **WHEN** the player aims on the course or green after a viewport resize or shot transition
+- **THEN** the SVG screen-to-world inverse SHALL select the matching authoritative coordinate
+- **AND THEN** clicking a header, dock, or drawer control SHALL NOT change the aim
+
 ### Requirement: Parametric 2D Hole Rendering
 
 The Play Event screen SHALL render a 2D graphical representation of the hole being played from the current hole's canonical geometry: its tee, active cup, playable boundary, and ordered terrain-region polygons. It SHALL not generate gameplay landforms from coarse dimensions, hazard flags, or a local layout seed. The rendering SHALL scale to any hole in any pool course without hand-authored layouts: changing canonical geometry SHALL change the rendered gameplay shape correspondingly. A client MAY still use stable local data for non-gameplay decoration only.

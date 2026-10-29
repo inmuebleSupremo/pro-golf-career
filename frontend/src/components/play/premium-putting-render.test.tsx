@@ -24,6 +24,24 @@ function render(hole: HoleGeom, read: boolean) {
 }
 
 describe("premium putting production presentation", () => {
+  it("extends each physical green beneath measured overlays on desktop and mobile", () => {
+    for (const { hole } of cases) {
+      for (const viewport of [
+        { width: 1600, height: 900, safeTop: 63, safeBottom: 157 },
+        { width: 390, height: 844, safeTop: 63, safeBottom: 265 },
+      ]) {
+        const svg = renderToStaticMarkup(<PhysicalPuttingGreen hole={hole} ball={null}
+          aimDirection={cupDirectedLine(hole.ball!.position, hole.geometry!.cup)} onAimDirection={() => {}}
+          showReading presentation="premium" stageViewport={viewport} />);
+        const [,, width, height] = svg.match(/viewBox="([^"]+)"/)![1].split(" ").map(Number);
+        expect(width / height).toBeCloseTo(viewport.width / viewport.height, 8);
+        expect(height).toBeGreaterThan(300);
+        expect(svg).toContain('aria-label="Physical cup opening, 4.25 inches"');
+        expect(svg).toContain('aria-label="Green reading overlay"');
+      }
+    }
+  });
+
   it("selects one shared green with four environment treatments and a legacy fallback", () => {
     for (const { family, hole } of cases) {
       expect(premiumPuttingFamily(hole, "premium")).toBe(family);

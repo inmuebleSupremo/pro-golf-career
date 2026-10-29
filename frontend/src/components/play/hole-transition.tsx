@@ -12,6 +12,7 @@ import { PostHoleOverlay, PreHoleOverlay } from "@/components/play/hole-overlays
 import type { HoleGeom, ResolvedShot } from "@/lib/play/hole-geometry";
 import type { PostHoleSummary, SeqPhase } from "@/components/play/use-play-sequence";
 import type { Situation } from "@/components/play/play-shared";
+import type { StageViewport } from "@/lib/play/stage-viewport";
 
 // Between-hole transition timing (spec: web-hole-visualization). The wipe hides the hole swap; its CSS sweep
 // duration is kept in step with the sequence's `wipe` phase length.
@@ -37,6 +38,7 @@ export function StageHole({
   showGreenReading,
   onPhysicalPlaybackComplete,
   presentation = "polished",
+  stageViewport,
 }: {
   displayHole: HoleGeom | null;
   situation: Situation;
@@ -51,6 +53,7 @@ export function StageHole({
   showGreenReading: boolean;
   onPhysicalPlaybackComplete: () => void;
   presentation?: "polished" | "premium-v1" | "premium";
+  stageViewport?: StageViewport;
 }) {
   // Chrome (hole chip, pressure) rides with live play and the score beat, but yields to the intro overlay and
   // hides through the wipe so nothing shows over the swap.
@@ -63,9 +66,9 @@ export function StageHole({
           {displayHole.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN" && displayHole.physicalGreen ? (
             <PhysicalPuttingGreen hole={displayHole} ball={playbackShot} aimDirection={physicalAimDirection}
               onAimDirection={onPhysicalAimDirection} showReading={showGreenReading}
-              onPlaybackComplete={onPhysicalPlaybackComplete} presentation={presentation} />
-          ) : <Hole2d hole={displayHole} ball={playbackShot} className={cn("block max-h-full touch-manipulation", presentation === "premium" ? "h-full w-full max-sm:w-auto max-sm:max-w-none max-sm:shrink-0" : "w-auto", onAimPoint && "cursor-crosshair")}
-            aimPoint={aimPoint} onAimPoint={onAimPoint} presentation={presentation} />}
+              onPlaybackComplete={onPhysicalPlaybackComplete} presentation={presentation} stageViewport={stageViewport} />
+          ) : <Hole2d hole={displayHole} ball={playbackShot} className={cn("block max-h-full touch-manipulation", stageViewport ? "h-full w-full" : presentation === "premium" ? "h-full w-full max-sm:w-auto max-sm:max-w-none max-sm:shrink-0" : "w-auto", onAimPoint && "cursor-crosshair")}
+            aimPoint={aimPoint} onAimPoint={onAimPoint} presentation={presentation} stageViewport={stageViewport} />}
         </div>
       ) : (
         <div className="bg-surface-3 aspect-[1/2] h-[70%] animate-pulse rounded-lg" />
@@ -84,8 +87,8 @@ export function StageHole({
         aria-hidden={!showChrome}
         className={cn("transition-opacity duration-500", showChrome ? "opacity-100" : "opacity-0")}
       >
-        <StageChip situation={situation} />
-        {pressure && pressure > 0 ? <StagePressure pressure={pressure} /> : null}
+        <StageChip situation={situation} top={stageViewport?.safeTop} />
+        {pressure && pressure > 0 ? <StagePressure pressure={pressure} top={stageViewport?.safeTop} /> : null}
       </div>
     </>
   );
@@ -121,9 +124,9 @@ function WipePanel() {
   );
 }
 
-function StageChip({ situation }: { situation: Situation }) {
+function StageChip({ situation, top }: { situation: Situation; top?: number }) {
   return (
-    <div className="border-border bg-background/70 absolute top-4 left-4 z-10 rounded-xl border px-3.5 py-2.5 backdrop-blur">
+    <div style={top === undefined ? undefined : { top }} className="border-border bg-background/75 pointer-events-none absolute top-4 left-4 z-10 rounded-xl border px-3.5 py-2.5 backdrop-blur">
       <div className="flex items-baseline gap-2">
         <span className="font-serif text-lg font-medium tracking-[-0.01em]">Hole {situation.holeNumber}</span>
         <span className="text-muted-foreground text-sm">Par {situation.par}</span>
@@ -136,15 +139,16 @@ function StageChip({ situation }: { situation: Situation }) {
   );
 }
 
-function StagePressure({ pressure }: { pressure: number }) {
+function StagePressure({ pressure, top }: { pressure: number; top?: number }) {
   const intense = pressure >= 0.6;
   const label = intense ? "Intense pressure" : pressure >= 0.3 ? "High pressure" : "Pressure building";
   return (
     <div
       className={cn(
-        "border-border bg-background/70 absolute top-4 right-4 z-10 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs backdrop-blur",
+        "border-border bg-background/75 pointer-events-none absolute top-4 right-4 z-10 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs backdrop-blur",
         intense ? "text-destructive" : "text-warning",
       )}
+      style={top === undefined ? undefined : { top }}
     >
       <Flame className="size-3.5" aria-hidden="true" />
       {label}

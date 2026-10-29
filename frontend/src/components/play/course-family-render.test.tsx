@@ -12,6 +12,17 @@ import type { HoleGeom } from "@/lib/play/hole-geometry";
 const cases = samples as readonly { identity: string; hole: HoleGeom }[];
 
 describe("actual Generator 8 course-family renders", () => {
+  it("extends the production SVG to the full viewport while retaining a safe course camera", () => {
+    for (const sample of cases) {
+      const svg = renderToStaticMarkup(<Hole2d hole={sample.hole} presentation="premium"
+        stageViewport={{ width: 1600, height: 900, safeTop: 63, safeBottom: 157 }} />);
+      const [,, width, height] = svg.match(/viewBox="([^"]+)"/)![1].split(" ").map(Number);
+      expect(width / height).toBeCloseTo(1600 / 900, 8);
+      expect(height).toBeGreaterThan(440);
+      expect(svg).toContain('aria-label="Hole');
+    }
+  });
+
   it("renders both Parkland variations from backend geometry without changing scale or aim coordinates", () => {
     expect(cases.map((sample) => sample.identity)).toEqual(["PARKLAND", "WOODLAND"]);
     expect(cases[0].hole.length).toBe(cases[1].hole.length);

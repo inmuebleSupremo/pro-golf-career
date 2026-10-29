@@ -71,6 +71,17 @@ describe("canonicalRenderModel", () => {
     expect(selected.x).toBeCloseTo(world.x, 8);
     expect(selected.y).toBeCloseTo(world.y, 8);
   });
+  it("preserves the safe-area projection and inverse when the SVG grows beneath header and dock", () => {
+    const original = canonicalRenderModel(geometry, { width: 220, height: 440, padding: 16, center: true });
+    const full = canonicalRenderModel(geometry, { width: 220, height: 600, padding: 16,
+      center: true, safeTop: 55, safeHeight: 440 });
+    const world = { x: 11, y: 72 };
+    expect(full.project(world).x).toBeCloseTo(original.project(world).x);
+    expect(full.project(world).y).toBeCloseTo(original.project(world).y + 55);
+    expect(full.unproject(full.project(world))).toEqual(expect.objectContaining({
+      x: expect.closeTo(world.x, 8), y: expect.closeTo(world.y, 8),
+    }));
+  });
   it("projects every terrain path from the API geometry without inventing terrain", () => {
     const model = canonicalRenderModel(geometry);
 

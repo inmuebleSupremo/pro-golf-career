@@ -2,6 +2,7 @@
 
 import { CanonicalHole2d } from "@/components/play/canonical-hole-2d";
 import type { HoleGeom, Point, ResolvedShot } from "@/lib/play/hole-geometry";
+import type { StageViewport } from "@/lib/play/stage-viewport";
 
 export interface Hole2dProps {
   readonly hole: HoleGeom;
@@ -16,6 +17,7 @@ export interface Hole2dProps {
   readonly previewAspect?: number;
   /** Development preview only: inspect scenery before the stage lighting pass. */
   readonly unlitAudit?: boolean;
+  readonly stageViewport?: StageViewport;
 }
 
 /** Active play has one terrain and shot authority: canonical backend geometry plus a returned trace. */
