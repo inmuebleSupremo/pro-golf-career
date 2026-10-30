@@ -12,13 +12,14 @@ import { cn } from "@/lib/utils";
 import { humanize } from "@/lib/play/options";
 import { StageHole } from "@/components/play/hole-transition";
 import { usePlaySequence } from "@/components/play/use-play-sequence";
-import type { HoleGeom } from "@/lib/play/hole-geometry";
+import type { HoleGeom, Point } from "@/lib/play/hole-geometry";
 import { isParklandFamily, playPresentation, type PlayPresentation } from "@/lib/play/play-presentation";
 import { acceptCourseAim, aimWithinEnvelope, buildBallStrikeIntent, currentAimPoint } from "@/lib/play/intent";
 import { currentPhysicalPuttControls, cupDirectedLine, physicalPuttControlSource, validPaceFeet } from "@/lib/play/physical-putting";
 import { shotSubmissionFeedback } from "@/lib/play/shot-feedback";
 import { formatShotDistance, shotDistanceReadout } from "@/lib/play/distance";
 import type { StageViewport } from "@/lib/play/stage-viewport";
+import { shotAimMarkerVisible, stagePlaybackState } from "@/lib/play/stage-playback-state";
 import {
   formatScore,
   Leaderboard,
@@ -105,6 +106,10 @@ export function PlayMode({
   const headerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const [stageViewport, setStageViewport] = useState<StageViewport>();
+  // null records a shot begun before measurement; undefined means no shot has captured a viewport yet.
+  const [shotViewport, setShotViewport] = useState<StageViewport | null>();
+  const [shotAimPoint, setShotAimPoint] = useState<Point>();
+  const [nonPuttSubmitting, setNonPuttSubmitting] = useState(false);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -132,6 +137,18 @@ export function PlayMode({
   // The client-side sequence: it owns what the stage shows and when the shot controls are locked, so the
   // between-hole ceremony (hole-out → score → wipe → intro) can play out over the server's instant advance.
   const seq = usePlaySequence({ situation, hole, scorecard, leaderboard, playerGolferId });
+  const { dockSituation, dockHole, viewport: displayViewport, aimPoint: displayAimPoint } = stagePlaybackState({
+    playbackShot: seq.playbackShot, displaySituation: seq.displaySituation, displayHole: seq.displayHole,
+    liveSituation: situation, liveHole: hole, shotViewport, liveViewport: stageViewport,
+    shotAimPoint, liveAimPoint: aimPoint,
+  });
+  const onShotResolved = (outcome: Outcome, shotContext?: { hole: HoleGeom | null; situation: Situation }) => {
+    if (!outcome.physicalPutt) {
+      setShotViewport(stageViewport ?? null);
+      setShotAimPoint(outcome.trace?.aimPoint ?? aimPoint);
+    }
+    seq.onShotResolved(outcome, shotContext);
+  };
 
   // Lock body scroll while the immersive surface is up; restore on exit.
   useEffect(() => {
@@ -147,6 +164,7 @@ export function PlayMode({
     && isParklandFamily(seq.displayHole);
   const selectedPresentation = playPresentation(seq.displayHole, parklandPresentation, showParklandPrototype);
   const fullBleed = selectedPresentation === "premium" && !!seq.displayHole && layoutOverride !== "stacked";
+  const interactionLocked = seq.locked || nonPuttSubmitting;
   const toggle = (t: DrawerTab) => setTab((prev) => (prev === t ? null : t));
 
   return (
@@ -174,14 +192,16 @@ export function PlayMode({
             playbackShot={seq.playbackShot}
             phase={seq.phase}
             postHole={seq.postHole}
-            aimPoint={aimPoint}
-            onAimPoint={seq.locked ? undefined : setCourseAimPoint}
+            aimPoint={displayAimPoint}
+            onAimPoint={interactionLocked ? undefined : setCourseAimPoint}
+            showAimMarker={shotAimMarkerVisible(nonPuttSubmitting, seq.playbackShot)}
             physicalAimDirection={physicalAimDirection}
             onPhysicalAimDirection={setPhysicalAimDirection}
             showGreenReading={showGreenReading}
             onPhysicalPlaybackComplete={seq.onPhysicalPlaybackComplete}
+            onTracePlaybackComplete={seq.onTracePlaybackComplete}
             presentation={selectedPresentation}
-            stageViewport={fullBleed ? stageViewport : undefined}
+            stageViewport={fullBleed ? displayViewport : undefined}
           />
           {showParklandPrototype && !(hole?.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN") ? (
             <div className="border-border bg-background/90 absolute right-4 bottom-4 z-10 flex items-center gap-1 rounded-md border p-1 shadow-lg" aria-label="Development Parkland presentation comparison">
@@ -198,17 +218,19 @@ export function PlayMode({
       </div>
 
       <div ref={dockRef} className={cn(fullBleed && "relative z-20 mt-auto shrink-0")}><ActionDock
-        key={`${situation.holeNumber}-${situation.shotNumber}-${situation.shotRevision}`}
+        key={`${dockSituation.holeNumber}-${dockSituation.shotNumber}-${dockSituation.shotRevision}`}
         id={id}
-        situation={situation}
-        hole={hole}
-        aimPoint={aimPoint}
+        situation={dockSituation}
+        hole={dockHole}
+        aimPoint={displayAimPoint}
         onAimPoint={setAimPoint}
         usedCourseAim={aimState.usedCourseAim}
-        onShot={seq.onShotResolved}
+        onShot={onShotResolved}
         onSimJump={seq.onSimJump}
         lastOutcome={seq.lastOutcome}
-        locked={seq.locked}
+        locked={interactionLocked}
+        onNonPuttSubmissionStart={() => setNonPuttSubmitting(true)}
+        onNonPuttSubmissionEnd={() => setNonPuttSubmitting(false)}
         physicalAimDirection={physicalAimDirection}
         showGreenReading={showGreenReading}
         onToggleGreenReading={() => setShowGreenReading((current) => !current)}
@@ -309,6 +331,8 @@ function ActionDock({
   onSimJump,
   lastOutcome,
   locked,
+  onNonPuttSubmissionStart,
+  onNonPuttSubmissionEnd,
   physicalAimDirection,
   showGreenReading,
   onToggleGreenReading,
@@ -320,11 +344,13 @@ function ActionDock({
   aimPoint: { x: number; y: number };
   onAimPoint: (point: { x: number; y: number }) => void;
   usedCourseAim: boolean;
-  onShot: (outcome: Outcome) => void;
+  onShot: (outcome: Outcome, shotContext?: { hole: HoleGeom | null; situation: Situation }) => void;
   onSimJump: () => void;
   lastOutcome: Outcome | null;
   /** True through every transitional phase — the controls are disabled so the sequence can't be broken. */
   locked: boolean;
+  onNonPuttSubmissionStart: () => void;
+  onNonPuttSubmissionEnd: () => void;
   physicalAimDirection: { x: number; y: number };
   showGreenReading: boolean;
   onToggleGreenReading: () => void;
@@ -371,6 +397,7 @@ function ActionDock({
   const lastShotText = lastOutcome
     ? `${lastOutcome.physicalPutt ? "Last putt" : "Last shot"}: ${lastOutcome.holed ? "Holed" : formatShotDistance(lastOutcome.carry, lastOutcome.physicalPutt != null)} · ${humanize(lastOutcome.finalSurface)}`
     : physicalRoute ? "Tap the green to set a starting line" : usedCourseAim ? "" : "Tap the course to aim";
+  const onSimShot = (outcome: Outcome) => onShot(outcome, { hole, situation });
 
   function updateSelection(update: Partial<typeof selection>) {
     setRequestedSelection((current) => validShotSelection(situation, { ...current, ...update }));
@@ -378,20 +405,30 @@ function ActionDock({
 
   async function onPlay() {
     setFormError(null);
+    const shotContext = { hole, situation };
+    let nonPuttStarted = false;
     try {
+      const nonPuttIntent = !physicalRoute && !puttRoute
+        ? buildBallStrikeIntent(club, aimPoint, technique, shape, situation.shotRevision) : null;
+      if (nonPuttIntent) {
+        onNonPuttSubmissionStart();
+        nonPuttStarted = true;
+      }
       const submission = physicalRoute
         ? (await physicalPutt.mutateAsync({ direction: physicalAimDirection, intendedRollFeet: paceFeet,
           expectedShotRevision: situation.shotRevision })).playPhysicalPutt
         : puttRoute
         ? (await putt.mutateAsync(situation.shotRevision)).playPutt
-        : (await play.mutateAsync(buildBallStrikeIntent(club, aimPoint, technique, shape, situation.shotRevision))).playShot;
+        : (await play.mutateAsync(nonPuttIntent!)).playShot;
       if (submission.stale || !submission.outcome) {
         setFormError("That shot plan is stale. Choose the target again.");
         return;
       }
-      onShot(submission.outcome);
+      onShot(submission.outcome, shotContext);
     } catch (error) {
       setFormError(shotSubmissionFeedback(error));
+    } finally {
+      if (nonPuttStarted) onNonPuttSubmissionEnd();
     }
   }
 
@@ -449,7 +486,7 @@ function ActionDock({
               {showGreenReading ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
               Read green
             </Button>
-            <SimMenu id={id} onShot={onShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} />
+            <SimMenu id={id} onShot={onSimShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} />
             <Button size="lg" onClick={onPlay} disabled={play.isPending || putt.isPending || physicalPutt.isPending || controlsDisabled}>
               {physicalPutt.isPending ? "Playing…" : "Roll putt"}
             </Button>
@@ -457,7 +494,7 @@ function ActionDock({
         </div> : puttRoute ? <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
           {situation.lie === "FRINGE" ? <ShotTechniqueControl technique={technique} techniques={techniques}
             onTechnique={(value) => updateSelection({ technique: value })} disabled={controlsDisabled} /> : <span className="text-muted-foreground text-xs">Putting from the green</span>}
-          <div className="col-start-2 row-start-2 sm:row-start-1"><SimMenu id={id} onShot={onShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} /></div>
+          <div className="col-start-2 row-start-2 sm:row-start-1"><SimMenu id={id} onShot={onSimShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} /></div>
           <Button className="col-start-2 row-start-1 sm:col-start-3" size="lg" onClick={onPlay} disabled={putt.isPending || controlsDisabled}>{putt.isPending ? "Playing…" : "Putt"}</Button>
         </div> : <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 md:flex lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
           <div className="contents lg:col-start-2 lg:flex lg:items-end lg:gap-2">
@@ -477,7 +514,7 @@ function ActionDock({
             </div>
           </details>
           <div className="contents lg:col-start-3 lg:flex lg:items-end lg:justify-self-end lg:gap-2">
-            <div className="col-start-2 row-start-2 md:ml-auto"><SimMenu id={id} onShot={onShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} /></div>
+            <div className="col-start-2 row-start-2 md:ml-auto"><SimMenu id={id} onShot={onSimShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} /></div>
             <Button className="col-start-2 row-start-1 min-w-32 md:shrink-0" size="lg" onClick={onPlay} disabled={play.isPending || putt.isPending || controlsDisabled}>
               {play.isPending ? "Playing…" : "Play shot"}
             </Button>

@@ -33,10 +33,12 @@ export function StageHole({
   postHole,
   aimPoint,
   onAimPoint,
+  showAimMarker,
   physicalAimDirection,
   onPhysicalAimDirection,
   showGreenReading,
   onPhysicalPlaybackComplete,
+  onTracePlaybackComplete,
   presentation = "polished",
   stageViewport,
 }: {
@@ -48,10 +50,12 @@ export function StageHole({
   postHole: PostHoleSummary | null;
   aimPoint: { x: number; y: number };
   onAimPoint?: (point: { x: number; y: number }) => void;
+  showAimMarker?: boolean;
   physicalAimDirection: { x: number; y: number };
   onPhysicalAimDirection: (direction: { x: number; y: number }) => void;
   showGreenReading: boolean;
   onPhysicalPlaybackComplete: () => void;
+  onTracePlaybackComplete?: () => void;
   presentation?: "polished" | "premium-v1" | "premium";
   stageViewport?: StageViewport;
 }) {
@@ -68,7 +72,9 @@ export function StageHole({
               onAimDirection={onPhysicalAimDirection} showReading={showGreenReading}
               onPlaybackComplete={onPhysicalPlaybackComplete} presentation={presentation} stageViewport={stageViewport} />
           ) : <Hole2d hole={displayHole} ball={playbackShot} className={cn("block max-h-full touch-manipulation", stageViewport ? "h-full w-full" : presentation === "premium" ? "h-full w-full max-sm:w-auto max-sm:max-w-none max-sm:shrink-0" : "w-auto", onAimPoint && "cursor-crosshair")}
-            aimPoint={aimPoint} onAimPoint={onAimPoint} presentation={presentation} stageViewport={stageViewport} />}
+            aimPoint={aimPoint} onAimPoint={onAimPoint} showAimMarker={showAimMarker}
+            presentation={presentation} stageViewport={stageViewport}
+            onPlaybackComplete={onTracePlaybackComplete} />}
         </div>
       ) : (
         <div className="bg-surface-3 aspect-[1/2] h-[70%] animate-pulse rounded-lg" />
