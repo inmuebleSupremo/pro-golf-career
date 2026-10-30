@@ -42,11 +42,15 @@ export function projectCanonicalFlow(
 /** Builds the canonical-only terrain model used by the SVG renderer. No seed or local landform generation enters this path. */
 export function canonicalRenderModel(
   geometry: CanonicalPlayingGeometry,
-  viewport: { width: number; height: number; padding: number; center?: boolean; safeTop?: number; safeHeight?: number } = { width: 220, height: 440, padding: 16 },
+  viewport: { width: number; height: number; padding: number; center?: boolean; safeTop?: number; safeHeight?: number;
+    openOcean?: boolean } = { width: 220, height: 440, padding: 16 },
 ): CanonicalRenderModel {
   // The canonical boundary remains the playable extent, while terrain vertices also participate in framing.
   // This prevents an authoritative bunker or collar near an edge from disappearing at the SVG viewBox.
-  const points = [...geometry.playableBoundary, ...geometry.regions.flatMap((region) => region.boundary), geometry.tee, geometry.cup];
+  const points = [...geometry.playableBoundary, ...geometry.regions.flatMap((region) =>
+    viewport.openOcean && region.surface === "WATER"
+      && Math.max(...region.boundary.map((p) => p.x)) - Math.min(...region.boundary.map((p) => p.x)) > 600
+      ? [] : region.boundary), geometry.tee, geometry.cup];
   const xs = points.map((point) => point.x);
   const ys = points.map((point) => point.y);
   const minX = Math.min(...xs);

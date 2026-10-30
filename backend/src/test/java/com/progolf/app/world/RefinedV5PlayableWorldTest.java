@@ -50,10 +50,10 @@ class RefinedV5PlayableWorldTest {
 
         WorldSession defaultWorld = normal.create(OWNER, 4243L, SMALL);
         assertThat(normal.status(OWNER, defaultWorld.id()).courseGeneratorVersion())
-                .isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
+                .isEqualTo(CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION);
         normal.save(OWNER, defaultWorld.id(), "default-v8-career");
         WorldSession retained = refined.load(OWNER, "default-v8-career");
         assertThat(refined.status(OWNER, retained.id()).courseGeneratorVersion())
-                .isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
+                .isEqualTo(CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION);
     }
 }

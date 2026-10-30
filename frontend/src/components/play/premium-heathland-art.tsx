@@ -5,6 +5,7 @@ import { premiumHeathlandNeighborCorridor } from "@/lib/play/premium-heathland-n
 import type { PropertyPlan } from "@/lib/play/premium-parkland-property";
 import { routeSamples } from "@/lib/play/premium-parkland-property";
 import { seededRandom } from "@/lib/play/premium-parkland-decoration";
+import { StageSideFocusGradient } from "./stage-side-focus";
 
 const f = (n: number) => n.toFixed(1);
 
@@ -157,7 +158,7 @@ export function PremiumHeathlandDefs({ id }: { id: string }) {
     <linearGradient id={`${id}-heath-sand`} x1="0" y1="0" x2=".7" y2="1"><stop stopColor="#eee0a8" /><stop offset=".5" stopColor="#dac78f" /><stop offset="1" stopColor="#bca579" /></linearGradient>
     <linearGradient id={`${id}-heath-heather`} x1="0" y1="0" x2=".8" y2="1"><stop stopColor="#3f4639" /><stop offset=".25" stopColor="#625966" /><stop offset=".59" stopColor="#887184" /><stop offset="1" stopColor="#514e52" /></linearGradient>
     <linearGradient id={`${id}-heath-pine`} x1="0" y1="0" x2=".75" y2="1"><stop stopColor="#66845a" /><stop offset=".28" stopColor="#476c45" /><stop offset=".67" stopColor="#274d37" /><stop offset="1" stopColor="#152f2a" /></linearGradient>
-    <linearGradient id={`${id}-heath-light`} x1="0" y1="0" x2="1" y2="0"><stop stopColor="#07100d" stopOpacity=".95" /><stop offset=".10" stopColor="#09140f" stopOpacity=".77" /><stop offset=".23" stopColor="#101913" stopOpacity=".46" /><stop offset=".36" stopColor="#132016" stopOpacity=".14" /><stop offset=".47" stopColor="#000" stopOpacity="0" /><stop offset=".60" stopColor="#000" stopOpacity="0" /><stop offset=".74" stopColor="#111c17" stopOpacity=".36" /><stop offset=".90" stopColor="#06120e" stopOpacity=".82" /><stop offset="1" stopColor="#030b0a" stopOpacity=".96" /></linearGradient>
+    <StageSideFocusGradient id={`${id}-heath-light`} shade="#09140f" />
     <linearGradient id={`${id}-heath-vertical`} x1="0" y1="0" x2="0" y2="1"><stop stopColor="#122518" stopOpacity=".21" /><stop offset=".17" stopColor="#000" stopOpacity="0" /><stop offset=".82" stopColor="#000" stopOpacity="0" /><stop offset="1" stopColor="#05100c" stopOpacity=".10" /></linearGradient>
     <pattern id={`${id}-heath-turf`} width="26" height="31" patternUnits="userSpaceOnUse"><path d="M-2 9q11-3 26 0M4 25q12-4 25-1" fill="none" stroke="#e8efad" strokeWidth=".8" opacity=".13" /></pattern>
     <pattern id={`${id}-heath-sand-grain`} width="12" height="10" patternUnits="userSpaceOnUse"><path d="M2 3l2-1m4 5 2-1" fill="none" stroke="#fff2cb" strokeWidth=".6" opacity=".44" /></pattern>

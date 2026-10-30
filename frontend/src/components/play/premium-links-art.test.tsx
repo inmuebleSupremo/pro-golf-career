@@ -1,13 +1,25 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { PremiumLinksDefs, PremiumLinksLandscape, PremiumLinksProperty, PremiumLinksSurface } from "./premium-links-art";
+import { openOceanRenderPath, PremiumLinksDefs, PremiumLinksLandscape, PremiumLinksProperty, PremiumLinksSurface } from "./premium-links-art";
 import { canonicalRenderModel } from "@/lib/play/canonical-geometry";
 import { premiumLinksPropertyPlan } from "@/lib/play/premium-links-property";
 import sourceHoles from "@/lib/play/premium-links-neighbor-geometry.json";
 import course from "@/lib/play/premium-links-course-fixture.json";
+import coastalCourse from "@/lib/play/coastal-links-course-fixture.json";
 
 describe("Premium Links artwork", () => {
+  it("extends only the offshore side of generated ocean geometry past either view edge", () => {
+    const boundary = coastalCourse.holes[6].hole.geometry.regions.find((region) =>
+      region.surface === "WATER" && region.boundary.some((point) => point.x === -1200))!.boundary;
+    const project = (point: { x: number; y: number }) => ({ x: point.x / 4, y: point.y / 2 });
+    const left = openOceanRenderPath(boundary, project, -300, 300);
+    expect(left).toContain("-302.0");
+    const shore = boundary.find((point) => Math.abs(point.x) < 1000)!;
+    expect(left).toContain(`${project(shore).x.toFixed(1)} ${project(shore).y.toFixed(1)}`);
+    const right = openOceanRenderPath(boundary.map((point) => ({ x: -point.x, y: point.y })), project, -300, 300);
+    expect(right).toContain("302.0");
+  });
   it("uses a continuous stage and only supplied bunker footprints", () => {
     const ground = renderToStaticMarkup(<svg><PremiumLinksDefs id="links" left={-240} width={700} height={440} />
       <PremiumLinksLandscape id="links" left={-240} width={700} height={440} seed="fixed" /></svg>);

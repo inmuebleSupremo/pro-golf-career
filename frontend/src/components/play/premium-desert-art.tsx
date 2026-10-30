@@ -5,6 +5,7 @@ import { premiumDesertNeighborCorridor } from "@/lib/play/premium-desert-neighbo
 import type { PropertyPlan } from "@/lib/play/premium-parkland-property";
 import { routeSamples } from "@/lib/play/premium-parkland-property";
 import { seededRandom } from "@/lib/play/premium-parkland-decoration";
+import { StageSideFocusGradient } from "./stage-side-focus";
 
 const f = (n: number) => n.toFixed(1);
 type Region = Readonly<{ surface: string; path: string }>;
@@ -113,7 +114,7 @@ export function PremiumDesertDefs({ id }: { id: string }) {
     <linearGradient id={`${id}-desert-green`} x1="0" y1="0" x2="1" y2=".18"><stop stopColor="#8fca70" /><stop offset=".52" stopColor="#b9e790" /><stop offset="1" stopColor="#85ba61" /></linearGradient>
     <linearGradient id={`${id}-desert-sand`} x1="0" y1="0" x2=".65" y2="1"><stop stopColor="#fae8b9" /><stop offset=".56" stopColor="#e7cb94" /><stop offset="1" stopColor="#b99a66" /></linearGradient>
     <linearGradient id={`${id}-desert-shrub`} x1="0" y1="0" x2=".8" y2="1"><stop stopColor="#75965e" /><stop offset=".38" stopColor="#58794a" /><stop offset="1" stopColor="#294d36" /></linearGradient>
-    <linearGradient id={`${id}-desert-light`} x1="0" y1="0" x2="1" y2="0"><stop stopColor="#0a100c" stopOpacity=".96" /><stop offset=".11" stopColor="#1a160f" stopOpacity=".80" /><stop offset=".25" stopColor="#241d12" stopOpacity=".44" /><stop offset=".39" stopColor="#392a18" stopOpacity=".08" /><stop offset=".49" stopColor="#000" stopOpacity="0" /><stop offset=".59" stopColor="#000" stopOpacity="0" /><stop offset=".75" stopColor="#1b170e" stopOpacity=".44" /><stop offset=".89" stopColor="#0f130e" stopOpacity=".83" /><stop offset="1" stopColor="#060b09" stopOpacity=".97" /></linearGradient>
+    <StageSideFocusGradient id={`${id}-desert-light`} shade="#1b170e" />
     <linearGradient id={`${id}-desert-toplight`} x1="0" y1="0" x2="0" y2="1"><stop stopColor="#0a1410" stopOpacity=".18" /><stop offset=".18" stopColor="#000" stopOpacity="0" /><stop offset=".84" stopColor="#000" stopOpacity="0" /><stop offset="1" stopColor="#07110d" stopOpacity=".1" /></linearGradient>
     <pattern id={`${id}-desert-turf-grain`} width="19" height="23" patternUnits="userSpaceOnUse"><path d="M0 6l3-1m6 10 4-1" fill="none" stroke="#e8efad" strokeWidth=".6" opacity=".17" /></pattern>
     <pattern id={`${id}-desert-sand-grain`} width="12" height="10" patternUnits="userSpaceOnUse"><path d="M2 3l2-1m4 5 2-1" fill="none" stroke="#fff2cb" strokeWidth=".6" opacity=".44" /></pattern>

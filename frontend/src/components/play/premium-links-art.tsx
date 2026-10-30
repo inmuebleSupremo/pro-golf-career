@@ -1,6 +1,8 @@
 import type { PropertyPlan } from "@/lib/play/premium-parkland-property";
 import { seededRandom } from "@/lib/play/premium-parkland-decoration";
 import { premiumLinksNeighborCorridor } from "@/lib/play/premium-links-neighbor-corridor";
+import type { Point } from "@/lib/play/hole-geometry";
+import { StageSideFocusGradient } from "./stage-side-focus";
 
 type Region = Readonly<{ surface: string; path: string }>;
 const f = (v: number) => v.toFixed(1);
@@ -36,7 +38,10 @@ export function PremiumLinksDefs({ id }: { id: string; left: number; width: numb
     <linearGradient id={`${id}-links-water`} x1="0" y1="0" x2="1" y2="1">
       <stop stopColor="#8eaaa1" /><stop offset="1" stopColor="#587b78" />
     </linearGradient>
-    <linearGradient id={`${id}-links-light-band`} x1="0" y1="0" x2="1" y2="0"><stop stopColor="#050e0b" stopOpacity=".90" /><stop offset=".10" stopColor="#07130e" stopOpacity=".72" /><stop offset=".23" stopColor="#0a170c" stopOpacity=".42" /><stop offset=".37" stopColor="#0c180c" stopOpacity=".10" /><stop offset=".47" stopColor="#000" stopOpacity="0" /><stop offset=".60" stopColor="#070d07" stopOpacity=".05" /><stop offset=".75" stopColor="#050f0c" stopOpacity=".35" /><stop offset=".91" stopColor="#05100d" stopOpacity=".77" /><stop offset="1" stopColor="#020a09" stopOpacity=".94" /></linearGradient>
+    <linearGradient id={`${id}-links-ocean`} x1="0" y1="0" x2="1" y2=".35">
+      <stop stopColor="#0b3448" /><stop offset=".5" stopColor="#18576a" /><stop offset="1" stopColor="#2a7480" />
+    </linearGradient>
+    <StageSideFocusGradient id={`${id}-links-light-band`} shade="#07130e" />
     <linearGradient id={`${id}-links-vertical-tone`} x1="0" y1="0" x2="0" y2="1"><stop stopColor="#06120d" stopOpacity=".24" /><stop offset=".19" stopColor="#000" stopOpacity="0" /><stop offset=".77" stopColor="#000" stopOpacity="0" /><stop offset="1" stopColor="#0b150f" stopOpacity=".13" /></linearGradient>
     <pattern id={`${id}-links-grass`} width="29" height="31" patternUnits="userSpaceOnUse">
       <path d="M4 9l1-3m1 3 2-2m11 16 1-4m1 4 2-2M25 5l1-3" fill="none" stroke="#6f7952" strokeWidth=".6" opacity=".36" />
@@ -49,6 +54,29 @@ export function PremiumLinksDefs({ id }: { id: string; left: number; width: numb
       <path d="M0 4q4-2 8 0m-3 5q4-2 8 0" fill="none" stroke="#fff4d4" strokeWidth=".55" opacity=".5" />
     </pattern>
   </defs>;
+}
+
+/** The water polygon comes from canonical Generator 9 geometry; its far edge is beyond the stage. */
+export function PremiumLinksOcean({ id, path, shoreline }: { id: string; path: string; shoreline: string }) {
+  return <g pointerEvents="none" data-links-open-ocean="true">
+    <path d={path} fill={`url(#${id}-links-ocean)`} />
+    <path d={shoreline} fill="none" stroke="#e8dfba" strokeWidth="6" opacity=".28" />
+    <path d={shoreline} fill="none" stroke="#f5edce" strokeWidth="2.5" opacity=".65" />
+    <path d={shoreline} fill="none" stroke="#b7d3cf" strokeWidth=".9" opacity=".8" strokeDasharray="6 4" />
+  </g>;
+}
+
+/** Extend only the ocean's offshore render edge past the current SVG viewBox. The canonical shore stays fixed. */
+export function openOceanRenderPath(boundary: readonly Point[], project: (point: Point) => Point,
+  visibleLeft: number, visibleRight: number): string {
+  const offshoreX = boundary.reduce((far, point) => Math.abs(point.x) > Math.abs(far) ? point.x : far, 0);
+  const projectedFar = project({ x: offshoreX, y: boundary[0].y }).x;
+  const edge = offshoreX < 0 ? Math.min(projectedFar, visibleLeft - 2) : Math.max(projectedFar, visibleRight + 2);
+  return boundary.map((point, index) => {
+    const screen = project(point);
+    const x = Math.abs(point.x - offshoreX) < .001 ? edge : screen.x;
+    return `${index ? "L" : "M"}${x.toFixed(1)} ${screen.y.toFixed(1)}`;
+  }).join(" ") + " Z";
 }
 
 export function PremiumLinksLandscape({ id, left, width, height, seed }: {

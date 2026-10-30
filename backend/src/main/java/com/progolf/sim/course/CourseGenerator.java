@@ -35,6 +35,7 @@ public final class CourseGenerator {
             case CourseGenConstants.V5_GENERATOR_VERSION -> generateV5(coordinate, classification);
             case CourseGenConstants.V5_REFINED_GENERATOR_VERSION -> generateRefinedV5(coordinate, classification);
             case CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION -> generatePrincipledArchitecture(coordinate, classification);
+            case CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION -> generateCoastalLinksArchitecture(coordinate, classification);
             default -> throw new IllegalArgumentException("Unsupported course generator version: " + version);
         };
     }
@@ -44,7 +45,8 @@ public final class CourseGenerator {
                 || version == CourseGenConstants.V3_GENERATOR_VERSION || version == CourseGenConstants.V4_GENERATOR_VERSION
                 || version == CourseGenConstants.V5_GENERATOR_VERSION
                 || version == CourseGenConstants.V5_REFINED_GENERATOR_VERSION
-                || version == CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION;
+                || version == CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION
+                || version == CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION;
     }
 
     /** Historical V1 implementation retained unchanged in behavior. */
@@ -235,6 +237,14 @@ public final class CourseGenerator {
                 CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
     }
 
+    private static Course generateCoastalLinksArchitecture(SeedCoordinate coordinate,
+                                                           EnvironmentClassification classification) {
+        long courseSeed = Seeds.forCoordinate(coordinate);
+        CoursePlan plan = CoursePlanGenerator.generate(courseSeed);
+        return generateV5(coordinate, classification, plan, V5HolePlanner.profileFor(courseSeed), true, true,
+                CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION);
+    }
+
     /** Package-private preview seam; it deliberately calls the exact retained Generator 8 implementation. */
     static Course generatePrincipledArchitecturePreview(SeedCoordinate coordinate,
                                                         EnvironmentClassification classification) {
@@ -295,9 +305,11 @@ public final class CourseGenerator {
             elevations.add((rng.nextDouble() * 2.0 - 1.0) * CourseGenConstants.ELEVATION_RANGE);
         }
         List<V5HolePlanner.SelectedCandidate> selected = V5HolePlanner.select(plan, architectureProfile, courseSeed,
-                lengths, fairwayHalves, refined, principlesDriven);
+                lengths, fairwayHalves, refined, principlesDriven,
+                generatorVersion == CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION
+                        && classification == EnvironmentClassification.LINKS);
         List<EnvironmentHoleCharacter> environmentCharacters = V5EnvironmentPlanner.plan(plan, classification,
-                architectureProfile, courseSeed);
+                architectureProfile, courseSeed, generatorVersion == CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION);
         List<GeneratedHole> holes = new ArrayList<>(18);
         for (int i = 0; i < plan.briefs().size(); i++) {
             HoleBrief brief = plan.briefs().get(i);
@@ -310,6 +322,10 @@ public final class CourseGenerator {
             CourseGeometry geometry = V5GeometryGenerator.generate(selected.get(i).plan(), brief, plan.profile(),
                     architectureProfile, classification, environmentCharacters.get(i), holeSeed, hazards, refined,
                     architectureStrategy);
+            if (generatorVersion == CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION
+                    && classification == EnvironmentClassification.LINKS && environmentCharacters.get(i).coastalExposure()) {
+                geometry = V5CoastalLinks.addOcean(geometry, selected.get(i).plan(), courseSeed, brief.number());
+            }
             boolean bunker = geometry.regions().stream().anyMatch(region -> region.surface() == com.progolf.sim.spatial.Surface.BUNKER);
             boolean water = geometry.regions().stream().anyMatch(region -> region.surface() == com.progolf.sim.spatial.Surface.WATER);
             boolean trees = geometry.regions().stream().anyMatch(region -> region.surface() == com.progolf.sim.spatial.Surface.TREES);

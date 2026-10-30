@@ -17,7 +17,7 @@ class CoursePoolPolicyTest {
     void newWorldUsesFiveIdentitiesAcrossFourFamiliesForBothTours() {
         World world = World.create(SEED, CONFIG);
         assertThat(world.courseGeneratorVersion())
-                .isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
+                .isEqualTo(CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION);
         assertThat(world.snapshot().coursePoolPolicy()).isEqualTo(CoursePoolPolicy.FOUR_FAMILIES);
         assertThat(world.currentSchedule()).extracting(ScheduledTournament::tier)
                 .contains(TourTier.PRO, TourTier.DEVELOPMENT);

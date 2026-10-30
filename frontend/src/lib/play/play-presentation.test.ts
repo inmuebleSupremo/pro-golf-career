@@ -64,6 +64,9 @@ describe("normal play presentation", () => {
     const links: HoleGeom = { ...generator8Parkland, courseType: "LINKS", canonicalBiome: "LINKS",
       courseFamily: "LINKS" };
     expect(defaultPlayPresentation(links)).toBe("premium");
+    expect(defaultPlayPresentation({ ...links, courseGeneratorVersion: 9,
+      canonicalGeometrySource: "GENERATOR_9_COASTAL_LINKS" })).toBe("premium");
+    expect(defaultPlayPresentation({ ...links, courseGeneratorVersion: 9 })).toBe("polished");
     expect(defaultPlayPresentation({ ...links, courseGeneratorVersion: 7 })).toBe("polished");
     expect(defaultPlayPresentation({ ...links, canonicalGeometrySource: undefined })).toBe("polished");
     expect(defaultPlayPresentation({ ...links, courseFamily: undefined })).toBe("polished");

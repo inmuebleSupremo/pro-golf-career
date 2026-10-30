@@ -27,10 +27,10 @@ class PrincipledArchitecturePlayableWorldTest {
         WorldService standard = new WorldService(store);
         WorldSession fullSizeDefault = standard.create(OWNER, 8300L);
         assertThat(standard.status(OWNER, fullSizeDefault.id()).courseGeneratorVersion())
-                .isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
+                .isEqualTo(CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION);
         WorldSession created = standard.create(OWNER, 8301L, SMALL);
         assertThat(standard.status(OWNER, created.id()).courseGeneratorVersion())
-                .isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
+                .isEqualTo(CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION);
         var generated = CourseGenerator.generate(new SeedCoordinate(8301L, 0, 0, 0, 0, 0, 0),
                 EnvironmentClassification.PARKLAND, CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
         assertThat(generated.generatorVersion()).isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
@@ -45,7 +45,7 @@ class PrincipledArchitecturePlayableWorldTest {
         WorldService normal = new WorldService(store);
         WorldSession loaded = normal.load(OWNER, "principled-career");
         assertThat(normal.status(OWNER, loaded.id()).courseGeneratorVersion())
-                .isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
+                .isEqualTo(CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION);
 
         int weeks = 0;
         while (!normal.hasPendingEvent(OWNER, loaded.id()) && weeks++ < 25) {
@@ -53,8 +53,8 @@ class PrincipledArchitecturePlayableWorldTest {
         }
         assertThat(normal.hasPendingEvent(OWNER, loaded.id())).isTrue();
         var hole = normal.currentPlayingHole(OWNER, loaded.id(), null);
-        assertThat(hole.courseGeneratorVersion()).isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
-        assertThat(hole.canonicalGeometrySource()).isEqualTo("GENERATOR_8_PRINCIPLED_ARCHITECTURE");
+        assertThat(hole.courseGeneratorVersion()).isEqualTo(CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION);
+        assertThat(hole.canonicalGeometrySource()).isEqualTo("GENERATOR_9_COASTAL_LINKS");
         assertThat(hole.canonicalBiome()).isNotBlank();
         assertThat(hole.geometry().regions()).isNotEmpty();
         assertThat(hole.puttingPolicy()).isEqualTo(com.progolf.sim.putt.PuttingPolicy.LEGACY.name());
@@ -63,6 +63,6 @@ class PrincipledArchitecturePlayableWorldTest {
 
         WorldSession defaultWorld = normal.create(OWNER, 8302L, SMALL);
         assertThat(normal.status(OWNER, defaultWorld.id()).courseGeneratorVersion())
-                .isEqualTo(CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION);
+                .isEqualTo(CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION);
     }
 }

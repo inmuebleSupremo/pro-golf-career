@@ -1,5 +1,6 @@
 import { premiumOpenings, type PremiumTree, type PremiumTreePlan } from "../../lib/play/premium-parkland-decoration";
 import type { PropertyPlan } from "../../lib/play/premium-parkland-property";
+import { StageSideFocusGradient } from "./stage-side-focus";
 
 type RenderRegion = Readonly<{ surface: string; path: string }>;
 
@@ -58,18 +59,7 @@ export function PremiumParklandDefs({ artId, coreX, coreWidth, height, fullStage
       <stop offset=".8" stopColor="#06130f" stopOpacity=".07" />
       <stop offset="1" stopColor="#030a08" stopOpacity=".32" />
     </radialGradient>
-    <linearGradient id={`${artId}-premium-fullstage-atmosphere`} x1="0" y1="0" x2="1" y2="0">
-      <stop stopColor="var(--background)" stopOpacity=".88" />
-      <stop offset=".15" stopColor="var(--background)" stopOpacity=".8" />
-      <stop offset=".25" stopColor="var(--background)" stopOpacity=".58" />
-      <stop offset=".34" stopColor="var(--background)" stopOpacity=".16" />
-      <stop offset=".42" stopColor="var(--background)" stopOpacity="0" />
-      <stop offset=".58" stopColor="var(--background)" stopOpacity="0" />
-      <stop offset=".66" stopColor="var(--background)" stopOpacity=".16" />
-      <stop offset=".75" stopColor="var(--background)" stopOpacity=".58" />
-      <stop offset=".85" stopColor="var(--background)" stopOpacity=".8" />
-      <stop offset="1" stopColor="var(--background)" stopOpacity=".88" />
-    </linearGradient>
+    <StageSideFocusGradient id={`${artId}-premium-fullstage-atmosphere`} shade="var(--background)" />
     <pattern id={`${artId}-premium-ground-grain`} width="41" height="47" patternUnits="userSpaceOnUse">
       <path d="M2 19l2-3m21 10 2-4m10-8 1-2M10 41l2-3m25 8 1-3" stroke="#9ab16c" strokeWidth=".45" opacity=".24" />
       <circle cx="7" cy="6" r=".45" fill="#a5ba79" opacity=".3" /><circle cx="33" cy="35" r=".35" fill="#a5ba79" opacity=".26" />

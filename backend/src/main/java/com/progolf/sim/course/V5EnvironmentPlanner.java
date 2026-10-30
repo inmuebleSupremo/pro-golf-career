@@ -15,6 +15,12 @@ final class V5EnvironmentPlanner {
 
     static List<EnvironmentHoleCharacter> plan(CoursePlan coursePlan, EnvironmentClassification environment,
                                                 CourseArchitectureProfile architecture, long courseSeed) {
+        return plan(coursePlan, environment, architecture, courseSeed, false);
+    }
+
+    static List<EnvironmentHoleCharacter> plan(CoursePlan coursePlan, EnvironmentClassification environment,
+                                                CourseArchitectureProfile architecture, long courseSeed,
+                                                boolean newCoastalLinks) {
         List<TreeEnclosure> enclosure = new ArrayList<>();
         for (int index = 0; index < coursePlan.briefs().size(); index++) {
             enclosure.add(initialEnclosure(environment, index, courseSeed));
@@ -32,10 +38,13 @@ final class V5EnvironmentPlanner {
         }
         boolean coastal = environment == EnvironmentClassification.COASTAL || environment == EnvironmentClassification.LINKS;
         int coastTarget = coastal ? 4 + (int) StrictMath.floor(architecture.approachOpenness() * 2.0) : 0;
-        List<Integer> coastalHoles = rankedHoles(coursePlan, courseSeed, 0x434f415354L).stream().limit(coastTarget).toList();
+        List<Integer> coastalHoles = newCoastalLinks && environment == EnvironmentClassification.LINKS
+                ? V5CoastalLinks.holeIndices(courseSeed, coursePlan.briefs().size())
+                : rankedHoles(coursePlan, courseSeed, 0x434f415354L).stream().limit(coastTarget).toList();
         List<EnvironmentHoleCharacter> result = new ArrayList<>();
         for (int index = 0; index < enclosure.size(); index++) {
-            result.add(new EnvironmentHoleCharacter(enclosure.get(index), coastalHoles.contains(index)));
+            result.add(new EnvironmentHoleCharacter(enclosure.get(index), coastalHoles.contains(index),
+                    newCoastalLinks && environment == EnvironmentClassification.LINKS && coastalHoles.contains(index)));
         }
         return List.copyOf(result);
     }

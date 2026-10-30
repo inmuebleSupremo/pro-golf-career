@@ -1,6 +1,9 @@
 # Premium Links SVG presentation
 
-Supported Generator 8 Links holes use a top-down full-stage SVG scene in normal play. The existing
+Supported Generator 8 Links holes use a top-down full-stage SVG scene in normal play. Newly generated Generator 9
+Links holes retain that artwork and add route-linked open-ocean geography on seven of eighteen holes. Historical
+Generator 8 holes retain their exact terrain. [Generated coastal evidence](../evidence/coastal-links/README.md)
+shows a full course fixture, its coastal mix, and the production component captures. The existing
 canonical projection, inverse aiming transform, and backend shot trace remain in charge of gameplay.
 Earlier Links saves and unsupported geometry keep the existing polished renderer.
 

@@ -29,7 +29,7 @@ export function PhysicalPuttingGreen({
   stageViewport?: StageViewport;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [measuredAspect, setMeasuredAspect] = useState(16 / 9);
+  const [measuredAspect, setMeasuredAspect] = useState<number | null>(null);
   const clipId = useId().replace(/:/g, "");
   const trajectory = useMemo(() => ball?.physicalPutt?.trajectory ?? [], [ball?.physicalPutt?.trajectory]);
   const origin = trajectory[0]?.position ?? hole.ball?.position ?? hole.geometry!.tee;
@@ -40,7 +40,8 @@ export function PhysicalPuttingGreen({
     const svg = svgRef.current;
     const update = () => {
       const { width, height } = svg.getBoundingClientRect();
-      if (width > 0 && height > 0) setMeasuredAspect((current) => Math.abs(current - width / height) > .01 ? width / height : current);
+      if (width > 0 && height > 0) setMeasuredAspect((current) => current === null
+        || Math.abs(current - width / height) > .01 ? width / height : current);
     };
     update();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
@@ -49,7 +50,7 @@ export function PhysicalPuttingGreen({
     return () => { observer?.disconnect(); window.removeEventListener("resize", update); };
   }, [premiumFamily]);
   const frame = scenicFrame(premiumFamily ? stageViewport : undefined, PHYSICAL_PUTTING_PRESENTATION.height);
-  const stageAspect = premiumFamily && stageViewport ? frame.aspect : measuredAspect;
+  const stageAspect = measuredAspect ?? (premiumFamily && stageViewport ? frame.aspect : 16 / 9);
   const scene = useMemo(() => {
     const { width, height } = PHYSICAL_PUTTING_PRESENTATION;
     if (!premiumFamily) return { x: 0, y: 0, width, height };

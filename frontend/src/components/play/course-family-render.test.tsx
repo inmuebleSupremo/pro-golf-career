@@ -7,11 +7,27 @@ import { describe, expect, it } from "vitest";
 import { Hole2d } from "./hole-2d";
 import samples from "@/lib/play/course-family-preview-fixtures.json";
 import corpus from "@/lib/play/principled-architecture-preview-fixtures.json";
+import coastalCourse from "@/lib/play/coastal-links-course-fixture.json";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
 
 const cases = samples as readonly { identity: string; hole: HoleGeom }[];
 
 describe("actual Generator 8 course-family renders", () => {
+  it("renders open ocean for coastal version 9 holes and retains an inland Links view", () => {
+    for (const number of [7, 8, 9, 1]) {
+      const item = coastalCourse.holes[number - 1];
+      const svg = renderToStaticMarkup(<Hole2d hole={item.hole as HoleGeom} presentation="premium"
+        stageViewport={{ width: 1600, height: 900, safeTop: 50, safeBottom: 0 }} />);
+      expect(svg).toContain("<svg");
+      expect(svg.includes('data-links-open-ocean="true"')).toBe(item.coastal);
+      const outputDir = process.env.COASTAL_LINKS_CAPTURE_DIR;
+      if (outputDir) {
+        mkdirSync(outputDir, { recursive: true });
+        writeFileSync(join(outputDir, `hole-${number}.svg`),
+          svg.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" '));
+      }
+    }
+  });
   it("extends the production SVG to the full viewport while retaining a safe course camera", () => {
     for (const sample of cases) {
       const svg = renderToStaticMarkup(<Hole2d hole={sample.hole} presentation="premium"

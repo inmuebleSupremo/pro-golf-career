@@ -34,18 +34,41 @@ final class V5HolePlanner {
     static List<SelectedCandidate> select(CoursePlan coursePlan, CourseArchitectureProfile profile, long courseSeed,
                                           List<Double> lengths, List<Double> fairwayHalves, boolean refined,
                                           boolean principlesDriven) {
+        return select(coursePlan, profile, courseSeed, lengths, fairwayHalves, refined, principlesDriven, false);
+    }
+
+    static List<SelectedCandidate> select(CoursePlan coursePlan, CourseArchitectureProfile profile, long courseSeed,
+                                          List<Double> lengths, List<Double> fairwayHalves, boolean refined,
+                                          boolean principlesDriven, boolean coastalLinks) {
         List<SelectedCandidate> selected = new ArrayList<>(18);
+        List<Integer> coast = coastalLinks ? V5CoastalLinks.holeIndices(courseSeed, coursePlan.briefs().size()) : List.of();
         for (int index = 0; index < coursePlan.briefs().size(); index++) {
             HoleBrief brief = coursePlan.briefs().get(index);
             List<Candidate> candidates = candidates(brief, profile, lengths.get(index), fairwayHalves.get(index),
                     Seeds.deriveSeed(courseSeed, brief.number()), refined, principlesDriven);
+            final boolean coastalHole = coast.contains(index);
             Candidate best = candidates.stream().max(Comparator.comparingDouble(candidate -> candidate.score
                     - repetitionPenalty(candidate, selected) + (principlesDriven
                     ? principleDiversityAdjustment(candidate, selected, brief) : compositionAdjustment(candidate, selected, profile,
-                    coursePlan.briefs().size())))).orElseThrow();
+                    coursePlan.briefs().size())) + (coastalHole
+                    ? coastalRoutingFit(candidate.plan, V5CoastalLinks.side(courseSeed),
+                            V5CoastalLinks.shape(courseSeed, brief.number())) : 0.0))).orElseThrow();
             selected.add(new SelectedCandidate(best.plan, best.ordinal, brief.par()));
         }
         return List.copyOf(selected);
+    }
+
+    /** Bounded preference among already viable Generator 8 routes; ocean and route share the same side and motif. */
+    private static double coastalRoutingFit(HoleArchitecturePlan plan, double side, int shape) {
+        ArchitectureRoute route = plan.route();
+        double middle = route.pointAt(route.length() * .55).x();
+        double green = route.greenCenter().x();
+        return switch (shape) {
+            case 1 -> 3.0 + Math.clamp(side * green * .15, -6.0, 6.0);
+            case 2 -> 3.0 + Math.clamp(-side * middle * .10, -6.0, 6.0)
+                    + Math.clamp(side * (green - middle) * .08, -4.0, 4.0);
+            default -> 6.0 - Math.min(6.0, Math.abs(middle) * .06 + Math.abs(green) * .04);
+        };
     }
 
     private static List<Candidate> candidates(HoleBrief brief, CourseArchitectureProfile profile, double length,
