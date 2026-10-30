@@ -7,6 +7,7 @@ import { PHYSICAL_BALL_RADIUS_YARDS, PHYSICAL_CUP_RADIUS_YARDS, PHYSICAL_PUTTING
 import { premiumPuttingFamily, puttingPolygonPath } from "../../lib/play/premium-putting";
 import { PremiumPuttingTerrain } from "./premium-putting-terrain";
 import { scenicFrame, type StageViewport } from "@/lib/play/stage-viewport";
+import { golfAudio } from "@/lib/play/golf-audio";
 
 /** A green-local SVG: all terrain facts, slope arrows and ball motion come from backend physical data. */
 export function PhysicalPuttingGreen({
@@ -84,15 +85,19 @@ export function PhysicalPuttingGreen({
     if (trajectory.length < 2) return;
     completedTrajectory.current = null;
     let frame = 0;
+    let finished = false;
     const start = performance.now();
     // Preserve solver time ordering while keeping a decision readable in the existing shot sequence.
     const duration = physicalPuttPlaybackDurationMs(trajectory);
     const tick = (now: number) => {
       const next = Math.min(1, (now - start) / duration);
+      if (ball?.physicalPutt) golfAudio.movement(ball.physicalPutt, next, "PUTTER", "PUTT");
       setAnimation({ trajectory, elapsed: next });
       if (next < 1) frame = requestAnimationFrame(tick);
       else if (completedTrajectory.current !== trajectory) {
+        finished = true;
         completedTrajectory.current = trajectory;
+        if (ball?.physicalPutt) golfAudio.cup(ball.physicalPutt, ball.physicalPutt.holed && !!ball.holed);
         playbackCompleteRef.current?.();
       }
     };
@@ -100,8 +105,8 @@ export function PhysicalPuttingGreen({
       setAnimation({ trajectory, elapsed: 0 });
       frame = requestAnimationFrame(() => tick(now));
     });
-    return () => cancelAnimationFrame(frame);
-  }, [trajectory]);
+    return () => { cancelAnimationFrame(frame); if (!finished) golfAudio.stopEffects(); };
+  }, [trajectory, ball]);
 
   const traversedTrajectory = physicalTraversedTrajectory(trajectory, elapsed);
   const moving = trajectory.length ? physicalTrajectoryPoint(trajectory, elapsed) : origin;

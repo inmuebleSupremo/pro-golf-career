@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { humanize } from "@/lib/play/options";
 import { StageHole } from "@/components/play/hole-transition";
+import { AudioControls } from "@/components/play/audio-controls";
 import { usePlaySequence } from "@/components/play/use-play-sequence";
 import type { HoleGeom, Point } from "@/lib/play/hole-geometry";
 import { isParklandFamily, playPresentation, type PlayPresentation } from "@/lib/play/play-presentation";
@@ -20,6 +21,8 @@ import { shotSubmissionFeedback } from "@/lib/play/shot-feedback";
 import { formatShotDistance, shotDistanceReadout } from "@/lib/play/distance";
 import type { StageViewport } from "@/lib/play/stage-viewport";
 import { shotAimMarkerVisible, stagePlaybackState } from "@/lib/play/stage-playback-state";
+import { golfAudio } from "@/lib/play/golf-audio";
+import { ambienceFamily } from "@/lib/play/golf-audio-policy";
 import {
   formatScore,
   Leaderboard,
@@ -110,6 +113,12 @@ export function PlayMode({
   const [shotViewport, setShotViewport] = useState<StageViewport | null>();
   const [shotAimPoint, setShotAimPoint] = useState<Point>();
   const [nonPuttSubmitting, setNonPuttSubmitting] = useState(false);
+  const initialAudioFamily = useRef(ambienceFamily(hole));
+
+  useEffect(() => {
+    golfAudio.startScene(initialAudioFamily.current);
+    return () => golfAudio.stopScene();
+  }, []);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -137,6 +146,8 @@ export function PlayMode({
   // The client-side sequence: it owns what the stage shows and when the shot controls are locked, so the
   // between-hole ceremony (hole-out → score → wipe → intro) can play out over the server's instant advance.
   const seq = usePlaySequence({ situation, hole, scorecard, leaderboard, playerGolferId });
+  const currentAudioFamily = ambienceFamily(seq.displayHole);
+  useEffect(() => golfAudio.setFamily(currentAudioFamily), [currentAudioFamily]);
   const { dockSituation, dockHole, viewport: displayViewport, aimPoint: displayAimPoint } = stagePlaybackState({
     playbackShot: seq.playbackShot, displaySituation: seq.displaySituation, displayHole: seq.displayHole,
     liveSituation: situation, liveHole: hole, shotViewport, liveViewport: stageViewport,
@@ -180,7 +191,7 @@ export function PlayMode({
         position={position}
         tab={tab}
         onToggle={toggle}
-        onLeave={() => router.push(`/career/${id}`)}
+        onLeave={() => { golfAudio.stopScene(); router.push(`/career/${id}`); }}
       /></div>
 
       <div className={cn("relative flex min-h-0 flex-1 overflow-hidden", fullBleed && "absolute inset-0 z-0")}>
@@ -226,7 +237,7 @@ export function PlayMode({
         onAimPoint={setAimPoint}
         usedCourseAim={aimState.usedCourseAim}
         onShot={onShotResolved}
-        onSimJump={seq.onSimJump}
+        onSimJump={() => { golfAudio.stopEffects(); seq.onSimJump(); }}
         lastOutcome={seq.lastOutcome}
         locked={interactionLocked}
         onNonPuttSubmissionStart={() => setNonPuttSubmitting(true)}
@@ -285,6 +296,7 @@ function PlayHud({
         </span>
       ) : null}
       <div className="ml-auto flex shrink-0 items-center gap-3 md:gap-4">
+        <AudioControls />
         <HudStat k="Round" v={round ? `${round}` : "—"} />
         <HudStat k="Score" v={toPar == null ? "—" : formatScore(toPar)} tone={toPar == null ? undefined : scoreToneClass(toPar)} />
         <HudStat k="Pos" v={position ? `${position}` : "—"} />
@@ -404,6 +416,7 @@ function ActionDock({
   }
 
   async function onPlay() {
+    golfAudio.unlock();
     setFormError(null);
     const shotContext = { hole, situation };
     let nonPuttStarted = false;

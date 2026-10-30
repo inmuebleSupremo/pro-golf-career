@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { Point } from "@/lib/play/hole-geometry";
 import { startShotPlayback } from "@/lib/play/shot-playback-clock";
+import { golfAudio } from "@/lib/play/golf-audio";
 import { traceBallProjection, tracePlaybackDurationMs, tracePlaybackFrame, tracePlaybackStatus,
   transitionLabel, type ShotTrace } from "@/lib/play/trace-presentation";
 
@@ -28,21 +29,37 @@ interface ShotMotionProps {
   ballStroke: string;
   statusY: number;
   shadowFill: string;
+  holed?: boolean;
   onPlaybackComplete?: () => void;
 }
 
 /** Only this small SVG subtree updates on animation frames; premium scenery stays mounted and still. */
 export function ShotMotionOverlay(props: ShotMotionProps) {
-  const { trace, onPlaybackComplete } = props;
+  const { trace, holed, onPlaybackComplete } = props;
+  const completeRef = useRef(onPlaybackComplete);
+  useLayoutEffect(() => { completeRef.current = onPlaybackComplete; }, [onPlaybackComplete]);
   const reduced = usePrefersReducedMotion();
   const [clock, setClock] = useState(() => ({ trace, progress: 0 }));
   const progress = reduced ? 1 : clock.trace === trace ? clock.progress : 0;
 
   useEffect(() => {
-    if (reduced) return;
-    return startShotPlayback(tracePlaybackDurationMs(trace),
-      (next) => setClock({ trace, progress: next }), onPlaybackComplete);
-  }, [trace, reduced, onPlaybackComplete]);
+    if (reduced) {
+      golfAudio.impact(trace, trace.club);
+      golfAudio.cup(trace, !!holed);
+      return;
+    }
+    let finished = false;
+    const cancel = startShotPlayback(tracePlaybackDurationMs(trace),
+      (next) => {
+        golfAudio.movement(trace, next, trace.club);
+        setClock({ trace, progress: next });
+      }, () => {
+        finished = true;
+        golfAudio.cup(trace, !!holed);
+        completeRef.current?.();
+      });
+    return () => { cancel(); if (!finished) golfAudio.stopEffects(); };
+  }, [trace, reduced, holed]);
 
   return <ShotMotionFrame {...props} progress={progress} />;
 }
