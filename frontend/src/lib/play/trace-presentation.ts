@@ -79,7 +79,8 @@ export function interpolatedAirbornePoint(trace: ShotTrace, progress: number): P
 
 /** Restrained screen-space depth only; it never changes the yard-space track or contact. */
 export function traceHeightCue(heightYards: number): { lift: number; scale: number; shadowOpacity: number } {
-  const lift = clamp(1.7 * Math.sqrt(Math.max(0, heightYards)), 0, 9);
+  // Finite slope at launch avoids a screen-space jump as the first positive height sample arrives.
+  const lift = 9 * (1 - Math.exp(-Math.max(0, heightYards) / 11));
   return { lift, scale: 1 + Math.min(0.16, lift * 0.018), shadowOpacity: Math.max(0.18, 0.42 - lift * 0.024) };
 }
 

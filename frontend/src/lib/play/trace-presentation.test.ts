@@ -160,6 +160,31 @@ describe("trace presentation", () => {
     expect(early - iron.contact.position.y).toBeGreaterThan(iron.finalPoint.y - late);
   });
 
+  it.each([
+    ["driver", 255, 31], ["iron", 155, 19], ["pitch", 42, 12], ["chip", 16, 4],
+  ])("moves continuously through the first authoritative %s flight samples", (_name, carry, apex) => {
+    const shot: ShotTrace = {
+      club: "SEVEN_IRON", origin: { x: 0, y: 0 }, aimPoint: { x: 0, y: carry },
+      contact: { position: { x: 0, y: carry }, surface: "GREEN" },
+      airbornePath: Array.from({ length: 9 }, (_, index) => {
+        const progress = index / 8;
+        return { progress, position: { x: 0, y: carry * progress },
+          height: apex * 4 * progress * (1 - progress) };
+      }),
+      roll: null, transition: null, finalPoint: { x: 0, y: carry },
+    };
+    const total = tracePlaybackDurationMs(shot);
+    const frames = [0, 16, 32, 48].map((elapsed) => tracePlaybackFrame(shot, elapsed / total));
+    expect(frames[0]).toMatchObject({ phase: "airborne", point: shot.origin, height: 0, finalVisible: false });
+    const steps = frames.slice(1).map((frame, index) => frame.point.y - frames[index].point.y);
+    expect(steps[0]).toBeGreaterThan(0);
+    expect(steps[1]).toBeCloseTo(steps[0]);
+    expect(steps[2]).toBeCloseTo(steps[0]);
+    const lifts = frames.map((frame) => traceHeightCue(frame.height ?? 0).lift);
+    expect(lifts[1]).toBeGreaterThan(lifts[0]);
+    expect(lifts[2] - lifts[1]).toBeLessThan(lifts[1] - lifts[0]);
+  });
+
   it("bounds very short, very long, no-roll and recovery playback without changing endpoints", () => {
     const short = { ...rollingTrace, contact: { position: { x: 0, y: 0 }, surface: "BUNKER" },
       roll: null, transition: null, finalPoint: { x: 0, y: 0 } } satisfies ShotTrace;
@@ -210,11 +235,16 @@ describe("trace presentation", () => {
       new URL("../../components/play/canonical-hole-2d.tsx", import.meta.url),
       "utf8",
     );
+    const motionOverlay = readFileSync(
+      new URL("../../components/play/shot-motion-overlay.tsx", import.meta.url),
+      "utf8",
+    );
 
     expect(compatibilityEntry).toContain("CanonicalHole2d");
     expect(compatibilityEntry).not.toContain("shot-router");
     expect(canonicalRenderer).not.toContain("shot-router");
     expect(canonicalRenderer).not.toContain("shot-flight");
-    expect(canonicalRenderer).toContain("trace?.roll");
+    expect(canonicalRenderer).toContain("ShotMotionOverlay");
+    expect(motionOverlay).toContain("trace.roll");
   });
 });

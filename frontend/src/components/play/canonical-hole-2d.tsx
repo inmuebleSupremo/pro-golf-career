@@ -6,7 +6,8 @@ import { BIOME_KITS, LINKS_MATERIAL, PARKLAND_MATERIAL, resolveBiome, VEG_SYMBOL
 import { canonicalRenderModel, pointerWorldTarget } from "@/lib/play/canonical-geometry";
 import { decorationId, planTreeCanopies, type CanopyPlacement } from "@/lib/play/canonical-hole-decoration";
 import type { Point } from "@/lib/play/hole-geometry";
-import { feedbackAimPoint, isAimPointInteractionLocked, traceBallProjection, tracePlaybackDurationMs, tracePlaybackFrame, tracePlaybackStatus, transitionLabel } from "@/lib/play/trace-presentation";
+import { feedbackAimPoint, isAimPointInteractionLocked } from "@/lib/play/trace-presentation";
+import { ShotMotionOverlay } from "@/components/play/shot-motion-overlay";
 import type { Hole2dProps } from "@/components/play/hole-2d";
 import { WindDisplay } from "@/components/play/wind-display";
 import { PremiumParklandBackdrop, PremiumParklandCanopies, PremiumParklandDefs, PremiumParklandLight, PremiumParklandPaths, PremiumParklandProperty, PremiumParklandShadows, PremiumParklandSurface } from "@/components/play/premium-parkland-art";
@@ -82,21 +83,9 @@ const fills = (surface: string, kit: (typeof BIOME_KITS)[keyof typeof BIOME_KITS
   }
 };
 
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useLayoutEffect(() => {
-    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const sync = () => setReduced(query.matches);
-    sync();
-    query.addEventListener("change", sync);
-    return () => query.removeEventListener("change", sync);
-  }, []);
-  return reduced;
-}
-
 /** Canonical renderer: terrain and every visible shot point come from backend yard-space facts. */
 export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, presentation = "polished", previewAspect,
-  unlitAudit = false, stageViewport }: Hole2dProps) {
+  unlitAudit = false, stageViewport, onPlaybackComplete, showAimMarker = true }: Hole2dProps) {
   const geometry = hole.geometry!;
   const kit = BIOME_KITS[resolveBiome(hole.courseType)];
   const premiumParkland = isParklandFamily(hole)
@@ -211,46 +200,16 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
       observer?.disconnect();
     };
   }, [fullStage]);
-  const reduced = usePrefersReducedMotion();
   const trace = ball?.trace ?? null;
   const polishedParkland = kit.biome === "parkland" && presentation === "polished";
   const polishedLinks = kit.biome === "links" && presentation === "polished";
-  const [progress, setProgress] = useState(1);
-
-  useLayoutEffect(() => {
-    if (!trace || reduced) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setProgress(1);
-      return;
-    }
-    // Reset before paint so a newly returned result cannot briefly show its final position.
-    setProgress(0);
-    let frame = 0;
-    const start = (started: number) => {
-      const advance = (now: number) => {
-        const next = Math.min(1, (now - started) / tracePlaybackDurationMs(trace));
-        setProgress(next);
-        if (next < 1) frame = requestAnimationFrame(advance);
-      };
-      frame = requestAnimationFrame(advance);
-    };
-    frame = requestAnimationFrame(start);
-    return () => cancelAnimationFrame(frame);
-  }, [trace, reduced]);
 
   const tee = model.project(geometry.tee);
   const cup = model.project(geometry.cup);
   const displayedAim = feedbackAimPoint(trace, aimPoint);
-  const planningTarget = !trace && displayedAim ? model.project(displayedAim) : null;
-  const traceTarget = trace ? model.project(displayedAim!) : null;
+  const planningTarget = !trace && showAimMarker && displayedAim ? model.project(displayedAim) : null;
   const contact = trace ? model.project(trace.contact.position) : null;
   const finalPoint = trace ? model.project(trace.finalPoint) : model.project(hole.ball?.position ?? geometry.tee);
-  const transitionFrom = trace?.transition ? model.project(trace.transition.from) : null;
-  const transitionTo = trace?.transition ? model.project(trace.transition.to) : null;
-  const rollFrom = trace?.roll ? model.project(trace.roll.from) : null;
-  const rollTo = trace?.roll ? model.project(trace.roll.to) : null;
-  const playback = trace ? tracePlaybackFrame(trace, progress) : null;
-  const motion = playback && !playback.finalVisible ? traceBallProjection(playback, model.project) : null;
   const contactEffect = trace?.contact.surface === "WATER" ? (polishedParkland || premiumParkland ? PARKLAND_MATERIAL.waterLight : "#dff1ff")
     : trace?.contact.surface === "BUNKER" ? kit.sandStroke : "#ffffff";
   const ballStroke = polishedParkland || premiumParkland ? PARKLAND_MATERIAL.markerOutline : "#c99";
@@ -259,8 +218,6 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
       ? `M${trace.airbornePath!.map((point) => `${model.project(point.position).x} ${model.project(point.position).y}`).join(" L")}`
       : `M${model.project(trace.origin).x} ${model.project(trace.origin).y} L${contact.x} ${contact.y}`
     : null;
-  const finalMatchesContact = trace != null && trace.finalPoint.x === trace.contact.position.x
-    && trace.finalPoint.y === trace.contact.position.y;
 
   function selectTarget(event: PointerEvent<SVGSVGElement>) {
     if (!onAimPoint || !svgRef.current || isAimPointInteractionLocked(trace != null)) return;
@@ -272,8 +229,6 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     onAimPoint(pointerWorldTarget({ x: event.clientX, y: event.clientY }, transform.inverse(), model.unproject));
   }
 
-  const recoveryLabel = transitionLabel(trace);
-  const playbackStatus = tracePlaybackStatus(trace, playback);
   // The accepted terrain polygons end at the tee. In a full-height scene that cap can sit
   // above the floating dock, so blend only the terrain into the continuous backdrop.
   const teeTerrainMask = fullStage && stageViewport ? `url(#${artId}-tee-terrain-mask)` : undefined;
@@ -424,41 +379,16 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
 
     {planningTarget ? <path d={`M${finalPoint.x} ${finalPoint.y} L${planningTarget.x} ${planningTarget.y}`}
       stroke="var(--accent)" strokeWidth="1" strokeDasharray="3 3" opacity=".8" pointerEvents="none" /> : null}
-    {traceTarget && contact ? <path d={`M${traceTarget.x} ${traceTarget.y} L${contact.x} ${contact.y}`} stroke="var(--accent)" strokeWidth="1" strokeDasharray="2 2" opacity=".75" /> : null}
-    {traceTarget ? <TargetMarker point={traceTarget} label="Intended target" outlined={polishedParkland || premiumParkland} /> : null}
     {planningTarget ? <TargetMarker point={planningTarget} label="Selected target" outlined={polishedParkland || premiumParkland} /> : null}
 
     {trace && contact && airbornePath ? <>
       {polishedParkland || premiumParkland ? <path d={airbornePath} stroke={PARKLAND_MATERIAL.traceShadow} strokeWidth="2.8" strokeDasharray="3 3" opacity=".5" /> : null}
       <path d={airbornePath} stroke="#ffffff" strokeWidth="1.1" strokeDasharray="3 3" opacity=".8" />
-      {motion && motion.lift > 0 ? <ellipse cx={motion.ground.x} cy={motion.ground.y}
-        rx={3 + motion.lift * .16} ry="1.5" fill={PARKLAND_MATERIAL.traceShadow}
-        opacity={motion.shadowOpacity} pointerEvents="none" /> : null}
-      {motion ? <circle cx={motion.ball.x} cy={motion.ball.y}
-        r={3 * motion.scale} fill="#fff" stroke={ballStroke} strokeWidth=".6" /> : null}
-      {playback?.phase !== "airborne" ? <>
-        <circle cx={contact.x} cy={contact.y} r="6" fill="none" stroke={contactEffect} strokeWidth="1.5" opacity=".9" />
-        <circle cx={contact.x} cy={contact.y} r="2.4" fill="#fff" />
-        <text x={contact.x + 5} y={contact.y - 5} fill="#fff" fontSize="5">{finalMatchesContact ? "Contact / ball" : "Contact"}</text>
-      </> : null}
+      <ShotMotionOverlay trace={trace} project={model.project} contact={contact} finalPoint={finalPoint}
+        contactEffect={contactEffect} ballStroke={ballStroke} statusY={viewHeight - PAD}
+        shadowFill={PARKLAND_MATERIAL.traceShadow} onPlaybackComplete={onPlaybackComplete} />
     </> : null}
-
-    {transitionFrom && transitionTo && recoveryLabel && (playback?.phase === "transition" || playback?.phase === "final") ? <>
-      <path d={`M${transitionFrom.x} ${transitionFrom.y} L${transitionTo.x} ${transitionTo.y}`} stroke="#fff" strokeWidth="1.2" strokeDasharray="3 2" opacity=".9" />
-      <text x={(transitionFrom.x + transitionTo.x) / 2 + 3} y={(transitionFrom.y + transitionTo.y) / 2 - 3} fill="#fff" fontSize="5">{recoveryLabel}</text>
-    </> : null}
-
-    {rollFrom && rollTo && (playback?.phase === "roll" || playback?.phase === "final") ? <>
-      <path d={`M${rollFrom.x} ${rollFrom.y} L${rollTo.x} ${rollTo.y}`} stroke="var(--accent)" strokeWidth="1.3" strokeDasharray="2 1" opacity=".95" />
-      <text x={(rollFrom.x + rollTo.x) / 2 + 3} y={(rollFrom.y + rollTo.y) / 2 - 3} fill="var(--accent)" fontSize="5">Roll</text>
-    </> : null}
-
-    {playbackStatus ? <text x={PAD} y={viewHeight - PAD} fill="var(--accent)" fontSize="6" fontWeight="700">
-      {playbackStatus}
-    </text> : null}
-
-    {(!trace || playback?.finalVisible) && (!trace || !finalMatchesContact) ? <><circle cx={finalPoint.x} cy={finalPoint.y} r="3" fill="#fff" stroke={ballStroke} strokeWidth=".6" />
-      {trace ? <text x={finalPoint.x + 5} y={finalPoint.y + 6} fill="#fff" fontSize="5">Ball</text> : null}</> : null}
+    {!trace ? <circle cx={finalPoint.x} cy={finalPoint.y} r="3" fill="#fff" stroke={ballStroke} strokeWidth=".6" /> : null}
   </svg>;
 }
 

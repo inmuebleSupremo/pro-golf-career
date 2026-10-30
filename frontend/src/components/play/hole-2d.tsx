@@ -11,6 +11,7 @@ export interface Hole2dProps {
   readonly className?: string;
   readonly aimPoint?: Point;
   readonly onAimPoint?: (point: Point) => void;
+  readonly showAimMarker?: boolean;
   /** Normal play selects V2 for supported Parkland holes; development can compare all modes. */
   readonly presentation?: "baseline" | "polished" | "premium-v1" | "premium";
   /** Development preview's known panel ratio; live play measures its stage. */
@@ -18,6 +19,7 @@ export interface Hole2dProps {
   /** Development preview only: inspect scenery before the stage lighting pass. */
   readonly unlitAudit?: boolean;
   readonly stageViewport?: StageViewport;
+  readonly onPlaybackComplete?: () => void;
 }
 
 /** Active play has one terrain and shot authority: canonical backend geometry plus a returned trace. */

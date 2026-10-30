@@ -49,11 +49,13 @@ export interface PlaySequence {
   /** True whenever the shot controls must be disabled (any phase but free play, and during result playback). */
   readonly locked: boolean;
   /** Called by shot controls when one observable, backend-traced shot resolves. */
-  readonly onShotResolved: (outcome: Outcome) => void;
+  readonly onShotResolved: (outcome: Outcome, shotContext?: { hole: HoleGeom | null; situation: Situation }) => void;
   /** Called when a multi-hole sim (hole/round/event) jumps the state past one or more holes. */
   readonly onSimJump: () => void;
   /** Called by the physical renderer at the final authoritative trajectory sample, never by a parallel timer. */
   readonly onPhysicalPlaybackComplete: () => void;
+  /** Called after the non-putt renderer has painted its authoritative terminal frame. */
+  readonly onTracePlaybackComplete: () => void;
 }
 
 // Phase durations (ms). Reduced motion collapses movement but still lets the information land.
@@ -122,7 +124,7 @@ export function usePlaySequence({
   // A single resolved shot (played or simmed). A holed shot opens the between-hole ceremony, snapshotting the
   // hole it finished. Non-holing results also freeze the pre-resolution stage while their trace is shown, which
   // prevents an immediately refreshed green state from replacing an approach flight with the putting view.
-  const onShotResolved = useCallback((outcome: Outcome) => {
+  const onShotResolved = useCallback((outcome: Outcome, shotContext?: { hole: HoleGeom | null; situation: Situation }) => {
     setResultPresentation(showResolvedShot(toResolved(outcome), outcome));
     const physicalPutt = outcome.physicalPutt != null;
     setActivePhysicalPutt(physicalPutt);
@@ -139,16 +141,16 @@ export function usePlaySequence({
       return;
     }
     if (outcome.holed) {
-      setFrozenHole(holeRef.current);
-      setFrozenSit(sitRef.current);
+      setFrozenHole(shotContext?.hole ?? holeRef.current);
+      setFrozenSit(shotContext?.situation ?? sitRef.current);
       setFrozen(true);
       setPhase("holeout");
     } else {
-      setFrozenHole(holeRef.current);
-      setFrozenSit(sitRef.current);
+      setFrozenHole(shotContext?.hole ?? holeRef.current);
+      setFrozenSit(shotContext?.situation ?? sitRef.current);
       setFrozen(true);
       setObservingResult(false);
-      // The SVG starts on the next animation frame; leave one painted terminal frame before unlocking.
+      // Reduced motion and traces without samples use this duration as a fallback; normal traces finish by callback.
       setActivePlaybackDuration(resolvedPlaybackDurationMs(rendererPlaybackDuration(outcome), D.shot, reduced) + (reduced ? 0 : 50));
       setShotAnimating(true);
     }
@@ -176,6 +178,13 @@ export function usePlaySequence({
     }
     setObservingResult(true);
   }, [shotAnimating, activePhysicalPutt, pendingPhysicalHoleout]);
+
+  const onTracePlaybackComplete = useCallback(() => {
+    if (!shotAnimating || activePhysicalPutt) return;
+    setShotAnimating(false);
+    setFrozen(false);
+    setResultPresentation((presentation) => completeNonHolingPlayback(presentation));
+  }, [shotAnimating, activePhysicalPutt]);
 
   // Drive the timed progression through each non-interactive phase.
   useEffect(() => {
@@ -207,10 +216,10 @@ export function usePlaySequence({
     return;
   }, [phase, D.intro, D.holeout, D.score, D.wipe]);
 
-  // Non-physical renderers use their authored duration. Physical rendering reports its terminal solver sample
-  // through onPhysicalPlaybackComplete, so no independent timer can reveal a future physical result early.
+  // Normal non-putt traces and physical putts report their own painted completion. Only reduced motion and
+  // historical non-trace results use this timer, so a delayed frame cannot reveal the next state early.
   useEffect(() => {
-    if (!shotAnimating || activePhysicalPutt) return;
+    if (!shotAnimating || activePhysicalPutt || (!reduced && resultPresentation.playbackShot?.trace)) return;
     const t = setTimeout(() => {
       setShotAnimating(false);
       setFrozen(false);
@@ -218,7 +227,7 @@ export function usePlaySequence({
       setResultPresentation((presentation) => completeNonHolingPlayback(presentation));
     }, activePlaybackDuration);
     return () => clearTimeout(t);
-  }, [shotAnimating, activePlaybackDuration, activePhysicalPutt]);
+  }, [shotAnimating, activePlaybackDuration, activePhysicalPutt, reduced, resultPresentation.playbackShot]);
 
   useEffect(() => {
     if (!observingResult) return;
@@ -265,5 +274,6 @@ export function usePlaySequence({
     onShotResolved,
     onSimJump,
     onPhysicalPlaybackComplete,
+    onTracePlaybackComplete,
   };
 }
