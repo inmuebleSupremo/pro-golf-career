@@ -7,8 +7,13 @@ import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.BallStrikeIntent;
+import com.progolf.sim.shot.ClubSpec;
 import com.progolf.sim.shot.Environment;
 import com.progolf.sim.shot.ShotGuidance;
+import com.progolf.sim.shot.ShotExecutionProfile;
+import com.progolf.sim.shot.ShotFamily;
+import com.progolf.sim.shot.ShotFamilyEligibility;
+import com.progolf.sim.shot.SimConstants;
 import com.progolf.sim.shot.StrategicTargetPlanner;
 import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.shot.StrategyPolicy;
@@ -57,6 +62,8 @@ class PrincipledArchitecturePreviewTest {
     @Test
     void completeFixedCorpusContainsVarietyAndRealSharedStrategicChoicesWhereGeometrySupportsThem() {
         int decisionHoles = 0;
+        int approachHoles = 0;
+        int landingDecisionHoles = 0;
         int parThree = 0, parFour = 0, parFive = 0;
         java.util.Set<Long> signatures = new java.util.HashSet<>();
         List<PreviewCourseMetrics> parklandMeasures = new ArrayList<>();
@@ -79,16 +86,32 @@ class PrincipledArchitecturePreviewTest {
                             PLAYER, Environment.calm());
                     if (options.size() > 1) {
                         decisionHoles++;
+                        boolean greenApproach = hole.par() == 3 || hole.par() == 4
+                                && greenReachableFromTee(model.startDistance());
+                        if (greenApproach) approachHoles++;
+                        else landingDecisionHoles++;
                         assertThat(options).anyMatch(option -> option.role() == LandingZoneRole.PRIMARY);
                         options.forEach(option -> assertThat(model.geometry().surfaceAt(new Position2d(
                                 option.aimPoint().x(), option.aimPoint().y()))).isIn(Surface.FAIRWAY,
                                 Surface.FIRST_CUT, Surface.PRIMARY_ROUGH));
                         for (Strategy strategy : Strategy.values()) {
                             ShotGuidance.StrategicOption preferred = StrategicTargetPlanner.preferred(options, strategy);
-                            assertThat(((BallStrikeIntent) new StrategyPolicy(strategy).decideShotIntent(model,
+                            BallStrikeIntent intent = (BallStrikeIntent) new StrategyPolicy(strategy).decideShotIntent(model,
                                     new BallState(model.geometry().tee(), Surface.TEE_BOX), model.startDistance(),
-                                    Surface.TEE_BOX, PLAYER, model.par(), Environment.calm())).aimPoint())
-                                    .isEqualTo(preferred.aimPoint());
+                                    Surface.TEE_BOX, PLAYER, model.par(), Environment.calm());
+                            if (greenApproach) {
+                                // A reachable par-4 green takes precedence over an available fairway option.
+                                assertThat(intent.aimPoint()).as("%s seed %s hole %s strategy %s",
+                                        environment, seed, hole.number(), strategy).isNotEqualTo(preferred.aimPoint());
+                                assertThat(new Position2d(intent.aimPoint().x(), intent.aimPoint().y())
+                                        .distanceTo(model.cupPosition()))
+                                        .isLessThan(new Position2d(preferred.aimPoint().x(), preferred.aimPoint().y())
+                                                .distanceTo(model.cupPosition()));
+                            } else {
+                                assertThat(intent.aimPoint()).as("%s seed %s hole %s strategy %s",
+                                        environment, seed, hole.number(), strategy).isEqualTo(preferred.aimPoint());
+                                assertThat(intent.club()).isEqualTo(preferred.suggestedClub());
+                            }
                         }
                     }
                 }
@@ -99,6 +122,8 @@ class PrincipledArchitecturePreviewTest {
         assertThat(parFive).isPositive();
         assertThat(signatures).hasSizeGreaterThan(80);
         assertThat(decisionHoles).isPositive();
+        assertThat(approachHoles).isPositive();
+        assertThat(landingDecisionHoles).isPositive();
         List<PreviewCourseMetrics> measures = new ArrayList<>();
         measures.addAll(parklandMeasures);
         measures.addAll(linksMeasures);
@@ -131,5 +156,14 @@ class PrincipledArchitecturePreviewTest {
 
     private static SeedCoordinate coordinate(long seed, EnvironmentClassification environment) {
         return new SeedCoordinate(WORLD, 7, seed, environment.ordinal(), 0, 0, 0);
+    }
+
+    private static boolean greenReachableFromTee(double distance) {
+        return ClubSpec.all().stream()
+                .filter(club -> ShotFamilyEligibility.evaluate(Surface.TEE_BOX, club, ShotFamily.FULL).allowed())
+                .anyMatch(club -> club.baseCarry() * (SimConstants.REACH_FLOOR
+                        + SimConstants.REACH_SPAN * PLAYER.norm(club.distanceAttribute()))
+                        * ShotExecutionProfile.derive(Surface.TEE_BOX, club, ShotFamily.FULL, PLAYER,
+                                Environment.calm()).effectiveCarryCapMultiplier() >= distance);
     }
 }
