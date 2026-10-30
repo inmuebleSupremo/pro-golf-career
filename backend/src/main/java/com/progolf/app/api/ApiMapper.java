@@ -268,6 +268,7 @@ public final class ApiMapper {
     private static String geometrySource(int version) {
         return switch (version) {
             case CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION -> "GENERATOR_8_PRINCIPLED_ARCHITECTURE";
+            case CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION -> "GENERATOR_9_COASTAL_LINKS";
             case CourseGenConstants.V5_REFINED_GENERATOR_VERSION -> "GENERATOR_7_REFINED_V5";
             default -> "GENERATOR_" + version + "_CANONICAL";
         };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { canonicalRenderModel, pointerWorldTarget, projectCanonicalFlow, type CanonicalPlayingGeometry } from "./canonical-geometry";
+import coastalCourse from "./coastal-links-course-fixture.json";
 
 const geometry: CanonicalPlayingGeometry = {
   tee: { x: 0, y: 0 },
@@ -34,6 +35,17 @@ const geometry: CanonicalPlayingGeometry = {
 };
 
 describe("canonicalRenderModel", () => {
+  it("frames a real coastal hole around golf while projecting its ocean beyond the stage", () => {
+    const coastal = coastalCourse.holes.find((item) => item.coastal)!;
+    const coast = coastal.hole.geometry as CanonicalPlayingGeometry;
+    const ocean = coast.regions.find((region) => region.surface === "WATER"
+      && Math.max(...region.boundary.map((point) => point.x)) - Math.min(...region.boundary.map((point) => point.x)) > 600)!;
+    const model = canonicalRenderModel(coast, { width: 220, height: 440, padding: 16, center: true, openOcean: true });
+    expect(model.project(coast.tee).x).toBeGreaterThan(20);
+    expect(model.project(coast.tee).x).toBeLessThan(200);
+    expect(ocean.boundary.some((point) => model.project(point).x < 0 || model.project(point).x > 220)).toBe(true);
+    expect(model.terrain).toHaveLength(coast.regions.length);
+  });
   it("round-trips off-centre canonical coordinates through the display mapping", () => {
     const model = canonicalRenderModel(geometry);
     const source = { x: 13.25, y: 171.5 };

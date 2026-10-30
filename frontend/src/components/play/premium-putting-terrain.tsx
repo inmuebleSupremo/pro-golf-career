@@ -3,6 +3,7 @@ import { memo, useMemo } from "react";
 import type { HoleGeom, Point } from "@/lib/play/hole-geometry";
 import { pointInPolygon, puttingDecoration, puttingPolygonPath, type PuttingFamily, type PuttingScene } from "@/lib/play/premium-putting";
 import type { PhysicalPuttingProjector } from "@/lib/play/physical-putting";
+import { StageSideFocusGradient } from "./stage-side-focus";
 
 /** Material stops and layered shapes transcribed from the approved Python/SVG source package. */
 const PALETTES = {
@@ -45,10 +46,7 @@ export const PremiumPuttingTerrain = memo(function PremiumPuttingTerrain({ hole,
       <radialGradient id={`${id}-shade`} cx="38%" cy="31%" r="86%">
         <stop stopColor="#d8ee9a" stopOpacity=".17"/><stop offset="60%" stopColor="#8cbd68" stopOpacity=".04"/><stop offset="100%" stopColor="#112e22" stopOpacity=".23"/>
       </radialGradient>
-      <linearGradient id={`${id}-side`} x1="0" y1="0" x2="1" y2="0">
-        {([ ["0", ".82"], [".19", ".39"], [".40", "0"], [".62", "0"], [".84", ".32"], ["1", ".86"] ] as const)
-          .map(([offset, opacity]) => <stop key={offset} offset={offset} stopColor={palette.shade} stopOpacity={opacity}/>)}
-      </linearGradient>
+      <StageSideFocusGradient id={`${id}-side`} shade={palette.shade} putting />
       <radialGradient id={`${id}-edge`} cx="50%" cy="50%" r="72%">
         <stop offset="55%" stopColor="#000" stopOpacity="0"/><stop offset="100%" stopColor="#06120d" stopOpacity=".86"/>
       </radialGradient>

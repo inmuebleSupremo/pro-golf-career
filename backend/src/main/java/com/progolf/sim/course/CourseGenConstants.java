@@ -27,8 +27,10 @@ public final class CourseGenConstants {
      * landscape prototype, so this retained implementation takes the next available registry identity.
      */
     public static final int V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION = 8;
+    /** Generator 8 architecture with course-level open coastline on newly generated Links courses. */
+    public static final int V9_COASTAL_LINKS_GENERATOR_VERSION = 9;
     /** Generator selected for a newly created world. Restore always uses its persisted pin. */
-    public static final int CURRENT_GENERATOR_VERSION = V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION;
+    public static final int CURRENT_GENERATOR_VERSION = V9_COASTAL_LINKS_GENERATOR_VERSION;
     /** @deprecated Use an explicit retained generator version. */
     @Deprecated(forRemoval = false)
     public static final int GENERATOR_VERSION = V1_GENERATOR_VERSION;

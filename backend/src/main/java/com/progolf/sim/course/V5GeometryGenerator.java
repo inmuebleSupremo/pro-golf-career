@@ -388,7 +388,7 @@ final class V5GeometryGenerator {
                 && rng.nextDouble() < (brief.recoverySeverity() == RecoverySeverity.PENAL ? .34 : .22)) {
             addWoodlandWater(regions, plan, rng);
         }
-        if (environmentCharacter.coastalExposure()) addCoastalShoreline(regions, plan, rng);
+        if (environmentCharacter.coastalExposure() && !environmentCharacter.oceanCoast()) addCoastalShoreline(regions, plan, rng);
     }
 
     private static void addArchitectureLandforms(List<TerrainRegion> regions, HoleArchitecturePlan plan, HoleBrief brief,
@@ -417,7 +417,7 @@ final class V5GeometryGenerator {
                 && rng.nextDouble() < (brief.recoverySeverity() == RecoverySeverity.PENAL ? .34 : .22)) {
             addWoodlandWater(water, plan, rng);
         }
-        if (environmentCharacter.coastalExposure()) addRefinedCoastalShoreline(water, plan, rng);
+        if (environmentCharacter.coastalExposure() && !environmentCharacter.oceanCoast()) addRefinedCoastalShoreline(water, plan, rng);
         for (TerrainRegion candidate : water) if (hazardsHaveRoom(candidate, regions)) regions.add(candidate);
         List<TerrainRegion> trees = new ArrayList<>();
         addTrees(trees, plan, brief, environmentCharacter.treeEnclosure(), rng);

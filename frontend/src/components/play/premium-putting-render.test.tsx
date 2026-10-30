@@ -59,10 +59,9 @@ describe("premium putting production presentation", () => {
       expect(viewBox?.[0]).toBeCloseTo(-51.67, 1);
       expect(viewBox?.[2]).toBeCloseTo(533.33, 1);
       expect(natural).toContain('aria-label="' + family + ' ground material"');
-      expect(natural).toContain('stop-opacity=".82"');
-      expect(natural).toContain('stop-opacity=".86"');
-      expect(natural).toContain('<stop offset=".40" stop-color=');
-      expect(natural).toContain('<stop offset=".62" stop-color=');
+      expect(natural).toMatch(/<linearGradient id="[^"]+-side" x1="0" y1="0" x2="1" y2="0">/);
+      expect(natural).toContain('offset="0.350"');
+      expect(natural).toContain('offset="0.650"');
       const outputDir = process.env.PUTTING_CAPTURE_DIR;
       if (outputDir) {
         mkdirSync(outputDir, { recursive: true });

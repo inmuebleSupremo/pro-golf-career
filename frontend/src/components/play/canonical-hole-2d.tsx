@@ -11,7 +11,7 @@ import { ShotMotionOverlay } from "@/components/play/shot-motion-overlay";
 import type { Hole2dProps } from "@/components/play/hole-2d";
 import { WindDisplay } from "@/components/play/wind-display";
 import { PremiumParklandBackdrop, PremiumParklandCanopies, PremiumParklandDefs, PremiumParklandLight, PremiumParklandPaths, PremiumParklandProperty, PremiumParklandShadows, PremiumParklandSurface } from "@/components/play/premium-parkland-art";
-import { PremiumLinksAtmosphere, PremiumLinksDefs, PremiumLinksLandscape, PremiumLinksProperty, PremiumLinksSurface } from "@/components/play/premium-links-art";
+import { openOceanRenderPath, PremiumLinksAtmosphere, PremiumLinksDefs, PremiumLinksLandscape, PremiumLinksOcean, PremiumLinksProperty, PremiumLinksSurface } from "@/components/play/premium-links-art";
 import { PremiumHeathlandAtmosphere, PremiumHeathlandCanonicalPines, PremiumHeathlandDefs, PremiumHeathlandLandscape, PremiumHeathlandProperty, PremiumHeathlandSurface, planHeathlandDecoration } from "@/components/play/premium-heathland-art";
 import { PremiumDesertAtmosphere, PremiumDesertBunkerMask, PremiumDesertCanonicalTrees, PremiumDesertDefs, PremiumDesertLandscape, PremiumDesertProperty, PremiumDesertSurface, planDesertDecoration } from "@/components/play/premium-desert-art";
 import { premiumLinksCorridor } from "@/lib/play/premium-links-corridor";
@@ -21,7 +21,7 @@ import { premiumHeathlandPropertyPlan } from "@/lib/play/premium-heathland-prope
 import { premiumDesertCorridor } from "@/lib/play/premium-desert-corridor";
 import { premiumDesertPropertyPlan } from "@/lib/play/premium-desert-property";
 import { premiumDistantTrees, premiumSceneryWidth, premiumSurfacePrecedence, premiumTreePlans } from "@/lib/play/premium-parkland-decoration";
-import { isParklandFamily, isWoodlandVariation } from "@/lib/play/play-presentation";
+import { hasPrincipledGeometryProvenance, isParklandFamily, isWoodlandVariation } from "@/lib/play/play-presentation";
 import { scenicFrame } from "@/lib/play/stage-viewport";
 import { inPropertyClearing, isPremiumAimCoordinate, isPropertyPathCoordinate, premiumPropertyPlan } from "@/lib/play/premium-parkland-property";
 
@@ -91,16 +91,13 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
   const premiumParkland = isParklandFamily(hole)
     && (presentation === "premium" || presentation === "premium-v1");
   const premiumLinks = kit.biome === "links" && presentation === "premium"
-    && hole.courseGeneratorVersion === 8
-    && hole.canonicalGeometrySource === "GENERATOR_8_PRINCIPLED_ARCHITECTURE";
+    && hasPrincipledGeometryProvenance(hole);
   const premiumHeathland = kit.biome === "heathland" && hole.courseFamily === "HEATHLAND"
     && hole.canonicalBiome === "HEATHLAND" && presentation === "premium"
-    && hole.courseGeneratorVersion === 8
-    && hole.canonicalGeometrySource === "GENERATOR_8_PRINCIPLED_ARCHITECTURE";
+    && hasPrincipledGeometryProvenance(hole);
   const premiumDesert = kit.biome === "desert" && hole.courseFamily === "DESERT"
     && hole.canonicalBiome === "DESERT" && presentation === "premium"
-    && hole.courseGeneratorVersion === 8
-    && hole.canonicalGeometrySource === "GENERATOR_8_PRINCIPLED_ARCHITECTURE"
+    && hasPrincipledGeometryProvenance(hole)
     && geometry.regions.some((region) => region.surface === "GREEN" && region.boundary.length >= 3);
   const variation = isWoodlandVariation(hole) ? "woodland" : "open";
   const fullStage = premiumLinks || premiumHeathland || premiumDesert || premiumParkland && presentation === "premium";
@@ -108,13 +105,15 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
   const frame = scenicFrame(fullStage ? stageViewport : undefined, safeHeight);
   const viewHeight = frame.height;
   const model = useMemo(() => canonicalRenderModel(geometry, { width: W, height: viewHeight, padding: PAD,
-    safeTop: frame.safeTop, safeHeight: frame.safeHeight, center: premiumParkland || premiumLinks || premiumHeathland || premiumDesert }),
-    [geometry, viewHeight, frame.safeTop, frame.safeHeight, premiumParkland, premiumLinks, premiumHeathland, premiumDesert]);
+    safeTop: frame.safeTop, safeHeight: frame.safeHeight, center: premiumParkland || premiumLinks || premiumHeathland || premiumDesert,
+    openOcean: premiumLinks && hole.courseGeneratorVersion === 9 }),
+    [geometry, viewHeight, frame.safeTop, frame.safeHeight, premiumParkland, premiumLinks, premiumHeathland, premiumDesert,
+      hole.courseGeneratorVersion]);
   const artId = useMemo(() => `${decorationId(hole.layoutSeed, geometry)}${fullStage ? "-v2" : ""}`,
     [geometry, hole.layoutSeed, fullStage]);
   const treeCanopies = useMemo(() => planTreeCanopies(geometry, hole.layoutSeed), [geometry, hole.layoutSeed]);
-  const [measuredAspect, setMeasuredAspect] = useState(previewAspect ?? 1.8);
-  const stageAspect = stageViewport && fullStage ? frame.aspect : measuredAspect;
+  const [measuredAspect, setMeasuredAspect] = useState<number | null>(null);
+  const stageAspect = measuredAspect ?? (stageViewport && fullStage ? frame.aspect : previewAspect ?? 1.8);
   const v1SceneryX = -PARKLAND_SCENERY_MARGIN;
   const v1SceneryWidth = W + PARKLAND_SCENERY_MARGIN * 2;
   // The original crowns span this full width. A smaller V2 viewBox exposes unlit side strips on narrow stages.
@@ -161,6 +160,17 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     premiumSurfacePrecedence(b.surface) - premiumSurfacePrecedence(a.surface)) : [], [premiumParkland, model]);
   const linksRegions = useMemo(() => premiumLinks ? [...model.terrain].sort((a, b) =>
     premiumSurfacePrecedence(b.surface) - premiumSurfacePrecedence(a.surface)) : [], [premiumLinks, model]);
+  const linksOcean = useMemo(() => {
+    if (!premiumLinks || hole.courseGeneratorVersion !== 9) return null;
+    const index = geometry.regions.findIndex((region) => region.surface === "WATER"
+      && Math.max(...region.boundary.map((point) => point.x)) - Math.min(...region.boundary.map((point) => point.x)) > 600);
+    if (index < 0) return null;
+    const shore = geometry.regions[index].boundary.filter((point) => Math.abs(point.x) < 1000)
+      .sort((a, b) => a.y - b.y).map(model.project);
+    return { canonicalPath: model.terrain[index].path,
+      path: openOceanRenderPath(geometry.regions[index].boundary, model.project, visibleX, visibleX + visibleWidth),
+      shoreline: shore.map((point, i) => `${i ? "L" : "M"}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ") };
+  }, [premiumLinks, hole.courseGeneratorVersion, geometry, model, visibleX, visibleWidth]);
   const linksCorridor = useMemo(() => premiumLinks ? premiumLinksCorridor(geometry, model, viewHeight) : null,
     [premiumLinks, geometry, model, viewHeight]);
   const heathlandRegions = useMemo(() => premiumHeathland ? [...model.terrain].sort((a, b) =>
@@ -189,7 +199,8 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
     const svg = svgRef.current;
     const update = () => {
       const { width, height } = svg.getBoundingClientRect();
-      if (width > 0 && height > 0) setMeasuredAspect((current) => Math.abs(current - width / height) > .01 ? width / height : current);
+      if (width > 0 && height > 0) setMeasuredAspect((current) => current === null
+        || Math.abs(current - width / height) > .01 ? width / height : current);
     };
     update();
     window.addEventListener("resize", update);
@@ -350,9 +361,11 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
         {linksRegions.filter((region) => ["DEEP_ROUGH", "PRIMARY_ROUGH", "FIRST_CUT", "FAIRWAY"].includes(region.surface))
           .map((region, index) => <PremiumLinksSurface key={`links-terrain-${region.surface}-${index}`} id={artId} region={region} />)}
       </g>
-      {linksRegions.filter((region) => !["DEEP_ROUGH", "PRIMARY_ROUGH", "FIRST_CUT", "FAIRWAY"].includes(region.surface))
+      {linksRegions.filter((region) => region.path !== linksOcean?.canonicalPath
+        && !["DEEP_ROUGH", "PRIMARY_ROUGH", "FIRST_CUT", "FAIRWAY"].includes(region.surface))
         .map((region, index) => <PremiumLinksSurface key={`links-top-${region.surface}-${index}`} id={artId} region={region} />)}
       </g>
+      {linksOcean ? <PremiumLinksOcean id={artId} path={linksOcean.path} shoreline={linksOcean.shoreline} /> : null}
       <PremiumLinksAtmosphere id={artId} left={sceneryX} width={sceneryWidth} height={viewHeight} />
     </> : premiumParkland ? <>
       <g mask={teeTerrainMask} pointerEvents="none">
