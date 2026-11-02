@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { startShotPlayback } from "./shot-playback-clock";
 import { GolfAudioController, readAudioPreferences } from "./golf-audio";
-import { AMBIENCE_SAMPLES, SampleBag, ambienceFamily, impactCategory } from "./golf-audio-policy";
+import { AMBIENCE_SAMPLES, IMPACT_SAMPLES, SampleBag, ambienceFamily, impactCategory } from "./golf-audio-policy";
 import type { HoleGeom } from "./hole-geometry";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
@@ -65,6 +65,7 @@ describe("approved golf audio selection", () => {
       .map((club) => impactCategory(club))).toEqual(["driver", "wood", "wood", "iron", "wedge", "putt"]);
     expect(impactCategory("SEVEN_IRON", "PUTT")).toBe("putt");
     expect(impactCategory("mystery club")).toBeNull();
+    expect(IMPACT_SAMPLES.driver).toEqual(["/audio/golf-v1/618277__yukon456__drive_11_dink.wav"]);
   });
 
   it("exhausts each bag and never repeats across a refill", () => {
@@ -72,6 +73,11 @@ describe("approved golf audio selection", () => {
     const picks = Array.from({ length: 12 }, () => bag.next());
     for (let i = 0; i < picks.length - 1; i++) expect(picks[i]).not.toBe(picks[i + 1]);
     for (let i = 0; i < picks.length; i += 3) expect(new Set(picks.slice(i, i + 3)).size).toBe(3);
+  });
+
+  it("keeps a single approved driver take available on every shot", () => {
+    const bag = new SampleBag(IMPACT_SAMPLES.driver);
+    expect(Array.from({ length: 4 }, () => bag.next())).toEqual(Array(4).fill(IMPACT_SAMPLES.driver[0]));
   });
 
   it("selects one shared golf-course track for Woodland and Heathland, wind for Links, insects for Desert", () => {
@@ -107,7 +113,7 @@ describe("audio on the real shot playback clock", () => {
     audio.startScene("links");
     audio.unlock();
     // Decode happens after the user gesture; a later GraphQL result must not start sound by itself.
-    await vi.waitFor(() => expect(browser.decoded()).toBe(12));
+    await vi.waitFor(() => expect(browser.decoded()).toBe(11));
     const shot = { club: "DRIVER" };
     const clock = frames();
     const stop = startShotPlayback(100, (progress) => audio.movement(shot, progress, shot.club),
@@ -163,7 +169,7 @@ describe("audio on the real shot playback clock", () => {
     const audio = new GolfAudioController();
     audio.startScene("parkland");
     audio.unlock();
-    await vi.waitFor(() => expect(browser.decoded()).toBe(12));
+    await vi.waitFor(() => expect(browser.decoded()).toBe(11));
     const madePutt = { holed: true };
     audio.movement(madePutt, 0, "PUTTER", "PUTT");
     expect(browser.started()).toBe(0);

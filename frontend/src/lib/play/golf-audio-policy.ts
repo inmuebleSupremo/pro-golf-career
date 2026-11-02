@@ -13,7 +13,7 @@ const CLUB_CATEGORY: Record<string, ImpactCategory> = {
 
 const ROOT = "/audio/golf-v1/";
 export const IMPACT_SAMPLES: Record<ImpactCategory, readonly string[]> = {
-  driver: [`${ROOT}driver_golf_6.mp3`, `${ROOT}driver_golf_4.mp3`],
+  driver: [`${ROOT}618277__yukon456__drive_11_dink.wav`],
   wood: [`${ROOT}wood_golf_12.mp3`, `${ROOT}wood_golf_3.mp3`],
   iron: [`${ROOT}iron_golf_9.mp3`, `${ROOT}iron_golf_5.wav`],
   wedge: [`${ROOT}wedge_floorball.wav`, `${ROOT}wedge_golf_shot.wav`],
@@ -43,7 +43,7 @@ export const AMBIENCE_SAMPLES: Record<AmbienceFamily, string> = {
   desert: `${ROOT}ambience_desert_insects_trimmed.mp3`,
 };
 
-/** Per-category shuffle bag; refills avoid repeating the previous take at the bag boundary. */
+/** Per-category shuffle bag; refills avoid repeats when a category has alternative takes. */
 export class SampleBag {
   private remaining: string[] = [];
   private previous: string | null = null;
