@@ -67,6 +67,7 @@ import com.progolf.sim.shot.PuttIntent;
 import com.progolf.sim.putt.PhysicalPuttIntent;
 import com.progolf.sim.putt.PuttingPolicy;
 import com.progolf.sim.play.ShotSubmission;
+import com.progolf.sim.practice.PracticeRange;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
@@ -111,6 +112,8 @@ public class WorldService {
     public static final String AUTOSAVE_ID = "autosave";
 
     private final ConcurrentMap<String, WorldSession> sessions = new ConcurrentHashMap<>();
+    /** Session-local range balls; deliberately excluded from save snapshots. */
+    private final ConcurrentMap<String, PracticeRange> practiceRanges = new ConcurrentHashMap<>();
     /** Application-only completion of the Schedule review, keyed by session and scoped to one season. */
     private final ConcurrentMap<String, Integer> scheduleReviewAcknowledgements = new ConcurrentHashMap<>();
     /** Application-only completion of the optional Staff review, keyed by session and scoped to one season. */
@@ -197,6 +200,20 @@ public class WorldService {
     /** The owner's session with the given id, or a 404-mapped exception if unknown or not theirs. */
     public WorldSession get(String ownerId, String id) {
         return required(ownerId, id);
+    }
+
+    public PracticeRange practiceRange(String ownerId, String sessionId) {
+        WorldSession session = required(ownerId, sessionId);
+        return practiceRanges.computeIfAbsent(sessionId, ignored -> {
+            World world = session.world();
+            var golfer = world.careerOf(requirePlayerId(world)).player();
+            return new PracticeRange(golfer.attributes(), golfer.toGolferState(0), golfer.handedness(), session.seed());
+        });
+    }
+
+    public PracticeRange.Result practiceShot(String ownerId, String sessionId, BallStrikeIntent intent,
+                                             String expectedRevision) {
+        return practiceRange(ownerId, sessionId).hit(intent, expectedRevision);
     }
 
     /** Advances one of the owner's sessions by one full season, then autosaves the checkpoint. */

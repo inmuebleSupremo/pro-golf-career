@@ -52,6 +52,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { label: "Schedule", icon: CalendarDays, path: "/calendar" },
       { label: "Play Event", icon: Flag, path: "/play" },
+      { label: "Practice Facility", icon: Activity, path: "/practice" },
     ],
   },
   {

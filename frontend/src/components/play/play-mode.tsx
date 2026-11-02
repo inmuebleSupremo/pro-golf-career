@@ -11,14 +11,15 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { humanize } from "@/lib/play/options";
 import { StageHole } from "@/components/play/hole-transition";
+import { BallStrikeDock, Detail, DockField, ShotTechniqueControl } from "@/components/play/ball-strike-dock";
 import { AudioControls } from "@/components/play/audio-controls";
 import { usePlaySequence } from "@/components/play/use-play-sequence";
 import type { HoleGeom, Point } from "@/lib/play/hole-geometry";
 import { isParklandFamily, playPresentation, type PlayPresentation } from "@/lib/play/play-presentation";
-import { acceptCourseAim, aimWithinEnvelope, buildBallStrikeIntent, currentAimPoint } from "@/lib/play/intent";
+import { acceptCourseAim, aimWithinEnvelope, currentAimPoint } from "@/lib/play/intent";
 import { currentPhysicalPuttControls, cupDirectedLine, physicalPuttControlSource, validPaceFeet } from "@/lib/play/physical-putting";
 import { shotSubmissionFeedback } from "@/lib/play/shot-feedback";
-import { formatShotDistance, shotDistanceReadout } from "@/lib/play/distance";
+import { formatShotDistance } from "@/lib/play/distance";
 import type { StageViewport } from "@/lib/play/stage-viewport";
 import { shotAimMarkerVisible, stagePlaybackState } from "@/lib/play/stage-playback-state";
 import { golfAudio } from "@/lib/play/golf-audio";
@@ -377,11 +378,8 @@ function ActionDock({
   const clubs = situation.guidance?.clubs ?? [];
   // Re-derive on every server situation so a stale browser selection is never submitted.
   const selection = validShotSelection(situation, requestedSelection);
-  const { club, technique, shape } = selection;
+  const { club, technique } = selection;
   const selectedClub = clubs.find((candidate) => candidate.club === club);
-  const playableClubs = clubs.filter((candidate) => candidate.families.some((family) =>
-    family.available && family.shapes.some((candidateShape) => candidateShape.available)))
-    .sort((a, b) => b.normalReach - a.normalReach);
   const puttingAvailable = situation.lie === "GREEN" || situation.lie === "FRINGE";
   const puttRoute = situation.lie === "GREEN" || technique === "PUTT";
   const physicalRoute = hole?.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN" && hole.physicalGreen != null;
@@ -393,7 +391,6 @@ function ActionDock({
         && candidate.shapes.some((candidateShape) => candidateShape.available)) ?? []),
     ];
   const origin = hole?.ball?.position ?? hole?.geometry?.tee ?? { x: 0, y: 0 };
-  const distances = shotDistanceReadout(situation, origin, aimPoint, selection);
   const cup = hole?.geometry?.cup ?? origin;
   const physicalControlSource = physicalPuttControlSource(situation.shotRevision, origin, cup);
   const [physicalControls, setPhysicalControls] = useState(() => currentPhysicalPuttControls(physicalControlSource, origin, cup, null));
@@ -401,10 +398,6 @@ function ActionDock({
   const physicalDefaultPace = currentPhysicalPuttControls(physicalControlSource, origin, cup, null).paceFeet;
   const paceFeet = activePhysicalControls.paceFeet;
   const paceSliderMaximum = Math.max(20, Math.ceil(physicalDefaultPace * 1.5 / 5) * 5);
-  const landingTarget = technique === "PITCH" || technique === "CHIP";
-  const selectedTechnique = selectedClub?.families.find((candidate) => candidate.family === technique);
-  const shapes = selectedTechnique?.shapes.filter((candidate) => candidate.available)
-    ?? [{ shape: "STRAIGHT", available: true, reason: null }];
   const controlsDisabled = locked || foreground.hasPendingForegroundOperation;
   const lastShotText = lastOutcome
     ? `${lastOutcome.physicalPutt ? "Last putt" : "Last shot"}: ${lastOutcome.holed ? "Holed" : formatShotDistance(lastOutcome.carry, lastOutcome.physicalPutt != null)} · ${humanize(lastOutcome.finalSurface)}`
@@ -419,20 +412,11 @@ function ActionDock({
     golfAudio.unlock();
     setFormError(null);
     const shotContext = { hole, situation };
-    let nonPuttStarted = false;
     try {
-      const nonPuttIntent = !physicalRoute && !puttRoute
-        ? buildBallStrikeIntent(club, aimPoint, technique, shape, situation.shotRevision) : null;
-      if (nonPuttIntent) {
-        onNonPuttSubmissionStart();
-        nonPuttStarted = true;
-      }
       const submission = physicalRoute
         ? (await physicalPutt.mutateAsync({ direction: physicalAimDirection, intendedRollFeet: paceFeet,
           expectedShotRevision: situation.shotRevision })).playPhysicalPutt
-        : puttRoute
-        ? (await putt.mutateAsync(situation.shotRevision)).playPutt
-        : (await play.mutateAsync(nonPuttIntent!)).playShot;
+        : (await putt.mutateAsync(situation.shotRevision)).playPutt;
       if (submission.stale || !submission.outcome) {
         setFormError("That shot plan is stale. Choose the target again.");
         return;
@@ -440,9 +424,24 @@ function ActionDock({
       onShot(submission.outcome, shotContext);
     } catch (error) {
       setFormError(shotSubmissionFeedback(error));
-    } finally {
-      if (nonPuttStarted) onNonPuttSubmissionEnd();
     }
+  }
+
+  if (!puttRoute && !physicalRoute) {
+    return <BallStrikeDock situation={situation} origin={origin} aimPoint={aimPoint} onAimPoint={onAimPoint}
+      selection={selection} onSelection={updateSelection} locked={controlsDisabled} submitting={play.isPending}
+      lastOutcome={lastOutcome} externalError={formError} floating={floating}
+      statusText={lastShotText}
+      extraDetails={hole?.effectiveWind ? <Detail label="Wind speed" value={`${hole.effectiveWind.magnitude} ${hole.effectiveWind.unit}`} /> : null}
+      auxiliary={<SimMenu id={id} onShot={onSimShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} />}
+      onSubmit={async (intent) => {
+        onNonPuttSubmissionStart();
+        try {
+          const submission = (await play.mutateAsync(intent)).playShot;
+          if (submission.stale || !submission.outcome) throw new Error("That shot plan is stale. Choose the target again.");
+          onShot(submission.outcome, { hole, situation });
+        } finally { onNonPuttSubmissionEnd(); }
+      }} />;
   }
 
   return (
@@ -451,15 +450,11 @@ function ActionDock({
       : "bg-surface border-t")}>
       <div className="mx-auto grid max-w-6xl gap-2">
         {formError ? <p role="alert" className="text-destructive text-sm">{formError}</p> : null}
-        <div className={cn("flex min-w-0 items-center gap-2", !puttRoute && "lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]")}>
-          <div className={cn("min-w-0 flex-1", !puttRoute && "grid grid-cols-3 gap-1 sm:gap-3 md:mx-auto md:max-w-xl md:gap-6 lg:col-start-2 lg:mx-0 lg:flex lg:w-max lg:max-w-none lg:justify-self-center lg:gap-5")} aria-live="polite">
-            {!puttRoute ? <>
-              <DistanceMeasure mobileLabel="Pin" label="To pin" value={distances.pin} />
-              <DistanceMeasure mobileLabel="Target" label={landingTarget ? "Landing target" : "Target"} value={distances.target} />
-              <DistanceMeasure mobileLabel="Reach" label="Normal reach" value={distances.reach} />
-            </> : <span className="text-muted-foreground whitespace-nowrap text-xs">To pin <strong className="text-foreground font-mono font-medium">{formatShotDistance(situation.distanceToPin, physicalRoute)}</strong></span>}
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="min-w-0 flex-1" aria-live="polite">
+            <span className="text-muted-foreground whitespace-nowrap text-xs">To pin <strong className="text-foreground font-mono font-medium">{formatShotDistance(situation.distanceToPin, physicalRoute)}</strong></span>
           </div>
-          <details name="shot-dock-panel" className={cn("group relative shrink-0", !puttRoute && "lg:col-start-3 lg:justify-self-end")}>
+          <details name="shot-dock-panel" className="group relative shrink-0">
             <summary className="text-muted-foreground hover:text-foreground cursor-pointer select-none text-xs font-medium">Shot details</summary>
             <div className="border-border bg-surface absolute right-0 bottom-full z-[var(--z-popover)] mb-3 max-h-[30dvh] w-80 max-w-[calc(100vw-2rem)] space-y-3 overflow-y-auto rounded-lg border p-3 shadow-lg sm:w-[28rem]">
               <div className="grid grid-cols-2 gap-2 text-xs">
@@ -467,16 +462,6 @@ function ActionDock({
                 {physicalRoute ? <Detail label="Neutral pace" value={`${physicalDefaultPace.toFixed(1)} ft`} /> : null}
                 {hole?.effectiveWind ? <Detail label="Wind speed" value={`${hole.effectiveWind.magnitude} ${hole.effectiveWind.unit}`} /> : null}
               </div>
-              {!puttRoute ? <div className="flex flex-wrap items-end gap-2">
-                <DockField label={landingTarget ? "Landing X" : "Target X"}>
-                  <Input type="number" value={aimPoint.x} min={situation.aimEnvelope?.minX} max={situation.aimEnvelope?.maxX}
-                    disabled={controlsDisabled} onChange={(e) => onAimPoint({ ...aimPoint, x: Number(e.target.value) })} className="w-24" />
-                </DockField>
-                <DockField label={landingTarget ? "Landing Y" : "Target Y"}>
-                  <Input type="number" value={aimPoint.y} min={situation.aimEnvelope?.minY} max={situation.aimEnvelope?.maxY}
-                    disabled={controlsDisabled} onChange={(e) => onAimPoint({ ...aimPoint, y: Number(e.target.value) })} className="w-24" />
-                </DockField>
-              </div> : null}
               {lastOutcome ? <div className="border-border border-t pt-3"><p className="text-subtle-foreground mb-2 text-xs">Previous shot</p><OutcomeNote outcome={lastOutcome} /></div> : null}
             </div>
           </details>
@@ -509,71 +494,9 @@ function ActionDock({
             onTechnique={(value) => updateSelection({ technique: value })} disabled={controlsDisabled} /> : <span className="text-muted-foreground text-xs">Putting from the green</span>}
           <div className="col-start-2 row-start-2 sm:row-start-1"><SimMenu id={id} onShot={onSimShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} /></div>
           <Button className="col-start-2 row-start-1 sm:col-start-3" size="lg" onClick={onPlay} disabled={putt.isPending || controlsDisabled}>{putt.isPending ? "Playing…" : "Putt"}</Button>
-        </div> : <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 md:flex lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-          <div className="contents lg:col-start-2 lg:flex lg:items-end lg:gap-2">
-            <DockField label="Club" className="md:w-40 md:shrink-0"><Select value={club} disabled={controlsDisabled} onChange={(e) => updateSelection({ club: e.target.value })}>
-              {playableClubs.map((candidate) => <option key={candidate.club} value={candidate.club}>{candidate.label}</option>)}
-            </Select></DockField>
-            <div className="hidden md:flex md:shrink-0 md:gap-2">
-              <div className="w-32"><ShotTechniqueControl technique={technique} techniques={techniques} onTechnique={(value) => updateSelection({ technique: value })} disabled={controlsDisabled || situation.lie === "GREEN"} /></div>
-              <div className="w-32"><ShotShapeControl shape={shape} shapes={shapes} onShape={(value) => updateSelection({ shape: value })} disabled={controlsDisabled} /></div>
-            </div>
-          </div>
-          <details name="shot-dock-panel" className="relative col-start-1 row-start-2 md:hidden">
-            <summary className="border-border bg-background text-foreground flex h-[var(--control-lg)] cursor-pointer items-center rounded-md border px-3 text-sm"><span className="truncate">Shot setup · {humanize(technique)} · {humanize(shape)}</span></summary>
-            <div className="border-border bg-surface absolute bottom-full left-0 z-[var(--z-popover)] mb-3 grid max-h-[30dvh] w-[calc(100vw-2rem)] grid-cols-2 gap-2 overflow-y-auto rounded-lg border p-3 shadow-lg">
-              <ShotTechniqueControl technique={technique} techniques={techniques} onTechnique={(value) => updateSelection({ technique: value })} disabled={controlsDisabled} />
-              <ShotShapeControl shape={shape} shapes={shapes} onShape={(value) => updateSelection({ shape: value })} disabled={controlsDisabled} />
-            </div>
-          </details>
-          <div className="contents lg:col-start-3 lg:flex lg:items-end lg:justify-self-end lg:gap-2">
-            <div className="col-start-2 row-start-2 md:ml-auto"><SimMenu id={id} onShot={onSimShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} /></div>
-            <Button className="col-start-2 row-start-1 min-w-32 md:shrink-0" size="lg" onClick={onPlay} disabled={play.isPending || putt.isPending || controlsDisabled}>
-              {play.isPending ? "Playing…" : "Play shot"}
-            </Button>
-          </div>
-        </div>}
+        </div> : null}
       </div>
     </footer>
-  );
-}
-
-function DistanceMeasure({ mobileLabel, label, value }: { mobileLabel: string; label: string; value: string }) {
-  return <div className="min-w-0 whitespace-nowrap md:flex md:items-baseline md:gap-2">
-    <span className="text-muted-foreground block text-[10px] font-medium uppercase sm:text-xs md:normal-case"><span className="md:hidden">{mobileLabel}</span><span className="hidden md:inline">{label}</span></span>
-    <strong className="text-foreground block font-mono text-sm font-semibold tabular-nums md:inline">{value}</strong>
-  </div>;
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return <div className="min-w-0"><span className="text-subtle-foreground block">{label}</span><span className="text-foreground break-words font-medium tabular-nums">{value}</span></div>;
-}
-
-type Technique = { family: string; reason?: string | null };
-type Shape = { shape: string; reason?: string | null };
-
-function ShotTechniqueControl({ technique, techniques, onTechnique, disabled }: {
-  technique: string; techniques: Technique[]; onTechnique: (value: string) => void; disabled: boolean;
-}) {
-  return <DockField label="Technique"><Select value={technique} disabled={disabled} onChange={(event) => onTechnique(event.target.value)}>
-    {techniques.map((candidate) => <option key={candidate.family} value={candidate.family}>{humanize(candidate.family)}{candidate.reason ? ` — ${candidate.reason}` : ""}</option>)}
-  </Select></DockField>;
-}
-
-function ShotShapeControl({ shape, shapes, onShape, disabled }: {
-  shape: string; shapes: Shape[]; onShape: (value: string) => void; disabled: boolean;
-}) {
-  return <DockField label="Flight shape"><Select value={shape} disabled={disabled} onChange={(event) => onShape(event.target.value)}>
-    {shapes.map((candidate) => <option key={candidate.shape} value={candidate.shape}>{humanize(candidate.shape)}{candidate.reason ? ` — ${candidate.reason}` : ""}</option>)}
-  </Select></DockField>;
-}
-
-function DockField({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
-  return (
-    <label className={cn("flex min-w-0 flex-col gap-1", className)}>
-      <span className="text-subtle-foreground text-[10px] tracking-[0.08em] uppercase">{label}</span>
-      {children}
-    </label>
   );
 }
 

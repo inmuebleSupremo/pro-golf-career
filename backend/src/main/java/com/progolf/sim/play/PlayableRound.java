@@ -371,17 +371,7 @@ public final class PlayableRound {
 
     private ShotGuidance guidance(HoleModel model, com.progolf.sim.shot.Environment environment) {
         return new ShotGuidance(pointFor(model, Strategy.CONSERVATIVE), pointFor(model, Strategy.BALANCED),
-                pointFor(model, Strategy.AGGRESSIVE), ClubSpec.all().stream().map(spec -> new ShotGuidance.ClubReach(
-                spec.id(), spec.label(), spec.baseCarry(), spec.baseCarry() * (SimConstants.REACH_FLOOR
-                        + SimConstants.REACH_SPAN * attributes.norm(spec.distanceAttribute())),
-                java.util.Arrays.stream(com.progolf.sim.shot.ShotFamily.values()).map(family -> {
-                    ShotFamilyEligibility.Result eligibility = ShotFamilyEligibility.evaluate(lie, spec, family);
-                    return new ShotGuidance.FamilyAvailability(family, eligibility.allowed(), eligibility.reason(),
-                            java.util.Arrays.stream(com.progolf.sim.shot.ShotShape.values()).map(shape -> {
-                                var result = com.progolf.sim.shot.ShotShapeEligibility.evaluate(family, shape);
-                                return new ShotGuidance.ShapeAvailability(shape, result.allowed(), result.reason());
-                            }).toList());
-                }).toList())).toList(), com.progolf.sim.shot.StrategicTargetPlanner.options(model, ball, remaining,
+                pointFor(model, Strategy.AGGRESSIVE), ShotGuidance.clubReaches(attributes, lie), com.progolf.sim.shot.StrategicTargetPlanner.options(model, ball, remaining,
                 lie, attributes, environment));
     }
 

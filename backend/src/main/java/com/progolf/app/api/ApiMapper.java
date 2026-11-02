@@ -158,13 +158,17 @@ public final class ApiMapper {
     private static ShotGuidanceDto guidance(ShotSituation situation) {
         if (situation.guidance() == null) return null;
         var g = situation.guidance();
-        return new ShotGuidanceDto(point(g.safe()), point(g.primary()), point(g.aggressive()), g.clubs().stream()
-                .map(c -> new ClubReachDto(c.club().name(), c.label(), c.nominalCarry(), c.normalReach(), c.families().stream()
-                        .map(f -> new ShotFamilyAvailabilityDto(f.family().name(), f.available(), f.reason(), f.shapes().stream()
-                                .map(s -> new ShotShapeAvailabilityDto(s.shape().name(), s.available(), s.reason())).toList())).toList())).toList(),
+        return new ShotGuidanceDto(point(g.safe()), point(g.primary()), point(g.aggressive()), clubReaches(g.clubs()),
                 g.strategicOptions().stream().map(option -> new StrategicTargetOptionDto(option.role().name(),
                         point(option.aimPoint()), option.suggestedClub().name(), option.suggestedFamily().name(),
                         option.routeSummary(), option.exposureSummary())).toList());
+    }
+
+    public static List<ClubReachDto> clubReaches(List<com.progolf.sim.shot.ShotGuidance.ClubReach> clubs) {
+        return clubs.stream()
+                .map(c -> new ClubReachDto(c.club().name(), c.label(), c.nominalCarry(), c.normalReach(), c.families().stream()
+                        .map(f -> new ShotFamilyAvailabilityDto(f.family().name(), f.available(), f.reason(), f.shapes().stream()
+                                .map(s -> new ShotShapeAvailabilityDto(s.shape().name(), s.available(), s.reason())).toList())).toList())).toList();
     }
 
     public static ShotSubmissionDto submission(com.progolf.sim.play.ShotSubmission submission) {
