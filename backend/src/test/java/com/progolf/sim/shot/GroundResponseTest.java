@@ -36,9 +36,43 @@ class GroundResponseTest {
         double firmRelease = rollDistance(firm);
         double softRelease = rollDistance(soft);
         assertThat(firmRelease).isGreaterThan(softRelease + 7.0);
+        assertThat(firmRelease).isBetween(15.0, 35.0);
         assertThat(firm.finalSurface()).isEqualTo(Surface.FAIRWAY);
+        assertThat(firm.carry()).isEqualTo(soft.carry());
+        assertThat(firm.lateral()).isEqualTo(soft.lateral());
         assertThat(firm.settlement().ball()).isEqualTo(resolve(OPEN_FAIRWAY, ClubSpec.of(ClubId.DRIVER),
                 ShotFamily.FULL, 260, 0.95).settlement().ball());
+    }
+
+    @Test
+    void independentBackspinChangesBounceAndReleaseAtFixedCarry() {
+        ShotContext context = context(OPEN_FAIRWAY, ClubSpec.of(ClubId.SEVEN_IRON), ShotFamily.FULL, 160, 0.95);
+        ShotResolver.GroundResponse low = ShotResolver.groundResponse(context, Surface.FAIRWAY, 160, 3500);
+        ShotResolver.GroundResponse normal = ShotResolver.groundResponse(context, Surface.FAIRWAY, 160, 6200);
+        ShotResolver.GroundResponse high = ShotResolver.groundResponse(context, Surface.FAIRWAY, 160, 8500);
+
+        assertThat(low.bounceHeightYards()).isGreaterThan(normal.bounceHeightYards());
+        assertThat(normal.bounceHeightYards()).isGreaterThan(high.bounceHeightYards());
+        assertThat(low.totalYards()).isGreaterThan(normal.totalYards() + 2);
+        assertThat(normal.totalYards()).isGreaterThan(high.totalYards() + 1);
+    }
+
+    @Test
+    void traceExposesResolvedBounceAndNormalSettlement() {
+        ShotOutcome outcome = resolve(OPEN_FAIRWAY, ClubSpec.of(ClubId.SEVEN_IRON), ShotFamily.FULL, 160, 0.95);
+
+        assertThat(outcome.trace().backspinRpm()).isBetween(4000.0, 8000.0);
+        assertThat(rollDistance(outcome)).isBetween(3.0, 12.0);
+        assertThat(outcome.trace().groundPath()).extracting(GroundMotionPoint::kind)
+                .contains(GroundMotionPoint.Kind.BOUNCE_APEX, GroundMotionPoint.Kind.BOUNCE_LANDING);
+        assertThat(outcome.trace().groundPath().getLast().position()).isEqualTo(outcome.settlement().ball().position());
+        assertThat(outcome.trace().roll().to()).isEqualTo(outcome.settlement().ball().position());
+        assertThat(outcome.distanceRemaining()).isEqualTo(outcome.settlement().ball().position().distanceTo(CUP));
+        assertThat(outcome.finalSurface()).isEqualTo(OPEN_FAIRWAY.surfaceAt(outcome.settlement().ball().position()));
+        assertThat(outcome.penaltyStrokes()).isZero();
+        assertThat(outcome.settlement().recoveryKind()).isEqualTo(RecoveryKind.NONE);
+        assertThat(outcome.trace()).isEqualTo(resolve(OPEN_FAIRWAY, ClubSpec.of(ClubId.SEVEN_IRON),
+                ShotFamily.FULL, 160, 0.95).trace());
     }
 
     @Test
@@ -87,6 +121,9 @@ class GroundResponseTest {
         assertThat(clamped.hazardEntered()).isFalse();
         assertThat(clamped.settlement().ball().position().y()).isLessThan(waterBoundary);
         assertThat(clamped.trace().transition()).isNull();
+        assertThat(clamped.trace().groundPath().getLast().position()).isEqualTo(clamped.settlement().ball().position());
+        assertThat(clamped.trace().groundPath()).allSatisfy(point ->
+                assertThat(point.position().y()).isLessThan(waterBoundary));
     }
 
     @Test
@@ -115,6 +152,58 @@ class GroundResponseTest {
         assertThat(traced.settlement()).isEqualTo(summary.settlement());
         assertThat(traced.finalSurface()).isEqualTo(summary.finalSurface());
         assertThat(traced.strokes()).isEqualTo(summary.strokes());
+    }
+
+    @Test
+    void waterAtFirstContactStillUsesHazardSettlementWithoutGroundTravel() {
+        ShotOutcome open = resolve(OPEN_FAIRWAY, ClubSpec.of(ClubId.DRIVER), ShotFamily.FULL, 260, 0.95);
+        double y = open.settlement().contact().position().y();
+        CourseGeometry water = new CourseGeometry(TEE, CUP, OPEN, List.of(
+                new TerrainRegion(Surface.FAIRWAY, OPEN),
+                new TerrainRegion(Surface.WATER, square(-1_000, y - 1, 1_000, y + 1))));
+        ShotOutcome outcome = resolve(water, ClubSpec.of(ClubId.DRIVER), ShotFamily.FULL, 260, 0.95);
+
+        assertThat(outcome.settlement().contact().surface()).isEqualTo(Surface.WATER);
+        assertThat(outcome.hazardEntered()).isTrue();
+        assertThat(outcome.penaltyStrokes()).isEqualTo(1);
+        assertThat(outcome.trace().roll()).isNull();
+        assertThat(outcome.trace().groundPath()).isEmpty();
+        assertThat(outcome.trace().transition()).isNotNull();
+    }
+
+    @Test
+    void outOfBoundsAtFirstContactReplaysWithoutGroundTravel() {
+        ShotOutcome open = resolve(OPEN_FAIRWAY, ClubSpec.of(ClubId.DRIVER), ShotFamily.FULL, 260, 0.95);
+        double y = open.settlement().contact().position().y();
+        CourseGeometry shortBoundary = new CourseGeometry(TEE, CUP,
+                square(-1_000, -10, 1_000, y - 1), List.of());
+        ShotOutcome outcome = resolve(shortBoundary, ClubSpec.of(ClubId.DRIVER), ShotFamily.FULL, 260, 0.95);
+
+        assertThat(outcome.settlement().contact().surface()).isEqualTo(Surface.OUT_OF_BOUNDS);
+        assertThat(outcome.hazardEntered()).isTrue();
+        assertThat(outcome.penaltyStrokes()).isEqualTo(1);
+        assertThat(outcome.settlement().recoveryKind()).isEqualTo(RecoveryKind.OUT_OF_BOUNDS_REPLAY);
+        assertThat(outcome.settlement().ball().position()).isEqualTo(TEE);
+        assertThat(outcome.trace().roll()).isNull();
+        assertThat(outcome.trace().groundPath()).isEmpty();
+    }
+
+    @Test
+    void runningChipReleaseIsBoundedByItsCarry() {
+        ShotOutcome chip = resolve(OPEN_FAIRWAY, ClubSpec.of(ClubId.EIGHT_IRON), ShotFamily.CHIP, 12, 0.95);
+
+        assertThat(chip.trace().roll()).isNotNull();
+        assertThat(rollDistance(chip)).isLessThanOrEqualTo(0.90 * Math.min(12.0, chip.carry()));
+        assertThat(rollDistance(chip)).isGreaterThan(5.0);
+        assertThat(chip.trace().groundPath()).extracting(GroundMotionPoint::kind)
+                .doesNotContain(GroundMotionPoint.Kind.BOUNCE_APEX);
+    }
+
+    @Test
+    void bunkerTechniqueKeepsItsExistingNoReleaseBehaviour() {
+        ShotContext context = context(OPEN_FAIRWAY, ClubSpec.of(ClubId.SAND_WEDGE), ShotFamily.BUNKER, 40, 0.95);
+
+        assertThat(ShotResolver.groundResponse(context, Surface.FAIRWAY, 40, 0).totalYards()).isZero();
     }
 
     private static ShotOutcome resolve(CourseGeometry geometry, ClubSpec club, ShotFamily family,

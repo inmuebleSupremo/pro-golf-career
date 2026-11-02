@@ -60,6 +60,8 @@ export interface ResolvedShot {
     readonly aimPoint: Point;
     readonly contact: { readonly position: Point; readonly surface: string };
     readonly airbornePath?: readonly { readonly progress: number; readonly position: Point; readonly height: number }[];
+    readonly backspinRpm?: number;
+    readonly groundPath?: readonly { readonly kind: string; readonly position: Point; readonly heightYards: number }[];
     readonly roll?: { readonly from: Point; readonly to: Point } | null;
     readonly transition?: { readonly kind: string; readonly from: Point; readonly to: Point } | null;
     readonly finalPoint: Point;

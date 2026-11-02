@@ -36,7 +36,7 @@ class TrajectoryShapeWindVerificationTest {
             new ZoneBand(0, 600, List.of(new LateralRegion(600, Surface.FAIRWAY)))));
 
     @Test
-    void fixedSeedCalmStraightGoldenPreservesCarryLateralContactSettlementScoreAndRandomConsumption() {
+    void fixedSeedCalmStraightGoldenPreservesCarryLateralContactScoreAndRandomConsumption() {
         ShotContext context = canonical(Environment.calm(), ShotShape.STRAIGHT, Handedness.RIGHT, GOLDEN_COORD,
                 new Position2d(0, 180), Attributes.uniform(65), GolferState.fresh());
 
@@ -47,7 +47,7 @@ class TrajectoryShapeWindVerificationTest {
         assertThat(summary.lateral()).isEqualTo(-1.7312904200098234);
         assertThat(summary.settlement().contact().position()).isEqualTo(new Position2d(-1.7312904200098234, 199.00778023822065));
         assertThat(summary.settlement().ball()).isEqualTo(new BallState(
-                new Position2d(-1.7730469762244945, 203.80759860874397), Surface.FAIRWAY));
+                new Position2d(-1.8151214991469968, 208.64396650786384), Surface.FAIRWAY));
         assertThat(summary.trace()).isNull();
         assertThat(summary.strokes()).isEqualTo(1);
         assertThat(summaryRng.draws()).isEqualTo(new Draws(1, 2));
@@ -61,6 +61,7 @@ class TrajectoryShapeWindVerificationTest {
         assertThat(traced.strokes()).isEqualTo(summary.strokes());
         assertThat(traceRng.draws()).isEqualTo(summaryRng.draws());
         assertThat(traced.trace().roll()).isNotNull();
+        assertThat(traced.trace().groundPath().getLast().position()).isEqualTo(summary.settlement().ball().position());
     }
 
     @Test

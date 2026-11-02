@@ -96,6 +96,8 @@ export type Outcome = {
     aimPoint: { x: number; y: number };
     contact: { position: { x: number; y: number }; surface: string };
     airbornePath?: { progress: number; position: { x: number; y: number }; height: number }[];
+    backspinRpm?: number;
+    groundPath?: { kind: string; position: { x: number; y: number }; heightYards: number }[];
     roll?: { from: { x: number; y: number }; to: { x: number; y: number } } | null;
     transition?: { kind: string; from: { x: number; y: number }; to: { x: number; y: number } } | null;
     finalPoint: { x: number; y: number };

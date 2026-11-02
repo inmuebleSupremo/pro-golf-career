@@ -3,7 +3,7 @@ package com.progolf.sim.shot;
 import com.progolf.sim.course.Position2d;
 import java.util.Objects;
 
-/** One authoritative post-contact ground-response endpoint, distinct from rules recovery. */
+/** One authoritative post-contact movement endpoint, including bounce travel and ground roll. */
 public record ShotTraceRoll(Position2d from, Position2d to) {
     public ShotTraceRoll {
         Objects.requireNonNull(from, "from");
