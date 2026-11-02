@@ -399,7 +399,7 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
       <path d={airbornePath} stroke="#ffffff" strokeWidth="1.1" strokeDasharray="3 3" opacity=".8" />
       <ShotMotionOverlay trace={trace} project={model.project} contact={contact} finalPoint={finalPoint}
         contactEffect={contactEffect} ballStroke={ballStroke} statusY={viewHeight - PAD}
-        shadowFill={PARKLAND_MATERIAL.traceShadow} onPlaybackComplete={onPlaybackComplete} />
+        shadowFill={PARKLAND_MATERIAL.traceShadow} holed={ball?.holed} onPlaybackComplete={onPlaybackComplete} />
     </> : null}
     {!trace ? <circle cx={finalPoint.x} cy={finalPoint.y} r="3" fill="#fff" stroke={ballStroke} strokeWidth=".6" /> : null}
   </svg>;

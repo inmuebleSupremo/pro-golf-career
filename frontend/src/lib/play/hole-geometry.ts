@@ -43,6 +43,7 @@ export interface HoleGeom {
 
 /** A resolved observable shot, including the backend-authored spatial playback facts when available. */
 export interface ResolvedShot {
+  readonly holed?: boolean;
   readonly finalSurface: string;
   readonly carry: number;
   readonly lateral: number;
