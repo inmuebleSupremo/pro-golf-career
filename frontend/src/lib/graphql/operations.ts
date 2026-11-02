@@ -848,6 +848,36 @@ export const PlayShotDocument = graphql(`
   }
 `);
 
+export const PracticeRangeDocument = graphql(`
+  query PracticeRange($id: ID!) {
+    practiceRange(id: $id) {
+      ballsHit shotRevision aimHalfWidth fieldHalfWidth targetGreenRadius targets { label position { x y } }
+      clubs { club label nominalCarry normalReach families { family available reason shapes { shape available reason } } }
+    }
+  }
+`);
+
+export const PracticeShotDocument = graphql(`
+  mutation PracticeShot($id: ID!, $intent: BallStrikeIntentInput!) {
+    practiceShot(id: $id, intent: $intent) {
+      ballNumber totalDistance proximity
+      outcome {
+        carry finalSurface
+        trace {
+          club origin { x y } aimPoint { x y }
+          contact { position { x y } surface }
+          airbornePath { progress position { x y } height }
+          backspinRpm
+          groundPath { kind position { x y } heightYards }
+          roll { from { x y } to { x y } }
+          transition { kind from { x y } to { x y } }
+          finalPoint { x y }
+        }
+      }
+    }
+  }
+`);
+
 /** Uses the existing non-spatial putting model from green or fringe. */
 export const PlayPuttDocument = graphql(`
   mutation PlayPutt($id: ID!, $expectedShotRevision: String!) {

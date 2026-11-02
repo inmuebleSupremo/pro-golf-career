@@ -269,6 +269,46 @@ body {
  * Realises docs/frontend/references.md + the "Command Centre (v2)" tokens.
  */
 .command-centre {
+  --range-landscape-light: #38563b;
+  --range-landscape-mid: #486b3d;
+  --range-landscape-dark: #244634;
+  --range-grass: #99bd73;
+  --range-turf-light: #7fa45b;
+  --range-turf-mid: #8fb76a;
+  --range-turf-dark: #709a52;
+  --range-sunwash: #e0ec9a;
+  --range-stripe-a: #d7e4ad;
+  --range-stripe-b: #466c3f;
+  --range-grain-light: #d8e5ad;
+  --range-grain-dark: #385c32;
+  --range-edge: #315c33;
+  --range-edge-dark: #0b2d27;
+  --range-line: #e5dfaa;
+  --range-label: #f6f3df;
+  --range-green: #aed276;
+  --range-green-light: #c9df8f;
+  --range-green-dark: #83ae60;
+  --range-green-edge: #638d4c;
+  --range-green-collar: #204d32;
+  --range-leaf-light: #547f49;
+  --range-leaf-mid: #39683d;
+  --range-leaf-dark: #1a452d;
+  --range-flagpole: #f3f0d2;
+  --range-flag: #f1d47c;
+  --range-active: #ecca7e;
+  --range-bay-light: #6c745e;
+  --range-bay-mid: #596758;
+  --range-bay-dark: #303e39;
+  --range-deck-edge: #445940;
+  --range-deck-highlight: #b2bb84;
+  --range-mat-light: #678853;
+  --range-mat-dark: #365d3b;
+  --range-mat-edge: #658464;
+  --range-bay-shadow: #1f3028;
+  --range-bay-label: #acb59e;
+  --range-divider: #b99e68;
+  --range-aim: #e9e5a1;
+  --range-label-back: #193425;
   color-scheme: dark;
 
   --background: #0e1311;
@@ -333,6 +373,12 @@ body {
     100% 100%,
     17px 17px;
   background-attachment: fixed, fixed, fixed;
+}
+
+/* Practice owns the viewport; the command shell resumes as soon as this page unmounts. */
+.command-centre:has(.practice-range-page) > aside,
+.command-centre:has(.practice-range-page) > div > header {
+  display: none;
 }
 
 /* The metallic-gold moment — honours only (majors, records, hall of fame). */

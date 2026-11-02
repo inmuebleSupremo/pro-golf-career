@@ -7,6 +7,8 @@
 scalar Long
 
 type Query {
+    "Temporary, session-local driving range state."
+    practiceRange(id: ID!): PracticeRange!
     "Read-only status of a world session by id."
     world(id: ID!): WorldStatus
 
@@ -117,6 +119,8 @@ type Query {
 }
 
 type Mutation {
+    "Hit one free practice ball from the fixed bay; no career or round progression."
+    practiceShot(id: ID!, intent: BallStrikeIntentInput!): PracticeShot!
     # --- World lifecycle (add-graphql-read-api) ---
 
     "Creates a new world session from a seed, optionally with an explicit configuration; returns its status."
@@ -867,6 +871,10 @@ type ShotOutcome {
     "Present only for a physical putt; every point is supplied by the authoritative solver."
     physicalPutt: PhysicalPuttOutcome
 }
+
+type PracticeRange { ballsHit: Int!, shotRevision: String!, aimHalfWidth: Float!, fieldHalfWidth: Float!, targetGreenRadius: Float!, targets: [PracticeTarget!]!, clubs: [ClubReach!]! }
+type PracticeTarget { label: String!, position: Position! }
+type PracticeShot { outcome: ShotOutcome!, totalDistance: Float!, proximity: Float!, ballNumber: Int! }
 
 type PhysicalPuttOutcome {
     trajectory: [PhysicalPuttTrajectoryPoint!]!

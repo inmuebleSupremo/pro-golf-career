@@ -1,11 +1,28 @@
 package com.progolf.sim.shot;
 
 import com.progolf.sim.course.LandingZoneRole;
+import com.progolf.sim.core.Attributes;
+import com.progolf.sim.spatial.Surface;
 import java.util.List;
+import java.util.Arrays;
 
 /** Advisory planning data; its points are ordinary literal aim points, not resolver commands. */
 public record ShotGuidance(AimPoint safe, AimPoint primary, AimPoint aggressive, List<ClubReach> clubs,
                            List<StrategicOption> strategicOptions) {
+    /** The same lie-aware club menu for competitive shots and free practice. */
+    public static List<ClubReach> clubReaches(Attributes attributes, Surface lie) {
+        return ClubSpec.all().stream().map(spec -> new ClubReach(spec.id(), spec.label(), spec.baseCarry(),
+                spec.baseCarry() * (SimConstants.REACH_FLOOR
+                        + SimConstants.REACH_SPAN * attributes.norm(spec.distanceAttribute())),
+                Arrays.stream(ShotFamily.values()).map(family -> {
+                    ShotFamilyEligibility.Result eligibility = ShotFamilyEligibility.evaluate(lie, spec, family);
+                    return new FamilyAvailability(family, eligibility.allowed(), eligibility.reason(),
+                            Arrays.stream(ShotShape.values()).map(shape -> {
+                                var result = ShotShapeEligibility.evaluate(family, shape);
+                                return new ShapeAvailability(shape, result.allowed(), result.reason());
+                            }).toList());
+                }).toList())).toList();
+    }
     public ShotGuidance {
         clubs = List.copyOf(clubs);
         strategicOptions = List.copyOf(strategicOptions);
