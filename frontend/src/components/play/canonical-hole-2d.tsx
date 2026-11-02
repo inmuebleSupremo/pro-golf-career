@@ -224,7 +224,7 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
   const contactEffect = trace?.contact.surface === "WATER" ? (polishedParkland || premiumParkland ? PARKLAND_MATERIAL.waterLight : "#dff1ff")
     : trace?.contact.surface === "BUNKER" ? kit.sandStroke : "#ffffff";
   const ballStroke = polishedParkland || premiumParkland ? PARKLAND_MATERIAL.markerOutline : "#c99";
-  const airbornePath = trace && contact
+  const puttTracer = trace?.club === "PUTTER" && contact
     ? (trace.airbornePath?.length ?? 0) > 0
       ? `M${trace.airbornePath!.map((point) => `${model.project(point.position).x} ${model.project(point.position).y}`).join(" L")}`
       : `M${model.project(trace.origin).x} ${model.project(trace.origin).y} L${contact.x} ${contact.y}`
@@ -394,12 +394,13 @@ export function CanonicalHole2d({ hole, ball, className, aimPoint, onAimPoint, p
       stroke="var(--accent)" strokeWidth="1" strokeDasharray="3 3" opacity=".8" pointerEvents="none" /> : null}
     {planningTarget ? <TargetMarker point={planningTarget} label="Selected target" outlined={polishedParkland || premiumParkland} /> : null}
 
-    {trace && contact && airbornePath ? <>
-      {polishedParkland || premiumParkland ? <path d={airbornePath} stroke={PARKLAND_MATERIAL.traceShadow} strokeWidth="2.8" strokeDasharray="3 3" opacity=".5" /> : null}
-      <path d={airbornePath} stroke="#ffffff" strokeWidth="1.1" strokeDasharray="3 3" opacity=".8" />
+    {trace && contact ? <>
+      {puttTracer && (polishedParkland || premiumParkland) ? <path d={puttTracer} stroke={PARKLAND_MATERIAL.traceShadow} strokeWidth="2.8" strokeDasharray="3 3" opacity=".5" /> : null}
+      {puttTracer ? <path d={puttTracer} stroke="#ffffff" strokeWidth="1.1" strokeDasharray="3 3" opacity=".8" /> : null}
       <ShotMotionOverlay trace={trace} project={model.project} contact={contact} finalPoint={finalPoint}
         contactEffect={contactEffect} ballStroke={ballStroke} statusY={viewHeight - PAD}
-        shadowFill={PARKLAND_MATERIAL.traceShadow} holed={ball?.holed} onPlaybackComplete={onPlaybackComplete} />
+        shadowFill={PARKLAND_MATERIAL.traceShadow} tracerShadow={polishedParkland || premiumParkland}
+        holed={ball?.holed} onPlaybackComplete={onPlaybackComplete} />
     </> : null}
     {!trace ? <circle cx={finalPoint.x} cy={finalPoint.y} r="3" fill="#fff" stroke={ballStroke} strokeWidth=".6" /> : null}
   </svg>;

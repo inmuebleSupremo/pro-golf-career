@@ -760,8 +760,13 @@ type ShotTrace {
     roll: ShotTraceRoll
     transition: ShotTraceTransition
     finalPoint: Position!
+    "Estimated backspin at first contact, in revolutions per minute; zero for legacy/putt traces."
+    backspinRpm: Float!
+    "Resolver-authored post-contact bounce and ground samples; no timing is supplied."
+    groundPath: [GroundMotionPoint!]!
 }
 type AirbornePoint { progress: Float!, position: Position!, height: Float! }
+type GroundMotionPoint { kind: String!, position: Position!, heightYards: Float! }
 
 "Read-only signed wind flow in canonical hole coordinates; it describes where air moves toward, not a compass bearing."
 type EffectiveWind { x: Float!, y: Float!, magnitude: Float!, unit: String! }

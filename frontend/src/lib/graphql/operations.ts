@@ -836,6 +836,8 @@ export const PlayShotDocument = graphql(`
           aimPoint { x y }
           contact { position { x y } surface }
           airbornePath { progress position { x y } height }
+          backspinRpm
+          groundPath { kind position { x y } heightYards }
           roll { from { x y } to { x y } }
           transition { kind from { x y } to { x y } }
           finalPoint { x y }
@@ -857,6 +859,8 @@ export const PlayPuttDocument = graphql(`
         trace {
           club origin { x y } aimPoint { x y } contact { position { x y } surface }
           airbornePath { progress position { x y } height }
+          backspinRpm
+          groundPath { kind position { x y } heightYards }
           roll { from { x y } to { x y } }
           transition { kind from { x y } to { x y } }
           finalPoint { x y }
@@ -905,6 +909,8 @@ export const SimShotDocument = graphql(`
         aimPoint { x y }
         contact { position { x y } surface }
         airbornePath { progress position { x y } height }
+        backspinRpm
+        groundPath { kind position { x y } heightYards }
         roll { from { x y } to { x y } }
         transition { kind from { x y } to { x y } }
         finalPoint { x y }

@@ -60,7 +60,7 @@ public record ShotExecutionProfile(
         return 0.15 + 0.85 * firmness;
     }
 
-    /** Bounded endpoint-only ground response; no traversal or physics claim is made. */
+    /** Advisory release estimate for strategic target planning; actual settlement uses ShotResolver ground physics. */
     public double rollYardsOn(Surface contactSurface) {
         if (baseGroundResponseYards <= 0 || !contactSurface.isPlayable()) return 0.0;
         return baseGroundResponseYards * switch (contactSurface) {

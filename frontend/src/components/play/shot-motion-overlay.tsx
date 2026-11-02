@@ -5,8 +5,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Point } from "@/lib/play/hole-geometry";
 import { startShotPlayback } from "@/lib/play/shot-playback-clock";
 import { golfAudio } from "@/lib/play/golf-audio";
-import { traceBallProjection, tracePlaybackDurationMs, tracePlaybackFrame, tracePlaybackStatus,
-  transitionLabel, type ShotTrace } from "@/lib/play/trace-presentation";
+import { authoritativeGroundPath, traceBallProjection, tracePlaybackDurationMs, tracePlaybackFrame,
+  tracePlaybackStatus, tracePlaybackTiming,
+  transitionLabel, traversedAirbornePoints, type ShotTrace } from "@/lib/play/trace-presentation";
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -29,6 +30,7 @@ interface ShotMotionProps {
   ballStroke: string;
   statusY: number;
   shadowFill: string;
+  tracerShadow?: boolean;
   holed?: boolean;
   onPlaybackComplete?: () => void;
 }
@@ -49,10 +51,11 @@ export function ShotMotionOverlay(props: ShotMotionProps) {
       return;
     }
     let finished = false;
+    const timing = tracePlaybackTiming(trace);
     const cancel = startShotPlayback(tracePlaybackDurationMs(trace),
       (next) => {
         golfAudio.movement(trace, next, trace.club);
-        if (tracePlaybackFrame(trace, next).phase === "contact") {
+        if (next >= timing.flightMs / timing.totalMs) {
           golfAudio.landing(trace, trace.contact.surface, trace.club);
         }
         setClock({ trace, progress: next });
@@ -69,19 +72,32 @@ export function ShotMotionOverlay(props: ShotMotionProps) {
 
 /** The production shot marks at one clock position, also renderable with deterministic trace fixtures. */
 export function ShotMotionFrame({ trace, project, contact, finalPoint, contactEffect, ballStroke,
-  statusY, shadowFill, progress }: ShotMotionProps & { progress: number }) {
+  statusY, shadowFill, tracerShadow, progress }: ShotMotionProps & { progress: number }) {
   const playback = tracePlaybackFrame(trace, progress);
   const motion = !playback.finalVisible ? traceBallProjection(playback, project) : null;
+  const traversed = traversedAirbornePoints(trace, progress);
+  const tracerPath = traversed.length > 1
+    ? `M${traversed.map((point) => { const screen = project(point); return `${screen.x} ${screen.y}`; }).join(" L")}`
+    : null;
   const finalMatchesContact = trace.finalPoint.x === trace.contact.position.x
     && trace.finalPoint.y === trace.contact.position.y;
   const transitionFrom = trace.transition ? project(trace.transition.from) : null;
   const transitionTo = trace.transition ? project(trace.transition.to) : null;
   const rollFrom = trace.roll ? project(trace.roll.from) : null;
   const rollTo = trace.roll ? project(trace.roll.to) : null;
+  const groundPath = authoritativeGroundPath(trace);
+  const releasePath = rollFrom && rollTo
+    ? groundPath
+      ? `M${[trace.contact.position, ...groundPath.map((point) => point.position)]
+        .map((point) => { const screen = project(point); return `${screen.x} ${screen.y}`; }).join(" L")}`
+      : `M${rollFrom.x} ${rollFrom.y} L${rollTo.x} ${rollTo.y}`
+    : null;
   const recoveryLabel = transitionLabel(trace);
   const playbackStatus = tracePlaybackStatus(trace, playback);
 
   return <>
+    {tracerPath && tracerShadow ? <path d={tracerPath} stroke={shadowFill} strokeWidth="2.8" strokeDasharray="3 3" opacity=".5" /> : null}
+    {tracerPath ? <path data-shot-tracer="true" d={tracerPath} stroke="#ffffff" strokeWidth="1.1" strokeDasharray="3 3" opacity=".8" /> : null}
     {motion && motion.lift > 0 ? <ellipse data-shot-shadow="true" cx={motion.ground.x} cy={motion.ground.y}
       rx={3 + motion.lift * .16} ry="1.5" fill={shadowFill}
       opacity={motion.shadowOpacity} pointerEvents="none" /> : null}
@@ -96,9 +112,9 @@ export function ShotMotionFrame({ trace, project, contact, finalPoint, contactEf
       <path d={`M${transitionFrom.x} ${transitionFrom.y} L${transitionTo.x} ${transitionTo.y}`} stroke="#fff" strokeWidth="1.2" strokeDasharray="3 2" opacity=".9" />
       <text x={(transitionFrom.x + transitionTo.x) / 2 + 3} y={(transitionFrom.y + transitionTo.y) / 2 - 3} fill="#fff" fontSize="5">{recoveryLabel}</text>
     </> : null}
-    {rollFrom && rollTo && (playback.phase === "roll" || playback.phase === "final") ? <>
-      <path d={`M${rollFrom.x} ${rollFrom.y} L${rollTo.x} ${rollTo.y}`} stroke="var(--accent)" strokeWidth="1.3" strokeDasharray="2 1" opacity=".95" />
-      <text x={(rollFrom.x + rollTo.x) / 2 + 3} y={(rollFrom.y + rollTo.y) / 2 - 3} fill="var(--accent)" fontSize="5">Roll</text>
+    {releasePath && rollFrom && rollTo && (playback.phase === "bounce" || playback.phase === "roll" || playback.phase === "final") ? <>
+      <path d={releasePath} stroke="var(--accent)" strokeWidth="1.3" strokeDasharray="2 1" opacity=".95" />
+      <text x={(rollFrom.x + rollTo.x) / 2 + 3} y={(rollFrom.y + rollTo.y) / 2 - 3} fill="var(--accent)" fontSize="5">{groundPath ? "Release" : "Roll"}</text>
     </> : null}
     {playbackStatus ? <text x={16} y={statusY} fill="var(--accent)" fontSize="6" fontWeight="700">{playbackStatus}</text> : null}
     {playback.finalVisible && !finalMatchesContact ? <>

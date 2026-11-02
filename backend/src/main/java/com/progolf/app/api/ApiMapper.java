@@ -34,6 +34,7 @@ import com.progolf.app.api.dto.BallStateDto;
 import com.progolf.app.api.dto.ShotContactDto;
 import com.progolf.app.api.dto.ShotSettlementDto;
 import com.progolf.app.api.dto.ShotTraceDto;
+import com.progolf.app.api.dto.GroundMotionPointDto;
 import com.progolf.app.api.dto.ShotTraceTransitionDto;
 import com.progolf.app.api.dto.ShotSituationDto;
 import com.progolf.app.api.dto.PhysicalGreenDto;
@@ -440,7 +441,9 @@ public final class ApiMapper {
         return trace == null ? null : new ShotTraceDto(trace.clubId().name(), point(trace.origin()),
                 point(trace.intendedAimPoint()), new ShotContactDto(point(trace.contact().position()),
                 trace.contact().surface().name()), trace.airbornePath().stream()
-                .map(p -> new AirbornePointDto(p.progress(), point(p.position()), p.height())).toList(), roll(trace.roll()), transition(trace.transition()), point(trace.finalPoint()));
+                 .map(p -> new AirbornePointDto(p.progress(), point(p.position()), p.height())).toList(), roll(trace.roll()),
+                 transition(trace.transition()), point(trace.finalPoint()), trace.backspinRpm(), trace.groundPath().stream()
+                 .map(p -> new GroundMotionPointDto(p.kind().name(), point(p.position()), p.heightYards())).toList());
     }
 
     private static ShotTraceRollDto roll(com.progolf.sim.shot.ShotTraceRoll roll) {

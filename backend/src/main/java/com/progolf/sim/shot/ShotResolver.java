@@ -297,6 +297,8 @@ public final class ShotResolver {
         ShotContact contact = new ShotContact(contactPosition, contactSurface);
         ShotSettlement settlement;
         ShotTraceRoll roll = null;
+        GroundResponse ground = raw.putt() ? null : groundResponse(context, contactSurface, raw.carry(),
+                backspinRpm(context, raw.carry()));
         if (contactSurface == Surface.WATER) {
             Position2d drop = waterDrop(context, contactPosition);
             if (drop == null) {
@@ -310,11 +312,11 @@ public final class ShotResolver {
             settlement = new ShotSettlement(contact, preShot.position(), RecoveryKind.OUT_OF_BOUNDS_REPLAY, preShot);
         } else {
             Position2d finalPosition = contactPosition;
-            if (profile != null) {
-                double rollYards = profile.rollYardsOn(contactSurface);
-                if (rollYards > 0) {
+            if (ground != null) {
+                double releaseYards = ground.totalYards();
+                if (releaseYards > 0) {
                     Position2d candidate = boundedRelease(context.geometry(), flight, frame, contactPosition,
-                            contactSurface, rollYards);
+                            contactSurface, releaseYards);
                     if (!candidate.equals(contactPosition)) {
                         finalPosition = candidate;
                         roll = new ShotTraceRoll(contactPosition, candidate);
@@ -325,11 +327,129 @@ public final class ShotResolver {
                     new BallState(finalPosition, context.geometry().surfaceAt(finalPosition)));
         }
         BallState playable = settlement.ball();
-        ShotTrace trace = materializeTrace ? trace(context, settlement, roll, flight) : null;
+        ShotTrace trace = materializeTrace ? trace(context, settlement, roll, flight, ground) : null;
         return new ShotOutcome(playable.lie(), raw.carry(), raw.lateral(), playable.position().distanceTo(cup),
                 contactSurface.isHazard(), contactSurface.penaltyStrokes(), 1 + contactSurface.penaltyStrokes(),
                 raw.factors(), settlement, raw.putt(), trace);
     }
+
+    /** Fixed first contact remains the sampled carry/lateral result; only post-contact motion uses this model. */
+    static GroundResponse groundResponse(ShotContext context, Surface surface, double carryYards, double spinRpm) {
+        ShotFamily family = context.decision().shotFamily();
+        if (!ordinaryPlayable(surface) || carryYards <= 0 || family == ShotFamily.BUNKER) {
+            return new GroundResponse(spinRpm, 0, 0, 0);
+        }
+        LandingVelocity landing = landingVelocity(context.decision().clubSpec(), family, carryYards, spinRpm);
+        double firmness = context.environment().groundFirmness();
+        double spinSurfaceSpeed = spinRpm * 2 * StrictMath.PI / 60 * 0.02135;
+        double spinFraction = Math.min(1, spinRpm / 9000);
+        double restitution = (0.08 + 0.14 * firmness) * (1 - 0.55 * spinFraction);
+        double reboundVy = Math.abs(landing.vertical()) * restitution;
+        double bounceHeightYards = reboundVy * reboundVy / (2 * 9.81) * 1.0936133;
+        double surfaceRetention = switch (surface) {
+            case FIRST_CUT -> 0.8;
+            case PRIMARY_ROUGH -> 0.55;
+            case GREEN, FRINGE, FAIRWAY, TEE_BOX -> 1.0;
+            default -> 0.0;
+        };
+        double afterImpact = Math.max(0, landing.forward() * (0.30 + 0.30 * firmness)
+                * surfaceRetention - 0.45 * spinSurfaceSpeed);
+        double bounceYards = afterImpact * 2 * reboundVy / 9.81 * 1.0936133;
+        double rollingSpeed = Math.max(0, afterImpact * (0.33 + 0.12 * firmness)
+                - 0.15 * spinSurfaceSpeed);
+        if (family == ShotFamily.CHIP) {
+            // A running chip skids into ground roll; limit the old chip family's distance change.
+            bounceHeightYards = 0;
+            bounceYards = 0;
+            rollingSpeed = Math.max(0, landing.forward() * (0.50 + 0.20 * firmness)
+                    * surfaceRetention - 0.20 * spinSurfaceSpeed);
+        }
+        double friction = (family == ShotFamily.CHIP ? 0.50 + 0.46 * (1 - firmness)
+                : 0.55 + 0.54 * (1 - firmness)) * switch (surface) {
+                    case GREEN -> 0.85;
+                    case FRINGE, FAIRWAY, TEE_BOX -> 1.0;
+                    case FIRST_CUT -> 1.2;
+                    case PRIMARY_ROUGH -> 1.6;
+                    default -> 1.0;
+                };
+        double rollYards = rollingSpeed * rollingSpeed / (2 * friction * 9.81) * 1.0936133;
+        double total = bounceYards + rollYards;
+        double cap = family == ShotFamily.CHIP ? Math.min(12.0, carryYards)
+                : Math.min(35.0, carryYards * 0.30);
+        if (total > cap) {
+            double factor = cap / total;
+            bounceYards *= factor;
+            rollYards *= factor;
+        }
+        if (family == ShotFamily.CHIP) rollYards *= 0.90;
+        return new GroundResponse(spinRpm, bounceHeightYards, bounceYards, rollYards);
+    }
+
+    private static double backspinRpm(ShotContext context, double carryYards) {
+        ShotDecision decision = context.decision();
+        if (decision.shotFamily() == ShotFamily.BUNKER || carryYards <= 0) return 0;
+        if (decision.shotFamily() == ShotFamily.CHIP) {
+            return Math.min(2500, 1400 * StrictMath.sqrt(carryYards / 11.6));
+        }
+        double base = decision.clubSpec().baseCarry();
+        double spin = clubInterpolation(base, 9000, 6200, 2500)
+                * StrictMath.sqrt(carryYards / (base * 0.91));
+        if (decision.shotFamily() == ShotFamily.CONTROLLED) spin *= 0.90;
+        if (decision.shotFamily() == ShotFamily.PITCH) spin *= 0.80;
+        spin *= 0.75 + 0.25 * context.environment().lieQuality();
+        spin *= switch (context.lie()) {
+            case PRIMARY_ROUGH, FIRST_CUT -> 0.85;
+            case DEEP_ROUGH, TREES, RECOVERY_AREA -> 0.65;
+            default -> 1.0;
+        };
+        return Math.max(1000, Math.min(10000, spin));
+    }
+
+    private static double clubInterpolation(double baseCarry, double wedge, double iron, double driver) {
+        return baseCarry <= 170 ? wedge + (baseCarry - 110) * (iron - wedge) / 60
+                : iron + (baseCarry - 170) * (driver - iron) / 120;
+    }
+
+    private static LandingVelocity landingVelocity(ClubSpec club, ShotFamily family, double carryYards, double spinRpm) {
+        double speed;
+        double angle;
+        if (family == ShotFamily.CHIP) {
+            speed = 16 * StrictMath.sqrt(carryYards / 11.6);
+            angle = 12;
+        } else {
+            speed = clubInterpolation(club.baseCarry(), 32, 46, 75)
+                    * StrictMath.sqrt(carryYards / (club.baseCarry() * 0.91));
+            angle = clubInterpolation(club.baseCarry(), 32, 20, 13);
+            if (family == ShotFamily.CONTROLLED) angle -= 3;
+        }
+        speed = Math.min(85, speed);
+        double radians = StrictMath.toRadians(Math.max(8, angle));
+        double y = 0;
+        double vx = speed * StrictMath.cos(radians);
+        double vy = speed * StrictMath.sin(radians);
+        for (int step = 0; step < 1000; step++) {
+            double magnitude = StrictMath.hypot(vx, vy);
+            double drag = 0.0017 * magnitude;
+            double lift = 0.00065 * (spinRpm / 3000) * magnitude;
+            double ax = -drag * vx - lift * vy;
+            double ay = -9.81 - drag * vy + lift * vx;
+            double priorY = y, priorVx = vx, priorVy = vy;
+            y += vy * 0.02;
+            vx += ax * 0.02;
+            vy += ay * 0.02;
+            if (y <= 0 && step > 0) {
+                double fraction = priorY / (priorY - y);
+                return new LandingVelocity(priorVx + (vx - priorVx) * fraction,
+                        priorVy + (vy - priorVy) * fraction);
+            }
+        }
+        throw new IllegalStateException("non-putt landing velocity did not resolve");
+    }
+
+    record GroundResponse(double spinRpm, double bounceHeightYards, double bounceYards, double rollYards) {
+        double totalYards() { return bounceYards + rollYards; }
+    }
+    private record LandingVelocity(double forward, double vertical) { }
 
     /** Builds a presentation projection from existing context and settlement facts without recalculation. */
     private static FlightSolution flight(ShotContext context, ShotFrame frame, ShotOutcome raw, ShotExecutionProfile profile) {
@@ -436,14 +556,35 @@ public final class ShotResolver {
                 from.y() + (to.y() - from.y()) * parameter);
     }
 
-    private static ShotTrace trace(ShotContext context, ShotSettlement settlement, ShotTraceRoll roll, FlightSolution flight) {
+    private static ShotTrace trace(ShotContext context, ShotSettlement settlement, ShotTraceRoll roll,
+                                   FlightSolution flight, GroundResponse ground) {
         ShotContact contact = settlement.contact();
         ShotTraceTransition transition = settlement.recoveryKind() == RecoveryKind.NONE ? null
                 : new ShotTraceTransition(settlement.recoveryKind(), contact.position(),
                         Objects.requireNonNull(settlement.recoveryPosition(), "recovery position"));
         Position2d aim = context.aimTarget();
         return new ShotTrace(context.decision().clubSpec().id(), context.ball().position(),
-                new AimPoint(aim.x(), aim.y()), contact, flight == null ? java.util.List.of() : flight.samples(), roll, transition, settlement.ball().position());
+                new AimPoint(aim.x(), aim.y()), contact, flight == null ? java.util.List.of() : flight.samples(),
+                roll, transition, settlement.ball().position(), ground == null ? 0 : ground.spinRpm(),
+                groundPath(contact.position(), roll, ground));
+    }
+
+    private static List<GroundMotionPoint> groundPath(Position2d contact, ShotTraceRoll release, GroundResponse ground) {
+        if (release == null || ground == null) return List.of();
+        Position2d finalPoint = release.to();
+        double actual = contact.distanceTo(finalPoint);
+        double plannedHop = ground.bounceYards();
+        List<GroundMotionPoint> path = new ArrayList<>();
+        if (plannedHop > 0.01 && actual >= plannedHop - 1.0e-6) {
+            double hopFraction = Math.min(1, plannedHop / actual);
+            path.add(new GroundMotionPoint(GroundMotionPoint.Kind.BOUNCE_APEX,
+                    interpolate(contact, finalPoint, hopFraction / 2), ground.bounceHeightYards()));
+            path.add(new GroundMotionPoint(GroundMotionPoint.Kind.BOUNCE_LANDING,
+                    interpolate(contact, finalPoint, hopFraction), 0));
+        }
+        path.add(new GroundMotionPoint(actual < ground.totalYards() - 1.0e-6
+                ? GroundMotionPoint.Kind.BOUNDARY_STOP : GroundMotionPoint.Kind.ROLL_STOP, finalPoint, 0));
+        return List.copyOf(path);
     }
 
     /** Implements the specified tee-ward 15-yard start and 1-yard deterministic rough scan. */

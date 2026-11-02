@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { feedbackAimPoint, interpolatedContactPoint, isAimPointInteractionLocked, traceBallProjection, traceHeightCue, tracePlaybackDurationMs, tracePlaybackFrame, tracePlaybackStatus, tracePlaybackTiming, transitionLabel, type ShotTrace } from "./trace-presentation";
+import { authoritativeGroundPath, feedbackAimPoint, interpolatedContactPoint, isAimPointInteractionLocked, traceBallProjection, traceBounceCue, traceHeightCue, tracePlaybackDurationMs, tracePlaybackFrame, tracePlaybackStatus, tracePlaybackTiming, transitionLabel, traversedAirbornePoints, type ShotTrace } from "./trace-presentation";
 import { buildBallStrikeIntent } from "./intent";
 import { completeNonHolingPlayback, showResolvedShot } from "./playback-presentation";
 
@@ -46,7 +46,114 @@ const chipRollTrace: ShotTrace = {
   finalPoint: { x: 1.1603187847887033, y: 26.641943965364206 },
 };
 
+const bouncingTrace: ShotTrace = {
+  ...rollingTrace,
+  origin: { x: 0, y: 0 },
+  contact: { position: { x: 0, y: 100 }, surface: "FAIRWAY" },
+  roll: { from: { x: 0, y: 100 }, to: { x: 0, y: 108 } },
+  groundPath: [
+    { kind: "BOUNCE_APEX", position: { x: 0, y: 103 }, heightYards: .45 },
+    { kind: "BOUNCE_LANDING", position: { x: 0, y: 106 }, heightYards: 0 },
+    { kind: "ROLL_STOP", position: { x: 0, y: 108 }, heightYards: 0 },
+  ],
+  finalPoint: { x: 0, y: 108 },
+};
+
+const runningChipTrace: ShotTrace = {
+  ...bouncingTrace,
+  club: "EIGHT_IRON",
+  contact: { position: { x: 0, y: 12 }, surface: "FAIRWAY" },
+  airbornePath: [
+    { progress: 0, position: { x: 0, y: 0 }, height: 0 },
+    { progress: .5, position: { x: 0, y: 6 }, height: 1 },
+    { progress: 1, position: { x: 0, y: 12 }, height: 0 },
+  ],
+  backspinRpm: 1400,
+  roll: { from: { x: 0, y: 12 }, to: { x: 0, y: 22 } },
+  groundPath: [{ kind: "ROLL_STOP", position: { x: 0, y: 22 }, heightYards: 0 }],
+  finalPoint: { x: 0, y: 22 },
+};
+
 describe("trace presentation", () => {
+  it("reveals only the airborne samples behind a curved draw or fade", () => {
+    const curved: ShotTrace = { ...rollingTrace,
+      origin: { x: 0, y: 0 }, contact: { position: { x: 0, y: 100 }, surface: "FAIRWAY" },
+      airbornePath: [
+        { progress: 0, position: { x: 0, y: 0 }, height: 0 },
+        { progress: .25, position: { x: 5, y: 25 }, height: 10 },
+        { progress: .5, position: { x: 8, y: 50 }, height: 15 },
+        { progress: .75, position: { x: 5, y: 75 }, height: 10 },
+        { progress: 1, position: { x: 0, y: 100 }, height: 0 },
+      ],
+      roll: null, finalPoint: { x: 0, y: 100 },
+    };
+    const timing = tracePlaybackTiming(curved);
+    const progress = timing.flightMs * .375 / timing.totalMs;
+    expect(traversedAirbornePoints(curved, 0)).toEqual([]);
+    expect(traversedAirbornePoints(curved, progress)).toEqual([
+      curved.origin, { x: 5, y: 25 }, { x: 6.5, y: 37.5 },
+    ]);
+    expect(traversedAirbornePoints(curved, progress).at(-1)).toEqual(tracePlaybackFrame(curved, progress).point);
+    expect(traversedAirbornePoints(curved, timing.flightMs / timing.totalMs).at(-1)).toEqual(curved.contact.position);
+    expect(traversedAirbornePoints(curved, 1)).toEqual(traversedAirbornePoints(curved, timing.flightMs / timing.totalMs));
+  });
+  it("keeps a running chip from accelerating horizontally at first contact", () => {
+    const timing = tracePlaybackTiming(runningChipTrace);
+    const frameAt = (ms: number) => tracePlaybackFrame(runningChipTrace, ms / timing.totalMs);
+    const before = frameAt(timing.flightMs - 16);
+    const contact = frameAt(timing.flightMs);
+    const after = frameAt(timing.flightMs + 16);
+    const later = frameAt(timing.flightMs + 32);
+    expect(timing.contactMs).toBe(0);
+    expect(contact).toMatchObject({ phase: "roll", point: runningChipTrace.contact.position, height: 0 });
+    expect(after.point.y - contact.point.y).toBeGreaterThan(0);
+    expect(after.point.y - contact.point.y).toBeLessThanOrEqual(contact.point.y - before.point.y);
+    expect(later.point.y - after.point.y).toBeLessThan(after.point.y - contact.point.y);
+    expect(frameAt(timing.totalMs)).toEqual({ phase: "final", point: runningChipTrace.finalPoint, finalVisible: true });
+    expect(tracePlaybackTiming(bouncingTrace).contactMs).toBeGreaterThan(0);
+    expect(tracePlaybackTiming({ ...runningChipTrace, club: "DRIVER" }).contactMs).toBeGreaterThan(0);
+    expect(tracePlaybackTiming({ ...runningChipTrace, club: "GAP_WEDGE", backspinRpm: 9000 }).contactMs).toBeGreaterThan(0);
+  });
+  it("plays only authored bounce events and their heights before easing the remaining ground roll", () => {
+    const timing = tracePlaybackTiming(bouncingTrace);
+    const halfHopMs = Math.round(1000 * Math.sqrt(2 * .45 * .9144 / 9.81));
+    const groundStart = timing.flightMs + timing.contactMs;
+    const frameAt = (ms: number) => tracePlaybackFrame(bouncingTrace, ms / timing.totalMs);
+    expect(authoritativeGroundPath(bouncingTrace)).toHaveLength(3);
+    expect(frameAt(timing.flightMs)).toMatchObject({ phase: "contact", point: bouncingTrace.contact.position });
+    expect(frameAt(groundStart + halfHopMs)).toMatchObject({ phase: "bounce", point: { x: 0, y: 103 }, height: .45 });
+    expect(frameAt(groundStart + halfHopMs * 2)).toMatchObject({ phase: "roll", point: { x: 0, y: 106 }, height: 0 });
+    const rising = frameAt(groundStart + halfHopMs / 2);
+    expect(rising.point.y).toBeGreaterThan(100);
+    expect(rising.point.y).toBeLessThan(103);
+    expect(rising.height).toBeGreaterThan(0);
+    expect(rising.height).toBeLessThan(.45);
+    expect(tracePlaybackStatus(bouncingTrace, rising)).toBe("Bouncing");
+    const projected = traceBallProjection(rising, (point) => ({ x: point.x, y: 300 - point.y }));
+    expect(projected.ball.y).toBeLessThan(projected.ground.y);
+    expect(traceBounceCue(.45).lift).toBeGreaterThan(traceHeightCue(.45).lift);
+    const rollStart = groundStart + halfHopMs * 2;
+    const rollDuration = timing.totalMs - rollStart;
+    const early = frameAt(rollStart + rollDuration * .25).point.y;
+    const late = frameAt(rollStart + rollDuration * .75).point.y;
+    expect(early - 106).toBeGreaterThan(108 - late);
+    expect(frameAt(timing.totalMs)).toEqual({ phase: "final", point: bouncingTrace.finalPoint, finalVisible: true });
+  });
+
+  it("keeps legacy roll playback when ground events are absent or incomplete", () => {
+    expect(authoritativeGroundPath(rollingTrace)).toBeNull();
+    const incomplete = { ...bouncingTrace, groundPath: [bouncingTrace.groundPath![0]] } satisfies ShotTrace;
+    expect(authoritativeGroundPath(incomplete)).toBeNull();
+    const timing = tracePlaybackTiming(incomplete);
+    const frame = tracePlaybackFrame(incomplete, (timing.flightMs + timing.contactMs + timing.rollMs / 2) / timing.totalMs);
+    expect(frame.phase).toBe("roll");
+    expect(frame.height).toBeUndefined();
+    const boundary = { ...bouncingTrace, groundPath: [
+      { kind: "BOUNDARY_STOP", position: bouncingTrace.finalPoint, heightYards: 0 },
+    ] } satisfies ShotTrace;
+    expect(tracePlaybackFrame(boundary, .95)).toMatchObject({ phase: "roll", height: 0 });
+    expect(authoritativeGroundPath(boundary)).toHaveLength(1);
+  });
   it("keeps the completed trace target over a newly selected planning target", () => {
     expect(feedbackAimPoint(trace, { x: 0, y: 200 })).toEqual(trace.aimPoint);
     expect(feedbackAimPoint(null, { x: 0, y: 200 })).toEqual({ x: 0, y: 200 });

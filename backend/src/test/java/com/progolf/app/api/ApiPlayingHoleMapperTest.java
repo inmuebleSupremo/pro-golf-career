@@ -20,6 +20,7 @@ import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.AimPoint;
 import com.progolf.sim.shot.ClubId;
 import com.progolf.sim.shot.FactorBreakdown;
+import com.progolf.sim.shot.GroundMotionPoint;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.RecoveryKind;
 import com.progolf.sim.shot.ShotContact;
@@ -28,6 +29,7 @@ import com.progolf.sim.shot.ShotGuidance;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.shot.ShotSettlement;
 import com.progolf.sim.shot.ShotTrace;
+import com.progolf.sim.shot.ShotTraceRoll;
 import com.progolf.sim.shot.ShotTraceTransition;
 import com.progolf.sim.shot.WindVector;
 import com.progolf.sim.spatial.ShotZoneProfile;
@@ -233,6 +235,8 @@ class ApiPlayingHoleMapperTest {
         assertThat(dto.trace().contact().position().y()).isEqualTo(contactPosition.y());
         assertThat(dto.trace().transition().kind()).isEqualTo(RecoveryKind.WATER_DROP.name());
         assertThat(dto.trace().finalPoint()).isEqualTo(dto.settlement().ball().position());
+        assertThat(dto.trace().backspinRpm()).isZero();
+        assertThat(dto.trace().groundPath()).isEmpty();
 
         ShotContact cupContact = new ShotContact(new Position2d(0, 200), Surface.GREEN);
         BallState holedBall = new BallState(cupContact.position(), Surface.GREEN);
@@ -251,6 +255,29 @@ class ApiPlayingHoleMapperTest {
         var summaryOnlyDto = ApiMapper.shotOutcome(summaryOnly);
         assertThat(summaryOnlyDto.holed()).isFalse();
         assertThat(summaryOnlyDto.trace()).isNull();
+    }
+
+    @Test
+    void groundMotionProjectionPreservesSpinAndBounceSamples() {
+        Position2d contact = new Position2d(0, 160);
+        Position2d finalPoint = new Position2d(0, 168);
+        ShotSettlement settlement = new ShotSettlement(new ShotContact(contact, Surface.FAIRWAY), null,
+                RecoveryKind.NONE, new BallState(finalPoint, Surface.FAIRWAY));
+        ShotTrace trace = new ShotTrace(ClubId.SEVEN_IRON, new Position2d(0, 0), new AimPoint(0, 160),
+                settlement.contact(), java.util.List.of(), new ShotTraceRoll(contact, finalPoint), null, finalPoint,
+                6200, java.util.List.of(
+                        new GroundMotionPoint(GroundMotionPoint.Kind.BOUNCE_APEX, new Position2d(0, 163), 0.25),
+                        new GroundMotionPoint(GroundMotionPoint.Kind.BOUNCE_LANDING, new Position2d(0, 166), 0),
+                        new GroundMotionPoint(GroundMotionPoint.Kind.ROLL_STOP, finalPoint, 0)));
+        ShotOutcome outcome = new ShotOutcome(Surface.FAIRWAY, 160, 0, 32, false, 0, 1,
+                new FactorBreakdown(0, 0, 0, 0), settlement, false, trace);
+
+        var dto = ApiMapper.shotOutcome(outcome);
+        assertThat(dto.trace().backspinRpm()).isEqualTo(6200);
+        assertThat(dto.trace().groundPath()).extracting(p -> p.kind())
+                .containsExactly("BOUNCE_APEX", "BOUNCE_LANDING", "ROLL_STOP");
+        assertThat(dto.trace().groundPath().getFirst().heightYards()).isEqualTo(0.25);
+        assertThat(dto.trace().groundPath().getLast().position()).isEqualTo(dto.trace().finalPoint());
     }
 
     private static void assertGeometry(PlayingHoleDto dto, CourseGeometry geometry, PinPosition pin) {
