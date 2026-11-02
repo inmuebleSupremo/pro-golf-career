@@ -52,6 +52,9 @@ export function ShotMotionOverlay(props: ShotMotionProps) {
     const cancel = startShotPlayback(tracePlaybackDurationMs(trace),
       (next) => {
         golfAudio.movement(trace, next, trace.club);
+        if (tracePlaybackFrame(trace, next).phase === "contact") {
+          golfAudio.landing(trace, trace.contact.surface, trace.club);
+        }
         setClock({ trace, progress: next });
       }, () => {
         finished = true;

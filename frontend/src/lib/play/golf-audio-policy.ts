@@ -21,6 +21,30 @@ export const IMPACT_SAMPLES: Record<ImpactCategory, readonly string[]> = {
 };
 export const CUP_SAMPLE = `${ROOT}cup_vase_drop.mp3`;
 
+export type LandingCategory = "fairway" | "green" | "rough" | "bunker" | "water";
+const LANDING_ROOT = "/audio/golf-v2/landing/";
+export const LANDING_SAMPLES: Record<LandingCategory, readonly string[]> = {
+  fairway: Array.from({ length: 24 }, (_, index) =>
+    `${LANDING_ROOT}fairway/fairway_${String(index + 1).padStart(2, "0")}.mp3`),
+  green: [`${LANDING_ROOT}green/green_01.wav`, `${LANDING_ROOT}green/green_02_experimental.wav`],
+  rough: [`${LANDING_ROOT}rough/rough_01.mp3`],
+  bunker: Array.from({ length: 3 }, (_, index) => `${LANDING_ROOT}bunker/bunker_0${index + 1}.mp3`),
+  water: Array.from({ length: 3 }, (_, index) => `${LANDING_ROOT}water/water_0${index + 1}.mp3`),
+};
+
+/** The trace contact is the first landing surface, distinct from the ball's final lie. */
+export function landingCategory(surface: string | null | undefined): LandingCategory | null {
+  switch (surface) {
+    case "FAIRWAY": return "fairway";
+    case "GREEN": return "green";
+    case "PRIMARY_ROUGH":
+    case "DEEP_ROUGH": return "rough";
+    case "BUNKER": return "bunker";
+    case "WATER": return "water";
+    default: return null;
+  }
+}
+
 export function impactCategory(club: string | null | undefined, technique?: string): ImpactCategory | null {
   if (technique === "PUTT") return "putt";
   return club ? CLUB_CATEGORY[club] ?? null : null;
