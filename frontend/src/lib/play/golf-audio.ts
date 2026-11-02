@@ -1,5 +1,5 @@
-import { AMBIENCE_SAMPLES, CUP_SAMPLE, IMPACT_SAMPLES, SampleBag,
-  impactCategory, type AmbienceFamily, type ImpactCategory } from "./golf-audio-policy";
+import { AMBIENCE_SAMPLES, CUP_SAMPLE, IMPACT_SAMPLES, LANDING_SAMPLES, SampleBag,
+  impactCategory, landingCategory, type AmbienceFamily, type ImpactCategory, type LandingCategory } from "./golf-audio-policy";
 
 export type AudioPreferences = { muted: boolean; effects: number; ambience: number };
 export const DEFAULT_AUDIO_PREFERENCES: AudioPreferences = { muted: false, effects: 0.8, ambience: 0.35 };
@@ -7,6 +7,10 @@ const STORAGE_KEY = "progolf.audio.v1";
 const EFFECT_GAIN: Record<ImpactCategory | "cup", number> = {
   driver: 0.82, wood: 0.67, iron: 0.54, wedge: 0.39, putt: 0.22, cup: 0.38,
 };
+const LANDING_GAIN: Record<LandingCategory, number> = {
+  fairway: 0.14, green: 0.16, rough: 0.12, bunker: 0.13, water: 0.18,
+};
+const EFFECT_SAMPLES = [...Object.values(IMPACT_SAMPLES).flat(), ...Object.values(LANDING_SAMPLES).flat(), CUP_SAMPLE];
 
 function clamp(value: number): number { return Math.max(0, Math.min(1, value)); }
 
@@ -33,7 +37,10 @@ export class GolfAudioController {
   private sources = new Set<AudioBufferSourceNode>();
   private impactBag = Object.fromEntries(Object.entries(IMPACT_SAMPLES)
     .map(([category, samples]) => [category, new SampleBag(samples)])) as Record<ImpactCategory, SampleBag>;
+  private landingBag = Object.fromEntries(Object.entries(LANDING_SAMPLES)
+    .map(([category, samples]) => [category, new SampleBag(samples)])) as Record<LandingCategory, SampleBag>;
   private playedImpacts = new WeakSet<object>();
+  private playedLandings = new WeakSet<object>();
   private playedCups = new WeakSet<object>();
   private ambience: HTMLAudioElement | null = null;
   private family: AmbienceFamily = "parkland";
@@ -72,7 +79,7 @@ export class GolfAudioController {
     this.setFamily(family);
     if (this.context?.state === "running") this.startAmbience();
     // Fetch only short effects here. Decode after a user gesture creates/resumes the audio context.
-    for (const path of [...Object.values(IMPACT_SAMPLES).flat(), CUP_SAMPLE]) this.download(path);
+    for (const path of EFFECT_SAMPLES) this.download(path);
   }
 
   setFamily(family: AmbienceFamily): void {
@@ -123,6 +130,14 @@ export class GolfAudioController {
 
   movement(shot: object, progress: number, club: string | null | undefined, technique?: string): void {
     if (progress > 0) this.impact(shot, club, technique);
+  }
+
+  landing(shot: object, surface: string | null | undefined, club: string | null | undefined): void {
+    if (club === "PUTTER" || this.playedLandings.has(shot)) return;
+    const category = landingCategory(surface);
+    if (!category) return;
+    this.playedLandings.add(shot);
+    this.playEffect(this.landingBag[category].next(), LANDING_GAIN[category]);
   }
 
   cup(shot: object, holed: boolean): void {
@@ -195,7 +210,7 @@ export class GolfAudioController {
   private async decodeEffects(): Promise<void> {
     const context = this.context;
     if (!context) return;
-    await Promise.all([...Object.values(IMPACT_SAMPLES).flat(), CUP_SAMPLE].map(async (path) => {
+    await Promise.all(EFFECT_SAMPLES.map(async (path) => {
       const data = await this.download(path);
       if (!data) return;
       try { this.buffers.set(path, await context.decodeAudioData(data.slice(0))); }

@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { startShotPlayback } from "./shot-playback-clock";
 import { GolfAudioController, readAudioPreferences } from "./golf-audio";
-import { AMBIENCE_SAMPLES, IMPACT_SAMPLES, SampleBag, ambienceFamily, impactCategory } from "./golf-audio-policy";
+import { AMBIENCE_SAMPLES, IMPACT_SAMPLES, LANDING_SAMPLES, SampleBag,
+  ambienceFamily, impactCategory, landingCategory } from "./golf-audio-policy";
 import type { HoleGeom } from "./hole-geometry";
+import { tracePlaybackDurationMs, tracePlaybackFrame, type ShotTrace } from "./trace-presentation";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
@@ -12,6 +14,7 @@ function browserAudio() {
   const media: FakeAudio[] = [];
   let started = 0;
   let decoded = 0;
+  const gains: { value: number }[] = [];
   class FakeAudio {
     src = "";
     loop = false;
@@ -28,7 +31,11 @@ function browserAudio() {
   class FakeContext {
     state = "running";
     destination = {};
-    createGain() { return { gain: { value: 1 }, connect() { }, disconnect() { } }; }
+    createGain() {
+      const gain = { value: 1 };
+      gains.push(gain);
+      return { gain, connect() { }, disconnect() { } };
+    }
     createBufferSource() {
       return { buffer: null, onended: null, connect() { }, disconnect() { }, start() { started++; }, stop() { } };
     }
@@ -41,7 +48,8 @@ function browserAudio() {
   vi.stubGlobal("Audio", FakeAudio);
   vi.stubGlobal("AudioContext", FakeContext);
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) })));
-  return { media, saved, started: () => started, decoded: () => decoded };
+  return { media, saved, started: () => started, decoded: () => decoded,
+    gains: () => gains.map((gain) => gain.value) };
 }
 
 function frames() {
@@ -80,6 +88,19 @@ describe("approved golf audio selection", () => {
     expect(Array.from({ length: 4 }, () => bag.next())).toEqual(Array(4).fill(IMPACT_SAMPLES.driver[0]));
   });
 
+  it("maps first contact surfaces to supplied landing variations without using the final lie", () => {
+    expect(["FAIRWAY", "GREEN", "PRIMARY_ROUGH", "DEEP_ROUGH", "BUNKER", "WATER"]
+      .map(landingCategory)).toEqual(["fairway", "green", "rough", "rough", "bunker", "water"]);
+    expect(["FIRST_CUT", "FRINGE", "TREES", "OUT_OF_BOUNDS", undefined]
+      .map(landingCategory)).toEqual([null, null, null, null, null]);
+    expect(Object.values(LANDING_SAMPLES).map((samples) => samples.length)).toEqual([24, 2, 1, 3, 3]);
+    for (const samples of Object.values(LANDING_SAMPLES).filter((items) => items.length > 1)) {
+      const bag = new SampleBag(samples, () => 0);
+      const picks = Array.from({ length: samples.length * 3 }, () => bag.next());
+      for (let i = 1; i < picks.length; i++) expect(picks[i]).not.toBe(picks[i - 1]);
+    }
+  });
+
   it("selects one shared golf-course track for Woodland and Heathland, wind for Links, insects for Desert", () => {
     const hole = (courseType: string) => ({ courseType }) as HoleGeom;
     expect(ambienceFamily(hole("WOODLAND"))).toBe("parkland");
@@ -107,6 +128,49 @@ describe("approved golf audio selection", () => {
 });
 
 describe("audio on the real shot playback clock", () => {
+  it("sounds one quiet first contact when the non-putt trace visibly lands", async () => {
+    const browser = browserAudio();
+    const audio = new GolfAudioController();
+    audio.startScene("links");
+    audio.unlock();
+    await vi.waitFor(() => expect(browser.decoded()).toBe(44));
+    const trace: ShotTrace = {
+      club: "SEVEN_IRON", origin: { x: 0, y: 0 }, aimPoint: { x: 0, y: 100 },
+      contact: { position: { x: 0, y: 100 }, surface: "WATER" },
+      airbornePath: [], roll: null,
+      transition: { kind: "WATER_DROP", from: { x: 0, y: 100 }, to: { x: 0, y: 85 } },
+      finalPoint: { x: 0, y: 85 },
+    };
+    const duration = tracePlaybackDurationMs(trace);
+    const clock = frames();
+    const stop = startShotPlayback(duration, (progress) => {
+      audio.movement(trace, progress, trace.club);
+      if (tracePlaybackFrame(trace, progress).phase === "contact") {
+        audio.landing(trace, trace.contact.surface, trace.club);
+      }
+    }, undefined, clock.request, clock.cancel);
+    clock.paint(1000);
+    for (let elapsed = 16; elapsed < duration; elapsed += 16) {
+      clock.paint(1000 + elapsed);
+      if (tracePlaybackFrame(trace, Math.min(1, elapsed / duration)).phase === "airborne") {
+        expect(browser.started()).toBe(1);
+      }
+    }
+    expect(browser.started()).toBe(2);
+    expect(browser.gains().slice(-2)).toEqual([0.54, 0.18]);
+    audio.landing(trace, "GREEN", trace.club); // a later lie cannot replace the first contact
+    audio.landing({}, "GREEN", "PUTTER");
+    expect(browser.started()).toBe(2);
+    audio.setPreferences({ effects: 0.25 });
+    expect(browser.gains()[0]).toBe(0.25);
+    audio.setPreferences({ muted: true });
+    expect(browser.gains()[0]).toBe(0);
+    audio.landing({}, "FAIRWAY", "DRIVER");
+    expect(browser.started()).toBe(2);
+    stop();
+    audio.stopScene();
+  });
+
   it("doubles only Parkland-family ambience while retaining sliders, mute, and fades", async () => {
     vi.useFakeTimers();
     const browser = browserAudio();
@@ -141,7 +205,7 @@ describe("audio on the real shot playback clock", () => {
     audio.startScene("links");
     audio.unlock();
     // Decode happens after the user gesture; a later GraphQL result must not start sound by itself.
-    await vi.waitFor(() => expect(browser.decoded()).toBe(11));
+    await vi.waitFor(() => expect(browser.decoded()).toBe(44));
     const shot = { club: "DRIVER" };
     const clock = frames();
     const stop = startShotPlayback(100, (progress) => audio.movement(shot, progress, shot.club),
@@ -197,7 +261,7 @@ describe("audio on the real shot playback clock", () => {
     const audio = new GolfAudioController();
     audio.startScene("parkland");
     audio.unlock();
-    await vi.waitFor(() => expect(browser.decoded()).toBe(11));
+    await vi.waitFor(() => expect(browser.decoded()).toBe(44));
     const madePutt = { holed: true };
     audio.movement(madePutt, 0, "PUTTER", "PUTT");
     expect(browser.started()).toBe(0);
