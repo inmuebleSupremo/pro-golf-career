@@ -154,7 +154,9 @@ export class GolfAudioController {
     if (this.ambience && !this.fadeTimer) this.ambience.volume = this.ambientVolume();
   }
 
-  private ambientVolume(): number { return this.preferences.muted ? 0 : 0.18 * this.preferences.ambience; }
+  private ambientVolume(): number {
+    return this.preferences.muted ? 0 : clamp(0.18 * this.preferences.ambience * (this.family === "parkland" ? 2 : 1));
+  }
 
   private startAmbience(): void {
     if (!this.sceneActive || !this.ambience || this.preferences.muted || this.preferences.ambience === 0) return;

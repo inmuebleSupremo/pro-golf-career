@@ -107,6 +107,34 @@ describe("approved golf audio selection", () => {
 });
 
 describe("audio on the real shot playback clock", () => {
+  it("doubles only Parkland-family ambience while retaining sliders, mute, and fades", async () => {
+    vi.useFakeTimers();
+    const browser = browserAudio();
+    const audio = new GolfAudioController();
+    audio.startScene("parkland");
+    audio.unlock();
+    await Promise.resolve();
+    vi.advanceTimersByTime(400);
+    const ambience = browser.media[0];
+    expect(ambience.volume).toBeCloseTo(0.18 * 0.35 * 2);
+    audio.setPreferences({ ambience: 1 });
+    expect(ambience.volume).toBeCloseTo(0.36);
+    audio.setFamily("links");
+    vi.advanceTimersByTime(400);
+    await Promise.resolve();
+    vi.advanceTimersByTime(400);
+    expect(ambience.volume).toBeCloseTo(0.18);
+    audio.setFamily("desert");
+    vi.advanceTimersByTime(400);
+    await Promise.resolve();
+    vi.advanceTimersByTime(400);
+    expect(ambience.volume).toBeCloseTo(0.18);
+    audio.setPreferences({ muted: true });
+    expect(ambience.volume).toBe(0);
+    audio.stopScene();
+    vi.advanceTimersByTime(400);
+  });
+
   it("waits for visible movement, ignores a failed submission, plays one impact after remount, and cups only a holed result", async () => {
     const browser = browserAudio();
     const audio = new GolfAudioController();
