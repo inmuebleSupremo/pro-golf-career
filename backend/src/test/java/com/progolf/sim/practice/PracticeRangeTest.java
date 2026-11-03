@@ -60,4 +60,28 @@ class PracticeRangeTest {
         assertThat(second.ballNumber()).isEqualTo(2);
         assertThat(second.outcome().trace().origin()).isEqualTo(PracticeRange.bay());
     }
+
+    @Test
+    void selectedBayChangesTheAuthoritativeOriginWithoutMovingFlags() {
+        PracticeRange range = new PracticeRange(Attributes.uniform(70), GolferState.fresh(), Handedness.RIGHT, 42);
+        assertThat(PracticeRange.bays()).hasSize(7);
+        assertThat(PracticeRange.bays()).allSatisfy(bay ->
+                assertThat(PracticeRange.geometryView().surfaceAt(bay)).isEqualTo(Surface.TEE_BOX));
+        var target = PracticeRange.targets().get(3).position();
+        var intent = new BallStrikeIntent(ClubId.SEVEN_IRON, new AimPoint(target.x(), target.y()));
+
+        var left = range.hit(intent, 1, "0");
+        var right = range.hit(intent, 7, "1");
+        assertThat(left.outcome().trace().origin()).isEqualTo(PracticeRange.bays().getFirst());
+        assertThat(right.outcome().trace().origin()).isEqualTo(PracticeRange.bays().getLast());
+        assertThat(left.outcome().trace().intendedAimPoint()).isEqualTo(intent.aimPoint());
+        assertThat(right.outcome().trace().intendedAimPoint()).isEqualTo(intent.aimPoint());
+        assertThat(left.totalDistance()).isEqualTo(PracticeRange.bays().getFirst()
+                .distanceTo(left.outcome().trace().finalPoint()));
+        assertThat(right.totalDistance()).isEqualTo(PracticeRange.bays().getLast()
+                .distanceTo(right.outcome().trace().finalPoint()));
+        assertThat(left.proximity()).isEqualTo(target.distanceTo(left.outcome().trace().finalPoint()));
+        assertThat(right.proximity()).isEqualTo(target.distanceTo(right.outcome().trace().finalPoint()));
+        assertThatThrownBy(() -> range.hit(intent, 8, "2")).isInstanceOf(IllegalArgumentException.class);
+    }
 }

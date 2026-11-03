@@ -858,8 +858,8 @@ export const PracticeRangeDocument = graphql(`
 `);
 
 export const PracticeShotDocument = graphql(`
-  mutation PracticeShot($id: ID!, $intent: BallStrikeIntentInput!) {
-    practiceShot(id: $id, intent: $intent) {
+  mutation PracticeShot($id: ID!, $bayNumber: Int!, $intent: BallStrikeIntentInput!) {
+    practiceShot(id: $id, bayNumber: $bayNumber, intent: $intent) {
       ballNumber totalDistance proximity
       outcome {
         carry finalSurface
@@ -873,6 +873,52 @@ export const PracticeShotDocument = graphql(`
           transition { kind from { x y } to { x y } }
           finalPoint { x y }
         }
+      }
+    }
+  }
+`);
+
+export const PracticePuttingGreenDocument = graphql(`
+  query PracticePuttingGreen($id: ID!) {
+    practicePuttingGreen(id: $id) {
+      shotRevision puttsHit startingPosition { x y } readyPosition { x y }
+      restingBalls { number position { x y } }
+      footprint { x y }
+      cups { number position { x y } }
+      physicalGreen {
+        slopeSamples { position { x y } elevation downhillX downhillY slope }
+        contours { elevation points { x y } }
+      }
+    }
+  }
+`);
+
+export const PlacePracticeBallDocument = graphql(`
+  mutation PlacePracticeBall($id: ID!, $position: AimPointInput!, $revision: String!) {
+    placePracticeBall(id: $id, position: $position, expectedShotRevision: $revision) {
+      shotRevision puttsHit startingPosition { x y } readyPosition { x y }
+      restingBalls { number position { x y } }
+    }
+  }
+`);
+
+export const CollectPracticeBallsDocument = graphql(`
+  mutation CollectPracticeBalls($id: ID!, $revision: String!) {
+    collectPracticeBalls(id: $id, expectedShotRevision: $revision) {
+      shotRevision puttsHit startingPosition { x y } readyPosition { x y }
+      restingBalls { number position { x y } }
+    }
+  }
+`);
+
+export const PracticePhysicalPuttDocument = graphql(`
+  mutation PracticePhysicalPutt($id: ID!, $targetCup: Int!, $intent: PhysicalPuttIntentInput!) {
+    practicePhysicalPutt(id: $id, targetCup: $targetCup, intent: $intent) {
+      ballNumber holedCup
+      outcome { trajectory { timeSeconds position { x y } speedYardsPerSecond } finalPosition { x y } holed terminalCondition }
+      state {
+        shotRevision puttsHit startingPosition { x y } readyPosition { x y }
+        restingBalls { number position { x y } }
       }
     }
   }

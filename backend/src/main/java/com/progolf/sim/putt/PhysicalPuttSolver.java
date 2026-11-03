@@ -31,7 +31,16 @@ public final class PhysicalPuttSolver {
     }
 
     public static PhysicalPuttOutcome resolve(PhysicalPuttRequest request) {
+        return resolve(request, List.of(request.cup()));
+    }
+
+    /** The same rolling path can be captured by any supplied cup; tournament play supplies its single cup. */
+    public static PhysicalPuttOutcome resolve(PhysicalPuttRequest request, List<Position2d> cups) {
         Objects.requireNonNull(request, "request");
+        cups = List.copyOf(Objects.requireNonNull(cups, "cups"));
+        if (cups.isEmpty() || cups.stream().anyMatch(cup -> !request.surface().contains(cup))) {
+            throw new IllegalArgumentException("physical putt cups must be on the supplied green surface");
+        }
         if (request.modelVersion() != PhysicalPuttModelVersion.V1) {
             throw new IllegalArgumentException("unsupported physical putting model: " + request.modelVersion());
         }
@@ -69,11 +78,14 @@ public final class PhysicalPuttSolver {
             Position2d next = position.plus(nextVelocityX * TIME_STEP_SECONDS, nextVelocityY * TIME_STEP_SECONDS);
             double nextSpeed = StrictMath.hypot(nextVelocityX, nextVelocityY);
             double time = step * TIME_STEP_SECONDS;
-            if (segmentDistance(position, next, request.cup()) <= CUP_CAPTURE_RADIUS_YARDS
-                    && nextSpeed <= MAXIMUM_CAPTURE_SPEED_YARDS_PER_SECOND) {
-                trajectory.add(new PhysicalPuttTrajectoryPoint(time, request.cup(), nextSpeed));
-                return new PhysicalPuttOutcome(request.modelVersion(), execution, trajectory, request.cup(), true,
-                        PhysicalPuttTerminalCondition.CAPTURED);
+            if (nextSpeed <= MAXIMUM_CAPTURE_SPEED_YARDS_PER_SECOND) {
+                for (Position2d cup : cups) {
+                    if (segmentDistance(position, next, cup) <= CUP_CAPTURE_RADIUS_YARDS) {
+                        trajectory.add(new PhysicalPuttTrajectoryPoint(time, cup, nextSpeed));
+                        return new PhysicalPuttOutcome(request.modelVersion(), execution, trajectory, cup, true,
+                                PhysicalPuttTerminalCondition.CAPTURED);
+                    }
+                }
             }
             if (request.surface().sampleAt(next).location() == GreenSurfaceLocation.OUTSIDE) {
                 trajectory.add(new PhysicalPuttTrajectoryPoint(time, next, nextSpeed));

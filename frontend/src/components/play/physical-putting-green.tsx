@@ -3,11 +3,11 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 
 import type { HoleGeom, Point, ResolvedShot } from "../../lib/play/hole-geometry";
-import { PHYSICAL_BALL_RADIUS_YARDS, PHYSICAL_CUP_RADIUS_YARDS, PHYSICAL_PUTTING_PRESENTATION, PHYSICAL_PUTTING_SVG_STYLE, physicalAimGuideEndpoint, physicalAimGuideVisible, physicalBallLocatorRadius, physicalCupLocatorRadius, physicalPuttPlaybackDurationMs, physicalPuttingProjector, physicalTrajectoryPoint, physicalTraversedTrajectory, physicalWorldMarkerRadius, type PhysicalPuttingProjector, visibleSlopeSamples } from "../../lib/play/physical-putting";
+import { PHYSICAL_BALL_RADIUS_YARDS, PHYSICAL_CUP_RADIUS_YARDS, PHYSICAL_PUTTING_PRESENTATION, PHYSICAL_PUTTING_SVG_STYLE, physicalAimGuideEndpoint, physicalAimGuideVisible, physicalBallLocatorRadius, physicalCupLocatorRadius, physicalPuttingProjector, physicalTrajectoryPoint, physicalTraversedTrajectory, physicalWorldMarkerRadius, type PhysicalPuttingProjector, visibleSlopeSamples } from "../../lib/play/physical-putting";
 import { premiumPuttingFamily, puttingPolygonPath } from "../../lib/play/premium-putting";
 import { PremiumPuttingTerrain } from "./premium-putting-terrain";
 import { scenicFrame, type StageViewport } from "@/lib/play/stage-viewport";
-import { golfAudio } from "@/lib/play/golf-audio";
+import { usePhysicalPuttPlayback } from "./use-physical-putt-playback";
 
 /** A green-local SVG: all terrain facts, slope arrows and ball motion come from backend physical data. */
 export function PhysicalPuttingGreen({
@@ -32,7 +32,7 @@ export function PhysicalPuttingGreen({
   const svgRef = useRef<SVGSVGElement>(null);
   const [measuredAspect, setMeasuredAspect] = useState<number | null>(null);
   const clipId = useId().replace(/:/g, "");
-  const trajectory = useMemo(() => ball?.physicalPutt?.trajectory ?? [], [ball?.physicalPutt?.trajectory]);
+  const { trajectory, elapsed } = usePhysicalPuttPlayback(ball, onPlaybackComplete);
   const origin = trajectory[0]?.position ?? hole.ball?.position ?? hole.geometry!.tee;
   const green = useMemo(() => hole.geometry!.regions.find((region) => region.surface === "GREEN")?.boundary ?? [], [hole.geometry]);
   const premiumFamily = premiumPuttingFamily(hole, presentation);
@@ -70,44 +70,6 @@ export function PhysicalPuttingGreen({
   const neededVerticalSpan = horizontalSpan * PHYSICAL_PUTTING_PRESENTATION.width / Math.max(40, safeSceneWidth - 40);
   const visualPadding = premiumFamily ? Math.max(basePadding, (neededVerticalSpan - cupDistanceFeet / 3) / 2) : undefined;
   const projector = useMemo(() => physicalPuttingProjector(origin, hole.geometry!.cup, green, visualPadding), [green, origin, hole.geometry, visualPadding]);
-  const [animation, setAnimation] = useState<{ trajectory: typeof trajectory | null; elapsed: number }>({ trajectory: null, elapsed: 0 });
-  const elapsed = animation.trajectory === trajectory ? animation.elapsed : 0;
-  const completedTrajectory = useRef<typeof trajectory | null>(null);
-  const playbackCompleteRef = useRef(onPlaybackComplete);
-
-  useLayoutEffect(() => {
-    playbackCompleteRef.current = onPlaybackComplete;
-  }, [onPlaybackComplete]);
-
-  // This is intentionally a layout effect: a server response can contain the final point immediately, but it
-  // must never be painted before playback begins.
-  useLayoutEffect(() => {
-    if (trajectory.length < 2) return;
-    completedTrajectory.current = null;
-    let frame = 0;
-    let finished = false;
-    const start = performance.now();
-    // Preserve solver time ordering while keeping a decision readable in the existing shot sequence.
-    const duration = physicalPuttPlaybackDurationMs(trajectory);
-    const tick = (now: number) => {
-      const next = Math.min(1, (now - start) / duration);
-      if (ball?.physicalPutt) golfAudio.movement(ball.physicalPutt, next, "PUTTER", "PUTT");
-      setAnimation({ trajectory, elapsed: next });
-      if (next < 1) frame = requestAnimationFrame(tick);
-      else if (completedTrajectory.current !== trajectory) {
-        finished = true;
-        completedTrajectory.current = trajectory;
-        if (ball?.physicalPutt) golfAudio.cup(ball.physicalPutt, ball.physicalPutt.holed && !!ball.holed);
-        playbackCompleteRef.current?.();
-      }
-    };
-    frame = requestAnimationFrame((now) => {
-      setAnimation({ trajectory, elapsed: 0 });
-      frame = requestAnimationFrame(() => tick(now));
-    });
-    return () => { cancelAnimationFrame(frame); if (!finished) golfAudio.stopEffects(); };
-  }, [trajectory, ball]);
-
   const traversedTrajectory = physicalTraversedTrajectory(trajectory, elapsed);
   const moving = trajectory.length ? physicalTrajectoryPoint(trajectory, elapsed) : origin;
   const ballPoint = projector.project(moving);
@@ -176,7 +138,7 @@ export function PhysicalPuttingGreen({
   </svg>;
 }
 
-function GreenReading({ samples, contours, projector, clipId, premium, showArrows }: {
+export function GreenReading({ samples, contours, projector, clipId, premium, showArrows }: {
   samples: NonNullable<HoleGeom["physicalGreen"]>["slopeSamples"];
   contours: NonNullable<HoleGeom["physicalGreen"]>["contours"];
   projector: PhysicalPuttingProjector;

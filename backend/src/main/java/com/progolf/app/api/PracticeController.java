@@ -37,9 +37,9 @@ public class PracticeController {
     }
 
     @MutationMapping
-    public Shot practiceShot(@Argument String id, @Argument BallStrikeIntentInput intent) {
+    public Shot practiceShot(@Argument String id, @Argument Integer bayNumber, @Argument BallStrikeIntentInput intent) {
         PracticeRange.Result result = worlds.practiceShot(AuthenticatedUser.requireId(), id,
-                ApiMapper.ballStrikeIntent(intent), intent.expectedShotRevision());
+                ApiMapper.ballStrikeIntent(intent), bayNumber == null ? 4 : bayNumber, intent.expectedShotRevision());
         return new Shot(ApiMapper.shotOutcome(result.outcome()), result.totalDistance(), result.proximity(),
                 result.ballNumber());
     }

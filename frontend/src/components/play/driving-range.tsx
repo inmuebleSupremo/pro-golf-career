@@ -1,19 +1,19 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { AudioControls } from "@/components/play/audio-controls";
 import { BallStrikeDock, Detail, type BallStrikeInput } from "@/components/play/ball-strike-dock";
 import { PracticeRangeScenery } from "@/components/play/practice-range-scenery";
+import { PracticeFacilityHeader } from "@/components/play/practice-facility-nav";
 import { ShotMotionOverlay } from "@/components/play/shot-motion-overlay";
 import { validShotSelection, type ShotSelection, type Situation } from "@/components/play/play-shared";
 import { gqlRequest } from "@/lib/api/graphql-client";
 import { PracticeRangeDocument, PracticeShotDocument } from "@/lib/graphql/operations";
 import type { Point } from "@/lib/play/hole-geometry";
 import { golfAudio } from "@/lib/play/golf-audio";
-import { ACTIVE_BAY_MAT, projectRangePoint, projectRangeShotPoint, rangeFieldPath, rangeScaleAt, RANGE_MOBILE_VIEWBOX, RANGE_SCENE, unprojectRangePoint } from "@/lib/play/practice-range-geometry";
+import { projectRangePoint, projectRangeShotPoint, rangeBayMat, rangeBayOrigin, RANGE_BAY_CENTERS,
+  rangeFieldPath, rangeScaleAt, RANGE_MOBILE_VIEWBOX, RANGE_SCENE, unprojectRangePoint } from "@/lib/play/practice-range-geometry";
 
 const INITIAL_AIM: Point = { x: 95, y: 116 };
 const markers = [50, 100, 150, 200, 250, 300];
@@ -22,6 +22,7 @@ const MAX_RESTING_BALLS = 30;
 export function DrivingRange({ id }: { id: string }) {
   type PracticeResult = Awaited<ReturnType<typeof hitRequest>>["practiceShot"];
   const [mobileScene, setMobileScene] = useState(false);
+  const [selectedBay, setSelectedBay] = useState(4);
   const queryClient = useQueryClient();
   const range = useQuery({ queryKey: ["practiceRange", id], queryFn: () => gqlRequest(PracticeRangeDocument, { id }), retry: false });
   const [aim, setAim] = useState<Point>(INITIAL_AIM);
@@ -81,8 +82,10 @@ export function DrivingRange({ id }: { id: string }) {
     };
   }, [playbackShot, completePlayback]);
 
-  async function hitRequest(intent: BallStrikeInput) { return gqlRequest(PracticeShotDocument, { id, intent }); }
+  async function hitRequest(intent: BallStrikeInput) { return gqlRequest(PracticeShotDocument, { id, bayNumber: selectedBay, intent }); }
 
+  const bayOrigin = rangeBayOrigin(selectedBay);
+  const bayMat = rangeBayMat(selectedBay);
   const targetPoint = projectRangePoint(aim);
   const trace = playbackShot?.outcome.trace;
   const contact = trace ? projectRangeShotPoint(trace.contact.position) : null;
@@ -92,7 +95,7 @@ export function DrivingRange({ id }: { id: string }) {
   const targetGreenRadius = range.data?.practiceRange.targetGreenRadius ?? 11;
   const situation: Situation = {
     holeNumber: 1, par: 0, shotNumber: (range.data?.practiceRange.ballsHit ?? 0) + 1,
-    strokesThisHole: 0, distanceToPin: Math.hypot(aim.x, aim.y), lie: "TEE_BOX", pinLateral: 0,
+    strokesThisHole: 0, distanceToPin: Math.hypot(aim.x - bayOrigin.x, aim.y - bayOrigin.y), lie: "TEE_BOX", pinLateral: 0,
     minReach: 0, maxReach: 320, shotRevision: range.data?.practiceRange.shotRevision ?? "0",
     aimEnvelope: { minX: -aimHalfWidth, maxX: aimHalfWidth, minY: 15, maxY: 320 },
     guidance: range.data ? {
@@ -111,21 +114,15 @@ export function DrivingRange({ id }: { id: string }) {
   async function hit(intent: BallStrikeInput) { await mutation.mutateAsync(intent); }
 
   return <div role="dialog" aria-modal="true" aria-label="Practice Facility driving range"
-    className="practice-range-page bg-background fixed inset-0 z-[var(--z-modal)] isolate flex h-dvh min-h-0 min-w-0 flex-col gap-2 overflow-hidden p-2 sm:p-3">
-    <div className="flex shrink-0 items-center justify-between gap-2">
-      <div className="min-w-0"><p className="text-subtle-foreground text-[10px] font-bold uppercase tracking-widest">Practice Facility</p>
-        <h1 className="text-foreground text-lg leading-tight font-bold">Driving range</h1>
-        <p className="text-muted-foreground text-[11px]">Free practice · unlimited balls</p></div>
-      <div className="flex shrink-0 items-center gap-2"><AudioControls /><Link href={`/career/${id}`}
-        className="border-border-strong bg-surface text-foreground rounded-lg border px-3 py-1.5 text-xs font-semibold hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Leave practice</Link></div>
-    </div>
+    className="practice-facility-page practice-range-page bg-background fixed inset-0 z-[var(--z-modal)] isolate flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
+    <PracticeFacilityHeader id={id} active="range" title="Driving Range" subtitle="Unlimited balls · Seven targets" />
 
-    <div className="border-border-strong relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl border bg-surface">
+    <div className="border-border-strong relative min-h-0 min-w-0 flex-1 overflow-hidden bg-surface">
       <svg viewBox={mobileScene ? `${RANGE_MOBILE_VIEWBOX.x} 0 ${RANGE_MOBILE_VIEWBOX.width} ${RANGE_SCENE.height}` : `0 0 ${RANGE_SCENE.width} ${RANGE_SCENE.height}`}
         preserveAspectRatio="none" role="img"
-        aria-label="Driving range with seven selectable target flags, distance markers, and one active hitting bay"
+        aria-label="Driving range with seven selectable target flags, distance markers, and seven selectable hitting bays"
         className="practice-range block h-full w-full">
-        <PracticeRangeScenery fieldPath={fieldPath} />
+        <PracticeRangeScenery fieldPath={fieldPath} selectedBay={selectedBay} />
         {markers.map((distance) => {
           const left = projectRangePoint({ x: -(range.data?.practiceRange.fieldHalfWidth ?? 250) + 14, y: distance });
           const right = projectRangePoint({ x: (range.data?.practiceRange.fieldHalfWidth ?? 250) - 14, y: distance });
@@ -146,7 +143,16 @@ export function DrivingRange({ id }: { id: string }) {
             const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
             selectAim(unprojectRangePoint(point, aimHalfWidth), "Free aim");
           }} />
-        {(range.data?.practiceRange.targets ?? []).map((target) => <TargetGreen key={target.label} label={target.label}
+        {RANGE_BAY_CENTERS.map((center, index) => <g key={index} role="button" tabIndex={playbackShot || mutation.isPending ? -1 : 0}
+          aria-label={`Select hitting bay ${index + 1}`} aria-pressed={selectedBay === index + 1}
+          onClick={() => { if (!playbackShot && !mutation.isPending) setSelectedBay(index + 1); }}
+          onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && !playbackShot && !mutation.isPending) {
+            event.preventDefault(); setSelectedBay(index + 1);
+          } }} className="cursor-pointer focus-visible:outline-2 focus-visible:outline-ring">
+          <rect x={center - 80} y="625" width="160" height="75" fill="transparent" />
+        </g>)}
+        {(range.data?.practiceRange.targets ?? []).map((target) => <TargetGreen key={target.label}
+          distanceLabel={`${Math.round(Math.hypot(target.position.x - bayOrigin.x, target.position.y - bayOrigin.y))} yd`}
           point={projectRangePoint(target.position)} radiusX={targetGreenRadius * rangeScaleAt(target.position.y)}
           radiusY={targetGreenRadius * (RANGE_SCENE.bayY - RANGE_SCENE.farY) / RANGE_SCENE.farDistance}
           selected={selectedFlag === target.label} disabled={!!playbackShot || mutation.isPending} onSelect={() => selectAim(target.position, target.label)} />)}
@@ -154,18 +160,18 @@ export function DrivingRange({ id }: { id: string }) {
           const point = projectRangeShotPoint(ball.position);
           return <circle key={ball.number} cx={point.x} cy={point.y} r="3.5" fill="var(--range-label)" stroke="var(--range-edge)" strokeWidth="1" opacity=".9" />;
         })}</g>
-        {!trace && <><path d={`M${ACTIVE_BAY_MAT.x} ${ACTIVE_BAY_MAT.y} L${targetPoint.x} ${targetPoint.y}`} stroke="var(--range-aim)" strokeDasharray="8 10" strokeWidth="2" opacity=".65" pointerEvents="none" />
+        {!trace && <><path d={`M${bayMat.x} ${bayMat.y} L${targetPoint.x} ${targetPoint.y}`} stroke="var(--range-aim)" strokeDasharray="8 10" strokeWidth="2" opacity=".65" pointerEvents="none" />
           <circle cx={targetPoint.x} cy={targetPoint.y} r="9" fill="none" stroke="var(--range-aim)" strokeWidth="2" pointerEvents="none" />
-          <circle cx={ACTIVE_BAY_MAT.x} cy={ACTIVE_BAY_MAT.y} r="5" fill="var(--range-label)" stroke="var(--range-edge)" strokeWidth="1.5" pointerEvents="none" /></>}
+          <circle cx={bayMat.x} cy={bayMat.y} r="5" fill="var(--range-label)" stroke="var(--range-edge)" strokeWidth="1.5" pointerEvents="none" /></>}
         {trace && contact && finish && playbackShot && <ShotMotionOverlay trace={trace} project={projectRangeShotPoint} contact={contact} finalPoint={finish}
           contactEffect="var(--range-active)" ballStroke="var(--range-edge)" statusY={45} shadowFill="var(--range-edge)" tracerShadow
           onPlaybackComplete={() => completePlayback(playbackShot)} />}
       </svg>
-      <p className="border-border-strong bg-surface/85 text-foreground pointer-events-none absolute top-2 left-2 rounded-md border px-2 py-1 text-[10px] sm:top-3 sm:left-3">Choose a flag or tap the grass to aim</p>
+      <p className="border-border-strong bg-surface/85 text-foreground pointer-events-none absolute top-2 left-2 rounded-md border px-2 py-1 text-[10px] sm:top-3 sm:left-3">Tap a bay mat, choose a flag, or tap the grass to aim</p>
     </div>
 
-    <BallStrikeDock situation={situation} origin={{ x: 0, y: 0 }} aimPoint={aim}
-        className="rounded-xl border border-border-strong px-3 py-2 md:px-4"
+    <BallStrikeDock situation={situation} origin={bayOrigin} aimPoint={aim}
+        className="practice-range-dock border-border-strong"
         onAimPoint={(point) => { if (point.x >= -aimHalfWidth && point.x <= aimHalfWidth && point.y >= 15 && point.y <= 320) selectAim(point, "Free aim"); }}
         selection={selection} onSelection={(update) => setRequestedSelection((current) => validShotSelection(situation, { ...current, ...update }))}
         onSubmit={hit} locked={range.isPending || range.isError || mutation.isPending || !!playbackShot} submitting={mutation.isPending}
@@ -173,9 +179,9 @@ export function DrivingRange({ id }: { id: string }) {
         statusText={range.isError ? "Could not open the range" : playbackShot
           ? `Ball ${playbackShot.ballNumber} · Shot in flight`
           : mutation.isPending ? `Ball ${situation.shotNumber} · Resolving shot`
-            : `Ball ${situation.shotNumber} · ${selectedFlag} · Ready to hit`}
+            : `Ball ${situation.shotNumber} · Bay ${selectedBay} · ${selectedFlag === "Free aim" ? "Free aim" : `${Math.round(situation.distanceToPin)} yd flag`} · Ready to hit`}
         extraDetails={<Detail label="Conditions" value="Calm range" />}
-        review={<div className="border-border grid h-12 grid-cols-3 items-center gap-3 border-t text-center" aria-live="polite">
+        review={<div className="practice-range-review border-border grid grid-cols-3 items-center gap-3 border-t text-center" aria-live="polite">
           {result && <>
             <Metric label="Carry" value={`${Math.round(result.outcome.carry)} yd`} />
             <Metric label="Total" value={`${Math.round(result.totalDistance)} yd`} />
@@ -185,14 +191,14 @@ export function DrivingRange({ id }: { id: string }) {
   </div>;
 }
 
-function TargetGreen({ label, point, radiusX, radiusY, selected, disabled, onSelect }: {
-  label: string; point: Point; radiusX: number; radiusY: number; selected: boolean; disabled: boolean; onSelect: () => void;
+function TargetGreen({ distanceLabel, point, radiusX, radiusY, selected, disabled, onSelect }: {
+  distanceLabel: string; point: Point; radiusX: number; radiusY: number; selected: boolean; disabled: boolean; onSelect: () => void;
 }) {
   const outline = `M${-radiusX * 1.18} 1 Q${-radiusX * 1.12} ${-radiusY * .91} ${-radiusX * .46} ${-radiusY * 1.23} Q${radiusX * .36} ${-radiusY * 1.32} ${radiusX * 1.04} ${-radiusY * .47} Q${radiusX * 1.37} ${radiusY * .31} ${radiusX * .55} ${radiusY * .99} Q${-radiusX * .38} ${radiusY * 1.31} ${-radiusX * 1.18} 1Z`;
   const flagHeight = 29;
   const labelX = radiusX * .75 + 8;
   return <g transform={`translate(${point.x} ${point.y})`} role="button" tabIndex={disabled ? -1 : 0}
-    aria-label={`Aim at ${label} flag`} aria-pressed={selected} onClick={onSelect}
+    aria-label={`Aim at ${distanceLabel} flag`} aria-pressed={selected} onClick={onSelect}
     onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(); } }}
     className="cursor-pointer focus-visible:outline-2 focus-visible:outline-ring">
     <path d={outline} transform="translate(4 5) scale(1.15 1.18)" fill="var(--range-green-collar)" opacity=".24" />
@@ -207,7 +213,7 @@ function TargetGreen({ label, point, radiusX, radiusY, selected, disabled, onSel
     <rect x={labelX} y={-flagHeight - 6} width="58" height="22" rx="5" fill="var(--range-label-back)" opacity=".92"
       stroke={selected ? "var(--range-active)" : "var(--range-green-light)"} strokeWidth=".6" />
     <text x={labelX + 29} y={-flagHeight + 9} textAnchor="middle" fill={selected ? "var(--range-active)" : "var(--range-label)"}
-      fontSize="13" fontWeight="760">{label}</text>
+      fontSize="13" fontWeight="760">{distanceLabel}</text>
     <path d={outline} transform="scale(1.5 1.66)" fill="transparent" />
   </g>;
 }

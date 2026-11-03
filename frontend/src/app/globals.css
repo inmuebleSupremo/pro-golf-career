@@ -269,6 +269,30 @@ body {
  * Realises docs/frontend/references.md + the "Command Centre (v2)" tokens.
  */
 .command-centre {
+  --practice-green-ground-light: var(--range-landscape-light);
+  --practice-green-ground-mid: var(--range-landscape-mid);
+  --practice-green-ground-dark: var(--range-landscape-dark);
+  --practice-green-turf-light: #a6c77e;
+  --practice-green-turf-mid: var(--range-turf-mid);
+  --practice-green-turf-dark: var(--range-turf-dark);
+  --practice-green-collar: var(--range-green-edge);
+  --practice-green-collar-edge: var(--range-edge);
+  --practice-green-rim: var(--range-green-light);
+  --practice-green-sun: var(--range-sunwash);
+  --practice-green-grain: var(--range-grain-light);
+  --practice-green-mow-light: var(--range-stripe-a);
+  --practice-green-mow-dark: var(--range-stripe-b);
+  --practice-green-rough-light: var(--range-leaf-light);
+  --practice-green-rough-dark: var(--range-leaf-dark);
+  --practice-green-path: #bcae86;
+  --practice-green-guide: #f5edc6;
+  --practice-green-guide-shadow: #132c1b;
+  --practice-green-cup-rim: #e8ecb7;
+  --practice-green-cup: #0a251d;
+  --practice-green-flag: #f2edc8;
+  --practice-green-label: #0b2319;
+  --practice-green-ball-shadow: #132b19;
+  --practice-green-ball-edge: #56745e;
   --range-landscape-light: #38563b;
   --range-landscape-mid: #486b3d;
   --range-landscape-dark: #244634;
@@ -376,9 +400,90 @@ body {
 }
 
 /* Practice owns the viewport; the command shell resumes as soon as this page unmounts. */
-.command-centre:has(.practice-range-page) > aside,
-.command-centre:has(.practice-range-page) > div > header {
+.command-centre:has(.practice-facility-page) > aside,
+.command-centre:has(.practice-facility-page) > div > header {
   display: none;
+}
+
+.practice-range-dock {
+  padding: 6px 14px;
+}
+.practice-range-dock > div { gap: 4px; }
+.practice-range-review { height: 32px; }
+.practice-range-review p:first-child { font-size: 10px; line-height: 12px; }
+.practice-range-review p:last-child { font-size: 14px; line-height: 18px; }
+
+.practice-putting-dock {
+  height: 126px;
+  flex-basis: 126px;
+  display: grid;
+  grid-template-columns: 195px minmax(0, 1fr) 144px;
+  gap: 12px;
+  padding: 9px 14px;
+}
+.practice-putting-targets {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  border-right: 1px solid var(--border-strong);
+  padding-right: 12px;
+}
+.practice-putting-middle { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 12px; }
+.practice-putting-readout { display: flex; height: 18px; min-width: 0; align-items: center; white-space: nowrap; overflow: hidden; }
+.practice-putting-controls { display: flex; min-width: 0; align-items: flex-end; gap: 10px; }
+.practice-putting-place, .practice-putting-read { flex: 0 0 105px; }
+.practice-putting-line { flex: 0 0 125px; }
+.practice-putting-pace { flex: 1; min-width: 135px; }
+.practice-putting-actions { flex-direction: column; align-items: stretch; justify-content: center; gap: 7px; }
+.practice-putting-actions button:first-child { height: 32px; }
+.practice-putting-actions button:last-child { height: 48px; }
+@media (max-width: 950px) {
+  .practice-putting-dock {
+    height: 205px;
+    flex-basis: 205px;
+    grid-template-columns: minmax(0, 1fr) 108px;
+    grid-template-rows: 30px minmax(0, 1fr);
+    gap: 5px 8px;
+    padding: 7px 10px;
+  }
+  .practice-putting-targets {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    border: 0;
+    padding: 0;
+  }
+  .practice-putting-targets > span { display: none; }
+  .practice-putting-targets button { width: 32px; }
+  .practice-putting-middle { grid-column: 1; grid-row: 2; justify-content: flex-start; gap: 4px; }
+  .practice-putting-readout { height: 18px; font-size: 10px; }
+  .practice-putting-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: 44px 34px 48px;
+    gap: 4px 7px;
+    align-content: start;
+  }
+  .practice-putting-place, .practice-putting-read, .practice-putting-line, .practice-putting-pace { min-width: 0; max-width: none; }
+  .practice-putting-place, .practice-putting-read { gap: 0; }
+  .practice-putting-place button, .practice-putting-read button { height: 32px; padding: 0 3px; font-size: 11px; }
+  .practice-putting-line { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 8px; }
+  .practice-putting-line button { height: 30px; min-width: 27px; }
+  .practice-putting-pace { grid-column: 1 / -1; }
+  .practice-putting-pace input { height: 32px; }
+  .practice-putting-pace input[type="number"] { width: 55px; }
+  .practice-putting-actions { grid-column: 2; grid-row: 2; justify-content: space-between; }
+  .practice-putting-actions button { width: 100%; padding: 0 5px; font-size: 11px; }
+}
+@media (max-width: 385px) {
+  .practice-putting-dock { grid-template-columns: minmax(0, 1fr) 100px; gap: 5px; padding-right: 8px; padding-left: 8px; }
+  .practice-putting-targets button { width: 29px; }
+  .practice-putting-targets span:last-child { display: none; }
 }
 
 /* The metallic-gold moment — honours only (majors, records, hall of fame). */

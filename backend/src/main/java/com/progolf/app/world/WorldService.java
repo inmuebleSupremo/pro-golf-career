@@ -68,6 +68,7 @@ import com.progolf.sim.putt.PhysicalPuttIntent;
 import com.progolf.sim.putt.PuttingPolicy;
 import com.progolf.sim.play.ShotSubmission;
 import com.progolf.sim.practice.PracticeRange;
+import com.progolf.sim.practice.PracticePuttingGreen;
 import com.progolf.sim.shot.ShotOutcome;
 import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
@@ -114,6 +115,7 @@ public class WorldService {
     private final ConcurrentMap<String, WorldSession> sessions = new ConcurrentHashMap<>();
     /** Session-local range balls; deliberately excluded from save snapshots. */
     private final ConcurrentMap<String, PracticeRange> practiceRanges = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, PracticePuttingGreen> practicePuttingGreens = new ConcurrentHashMap<>();
     /** Application-only completion of the Schedule review, keyed by session and scoped to one season. */
     private final ConcurrentMap<String, Integer> scheduleReviewAcknowledgements = new ConcurrentHashMap<>();
     /** Application-only completion of the optional Staff review, keyed by session and scoped to one season. */
@@ -213,7 +215,34 @@ public class WorldService {
 
     public PracticeRange.Result practiceShot(String ownerId, String sessionId, BallStrikeIntent intent,
                                              String expectedRevision) {
-        return practiceRange(ownerId, sessionId).hit(intent, expectedRevision);
+        return practiceShot(ownerId, sessionId, intent, 4, expectedRevision);
+    }
+
+    public PracticeRange.Result practiceShot(String ownerId, String sessionId, BallStrikeIntent intent,
+                                             int bayNumber, String expectedRevision) {
+        return practiceRange(ownerId, sessionId).hit(intent, bayNumber, expectedRevision);
+    }
+
+    public PracticePuttingGreen practicePuttingGreen(String ownerId, String sessionId) {
+        WorldSession session = required(ownerId, sessionId);
+        return practicePuttingGreens.computeIfAbsent(sessionId, ignored -> {
+            var golfer = session.world().careerOf(requirePlayerId(session.world())).player();
+            return new PracticePuttingGreen(golfer.attributes(), golfer.toGolferState(0), session.seed());
+        });
+    }
+
+    public PracticePuttingGreen.State placePracticeBall(String ownerId, String sessionId,
+                                                        com.progolf.sim.course.Position2d position, String revision) {
+        return practicePuttingGreen(ownerId, sessionId).placeBall(position, revision);
+    }
+
+    public PracticePuttingGreen.State collectPracticeBalls(String ownerId, String sessionId, String revision) {
+        return practicePuttingGreen(ownerId, sessionId).collectBalls(revision);
+    }
+
+    public PracticePuttingGreen.Result practicePhysicalPutt(String ownerId, String sessionId, int targetCup,
+                                                            PhysicalPuttIntent intent, String revision) {
+        return practicePuttingGreen(ownerId, sessionId).putt(targetCup, intent, revision);
     }
 
     /** Advances one of the owner's sessions by one full season, then autosaves the checkpoint. */
