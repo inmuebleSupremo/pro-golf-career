@@ -1,8 +1,17 @@
 import type { Point } from "./hole-geometry";
 
 export const RANGE_SCENE = { width: 1200, height: 700, bayY: 630, farY: 80, farDistance: 320 } as const;
-export const RANGE_MOBILE_VIEWBOX = { x: 185, width: 830 } as const;
-export const ACTIVE_BAY_MAT = { x: RANGE_SCENE.width / 2, y: 668 } as const;
+export const RANGE_MOBILE_VIEWBOX = { x: 0, width: RANGE_SCENE.width } as const;
+export const RANGE_BAY_CENTERS = [96, 264, 432, 600, 768, 936, 1104] as const;
+const BAY_MAT_Y = 668;
+
+export function rangeBayOrigin(bayNumber: number): Point {
+  return { x: (bayNumber - 4) * 700 / 11, y: 0 };
+}
+
+export function rangeBayMat(bayNumber: number): Point {
+  return { x: RANGE_BAY_CENTERS[bayNumber - 1], y: BAY_MAT_Y };
+}
 
 export function rangeScaleAt(distance: number): number {
   return 2.64 - 0.62 * distance / RANGE_SCENE.farDistance;
@@ -19,7 +28,7 @@ export function projectRangePoint(point: Point): Point {
 /** Visual launch rises from the mat and rejoins the yard projection before the first target. */
 export function projectRangeShotPoint(point: Point): Point {
   const projected = projectRangePoint(point);
-  const matOffset = (ACTIVE_BAY_MAT.y - RANGE_SCENE.bayY) * Math.max(0, 1 - Math.max(0, point.y) / 25);
+  const matOffset = (BAY_MAT_Y - RANGE_SCENE.bayY) * Math.max(0, 1 - Math.max(0, point.y) / 25);
   return { x: projected.x, y: projected.y + matOffset };
 }
 

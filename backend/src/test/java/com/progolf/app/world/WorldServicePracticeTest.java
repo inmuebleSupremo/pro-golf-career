@@ -3,6 +3,7 @@ package com.progolf.app.world;
 import com.progolf.app.persistence.FilesystemSaveGameStore;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
+import com.progolf.sim.practice.PracticeRange;
 import com.progolf.sim.shot.AimPoint;
 import com.progolf.sim.shot.BallStrikeIntent;
 import com.progolf.sim.shot.ClubId;
@@ -25,7 +26,9 @@ class WorldServicePracticeTest {
         var intent = new BallStrikeIntent(ClubId.SEVEN_IRON, new AimPoint(18, 150));
 
         assertThat(service.practiceShot("owner", session.id(), intent, "0").outcome().trace()).isNotNull();
-        assertThat(service.practiceShot("owner", session.id(), intent, "1").ballNumber()).isEqualTo(2);
+        var second = service.practiceShot("owner", session.id(), intent, 7, "1");
+        assertThat(second.ballNumber()).isEqualTo(2);
+        assertThat(second.outcome().trace().origin()).isEqualTo(PracticeRange.bays().getLast());
         assertThat(session.world().snapshot()).usingRecursiveComparison().isEqualTo(before);
         assertThatThrownBy(() -> service.practiceRange("other", session.id()))
                 .isInstanceOf(WorldSessionNotFoundException.class);

@@ -106,6 +106,19 @@ class PhysicalPuttSolverTest {
     }
 
     @Test
+    void anyPracticeCupCanCaptureWithoutChangingTheSingleCupTournamentPath() {
+        GreenSurface flat = plane(0, 0);
+        Position2d otherCup = new Position2d(0, 0);
+        PhysicalPuttRequest request = new PhysicalPuttRequest(PhysicalPuttModelVersion.V1, flat,
+                new Position2d(-0.6, 0), REMOTE_CUP, new PhysicalPuttIntent(new Position2d(1, 0), 2.5),
+                Attributes.uniform(50), GolferState.fresh(), 7L, PhysicalPuttExecutionMode.IDEAL);
+        assertThat(PhysicalPuttSolver.resolve(request).holed()).isFalse();
+        PhysicalPuttOutcome practice = PhysicalPuttSolver.resolve(request, List.of(REMOTE_CUP, otherCup));
+        assertThat(practice.holed()).isTrue();
+        assertThat(practice.finalPosition()).isEqualTo(otherCup);
+    }
+
+    @Test
     void seededExecutionIsDeterministicSkillSensitiveAndSourceIndependent() {
         GreenSurface flat = plane(0, 0);
         Attributes weak = Attributes.uniform(50).with(Attribute.PUTTING_ACCURACY, 20).with(Attribute.PUTTING_PROXIMITY, 20);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { ACTIVE_BAY_MAT, projectRangePoint, projectRangeShotPoint, RANGE_MOBILE_VIEWBOX, rangeFieldPath, unprojectRangePoint } from "./practice-range-geometry";
+import { projectRangePoint, projectRangeShotPoint, rangeBayMat, rangeBayOrigin, RANGE_BAY_CENTERS,
+  RANGE_MOBILE_VIEWBOX, rangeFieldPath, unprojectRangePoint } from "./practice-range-geometry";
 
 describe("driving range projection", () => {
   it("puts the widened fairway at the scene edges and keeps world targets reversible", () => {
@@ -28,8 +29,13 @@ describe("driving range projection", () => {
     }
   });
 
-  it("launches from the active mat and rejoins the range projection before the nearest flag", () => {
-    expect(projectRangeShotPoint({ x: 0, y: 0 })).toEqual(ACTIVE_BAY_MAT);
+  it("launches from each selected mat and rejoins the fixed world projection before the nearest flag", () => {
+    expect(RANGE_MOBILE_VIEWBOX).toEqual({ x: 0, width: 1200 });
+    RANGE_BAY_CENTERS.forEach((center, index) => {
+      const bayNumber = index + 1;
+      expect(projectRangeShotPoint(rangeBayOrigin(bayNumber))).toEqual(rangeBayMat(bayNumber));
+      expect(rangeBayMat(bayNumber).x).toBe(center);
+    });
     expect(projectRangeShotPoint({ x: 10, y: 25 })).toEqual(projectRangePoint({ x: 10, y: 25 }));
     expect(projectRangeShotPoint({ x: -18, y: 36 })).toEqual(projectRangePoint({ x: -18, y: 36 }));
   });

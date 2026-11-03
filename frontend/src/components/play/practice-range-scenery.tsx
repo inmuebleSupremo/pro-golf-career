@@ -1,7 +1,7 @@
-import { ACTIVE_BAY_MAT } from "@/lib/play/practice-range-geometry";
+import { RANGE_BAY_CENTERS } from "@/lib/play/practice-range-geometry";
 
 /** Decorative SVG scenery. Interactive targets and ball flight use the same range projection separately. */
-export function PracticeRangeScenery({ fieldPath }: { fieldPath: string }) {
+export function PracticeRangeScenery({ fieldPath, selectedBay }: { fieldPath: string; selectedBay: number }) {
   const stripeCount = 20;
   const trees = [
     [12, 37, 27], [55, 32, 23], [103, 27, 19], [151, 26, 23], [209, 25, 19],
@@ -11,7 +11,6 @@ export function PracticeRangeScenery({ fieldPath }: { fieldPath: string }) {
     [28, 156, 25], [2, 251, 29], [11, 355, 26], [-8, 473, 31], [10, 564, 25],
     [1173, 146, 26], [1203, 244, 30], [1182, 356, 26], [1210, 466, 33], [1182, 554, 27],
   ] as const;
-  const bayCenters = [96, 264, 432, ACTIVE_BAY_MAT.x, 768, 936, 1104];
 
   return <g pointerEvents="none">
     <defs>
@@ -96,14 +95,14 @@ export function PracticeRangeScenery({ fieldPath }: { fieldPath: string }) {
     <path d="M0 630H1200" stroke="var(--range-deck-highlight)" strokeWidth="3" opacity=".65" />
     <rect y="646" width="1200" height="54" fill="url(#range-bay-grit)" />
     <path d="M0 684H1200" stroke="var(--range-bay-dark)" strokeWidth="16" opacity=".43" />
-    {bayCenters.map((center, index) => <g key={index}>
+    {RANGE_BAY_CENTERS.map((center, index) => <g key={index}>
       <path d={`M${center - 63} 656H${center + 63}L${center + 70} 691H${center - 70}Z`} fill="var(--range-bay-shadow)" opacity=".66" />
       <path d={`M${center - 60} 657H${center + 60}L${center + 64} 680H${center - 64}Z`} fill="url(#range-mat-fill)"
-        stroke={index === 3 ? "var(--range-active)" : "var(--range-mat-edge)"} strokeWidth={index === 3 ? 2.2 : 1.1} />
+        stroke={index === selectedBay - 1 ? "var(--range-active)" : "var(--range-mat-edge)"} strokeWidth={index === selectedBay - 1 ? 2.2 : 1.1} />
       {Array.from({ length: 10 }, (_, blade) => <path key={blade} d={`M${center - 54 + blade * 12} 664l2-3`}
         stroke="var(--range-grain-light)" strokeWidth=".8" opacity=".27" />)}
       {index < 6 && <path d={`M${center + 84} 651v31`} stroke="var(--range-divider)" strokeWidth="3" opacity=".8" />}
-      {index !== 3 && <text x={center} y="694" fill="var(--range-bay-label)" textAnchor="middle" fontSize="10" fontWeight="600">{index + 1}</text>}
+      {index !== selectedBay - 1 && <text x={center} y="694" fill="var(--range-bay-label)" textAnchor="middle" fontSize="10" fontWeight="600">{index + 1}</text>}
     </g>)}
   </g>;
 }

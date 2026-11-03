@@ -307,7 +307,7 @@ public final class ApiMapper {
                 physicalPutt(o.physicalPutt()));
     }
 
-    private static PhysicalPuttOutcomeDto physicalPutt(com.progolf.sim.putt.PhysicalPuttOutcome outcome) {
+    public static PhysicalPuttOutcomeDto physicalPutt(com.progolf.sim.putt.PhysicalPuttOutcome outcome) {
         return outcome == null ? null : new PhysicalPuttOutcomeDto(outcome.trajectory().stream()
                 .map(point -> new PhysicalPuttTrajectoryPointDto(point.timeSeconds(), point(point.position()),
                         point.speedYardsPerSecond())).toList(), point(outcome.finalPosition()), outcome.holed(),
@@ -315,7 +315,7 @@ public final class ApiMapper {
     }
 
     /** Samples the existing immutable physical field only; no UI-side terrain model is created. */
-    private static PhysicalGreenDto physicalGreen(GreenSurface surface) {
+    public static PhysicalGreenDto physicalGreen(GreenSurface surface) {
         if (surface == null) return null;
         int columnStep = Math.max(1, (surface.columns() - 1) / GREEN_READING_SAMPLE_DIVISIONS);
         int rowStep = Math.max(1, (surface.rows() - 1) / GREEN_READING_SAMPLE_DIVISIONS);

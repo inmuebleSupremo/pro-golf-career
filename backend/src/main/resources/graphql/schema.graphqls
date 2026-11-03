@@ -9,6 +9,8 @@ scalar Long
 type Query {
     "Temporary, session-local driving range state."
     practiceRange(id: ID!): PracticeRange!
+    "Temporary five-cup practice green; never changes a career or tournament."
+    practicePuttingGreen(id: ID!): PracticePuttingGreen!
     "Read-only status of a world session by id."
     world(id: ID!): WorldStatus
 
@@ -119,8 +121,14 @@ type Query {
 }
 
 type Mutation {
-    "Hit one free practice ball from the fixed bay; no career or round progression."
-    practiceShot(id: ID!, intent: BallStrikeIntentInput!): PracticeShot!
+    "Hit one free practice ball from a selected bay; no career or round progression."
+    practiceShot(id: ID!, bayNumber: Int = 4, intent: BallStrikeIntentInput!): PracticeShot!
+    "Move the starting ball on the practice green."
+    placePracticeBall(id: ID!, position: AimPointInput!, expectedShotRevision: String!): PracticePuttingGreen!
+    "Remove resting practice balls without changing the start or selected target."
+    collectPracticeBalls(id: ID!, expectedShotRevision: String!): PracticePuttingGreen!
+    "Roll one ball with the tournament physical putting solver; every cup can capture it."
+    practicePhysicalPutt(id: ID!, targetCup: Int!, intent: PhysicalPuttIntentInput!): PracticePutt!
     # --- World lifecycle (add-graphql-read-api) ---
 
     "Creates a new world session from a seed, optionally with an explicit configuration; returns its status."
@@ -875,6 +883,19 @@ type ShotOutcome {
 type PracticeRange { ballsHit: Int!, shotRevision: String!, aimHalfWidth: Float!, fieldHalfWidth: Float!, targetGreenRadius: Float!, targets: [PracticeTarget!]!, clubs: [ClubReach!]! }
 type PracticeTarget { label: String!, position: Position! }
 type PracticeShot { outcome: ShotOutcome!, totalDistance: Float!, proximity: Float!, ballNumber: Int! }
+type PracticePuttingGreen {
+    shotRevision: String!
+    puttsHit: Int!
+    startingPosition: Position!
+    readyPosition: Position!
+    restingBalls: [PracticeRestingBall!]!
+    footprint: [Position!]!
+    cups: [PracticeCup!]!
+    physicalGreen: PhysicalGreen!
+}
+type PracticeCup { number: Int!, position: Position! }
+type PracticeRestingBall { number: Int!, position: Position! }
+type PracticePutt { outcome: PhysicalPuttOutcome!, holedCup: Int, ballNumber: Int!, state: PracticePuttingGreen! }
 
 type PhysicalPuttOutcome {
     trajectory: [PhysicalPuttTrajectoryPoint!]!
