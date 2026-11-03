@@ -90,6 +90,56 @@ class WorldGraphQlApiTest {
     // --- Read model ---
 
     @Test
+    void careerPreparationQueryAndMutationsExposeTheAuthoritativeLedger() {
+        WorldSession session = worldService.create(OWNER, 208L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Prep", "Api", Nationality.USA, 19,
+                Archetype.ALL_ROUNDER);
+        String id = session.id();
+        graphQlTester.document("mutation($id: ID!){ setStandingPreparationFocus(id: $id, focus: \"PUTTING\") }")
+                .variable("id", id).execute()
+                .path("setStandingPreparationFocus").entity(Boolean.class).isEqualTo(true);
+        graphQlTester.document("mutation($id: ID!){ commitCareerPreparation(id: $id, focus: \"WEDGES\") }")
+                .variable("id", id).execute()
+                .path("commitCareerPreparation").entity(Boolean.class).isEqualTo(true);
+        graphQlTester.document("mutation($id: ID!){ commitCareerPreparation(id: $id, focus: \"RECOVERY\") }")
+                .variable("id", id).execute()
+                .path("commitCareerPreparation").entity(Boolean.class).isEqualTo(false);
+        graphQlTester.document("query($id: ID!){ careerPreparation(id: $id){ standingFocus committedFocus available consumedSeason consumedWeek progress { focus amount } } }")
+                .variable("id", id).execute()
+                .path("careerPreparation.standingFocus").entity(String.class).isEqualTo("PUTTING")
+                .path("careerPreparation.committedFocus").entity(String.class).isEqualTo("WEDGES")
+                .path("careerPreparation.available").entity(Boolean.class).isEqualTo(false)
+                .path("careerPreparation.consumedSeason").entity(Integer.class).isEqualTo(1)
+                .path("careerPreparation.consumedWeek").entity(Integer.class).isEqualTo(1);
+    }
+
+    @Test
+    void careerPreparationResultReportsActualSimulatedRewardAndRetry() {
+        WorldSession session = worldService.create(OWNER, 209L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Prep", "Result", Nationality.USA, 19,
+                Archetype.ALL_ROUNDER);
+        String id = session.id();
+        graphQlTester.document("query($id: ID!){ careerPreparation(id: $id){ rules { trainingBaseProgress simulatedBonusProgress totalSimulatedProgress trainingFatigue recoveryReduction readinessSupport } } }")
+                .variable("id", id).execute()
+                .path("careerPreparation.rules.totalSimulatedProgress").entity(Double.class)
+                .satisfies(value -> org.assertj.core.api.Assertions.assertThat(value).isCloseTo(1.02125,
+                        org.assertj.core.data.Offset.offset(1e-9)));
+        String mutation = "mutation($id: ID!){ commitCareerPreparationWithResult(id: $id, focus: \"WEDGES\") { committed focus baseProgress simulatedBonusProgress progressAwarded fatigueBefore fatigueAfter fatigueChange readinessPending attributeImprovements { attribute delta } } }";
+        graphQlTester.document(mutation).variable("id", id).execute()
+                .path("commitCareerPreparationWithResult.committed").entity(Boolean.class).isEqualTo(true)
+                .path("commitCareerPreparationWithResult.focus").entity(String.class).isEqualTo("WEDGES")
+                .path("commitCareerPreparationWithResult.progressAwarded").entity(Double.class)
+                .satisfies(value -> org.assertj.core.api.Assertions.assertThat(value).isCloseTo(1.02125,
+                        org.assertj.core.data.Offset.offset(1e-9)))
+                .path("commitCareerPreparationWithResult.fatigueChange").entity(Double.class)
+                .satisfies(value -> org.assertj.core.api.Assertions.assertThat(value).isCloseTo(0.035,
+                        org.assertj.core.data.Offset.offset(1e-9)));
+        graphQlTester.document(mutation).variable("id", id).execute()
+                .path("commitCareerPreparationWithResult.committed").entity(Boolean.class).isEqualTo(false)
+                .path("commitCareerPreparationWithResult.progressAwarded").entity(Double.class).isEqualTo(0.0);
+    }
+
+    @Test
     void worldQueryReturnsStatus() {
         String id = worldService.create(OWNER, 202L, SMALL).id();
         graphQlTester.document("query($id: ID!){ world(id: $id){ id season week activePopulation hasPendingEvent } }")

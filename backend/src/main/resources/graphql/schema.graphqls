@@ -7,6 +7,8 @@
 scalar Long
 
 type Query {
+    "The player's weekly career preparation ledger and standing automatic focus."
+    careerPreparation(id: ID!): CareerPreparation!
     "Temporary, session-local driving range state."
     practiceRange(id: ID!): PracticeRange!
     "Temporary five-cup practice green; never changes a career or tournament."
@@ -121,6 +123,12 @@ type Query {
 }
 
 type Mutation {
+    "Choose the standing preparation focus for future automatically resolved weeks."
+    setStandingPreparationFocus(id: ID!, focus: String!): Boolean!
+    "Spend this week's opportunity once; false means it was already consumed."
+    commitCareerPreparation(id: ID!, focus: String!): Boolean!
+    "Commits the same weekly preparation and returns the actual resulting changes."
+    commitCareerPreparationWithResult(id: ID!, focus: String!): CareerPreparationResult!
     "Hit one free practice ball from a selected bay; no career or round progression."
     practiceShot(id: ID!, bayNumber: Int = 4, intent: BallStrikeIntentInput!): PracticeShot!
     "Move the starting ball on the practice green."
@@ -453,6 +461,43 @@ type AttributeValue {
     value: Int!
     "The ceiling this attribute can develop toward."
     potential: Int!
+}
+
+type CareerPreparation {
+    standingFocus: String!
+    available: Boolean!
+    consumedSeason: Int!
+    consumedWeek: Int!
+    committedFocus: String
+    ready: Boolean!
+    progress: [TrainingProgress!]!
+    rules: CareerPreparationRules!
+}
+
+type TrainingProgress { focus: String!, amount: Float! }
+
+type CareerPreparationRules {
+    trainingBaseProgress: Float!
+    simulatedBonusProgress: Float!
+    totalSimulatedProgress: Float!
+    trainingFatigue: Float!
+    recoveryReduction: Float!
+    readinessSupport: Float!
+}
+
+type CareerPreparationResult {
+    committed: Boolean!
+    focus: String!
+    season: Int!
+    week: Int!
+    baseProgress: Float!
+    simulatedBonusProgress: Float!
+    progressAwarded: Float!
+    attributeImprovements: [DevelopmentDelta!]!
+    fatigueBefore: Float!
+    fatigueAfter: Float!
+    fatigueChange: Float!
+    readinessPending: Boolean!
 }
 
 type DevelopmentDelta {

@@ -2,9 +2,11 @@ package com.progolf.app.api;
 
 import com.progolf.app.api.dto.AttributeRaiseInput;
 import com.progolf.app.api.dto.CareerGoalInput;
+import com.progolf.app.api.dto.CareerPreparationResultDto;
 import com.progolf.app.auth.AuthenticatedUser;
 import com.progolf.app.world.WorldService;
 import com.progolf.sim.population.StartingBackground;
+import com.progolf.sim.progression.PreparationFocus;
 import java.util.List;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.MutationMapping;
@@ -46,6 +48,25 @@ public class PlayerMutationController {
     public boolean setDevelopmentFocus(@Argument String id, @Argument List<String> focus) {
         worldService.setDevelopmentFocus(AuthenticatedUser.requireId(), id, ApiMapper.attributes(focus));
         return true;
+    }
+
+    @MutationMapping
+    public boolean setStandingPreparationFocus(@Argument String id, @Argument String focus) {
+        worldService.setStandingPreparationFocus(AuthenticatedUser.requireId(), id,
+                PreparationFocus.valueOf(focus));
+        return true;
+    }
+
+    @MutationMapping
+    public boolean commitCareerPreparation(@Argument String id, @Argument String focus) {
+        return worldService.commitCareerPreparation(AuthenticatedUser.requireId(), id,
+                PreparationFocus.valueOf(focus));
+    }
+
+    @MutationMapping
+    public CareerPreparationResultDto commitCareerPreparationWithResult(@Argument String id, @Argument String focus) {
+        return worldService.commitCareerPreparationWithResult(AuthenticatedUser.requireId(), id,
+                PreparationFocus.valueOf(focus));
     }
 
     @MutationMapping

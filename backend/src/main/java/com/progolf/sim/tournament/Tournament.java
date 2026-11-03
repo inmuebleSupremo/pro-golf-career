@@ -353,7 +353,7 @@ public final class Tournament {
                     definition.worldSeed(), definition.seasonId(), definition.tournamentId(),
                     roundNo, s.fieldIndex(), hole, 0);
             RoundOutcome out = RoundResolver.resolveHole(
-                    model, g.player().attributes(), g.player().toGolferState(pressure),
+                    model, g.player().attributes(), g.player().toTournamentGolferState(pressure),
                     conditions.environmentForHole(hole, exposure), strategy, coord);
             strokes += out.totalStrokes();
             // Accumulate shot-level stats from the resolved shots (spec: competitive-statistics).
@@ -592,7 +592,7 @@ public final class Tournament {
         // A sudden-death playoff is peak pressure: all contenders tied on the final round (spec: pressure).
         double pressure = PressureModel.forRound(TournamentConstants.ROUNDS, definition.prestige(), 0);
         RoundOutcome out = RoundResolver.resolveHole(
-                model, g.player().attributes(), g.player().toGolferState(pressure),
+                model, g.player().attributes(), g.player().toTournamentGolferState(pressure),
                 conditions.environmentForHole(holeNumber, exposure), strategy, coord);
         return out.totalStrokes();
     }

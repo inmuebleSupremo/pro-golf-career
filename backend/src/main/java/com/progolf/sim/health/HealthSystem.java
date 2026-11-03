@@ -11,7 +11,19 @@ import com.progolf.sim.core.Rng;
  */
 public final class HealthSystem {
 
+    public static final double TRAINING_FATIGUE = 0.035;
+    public static final double PREPARATION_RECOVERY = 0.18;
+
     private HealthSystem() {
+    }
+
+    /** Preparation has no injury roll; normal weekly recovery still follows at week's end. */
+    public static PhysicalState afterTraining(PhysicalState state) {
+        return state.withFatigue(clamp01(state.fatigue() + TRAINING_FATIGUE));
+    }
+
+    public static PhysicalState afterPreparationRecovery(PhysicalState state) {
+        return state.withFatigue(clamp01(state.fatigue() - PREPARATION_RECOVERY));
     }
 
     /** A fresh golfer's physical state: seeded fitness, no fatigue, no injury. */

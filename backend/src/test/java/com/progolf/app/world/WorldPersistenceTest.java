@@ -7,6 +7,7 @@ import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.control.GoalType;
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.world.WorldConfig;
+import com.progolf.sim.progression.PreparationFocus;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,20 @@ class WorldPersistenceTest {
         service.advanceSeason(OWNER, original.id());
         service.advanceSeason(OWNER, loaded.id());
         assertThat(loaded.world().snapshot()).isEqualTo(original.world().snapshot());
+    }
+
+    @Test
+    void preparationLedgerAndStandingChoiceSurviveDiskWithoutDuplicateReward() {
+        WorldSession session = service.create(OWNER, 125L, SMALL);
+        service.createPlayer(OWNER, session.id(), "Prep", "Saver", com.progolf.sim.player.Nationality.USA,
+                18, com.progolf.sim.player.Archetype.ALL_ROUNDER);
+        service.setStandingPreparationFocus(OWNER, session.id(), PreparationFocus.PUTTING);
+        assertThat(service.commitCareerPreparation(OWNER, session.id(), PreparationFocus.IRONS)).isTrue();
+        service.save(OWNER, session.id(), "preparation-slot");
+        WorldSession loaded = service.load(OWNER, "preparation-slot");
+        assertThat(loaded.world().snapshot()).isEqualTo(session.world().snapshot());
+        assertThat(service.commitCareerPreparation(OWNER, loaded.id(), PreparationFocus.IRONS)).isFalse();
+        assertThat(loaded.world().playerPreparation().standingFocus()).isEqualTo(PreparationFocus.PUTTING);
     }
 
     @Test

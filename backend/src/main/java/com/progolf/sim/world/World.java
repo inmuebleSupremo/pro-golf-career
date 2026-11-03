@@ -78,6 +78,10 @@ import com.progolf.sim.player.Nationality;
 import com.progolf.sim.population.GolferFactory;
 import com.progolf.sim.population.StartingBackground;
 import com.progolf.sim.progression.ManualDevelopment;
+import com.progolf.sim.progression.CareerPreparation;
+import com.progolf.sim.progression.CareerPreparationOutcome;
+import com.progolf.sim.progression.DevelopmentPoints;
+import com.progolf.sim.progression.PreparationFocus;
 import com.progolf.sim.population.PopulationGenerator;
 import com.progolf.sim.population.StrategyDisposition;
 import com.progolf.sim.progression.ProgressionConstants;
@@ -141,6 +145,11 @@ public final class World {
     private final SponsorshipMarket sponsorshipMarket = new SponsorshipMarket();
     private final Map<String, FinancialAccount> accounts = new LinkedHashMap<>();
     private final Map<String, PhysicalState> physicalStates = new LinkedHashMap<>();
+    private final Map<String, CareerPreparation> careerPreparation = new LinkedHashMap<>();
+    public static final double TRAINING_PROGRESS_PER_WEEK = 0.95;
+    public static final double SIMULATED_TRAINING_BONUS = 0.075;
+    public static final double MAX_PLAYABLE_TRAINING_BONUS = 0.15;
+    public static final double TOURNAMENT_READINESS = 0.04;
     private final List<HealthEvent> healthHistory = new ArrayList<>();
     private final Map<String, SupportTeam> supportTeams = new LinkedHashMap<>();
     private final StaffMarket staffMarket = new StaffMarket();
@@ -357,7 +366,8 @@ public final class World {
                 staffPool.available(),
                 playerActiveEquipmentDeal, new ArrayList<>(playerPendingEquipmentDeals),
                 new EnumMap<>(unlockedAchievements), new LinkedHashSet<>(majorsWonThisSeason),
-                playerCareerRecords.snapshot(), courseGeneratorVersion, defaultPinPlacementVersion, coursePoolPolicy);
+                playerCareerRecords.snapshot(), courseGeneratorVersion, defaultPinPlacementVersion, coursePoolPolicy,
+                new LinkedHashMap<>(careerPreparation));
     }
 
     /** Rebuilds an identical world from a snapshot, regenerating the seed-derived parts (spec: world-snapshot). */
@@ -385,6 +395,8 @@ public final class World {
         w.activeGolfers.addAll(s.activeGolfers());
         s.accounts().forEach((id, a) -> w.accounts.put(id, FinancialAccount.restore(a)));
         w.physicalStates.putAll(s.physicalStates());
+        if (s.careerPreparation() != null) w.careerPreparation.putAll(s.careerPreparation());
+        for (String id : w.golfers.keySet()) w.careerPreparation.putIfAbsent(id, CareerPreparation.initial());
         s.supportTeams().forEach((id, t) -> w.supportTeams.put(id, SupportTeam.restore(t)));
         s.equipment().forEach((id, e) -> w.equipment.put(id, EquipmentInventory.restore(e)));
         w.loadouts.putAll(s.loadouts());
@@ -470,6 +482,7 @@ public final class World {
         accounts.put(id, new FinancialAccount(id, calendar.currentDate()));
         physicalStates.put(id, HealthSystem.initialState(
                 new SplitMix64Rng(Seeds.deriveSeed(Seeds.deriveSeed(masterSeed, HealthConstants.HEALTH_SALT), id.hashCode()))));
+        careerPreparation.put(id, CareerPreparation.initial());
         supportTeams.put(id, new SupportTeam());
         // Standard starting kit: one baseline item per category (owned), and a loadout selecting them.
         EquipmentInventory inventory = new EquipmentInventory();
@@ -485,13 +498,127 @@ public final class World {
 
     // --- Weekly progression ---
 
+    /** A standing choice changes only future automatic preparation, never the current week's ledger. */
+    public synchronized void setStandingPreparationFocus(PreparationFocus focus) {
+        String id = requirePlayer().golferId();
+        careerPreparation.put(id, careerPreparation.get(id).withStanding(focus));
+    }
+
+    public CareerPreparation playerPreparation() {
+        return careerPreparation.get(requirePlayer().golferId());
+    }
+
+    public boolean playerPreparationAvailable() {
+        return pendingEvent == null && activeGolfers.contains(requirePlayer().golferId())
+                && !playerPreparation().consumed(calendar.currentSeason(), calendar.currentWeek());
+    }
+
+    public record TrainingPreview(double baseProgress, double simulatedBonusProgress, double totalProgress) {}
+
+    public TrainingPreview playerTrainingPreview() {
+        return trainingPreview(requirePlayer().golferId());
+    }
+
+    private TrainingPreview trainingPreview(String id) {
+        double support = 1.0 + supportTeams.get(id).effects().developmentBonus();
+        double base = TRAINING_PROGRESS_PER_WEEK * support;
+        double total = TRAINING_PROGRESS_PER_WEEK * (1.0 + SIMULATED_TRAINING_BONUS) * support;
+        return new TrainingPreview(base, total - base, total);
+    }
+
+    /** Returns false for an already spent week; no reward, fatigue or readiness is applied twice. */
+    public synchronized boolean commitPlayerPreparation(PreparationFocus focus) {
+        return commitPlayerPreparationWithOutcome(focus).committed();
+    }
+
+    public synchronized CareerPreparationOutcome commitPlayerPreparationWithOutcome(PreparationFocus focus) {
+        String id = requirePlayer().golferId();
+        Objects.requireNonNull(focus);
+        if (!playerPreparationAvailable()) return unavailablePreparation(id, focus);
+        return commitPreparation(id, focus);
+    }
+
+    private CareerPreparationOutcome unavailablePreparation(String id, PreparationFocus focus) {
+        double fatigue = physicalStates.get(id).fatigue();
+        return new CareerPreparationOutcome(false, focus, calendar.currentSeason(), calendar.currentWeek(),
+                0, 0, 0, List.of(), fatigue, fatigue, careerPreparation.get(id).ready());
+    }
+
+    private CareerPreparationOutcome commitPreparation(String id, PreparationFocus focus) {
+        CareerPreparation preparation = careerPreparation.get(id);
+        int season = calendar.currentSeason();
+        int week = calendar.currentWeek();
+        if (preparation.consumed(season, week)) return unavailablePreparation(id, focus);
+        var player = golfers.get(id).player();
+        int changeCount = player.attributeChanges().size();
+        double fatigueBefore = physicalStates.get(id).fatigue();
+        double baseProgress = 0;
+        double simulatedBonusProgress = 0;
+        double progressAwarded = 0;
+        double remaining = preparation.progressFor(focus);
+        if (focus.technical()) {
+            TrainingPreview preview = trainingPreview(id);
+            baseProgress = preview.baseProgress();
+            simulatedBonusProgress = preview.simulatedBonusProgress();
+            progressAwarded = preview.totalProgress();
+            remaining += progressAwarded;
+            // The same purchase options enforce potential, rating cost and the human's shared +6 limit.
+            // The cap also bounds weekly AI gains without changing their separate season-end allocation.
+            while (remaining >= DevelopmentPoints.costToRaise(0)) {
+                double availableProgress = remaining;
+                var option = ManualDevelopment.options(player.attributes(), player.potential(), Integer.MAX_VALUE,
+                        player.attributeChanges(), season).stream()
+                        .filter(o -> focus.attributes().contains(o.attribute()) && o.purchasable()
+                                && o.nextCost() <= availableProgress)
+                        .min(Comparator.comparingInt(ManualDevelopment.PurchaseOption::rating)
+                                .thenComparing(o -> o.attribute().ordinal())).orElse(null);
+                if (option == null) break;
+                player.evolveAttributes(ProgressionEngine.applyRaises(player.attributes(), player.potential(),
+                        Map.of(option.attribute(), 1)), AttributeChange.Reason.DEVELOPMENT, season);
+                remaining -= DevelopmentPoints.costToRaise(option.rating());
+            }
+            physicalStates.put(id, HealthSystem.afterTraining(physicalStates.get(id)));
+        } else if (focus == PreparationFocus.RECOVERY) {
+            physicalStates.put(id, HealthSystem.afterPreparationRecovery(physicalStates.get(id)));
+        }
+        CareerPreparation committed = preparation.committed(season, week, focus, remaining);
+        careerPreparation.put(id, committed);
+        List<AttributeChange> changes = player.attributeChanges();
+        return new CareerPreparationOutcome(true, focus, season, week, baseProgress, simulatedBonusProgress,
+                progressAwarded, changes.subList(changeCount, changes.size()),
+                fatigueBefore, physicalStates.get(id).fatigue(), committed.ready());
+    }
+
+    private PreparationFocus aiPreparationFocus(String id) {
+        PhysicalState condition = physicalStates.get(id);
+        if (condition.injury().isPresent() || condition.fatigue() >= 0.35) return PreparationFocus.RECOVERY;
+        var tier = tours.membershipOf(id).orElse(null);
+        boolean eventWeek = schedule.stream().anyMatch(e -> e.week() == calendar.currentWeek()
+                && (e.tier() == tier || e.prestige().isMajor()));
+        if (eventWeek && Math.floorMod(id.hashCode() + calendar.currentWeek(), 4) == 0)
+            return PreparationFocus.TOURNAMENT_PREPARATION;
+        var player = golfers.get(id).player();
+        PreparationFocus best = java.util.Arrays.stream(PreparationFocus.values()).filter(PreparationFocus::technical)
+                .max(Comparator.comparingInt((PreparationFocus f) -> f.attributes().stream()
+                        .mapToInt(a -> Math.max(0, player.potential().get(a) - player.attributes().get(a))).sum())
+                        .thenComparingInt(f -> -f.ordinal())).orElse(PreparationFocus.RECOVERY);
+        return best.attributes().stream().anyMatch(a -> player.potential().get(a) > player.attributes().get(a))
+                ? best : PreparationFocus.RECOVERY;
+    }
+
     /**
      * Advances the world by one week (REQ-105): resolves this week's scheduled events; on the final week
      * of the season runs the seasonal transition. Progresses with or without any player action.
      */
-    public void advanceWeek() {
+    public synchronized void advanceWeek() {
         if (pendingEvent != null) {
             throw new IllegalStateException("A player event is in progress; complete it before advancing");
+        }
+        for (String id : activeGolfers) {
+            CareerPreparation preparation = careerPreparation.get(id);
+            if (!preparation.consumed(calendar.currentSeason(), calendar.currentWeek())) {
+                commitPreparation(id, isPlayer(id) ? preparation.standingFocus() : aiPreparationFocus(id));
+            }
         }
         int week = calendar.currentWeek();
         List<ScheduledTournament> weekEvents = new ArrayList<>();
@@ -742,6 +869,9 @@ public final class World {
                     bag.workabilityBonus(), bag.feelBonus());
             var effects = supportTeams.get(id).effects();
             g.player().state().setSupport(effects.mentalSupport(), effects.strategicSupport());
+            CareerPreparation preparation = careerPreparation.get(id);
+            g.player().state().setPreparation(preparation.ready() ? TOURNAMENT_READINESS : 0.0);
+            if (preparation.ready()) careerPreparation.put(id, preparation.withoutReadiness());
             if (isPlayer(id)) {
                 playerFieldIndex = i;
             }
@@ -859,6 +989,7 @@ public final class World {
         seasonResults.add(result);
         checkCareerGoals(); // a win/major/ranking move may complete a player goal (spec: career-goals)
         checkAchievements(); // ...and may unlock a metric-based achievement (spec: career-achievements)
+        for (ProfessionalGolfer g : field) g.player().state().setPreparation(0.0);
     }
 
     /**
