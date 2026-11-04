@@ -82,6 +82,18 @@ import com.progolf.sim.progression.CareerPreparation;
 import com.progolf.sim.progression.CareerPreparationOutcome;
 import com.progolf.sim.progression.DevelopmentPoints;
 import com.progolf.sim.progression.PreparationFocus;
+import com.progolf.sim.progression.PlayableTrainingSession;
+import com.progolf.sim.progression.TrainingAttempt;
+import com.progolf.sim.progression.TrainingChallenge;
+import com.progolf.sim.progression.TrainingChallengeGenerator;
+import com.progolf.sim.progression.TrainingScoring;
+import com.progolf.sim.progression.TrainingRatingChange;
+import com.progolf.sim.practice.PracticeRange;
+import com.progolf.sim.practice.PracticePuttingGreen;
+import com.progolf.sim.shot.BallStrikeIntent;
+import com.progolf.sim.shot.Club;
+import com.progolf.sim.shot.ClubSpec;
+import com.progolf.sim.putt.PhysicalPuttIntent;
 import com.progolf.sim.population.PopulationGenerator;
 import com.progolf.sim.population.StrategyDisposition;
 import com.progolf.sim.progression.ProgressionConstants;
@@ -534,8 +546,167 @@ public final class World {
     public synchronized CareerPreparationOutcome commitPlayerPreparationWithOutcome(PreparationFocus focus) {
         String id = requirePlayer().golferId();
         Objects.requireNonNull(focus);
-        if (!playerPreparationAvailable()) return unavailablePreparation(id, focus);
+        if (!playerPreparationAvailable() || (focus == PreparationFocus.RECOVERY && !recoveryUseful(id)))
+            return unavailablePreparation(id, focus);
         return commitPreparation(id, focus);
+    }
+
+    /** The stored session is the receipt for this week's exclusive playable commitment. */
+    public synchronized PlayableTrainingSession startPlayerTraining(PreparationFocus focus) {
+        String id = requirePlayer().golferId();
+        Objects.requireNonNull(focus);
+        if (!focus.technical()) throw new IllegalArgumentException("playable training requires a technical focus");
+        PlayableTrainingSession existing = playerPreparation().playableSession();
+        if (existing != null && existing.season() == calendar.currentSeason()
+                && existing.week() == calendar.currentWeek() && existing.focus() == focus) return existing;
+        if (!playerPreparationAvailable()) throw new IllegalStateException("weekly preparation is unavailable");
+        long seed = trainingSessionSeed(id);
+        var golfer = golfers.get(id).player();
+        var challenges = TrainingChallengeGenerator.generate(focus, golfer.attributes(),
+                golfer.toGolferState(0), golfer.handedness(), seed);
+        Attributes ratingsBefore = golfers.get(id).player().attributes();
+        CareerPreparationOutcome base = commitPreparation(id, focus, false);
+        if (!base.committed()) throw new IllegalStateException("weekly preparation was already used");
+        PlayableTrainingSession session = new PlayableTrainingSession(Long.toUnsignedString(seed, 16), focus,
+                base.season(), base.week(), challenges, List.of(), PlayableTrainingSession.Status.ACTIVE,
+                base.baseProgress(), 0, false, base.attributeImprovements(), base.fatigueBefore(),
+                base.fatigueAfter(), trainingRatingChanges(ratingsBefore, golfers.get(id).player().attributes(), focus));
+        careerPreparation.put(id, careerPreparation.get(id).withPlayableSession(session));
+        return session;
+    }
+
+    public PlayableTrainingSession playerTrainingSession() {
+        return playerPreparation().playableSession();
+    }
+
+    public synchronized boolean playerTrainingChallengePlayable() {
+        PlayableTrainingSession session = playerTrainingSession();
+        if (session == null || session.status() != PlayableTrainingSession.Status.ACTIVE
+                || session.season() != calendar.currentSeason() || session.week() != calendar.currentWeek()
+                || pendingEvent != null) return false;
+        var player = golfers.get(requirePlayer().golferId()).player();
+        return TrainingChallengeGenerator.compatible(session.focus(),
+                session.challenges().get(session.nextChallenge() - 1), player.attributes(), player.toGolferState(0));
+    }
+
+    public synchronized PlayableTrainingSession abandonPlayerTraining(String sessionId) {
+        String id = requirePlayer().golferId();
+        PlayableTrainingSession session = requireTrainingSession(id, sessionId);
+        if (session.status() != PlayableTrainingSession.Status.ACTIVE) return session;
+        PlayableTrainingSession abandoned = session.abandon();
+        careerPreparation.put(id, careerPreparation.get(id).withPlayableSession(abandoned));
+        return abandoned;
+    }
+
+    public record TrainingShotResult(PlayableTrainingSession session, TrainingAttempt attempt,
+                                     PracticeRange.Result rangeShot, PracticePuttingGreen.Result putt) { }
+
+    public synchronized TrainingShotResult playerTrainingRangeShot(String sessionId, int challengeNumber,
+                                                                    BallStrikeIntent intent) {
+        String id = requirePlayer().golferId();
+        PlayableTrainingSession session = requireTrainingSession(id, sessionId);
+        TrainingAttempt previous = previousTrainingAttempt(session, challengeNumber);
+        if (previous != null) return new TrainingShotResult(session, previous, null, null);
+        TrainingChallenge challenge = currentTrainingChallenge(session, challengeNumber);
+        if (challenge.putting()) throw new IllegalArgumentException("this challenge uses the putting green");
+        Club family = ClubSpec.of(intent.club()).family();
+        if (session.focus() == PreparationFocus.DRIVING && family != Club.DRIVER
+                || session.focus() == PreparationFocus.IRONS && family != Club.IRON
+                || session.focus() == PreparationFocus.WEDGES && family != Club.WEDGE)
+            throw new IllegalArgumentException("club does not match the training focus");
+        var golfer = golfers.get(id);
+        PracticeRange range = new PracticeRange(golfer.player().attributes(), golfer.player().toGolferState(0),
+                golfer.player().handedness(), Seeds.deriveSeed(trainingSessionSeed(id), challengeNumber));
+        PracticeRange.Result shot = range.hit(intent, 4, "0");
+        var finish = shot.outcome().trace().finalPoint();
+        TrainingAttempt attempt = new TrainingAttempt(challengeNumber, TrainingScoring.range(challenge, shot),
+                challenge.target().distanceTo(finish), shot.totalDistance(), false, finish);
+        return new TrainingShotResult(recordTrainingAttempt(id, session, attempt), attempt, shot, null);
+    }
+
+    public synchronized TrainingShotResult playerTrainingPutt(String sessionId, int challengeNumber,
+                                                               PhysicalPuttIntent intent) {
+        String id = requirePlayer().golferId();
+        PlayableTrainingSession session = requireTrainingSession(id, sessionId);
+        TrainingAttempt previous = previousTrainingAttempt(session, challengeNumber);
+        if (previous != null) return new TrainingShotResult(session, previous, null, null);
+        TrainingChallenge challenge = currentTrainingChallenge(session, challengeNumber);
+        if (!challenge.putting()) throw new IllegalArgumentException("this challenge uses the range");
+        var golfer = golfers.get(id);
+        PracticePuttingGreen green = new PracticePuttingGreen(golfer.player().attributes(),
+                golfer.player().toGolferState(0), Seeds.deriveSeed(trainingSessionSeed(id), challengeNumber));
+        green.placeBall(challenge.start(), "0");
+        PracticePuttingGreen.Result shot = green.putt(challenge.cupNumber(), intent, "1");
+        var finish = shot.outcome().finalPosition();
+        TrainingAttempt attempt = new TrainingAttempt(challengeNumber, TrainingScoring.putt(challenge, shot),
+                challenge.target().distanceTo(finish), challenge.start().distanceTo(finish),
+                shot.holedCup() != null && shot.holedCup() == challenge.cupNumber(), finish);
+        return new TrainingShotResult(recordTrainingAttempt(id, session, attempt), attempt, null, shot);
+    }
+
+    private PlayableTrainingSession requireTrainingSession(String id, String sessionId) {
+        PlayableTrainingSession session = careerPreparation.get(id).playableSession();
+        if (session == null || !session.id().equals(sessionId))
+            throw new IllegalArgumentException("unknown training session");
+        return session;
+    }
+
+    private TrainingAttempt previousTrainingAttempt(PlayableTrainingSession session, int number) {
+        if (number < 1 || number > 8) throw new IllegalArgumentException("unknown training challenge");
+        return number <= session.attempts().size() ? session.attempts().get(number - 1) : null;
+    }
+
+    private TrainingChallenge currentTrainingChallenge(PlayableTrainingSession session, int number) {
+        if (session.status() != PlayableTrainingSession.Status.ACTIVE
+                || session.season() != calendar.currentSeason() || session.week() != calendar.currentWeek()
+                || pendingEvent != null || number != session.nextChallenge())
+            throw new IllegalStateException("training challenge is unavailable or out of order");
+        TrainingChallenge challenge = session.challenges().get(number - 1);
+        var player = golfers.get(requirePlayer().golferId()).player();
+        if (!TrainingChallengeGenerator.compatible(session.focus(), challenge,
+                player.attributes(), player.toGolferState(0)))
+            throw new IllegalStateException("saved training challenge is incompatible; abandon the session to retain base progress");
+        return challenge;
+    }
+
+    private long trainingSessionSeed(String id) {
+        long weekKey = ((long) calendar.currentSeason() << 32) | calendar.currentWeek();
+        return Seeds.deriveSeed(Seeds.deriveSeed(masterSeed, id.hashCode()), weekKey ^ 0x545241494e494e47L);
+    }
+
+    private PlayableTrainingSession recordTrainingAttempt(String id, PlayableTrainingSession session,
+                                                          TrainingAttempt attempt) {
+        if (attempt.number() < 8) {
+            session = session.addAttempt(attempt);
+            careerPreparation.put(id, careerPreparation.get(id).withPlayableSession(session));
+            return session;
+        }
+        double aggregate = (session.attempts().stream().mapToDouble(TrainingAttempt::score).sum()
+                + attempt.score()) / 8.0;
+        double bonus = session.baseProgress() * TrainingScoring.bonusFraction(aggregate);
+        var player = golfers.get(id).player();
+        int changeCount = player.attributeChanges().size();
+        Attributes ratingsBefore = player.attributes();
+        double remaining = awardTrainingProgress(id, session.focus(),
+                careerPreparation.get(id).progressFor(session.focus()) + bonus, calendar.currentSeason());
+        List<AttributeChange> changes = player.attributeChanges();
+        session = session.complete(attempt, bonus, changes.subList(changeCount, changes.size()),
+                trainingRatingChanges(ratingsBefore, player.attributes(), session.focus()));
+        careerPreparation.put(id, careerPreparation.get(id).withProgress(session.focus(), remaining)
+                .withPlayableSession(session));
+        return session;
+    }
+
+    private List<TrainingRatingChange> trainingRatingChanges(Attributes before, Attributes after,
+                                                              PreparationFocus focus) {
+        return focus.attributes().stream().filter(attribute -> after.get(attribute) > before.get(attribute))
+                .map(attribute -> new TrainingRatingChange(attribute, before.get(attribute), after.get(attribute)))
+                .toList();
+    }
+
+    private boolean recoveryUseful(String id) {
+        // Preparation recovery only lowers fatigue. Injury rehabilitation advances at the normal week boundary.
+        return physicalStates.get(id).fatigue() > 0.0;
     }
 
     private CareerPreparationOutcome unavailablePreparation(String id, PreparationFocus focus) {
@@ -545,10 +716,15 @@ public final class World {
     }
 
     private CareerPreparationOutcome commitPreparation(String id, PreparationFocus focus) {
+        return commitPreparation(id, focus, true);
+    }
+
+    private CareerPreparationOutcome commitPreparation(String id, PreparationFocus focus, boolean simulated) {
         CareerPreparation preparation = careerPreparation.get(id);
         int season = calendar.currentSeason();
         int week = calendar.currentWeek();
-        if (preparation.consumed(season, week)) return unavailablePreparation(id, focus);
+        if (preparation.consumed(season, week) || (focus == PreparationFocus.RECOVERY && !recoveryUseful(id)))
+            return unavailablePreparation(id, focus);
         var player = golfers.get(id).player();
         int changeCount = player.attributeChanges().size();
         double fatigueBefore = physicalStates.get(id).fatigue();
@@ -559,24 +735,10 @@ public final class World {
         if (focus.technical()) {
             TrainingPreview preview = trainingPreview(id);
             baseProgress = preview.baseProgress();
-            simulatedBonusProgress = preview.simulatedBonusProgress();
-            progressAwarded = preview.totalProgress();
+            simulatedBonusProgress = simulated ? preview.simulatedBonusProgress() : 0;
+            progressAwarded = baseProgress + simulatedBonusProgress;
             remaining += progressAwarded;
-            // The same purchase options enforce potential, rating cost and the human's shared +6 limit.
-            // The cap also bounds weekly AI gains without changing their separate season-end allocation.
-            while (remaining >= DevelopmentPoints.costToRaise(0)) {
-                double availableProgress = remaining;
-                var option = ManualDevelopment.options(player.attributes(), player.potential(), Integer.MAX_VALUE,
-                        player.attributeChanges(), season).stream()
-                        .filter(o -> focus.attributes().contains(o.attribute()) && o.purchasable()
-                                && o.nextCost() <= availableProgress)
-                        .min(Comparator.comparingInt(ManualDevelopment.PurchaseOption::rating)
-                                .thenComparing(o -> o.attribute().ordinal())).orElse(null);
-                if (option == null) break;
-                player.evolveAttributes(ProgressionEngine.applyRaises(player.attributes(), player.potential(),
-                        Map.of(option.attribute(), 1)), AttributeChange.Reason.DEVELOPMENT, season);
-                remaining -= DevelopmentPoints.costToRaise(option.rating());
-            }
+            remaining = awardTrainingProgress(id, focus, remaining, season);
             physicalStates.put(id, HealthSystem.afterTraining(physicalStates.get(id)));
         } else if (focus == PreparationFocus.RECOVERY) {
             physicalStates.put(id, HealthSystem.afterPreparationRecovery(physicalStates.get(id)));
@@ -589,6 +751,26 @@ public final class World {
                 fatigueBefore, physicalStates.get(id).fatigue(), committed.ready());
     }
 
+    private double awardTrainingProgress(String id, PreparationFocus focus, double remaining, int season) {
+        var player = golfers.get(id).player();
+        // The same purchase options enforce potential, rating cost and the human's shared +6 limit.
+        // The cap also bounds weekly AI gains without changing their separate season-end allocation.
+        while (remaining >= DevelopmentPoints.costToRaise(0)) {
+            double availableProgress = remaining;
+            var option = ManualDevelopment.options(player.attributes(), player.potential(), Integer.MAX_VALUE,
+                    player.attributeChanges(), season).stream()
+                    .filter(o -> focus.attributes().contains(o.attribute()) && o.purchasable()
+                            && o.nextCost() <= availableProgress)
+                    .min(Comparator.comparingInt(ManualDevelopment.PurchaseOption::rating)
+                            .thenComparing(o -> o.attribute().ordinal())).orElse(null);
+            if (option == null) break;
+            player.evolveAttributes(ProgressionEngine.applyRaises(player.attributes(), player.potential(),
+                    Map.of(option.attribute(), 1)), AttributeChange.Reason.DEVELOPMENT, season);
+            remaining -= DevelopmentPoints.costToRaise(option.rating());
+        }
+        return remaining;
+    }
+
     private PreparationFocus aiPreparationFocus(String id) {
         PhysicalState condition = physicalStates.get(id);
         if (condition.injury().isPresent() || condition.fatigue() >= 0.35) return PreparationFocus.RECOVERY;
@@ -598,12 +780,21 @@ public final class World {
         if (eventWeek && Math.floorMod(id.hashCode() + calendar.currentWeek(), 4) == 0)
             return PreparationFocus.TOURNAMENT_PREPARATION;
         var player = golfers.get(id).player();
-        PreparationFocus best = java.util.Arrays.stream(PreparationFocus.values()).filter(PreparationFocus::technical)
-                .max(Comparator.comparingInt((PreparationFocus f) -> f.attributes().stream()
-                        .mapToInt(a -> Math.max(0, player.potential().get(a) - player.attributes().get(a))).sum())
-                        .thenComparingInt(f -> -f.ordinal())).orElse(PreparationFocus.RECOVERY);
+        PreparationFocus best = bestTechnicalFocus(id);
         return best.attributes().stream().anyMatch(a -> player.potential().get(a) > player.attributes().get(a))
                 ? best : PreparationFocus.RECOVERY;
+    }
+
+    private PreparationFocus bestTechnicalFocus(String id) {
+        var player = golfers.get(id).player();
+        return java.util.Arrays.stream(PreparationFocus.values()).filter(PreparationFocus::technical)
+                .max(Comparator.comparingInt((PreparationFocus f) -> f.attributes().stream()
+                        .mapToInt(a -> Math.max(0, player.potential().get(a) - player.attributes().get(a))).sum())
+                        .thenComparingInt(f -> -f.ordinal())).orElse(PreparationFocus.DRIVING);
+    }
+
+    private PreparationFocus effectiveAutomaticFocus(String id, PreparationFocus requested) {
+        return requested == PreparationFocus.RECOVERY && !recoveryUseful(id) ? bestTechnicalFocus(id) : requested;
     }
 
     /**
@@ -614,10 +805,15 @@ public final class World {
         if (pendingEvent != null) {
             throw new IllegalStateException("A player event is in progress; complete it before advancing");
         }
+        if (playerControl != null && playerPreparation().playableSession() != null
+                && playerPreparation().playableSession().status() == PlayableTrainingSession.Status.ACTIVE) {
+            abandonPlayerTraining(playerPreparation().playableSession().id());
+        }
         for (String id : activeGolfers) {
             CareerPreparation preparation = careerPreparation.get(id);
             if (!preparation.consumed(calendar.currentSeason(), calendar.currentWeek())) {
-                commitPreparation(id, isPlayer(id) ? preparation.standingFocus() : aiPreparationFocus(id));
+                PreparationFocus requested = isPlayer(id) ? preparation.standingFocus() : aiPreparationFocus(id);
+                commitPreparation(id, effectiveAutomaticFocus(id, requested));
             }
         }
         int week = calendar.currentWeek();

@@ -21,11 +21,12 @@ export function PracticeFacilityNav({ id, active }: { id: string; active: Facili
   </nav>;
 }
 
-export function PracticeFacilityHeader({ id, active, title, subtitle }: {
+export function PracticeFacilityHeader({ id, active, title, subtitle, showAudio }: {
   id: string;
   active: FacilityArea;
   title: string;
   subtitle: string;
+  showAudio?: boolean;
 }) {
   return <header className="practice-facility-header border-border bg-surface flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-1.5 sm:px-4">
     <div className="min-w-40 flex-1">
@@ -37,7 +38,7 @@ export function PracticeFacilityHeader({ id, active, title, subtitle }: {
     </div>
     <div className="ml-auto flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto">
       <PracticeFacilityNav id={id} active={active} />
-      {active !== "training" ? <AudioControls /> : null}
+      {showAudio || active !== "training" ? <AudioControls /> : null}
       <Link href={`/career/${id}`}
         className="border-border-strong bg-surface text-foreground rounded-md border px-3 py-1.5 text-xs font-semibold hover:border-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Leave practice</Link>
     </div>

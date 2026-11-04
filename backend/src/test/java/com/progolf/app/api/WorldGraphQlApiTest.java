@@ -140,6 +140,102 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void ineffectiveRecoveryIsRejectedWithoutConsumingTheApiOpportunity() {
+        WorldSession session = worldService.create(OWNER, 210L, SMALL);
+        worldService.createPlayer(OWNER, session.id(), "Prep", "Recovery", Nationality.USA, 19,
+                Archetype.ALL_ROUNDER);
+        String id = session.id();
+        graphQlTester.document("mutation($id: ID!){ commitCareerPreparationWithResult(id: $id, focus: \"RECOVERY\") { committed fatigueChange } }")
+                .variable("id", id).execute()
+                .path("commitCareerPreparationWithResult.committed").entity(Boolean.class).isEqualTo(false)
+                .path("commitCareerPreparationWithResult.fatigueChange").entity(Double.class).isEqualTo(0.0);
+        graphQlTester.document("query($id: ID!){ careerPreparation(id: $id) { available committedFocus } }")
+                .variable("id", id).execute()
+                .path("careerPreparation.available").entity(Boolean.class).isEqualTo(true)
+                .path("careerPreparation.committedFocus").valueIsNull();
+        graphQlTester.document("mutation($id: ID!){ commitCareerPreparation(id: $id, focus: \"WEDGES\") }")
+                .variable("id", id).execute()
+                .path("commitCareerPreparation").entity(Boolean.class).isEqualTo(true);
+    }
+
+    @Test
+    void playableTrainingApiStartsResumesScoresAndAbandonsWithoutClientScores() {
+        WorldSession world = worldService.create(OWNER, 211L, SMALL);
+        worldService.createPlayer(OWNER, world.id(), "Prep", "Playable", Nationality.USA, 19,
+                Archetype.ALL_ROUNDER);
+        String id = world.id();
+        graphQlTester.document("query($id: ID!){ practiceRange(id: $id) { expectedReaches { club family yards } } }")
+                .variable("id", id).execute()
+                .path("practiceRange.expectedReaches[0].yards").entity(Double.class)
+                .satisfies(value -> org.assertj.core.api.Assertions.assertThat(value).isPositive());
+        String start = "mutation($id: ID!){ startPlayerTraining(id: $id, focus: \"WEDGES\") { id status nextChallenge baseProgress bonusProgress fatigueBefore fatigueAfter ratingChanges { attribute before after } challenges { number putting target { x y } suggestedClub suggestedFamily targetLabel landingZone } } }";
+        graphQlTester.document(start).variable("id", id).execute()
+                .path("startPlayerTraining.status").entity(String.class).isEqualTo("ACTIVE")
+                .path("startPlayerTraining.nextChallenge").entity(Integer.class).isEqualTo(1)
+                .path("startPlayerTraining.baseProgress").entity(Double.class).isEqualTo(0.95)
+                .path("startPlayerTraining.fatigueBefore").entity(Double.class).isEqualTo(0.0)
+                .path("startPlayerTraining.fatigueAfter").entity(Double.class).isEqualTo(0.035)
+                .path("startPlayerTraining.challenges[0].landingZone").entity(Boolean.class).isEqualTo(true)
+                .path("startPlayerTraining.challenges[0].targetLabel").entity(String.class)
+                .satisfies(label -> org.assertj.core.api.Assertions.assertThat(label).startsWith("Zone "))
+                .path("startPlayerTraining.ratingChanges").entityList(Object.class).hasSize(0);
+        var session = worldService.playerTrainingSession(OWNER, id);
+        var challenge = session.challenges().get(0);
+        graphQlTester.document(start).variable("id", id).execute()
+                .path("startPlayerTraining.id").entity(String.class).isEqualTo(session.id());
+        graphQlTester.document("query($id: ID!){ playerTrainingSession(id: $id) { id status nextChallenge challenges { number } } }")
+                .variable("id", id).execute()
+                .path("playerTrainingSession.id").entity(String.class).isEqualTo(session.id());
+        graphQlTester.document("query($id: ID!){ playerTrainingChallengePlayable(id: $id) }")
+                .variable("id", id).execute()
+                .path("playerTrainingChallengePlayable").entity(Boolean.class).isEqualTo(true);
+
+        String shot = "mutation($id: ID!, $trainingId: ID!, $intent: BallStrikeIntentInput!){ playerTrainingRangeShot(id: $id, trainingId: $trainingId, challengeNumber: 1, intent: $intent) { attempt { number score proximity } session { nextChallenge } rangeOutcome { trace { finalPoint { x y } } } } }";
+        var intent = Map.of("club", challenge.suggestedClub().name(),
+                "aimPoint", Map.of("x", challenge.target().x(), "y", challenge.target().y()),
+                "shotFamily", challenge.suggestedFamily().name(), "expectedShotRevision", "0");
+        graphQlTester.document(shot).variable("id", id).variable("trainingId", session.id())
+                .variable("intent", intent).execute()
+                .path("playerTrainingRangeShot.session.nextChallenge").entity(Integer.class).isEqualTo(2)
+                .path("playerTrainingRangeShot.attempt.number").entity(Integer.class).isEqualTo(1)
+                .path("playerTrainingRangeShot.rangeOutcome.trace.finalPoint.x").entity(Double.class)
+                .satisfies(value -> org.assertj.core.api.Assertions.assertThat(value).isFinite());
+        graphQlTester.document(shot).variable("id", id).variable("trainingId", session.id())
+                .variable("intent", intent).execute()
+                .path("playerTrainingRangeShot.session.nextChallenge").entity(Integer.class).isEqualTo(2)
+                .path("playerTrainingRangeShot.rangeOutcome").valueIsNull();
+        graphQlTester.document("mutation($id: ID!, $trainingId: ID!){ abandonPlayerTraining(id: $id, trainingId: $trainingId) { status bonusProgress nextChallenge } }")
+                .variable("id", id).variable("trainingId", session.id()).execute()
+                .path("abandonPlayerTraining.status").entity(String.class).isEqualTo("ABANDONED")
+                .path("abandonPlayerTraining.bonusProgress").entity(Double.class).isEqualTo(0.0);
+        graphQlTester.document("query($id: ID!){ playerTrainingChallengePlayable(id: $id) }")
+                .variable("id", id).execute()
+                .path("playerTrainingChallengePlayable").entity(Boolean.class).isEqualTo(false);
+    }
+
+    @Test
+    void playablePuttingApiReturnsTheAuthoritativePhysicalPuttOutcome() {
+        WorldSession world = worldService.create(OWNER, 212L, SMALL);
+        worldService.createPlayer(OWNER, world.id(), "Prep", "Putting", Nationality.USA, 19,
+                Archetype.ALL_ROUNDER);
+        String id = world.id();
+        graphQlTester.document("mutation($id: ID!){ startPlayerTraining(id: $id, focus: \"PUTTING\") { status nextChallenge } }")
+                .variable("id", id).execute()
+                .path("startPlayerTraining.status").entity(String.class).isEqualTo("ACTIVE");
+        var session = worldService.playerTrainingSession(OWNER, id);
+        var challenge = session.challenges().get(0);
+        var intent = Map.of("direction", Map.of("x", challenge.target().x() - challenge.start().x(),
+                        "y", challenge.target().y() - challenge.start().y()),
+                "intendedRollFeet", challenge.distance() * 3, "expectedShotRevision", "0");
+        graphQlTester.document("mutation($id: ID!, $trainingId: ID!, $intent: PhysicalPuttIntentInput!){ playerTrainingPutt(id: $id, trainingId: $trainingId, challengeNumber: 1, intent: $intent) { session { nextChallenge } attempt { number score } puttOutcome { finalPosition { x y } terminalCondition } } }")
+                .variable("id", id).variable("trainingId", session.id()).variable("intent", intent).execute()
+                .path("playerTrainingPutt.session.nextChallenge").entity(Integer.class).isEqualTo(2)
+                .path("playerTrainingPutt.attempt.number").entity(Integer.class).isEqualTo(1)
+                .path("playerTrainingPutt.puttOutcome.terminalCondition").entity(String.class)
+                .satisfies(value -> org.assertj.core.api.Assertions.assertThat(value).isNotBlank());
+    }
+
+    @Test
     void worldQueryReturnsStatus() {
         String id = worldService.create(OWNER, 202L, SMALL).id();
         graphQlTester.document("query($id: ID!){ world(id: $id){ id season week activePopulation hasPendingEvent } }")

@@ -9,6 +9,9 @@ scalar Long
 type Query {
     "The player's weekly career preparation ledger and standing automatic focus."
     careerPreparation(id: ID!): CareerPreparation!
+    "The current or most recent playable Career Training session; null for older careers or simulated preparation."
+    playerTrainingSession(id: ID!): PlayableTrainingSession
+    playerTrainingChallengePlayable(id: ID!): Boolean!
     "Temporary, session-local driving range state."
     practiceRange(id: ID!): PracticeRange!
     "Temporary five-cup practice green; never changes a career or tournament."
@@ -129,6 +132,14 @@ type Mutation {
     commitCareerPreparation(id: ID!, focus: String!): Boolean!
     "Commits the same weekly preparation and returns the actual resulting changes."
     commitCareerPreparationWithResult(id: ID!, focus: String!): CareerPreparationResult!
+    "Start or resume one technical training session, committing only the base weekly preparation benefit."
+    startPlayerTraining(id: ID!, focus: String!): PlayableTrainingSession!
+    "Permanently end an unfinished playable session, forfeiting its performance bonus."
+    abandonPlayerTraining(id: ID!, trainingId: ID!): PlayableTrainingSession!
+    "Resolve one range challenge with the existing authoritative range shot solver. The intent revision is the count of completed challenges (0 for the first)."
+    playerTrainingRangeShot(id: ID!, trainingId: ID!, challengeNumber: Int!, intent: BallStrikeIntentInput!): PlayableTrainingShot!
+    "Resolve one putting challenge with the existing authoritative putting solver. The intent revision is the count of completed challenges (0 for the first)."
+    playerTrainingPutt(id: ID!, trainingId: ID!, challengeNumber: Int!, intent: PhysicalPuttIntentInput!): PlayableTrainingShot!
     "Hit one free practice ball from a selected bay; no career or round progression."
     practiceShot(id: ID!, bayNumber: Int = 4, intent: BallStrikeIntentInput!): PracticeShot!
     "Move the starting ball on the practice green."
@@ -498,6 +509,66 @@ type CareerPreparationResult {
     fatigueAfter: Float!
     fatigueChange: Float!
     readinessPending: Boolean!
+}
+
+type PlayableTrainingSession {
+    id: ID!
+    focus: String!
+    season: Int!
+    week: Int!
+    status: String!
+    "One-based index of the next challenge, or zero after completion or abandonment."
+    nextChallenge: Int!
+    challenges: [TrainingChallenge!]!
+    attempts: [TrainingAttempt!]!
+    score: Float!
+    baseProgress: Float!
+    bonusProgress: Float!
+    bonusSettled: Boolean!
+    attributeImprovements: [DevelopmentDelta!]!
+    "Actual fatigue at playable start; absent only for a session saved before this receipt was introduced."
+    fatigueBefore: Float
+    fatigueAfter: Float
+    ratingChanges: [TrainingRatingChange!]!
+}
+
+type TrainingRatingChange { attribute: String!, before: Int!, after: Int! }
+
+type TrainingChallenge {
+    number: Int!
+    putting: Boolean!
+    start: Position!
+    target: Position!
+    "One-based cup number on the existing practice green, or zero for a range challenge."
+    cupNumber: Int!
+    suggestedClub: String
+    suggestedFamily: String
+    distance: Float!
+    tolerance: Float!
+    "Persisted-coordinate-derived identifier for a flag, landing zone, or cup."
+    targetLabel: String!
+    "True for an additional marked range landing zone; false for a permanent flag or cup."
+    landingZone: Boolean!
+    "Local green slope magnitude at the start; zero for range challenges."
+    slope: Float!
+}
+
+type TrainingAttempt {
+    number: Int!
+    score: Float!
+    proximity: Float!
+    totalDistance: Float!
+    holedTarget: Boolean!
+    finalPosition: Position!
+}
+
+type PlayableTrainingShot {
+    session: PlayableTrainingSession!
+    attempt: TrainingAttempt!
+    "Present only for a newly resolved range attempt; duplicate retries return the stored attempt."
+    rangeOutcome: ShotOutcome
+    "Present only for a newly resolved putt; duplicate retries return the stored attempt."
+    puttOutcome: PhysicalPuttOutcome
 }
 
 type DevelopmentDelta {
@@ -925,7 +996,9 @@ type ShotOutcome {
     physicalPutt: PhysicalPuttOutcome
 }
 
-type PracticeRange { ballsHit: Int!, shotRevision: String!, aimHalfWidth: Float!, fieldHalfWidth: Float!, targetGreenRadius: Float!, targets: [PracticeTarget!]!, clubs: [ClubReach!]! }
+type PracticeRange { ballsHit: Int!, shotRevision: String!, aimHalfWidth: Float!, fieldHalfWidth: Float!, targetGreenRadius: Float!, targets: [PracticeTarget!]!, clubs: [ClubReach!]!, expectedReaches: [PracticeExpectedReach!]! }
+"Approximate technique-specific reachable carry cap in yards, including the active equipment power."
+type PracticeExpectedReach { club: String!, family: String!, yards: Float! }
 type PracticeTarget { label: String!, position: Position! }
 type PracticeShot { outcome: ShotOutcome!, totalDistance: Float!, proximity: Float!, ballNumber: Int! }
 type PracticePuttingGreen {

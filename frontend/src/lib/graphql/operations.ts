@@ -156,7 +156,15 @@ export const CareerTrainingDocument = graphql(`
     playerDevelopment(id: $id) {
       options { attribute rating potentialHeadroom nextCost remainingSeasonal }
     }
-    playerProfile(id: $id) { retired }
+    playerProfile(id: $id) { retired attributes { attribute value } }
+    playerTrainingSession(id: $id) {
+      id focus season week status nextChallenge score baseProgress bonusProgress bonusSettled
+      fatigueBefore fatigueAfter ratingChanges { attribute before after }
+      attributeImprovements { attribute delta season }
+      challenges { number putting start { x y } target { x y } cupNumber suggestedClub suggestedFamily distance tolerance slope targetLabel landingZone }
+      attempts { number score proximity totalDistance holedTarget finalPosition { x y } }
+    }
+    playerTrainingChallengePlayable(id: $id)
   }
 `);
 
@@ -174,6 +182,50 @@ export const CommitCareerPreparationWithResultDocument = graphql(`
       committed focus season week baseProgress simulatedBonusProgress progressAwarded
       attributeImprovements { attribute delta season }
       fatigueBefore fatigueAfter fatigueChange readinessPending
+    }
+  }
+`);
+
+export const StartPlayerTrainingDocument = graphql(`
+  mutation StartPlayerTraining($id: ID!, $focus: String!) {
+    startPlayerTraining(id: $id, focus: $focus) { id status season week focus }
+  }
+`);
+
+export const AbandonPlayerTrainingDocument = graphql(`
+  mutation AbandonPlayerTraining($id: ID!, $trainingId: ID!) {
+    abandonPlayerTraining(id: $id, trainingId: $trainingId) { id status bonusProgress }
+  }
+`);
+
+export const PlayerTrainingRangeShotDocument = graphql(`
+  mutation PlayerTrainingRangeShot($id: ID!, $trainingId: ID!, $challengeNumber: Int!, $intent: BallStrikeIntentInput!) {
+    playerTrainingRangeShot(id: $id, trainingId: $trainingId, challengeNumber: $challengeNumber, intent: $intent) {
+      session { id status nextChallenge score bonusProgress bonusSettled }
+      attempt { number score proximity totalDistance holedTarget finalPosition { x y } }
+      rangeOutcome {
+        carry finalSurface
+        trace {
+          club origin { x y } aimPoint { x y }
+          contact { position { x y } surface }
+          airbornePath { progress position { x y } height }
+          backspinRpm
+          groundPath { kind position { x y } heightYards }
+          roll { from { x y } to { x y } }
+          transition { kind from { x y } to { x y } }
+          finalPoint { x y }
+        }
+      }
+    }
+  }
+`);
+
+export const PlayerTrainingPuttDocument = graphql(`
+  mutation PlayerTrainingPutt($id: ID!, $trainingId: ID!, $challengeNumber: Int!, $intent: PhysicalPuttIntentInput!) {
+    playerTrainingPutt(id: $id, trainingId: $trainingId, challengeNumber: $challengeNumber, intent: $intent) {
+      session { id status nextChallenge score bonusProgress bonusSettled }
+      attempt { number score proximity totalDistance holedTarget finalPosition { x y } }
+      puttOutcome { trajectory { timeSeconds position { x y } speedYardsPerSecond } finalPosition { x y } holed terminalCondition }
     }
   }
 `);
@@ -894,6 +946,7 @@ export const PracticeRangeDocument = graphql(`
     practiceRange(id: $id) {
       ballsHit shotRevision aimHalfWidth fieldHalfWidth targetGreenRadius targets { label position { x y } }
       clubs { club label nominalCarry normalReach families { family available reason shapes { shape available reason } } }
+      expectedReaches { club family yards }
     }
   }
 `);

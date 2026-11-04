@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { validShotSelection, type Situation } from "../../components/play/play-shared";
-import { formatShotDistance, shotDistanceReadout } from "./distance";
+import { expectedRangeReach, formatShotDistance, shotDistanceReadout } from "./distance";
 
 function situation(distanceToPin = 339): Situation {
   const family = (name: string) => ({ family: name, available: true, shapes: [{ shape: "STRAIGHT", available: true }] });
@@ -20,6 +20,17 @@ function situation(distanceToPin = 339): Situation {
 }
 
 describe("shot distance display", () => {
+  it("reads the selected range club and technique without estimating in the browser", () => {
+    const reaches = [
+      { club: "DRIVER", family: "FULL", yards: 284.6 },
+      { club: "DRIVER", family: "CONTROLLED", yards: 233.4 },
+      { club: "SEVEN_IRON", family: "FULL", yards: 166.2 },
+    ];
+    expect(expectedRangeReach(reaches, "DRIVER", "FULL")).toBe(284.6);
+    expect(expectedRangeReach(reaches, "DRIVER", "CONTROLLED")).toBe(233.4);
+    expect(expectedRangeReach(reaches, "SEVEN_IRON", "FULL")).toBe(166.2);
+    expect(expectedRangeReach(reaches, "SEVEN_IRON", "PITCH")).toBeNull();
+  });
   it("keeps long and ordinary approach distances in yards", () => {
     expect(formatShotDistance(281)).toBe("281 yd");
     expect(formatShotDistance(50.33)).toBe("50 yd");

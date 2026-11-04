@@ -62,6 +62,7 @@ import com.progolf.sim.player.Nationality;
 import com.progolf.sim.population.StartingBackground;
 import com.progolf.sim.progression.ProgressionConstants;
 import com.progolf.sim.progression.PreparationFocus;
+import com.progolf.sim.progression.PlayableTrainingSession;
 import com.progolf.sim.ranking.RankingSnapshot;
 import com.progolf.sim.ranking.RankingStanding;
 import com.progolf.sim.shot.ShotDecision;
@@ -355,6 +356,40 @@ public class WorldService {
                 outcome.week(), outcome.baseProgress(), outcome.simulatedBonusProgress(), outcome.progressAwarded(),
                 improvements, outcome.fatigueBefore(), outcome.fatigueAfter(),
                 outcome.fatigueAfter() - outcome.fatigueBefore(), outcome.readinessPending());
+    }
+
+    public PlayableTrainingSession playerTrainingSession(String ownerId, String worldId) {
+        return required(ownerId, worldId).world().playerTrainingSession();
+    }
+
+    public boolean playerTrainingChallengePlayable(String ownerId, String worldId) {
+        return required(ownerId, worldId).world().playerTrainingChallengePlayable();
+    }
+
+    public PlayableTrainingSession startPlayerTraining(String ownerId, String worldId, PreparationFocus focus) {
+        PlayableTrainingSession session = required(ownerId, worldId).world().startPlayerTraining(focus);
+        autosave(ownerId, worldId);
+        return session;
+    }
+
+    public PlayableTrainingSession abandonPlayerTraining(String ownerId, String worldId, String trainingId) {
+        PlayableTrainingSession session = required(ownerId, worldId).world().abandonPlayerTraining(trainingId);
+        autosave(ownerId, worldId);
+        return session;
+    }
+
+    public World.TrainingShotResult playerTrainingRangeShot(String ownerId, String worldId, String trainingId,
+                                                             int number, BallStrikeIntent intent) {
+        var result = required(ownerId, worldId).world().playerTrainingRangeShot(trainingId, number, intent);
+        autosave(ownerId, worldId);
+        return result;
+    }
+
+    public World.TrainingShotResult playerTrainingPutt(String ownerId, String worldId, String trainingId,
+                                                        int number, PhysicalPuttIntent intent) {
+        var result = required(ownerId, worldId).world().playerTrainingPutt(trainingId, number, intent);
+        autosave(ownerId, worldId);
+        return result;
     }
 
     /** Sets whether the player's golfer is resting (a blanket sit-out) in a session. */

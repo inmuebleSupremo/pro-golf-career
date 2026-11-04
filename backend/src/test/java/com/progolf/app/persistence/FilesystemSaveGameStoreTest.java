@@ -7,6 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.PinPlacementVersion;
+import com.progolf.sim.player.Archetype;
+import com.progolf.sim.player.Nationality;
+import com.progolf.sim.progression.PreparationFocus;
 import com.progolf.sim.world.CoursePoolPolicy;
 import com.progolf.sim.world.World;
 import com.progolf.sim.world.WorldConfig;
@@ -56,6 +59,75 @@ class FilesystemSaveGameStoreTest {
         assertThat(loaded.seed()).isEqualTo(123L);
         assertThat(loaded.config()).isEqualTo(SMALL);
         assertThat(loaded.snapshot()).isEqualTo(world.snapshot()); // full structural equality through JSON
+    }
+
+    @Test
+    void playableSessionAndAttemptSurviveDiskSaveAndLoad() {
+        World world = World.create(124L, SMALL);
+        world.createPlayer("Save", "Training", Nationality.USA, 19, Archetype.ALL_ROUNDER);
+        var training = world.startPlayerTraining(PreparationFocus.WEDGES);
+        var challenge = training.challenges().get(0);
+        world.playerTrainingRangeShot(training.id(), 1, new com.progolf.sim.shot.BallStrikeIntent(
+                challenge.suggestedClub(), new com.progolf.sim.shot.AimPoint(
+                challenge.target().x(), challenge.target().y()), challenge.suggestedFamily()));
+        store.save(OWNER, "training", gameFrom(world, 124L, "training"));
+
+        SaveGame loaded = store.load(OWNER, "training");
+        World restored = World.restore(loaded.seed(), loaded.config(), loaded.snapshot());
+        assertThat(restored.playerTrainingSession()).isEqualTo(world.playerTrainingSession());
+        assertThat(com.progolf.sim.progression.TrainingChallengeGenerator.landingZone(
+                restored.playerTrainingSession().challenges().get(1))).isTrue();
+        assertThat(com.progolf.sim.progression.TrainingChallengeGenerator.targetLabel(
+                restored.playerTrainingSession().challenges().get(1))).startsWith("Zone ");
+        assertThat(restored.playerTrainingSession().nextChallenge()).isEqualTo(2);
+        assertThat(restored.startPlayerTraining(PreparationFocus.WEDGES))
+                .isEqualTo(restored.playerTrainingSession());
+        assertThat(restored.playerPreparation().progressFor(PreparationFocus.WEDGES)).isEqualTo(0.95);
+    }
+
+    @Test
+    void priorCareerPreparationRecordWithoutPlayableFieldStillLoads() throws Exception {
+        World world = World.create(125L, SMALL);
+        world.createPlayer("Old", "Career", Nationality.USA, 19, Archetype.ALL_ROUNDER);
+        store.save(OWNER, "old-training", gameFrom(world, 125L, "old-training"));
+        Path file = dir.resolve(OWNER).resolve("old-training.json");
+        SaveEnvelope current = mapper.readValue(Files.readString(file), SaveEnvelope.class);
+        ObjectNode payload = (ObjectNode) mapper.readTree(current.payload());
+        var preparation = (ObjectNode) payload.get("snapshot").get("careerPreparation");
+        preparation.properties().forEach(entry -> ((ObjectNode) entry.getValue()).remove("playableSession"));
+        String oldPayload = mapper.writeValueAsString(payload);
+        Files.writeString(file, mapper.writeValueAsString(new SaveEnvelope(
+                current.formatVersion(), sha256(oldPayload), oldPayload)));
+
+        SaveGame loaded = store.load(OWNER, "old-training");
+        World restored = World.restore(loaded.seed(), loaded.config(), loaded.snapshot());
+        assertThat(restored.playerTrainingSession()).isNull();
+        assertThat(restored.playerPreparationAvailable()).isTrue();
+    }
+
+    @Test
+    void playableSessionWithoutReceiptFieldsStillLoads() throws Exception {
+        World world = World.create(126L, SMALL);
+        world.createPlayer("Old", "Session", Nationality.USA, 19, Archetype.ALL_ROUNDER);
+        world.startPlayerTraining(PreparationFocus.WEDGES);
+        store.save(OWNER, "old-session", gameFrom(world, 126L, "old-session"));
+        Path file = dir.resolve(OWNER).resolve("old-session.json");
+        SaveEnvelope current = mapper.readValue(Files.readString(file), SaveEnvelope.class);
+        ObjectNode payload = (ObjectNode) mapper.readTree(current.payload());
+        var preparation = (ObjectNode) payload.get("snapshot").get("careerPreparation");
+        preparation.properties().forEach(entry -> {
+            if (entry.getValue().get("playableSession") instanceof ObjectNode session)
+                session.remove(java.util.List.of("fatigueBefore", "fatigueAfter", "ratingChanges"));
+        });
+        String oldPayload = mapper.writeValueAsString(payload);
+        Files.writeString(file, mapper.writeValueAsString(new SaveEnvelope(
+                current.formatVersion(), sha256(oldPayload), oldPayload)));
+
+        SaveGame loaded = store.load(OWNER, "old-session");
+        World restored = World.restore(loaded.seed(), loaded.config(), loaded.snapshot());
+        assertThat(restored.playerTrainingSession().fatigueBefore()).isNull();
+        assertThat(restored.playerTrainingSession().ratingChanges()).isEmpty();
+        assertThat(restored.playerTrainingSession().nextChallenge()).isEqualTo(1);
     }
 
     @Test

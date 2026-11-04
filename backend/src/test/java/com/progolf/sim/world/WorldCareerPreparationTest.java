@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.health.HealthSystem;
+import com.progolf.sim.health.Injury;
+import com.progolf.sim.health.InjurySeverity;
+import com.progolf.sim.health.InjuryType;
 import com.progolf.sim.player.Archetype;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.progression.CareerPreparation;
@@ -131,6 +134,53 @@ class WorldCareerPreparationTest {
         world.advanceSeason();
         assertThat(world.playerPreparation().ready()).isFalse();
         assertThat(HealthSystem.TRAINING_FATIGUE).isEqualTo(0.035);
+    }
+
+    @Test
+    void zeroFatigueRecoveryIsRejectedWithoutSpendingTheWeek() {
+        World world = playerWorld(508);
+        String id = world.playerGolferId().orElseThrow();
+        assertThat(world.physicalStateOf(id).fatigue()).isZero();
+        assertThat(world.commitPlayerPreparationWithOutcome(PreparationFocus.RECOVERY).committed()).isFalse();
+        assertThat(world.playerPreparationAvailable()).isTrue();
+        assertThat(world.playerPreparation().committedFocus()).isNull();
+        assertThat(world.commitPlayerPreparation(PreparationFocus.WEDGES)).isTrue();
+    }
+
+    @Test
+    void partialFatigueRecoveryWorksAndInjuryAloneDoesNotMakeItEffective() {
+        World world = playerWorld(509);
+        String id = world.playerGolferId().orElseThrow();
+        Injury injury = Injury.of(InjuryType.WRIST, InjurySeverity.MINOR);
+        world.injectPhysicalStateForTest(id, world.physicalStateOf(id).withInjury(injury));
+        assertThat(world.commitPlayerPreparation(PreparationFocus.RECOVERY)).isFalse();
+        assertThat(world.playerPreparationAvailable()).isTrue();
+        world.injectPhysicalStateForTest(id, world.physicalStateOf(id).withFatigue(0.08));
+        assertThat(world.commitPlayerPreparation(PreparationFocus.RECOVERY)).isTrue();
+        assertThat(world.physicalStateOf(id).fatigue()).isZero();
+        assertThat(world.physicalStateOf(id).injury()).contains(injury);
+    }
+
+    @Test
+    void automaticRecoveryAtZeroFatigueUsesTechnicalFocusForPlayerAndAi() {
+        World world = playerWorld(510);
+        String player = world.playerGolferId().orElseThrow();
+        String ai = world.activeGolferIds().stream().filter(id -> !id.equals(player)).findFirst().orElseThrow();
+        world.setStandingPreparationFocus(PreparationFocus.RECOVERY);
+        world.injectPhysicalStateForTest(ai, world.physicalStateOf(ai)
+                .withInjury(Injury.of(InjuryType.WRIST, InjurySeverity.MINOR)));
+        world.advanceWeek();
+        CareerPreparation playerState = world.playerPreparation();
+        while (world.hasPendingPlayerEvent()) {
+            world.playerEvent().simEvent();
+            world.completePlayerEvent();
+        }
+        CareerPreparation aiState = world.snapshot().careerPreparation().get(ai);
+        assertThat(playerState.standingFocus()).isEqualTo(PreparationFocus.RECOVERY);
+        assertThat(playerState.committedFocus().technical()).isTrue();
+        assertThat(aiState.committedFocus().technical()).isTrue();
+        assertThat(playerState.progressFor(playerState.committedFocus())).isPositive();
+        assertThat(aiState.progressFor(aiState.committedFocus())).isPositive();
     }
 
     @Test

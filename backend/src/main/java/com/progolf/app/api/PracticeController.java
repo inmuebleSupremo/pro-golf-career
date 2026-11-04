@@ -16,9 +16,10 @@ import org.springframework.stereotype.Controller;
 public class PracticeController {
     public record Point(double x, double y) { }
     public record Target(String label, Point position) { }
+    public record ExpectedReach(String club, String family, double yards) { }
     public record State(int ballsHit, String shotRevision, double aimHalfWidth, double fieldHalfWidth,
                         double targetGreenRadius,
-                        List<Target> targets, List<ClubReachDto> clubs) { }
+                        List<Target> targets, List<ClubReachDto> clubs, List<ExpectedReach> expectedReaches) { }
     public record Shot(ShotOutcomeDto outcome, double totalDistance, double proximity, int ballNumber) { }
 
     private final WorldService worlds;
@@ -33,7 +34,8 @@ public class PracticeController {
                 PracticeRange.targetGreenRadius(),
                 PracticeRange.targets().stream()
                 .map(target -> new Target(target.label(), new Point(target.position().x(), target.position().y())))
-                .toList(), ApiMapper.clubReaches(range.clubs()));
+                .toList(), ApiMapper.clubReaches(range.clubs()), range.expectedReaches().stream()
+                .map(reach -> new ExpectedReach(reach.club().name(), reach.family().name(), reach.yards())).toList());
     }
 
     @MutationMapping

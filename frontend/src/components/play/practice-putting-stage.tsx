@@ -22,7 +22,7 @@ const landscapeTrees = [
 ] as const;
 
 export function PracticePuttingStage({ green, selectedCup, direction, placing, reading, focus, locked,
-  playback, onSelectCup, onAim, onPlace, onFocusToggle, onPlaybackComplete }: {
+  playback, training, onSelectCup, onAim, onPlace, onFocusToggle, onPlaybackComplete }: {
   green: GreenState;
   selectedCup: number;
   direction: Point;
@@ -30,7 +30,8 @@ export function PracticePuttingStage({ green, selectedCup, direction, placing, r
   reading: boolean;
   focus: boolean;
   locked: boolean;
-  playback: PracticePutt | null;
+  playback: Pick<PracticePutt, "outcome"> | null;
+  training?: { number: number; distance: number; slope: number };
   onSelectCup: (number: number) => void;
   onAim: (direction: Point) => void;
   onPlace: (position: Point) => void;
@@ -98,7 +99,7 @@ export function PracticePuttingStage({ green, selectedCup, direction, placing, r
     const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
     const world = projector.unproject(local);
     if (!pointInPolygon(world, green.footprint)) return;
-    if (placing) { onPlace(world); return; }
+    if (placing && !training) { onPlace(world); return; }
     const dx = world.x - green.readyPosition.x;
     const dy = world.y - green.readyPosition.y;
     const length = Math.hypot(dx, dy);
@@ -176,10 +177,11 @@ export function PracticePuttingStage({ green, selectedCup, direction, placing, r
         const point = projector.project(target.position);
         const selected = target.number === selectedCup;
         return <g key={target.number} data-practice-cup={target.number} transform={`translate(${point.x} ${point.y})`}
-          role="button" tabIndex={locked ? -1 : 0} aria-label={`Select cup ${target.number}`} aria-pressed={selected}
+          role="button" tabIndex={locked || training ? -1 : 0} aria-label={`Select cup ${target.number}`} aria-pressed={selected}
+          aria-disabled={!!training}
           onPointerDown={(event) => event.stopPropagation()}
-          onClick={() => { if (!locked) onSelectCup(target.number); }}
-          onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && !locked) {
+          onClick={() => { if (!locked && !training) onSelectCup(target.number); }}
+          onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && !locked && !training) {
             event.preventDefault(); onSelectCup(target.number);
           } }} className="cursor-pointer focus-visible:outline-2 focus-visible:outline-ring">
           {selected && <circle r="25" fill="none" stroke="var(--gold)" strokeWidth="1.2" strokeDasharray="4 5" />}
@@ -193,18 +195,19 @@ export function PracticePuttingStage({ green, selectedCup, direction, placing, r
         </g>;
       })}
     </svg>
-    <div className="pointer-events-none absolute top-2 left-2 flex flex-wrap gap-2 text-[10px] sm:top-3 sm:left-3 sm:text-xs">
+    <div className={`pointer-events-none absolute top-2 flex flex-wrap gap-2 text-[10px] sm:top-3 sm:text-xs ${training
+      ? "left-1/2 max-w-[80vw] -translate-x-1/2 justify-center text-center" : "left-2 sm:left-3"}`}>
       <span className="border-border-strong bg-background/85 text-foreground rounded-md border px-2 py-1.5">
-        {placing ? "Place ball: tap a clear point on the green" : "Tap a cup to select · Tap green to set your line"}
+        {training ? `Challenge ${training.number} of 8 · Cup ${selectedCup} · ${Math.round(training.distance * 3)} ft · Slope ${Math.round(training.slope * 100)}%` : placing ? "Place ball: tap a clear point on the green" : "Tap a cup to select · Tap green to set your line"}
       </span>
-      <span className="border-border-strong bg-background/85 text-foreground rounded-md border px-2 py-1.5">Cup {selectedCup} · {cupDistanceFeet} ft</span>
+      {!training ? <span className="border-border-strong bg-background/85 text-foreground rounded-md border px-2 py-1.5">Cup {selectedCup} · {cupDistanceFeet} ft</span> : null}
     </div>
     <Button variant="secondary" size="sm" onClick={onFocusToggle}
-      className="absolute top-2 right-2 hidden max-[700px]:inline-flex" aria-pressed={focus}>
+      className={`absolute right-2 hidden max-[700px]:inline-flex ${training ? "top-12" : "top-2"}`} aria-pressed={focus}>
       {focus ? "Overview" : "Focus view"}
     </Button>
     <p className="border-border-strong bg-background/85 text-muted-foreground pointer-events-none absolute bottom-2 left-2 hidden rounded-md border px-2 py-1 text-[10px] sm:block">
-      Switch to Place ball to choose a starting position. Resting balls stay where they stop.
+      {training ? "Target cup and starting ball are fixed for this challenge. Tap the green to set your line." : "Switch to Place ball to choose a starting position. Resting balls stay where they stop."}
     </p>
   </main>;
 }
