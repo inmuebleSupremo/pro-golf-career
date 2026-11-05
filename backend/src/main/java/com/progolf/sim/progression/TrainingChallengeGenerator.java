@@ -28,7 +28,6 @@ import java.util.Set;
 
 /** Deterministic eight-shot objectives on the existing range and putting green. */
 public final class TrainingChallengeGenerator {
-    private static final double[] REACH_FRACTIONS = {0.70, 0.76, 0.82, 0.88, 0.94, 0.98};
     private static final int PROBE_SAMPLES = 25;
     private static final double MAX_RESTING_BIAS_FRACTION = 0.2;
     private static final double MIN_MEAN_SCORE = 0.5;
@@ -76,10 +75,11 @@ public final class TrainingChallengeGenerator {
                     && challenge.distance() >= 1.8 && challenge.distance() <= 6.5
                     && PracticePuttingGreen.surfaceView().gradientAt(challenge.start()).magnitude() <= 0.15;
         }
-        if (challenge.putting() || !challenge.start().equals(PracticeRange.bay())) return false;
+        if (challenge.putting() || !PracticeRange.bays().contains(challenge.start())
+                || challenge.distance() > 320) return false;
         int flag = nearestFlag(challenge.target());
         if (flag >= 0) {
-            int first = focus == PreparationFocus.DRIVING ? 5 : focus == PreparationFocus.IRONS ? 3 : 0;
+            int first = focus == PreparationFocus.DRIVING ? 4 : focus == PreparationFocus.IRONS ? 2 : 0;
             int last = focus == PreparationFocus.DRIVING ? 6 : focus == PreparationFocus.IRONS ? 5 : 2;
             if (flag < first || flag > last
                     || PracticeRange.geometryView().surfaceAt(challenge.target()) != Surface.GREEN) return false;
@@ -111,7 +111,7 @@ public final class TrainingChallengeGenerator {
         return distance >= effectiveReach * 0.68 && distance <= effectiveReach * 0.99;
     }
 
-    private record Candidate(TrainingChallenge challenge, int lane, double tieBreak) { }
+    private record Candidate(TrainingChallenge challenge, double tieBreak) { }
 
     private static List<TrainingChallenge> range(PreparationFocus focus, Attributes skills, GolferState state,
                                                  Handedness handedness, long seed, SplitMix64Rng rng) {
@@ -123,25 +123,20 @@ public final class TrainingChallengeGenerator {
         double tolerance = focus == PreparationFocus.DRIVING ? 42 : focus == PreparationFocus.IRONS ? 21 : 9;
         for (var club : clubs) {
             if (ClubSpec.of(club.club()).family() != required) continue;
-            List<ShotFamily> families = focus == PreparationFocus.DRIVING ? List.of(ShotFamily.FULL)
+            List<ShotFamily> families = focus == PreparationFocus.DRIVING ? List.of(ShotFamily.FULL, ShotFamily.CONTROLLED)
                     : focus == PreparationFocus.IRONS ? List.of(ShotFamily.FULL, ShotFamily.CONTROLLED)
                     : List.of(ShotFamily.FULL, ShotFamily.CONTROLLED, ShotFamily.PITCH);
             for (ShotFamily family : families) {
                 ShotExecutionProfile profile = ShotExecutionProfile.derive(Surface.TEE_BOX,
                         ClubSpec.of(club.club()), family, skills, Environment.calm());
                 if (!profile.eligibility().allowed()) continue;
-                double reach = club.normalReach() * (1.0 + state.equipmentPower())
-                        * profile.effectiveCarryCapMultiplier();
-                for (int step = 0; step < REACH_FRACTIONS.length; step++) {
-                    double distance = Math.round(reach * REACH_FRACTIONS[step]);
-                    int laneCount = focus == PreparationFocus.DRIVING ? 2 : 1;
-                    for (int lane = -laneCount; lane <= laneCount; lane++) {
-                        double x = lane * Math.max(7, Math.min(24, distance * 0.12)) / laneCount;
-                        Position2d target = new Position2d(x, StrictMath.sqrt(distance * distance - x * x));
-                        TrainingChallenge challenge = new TrainingChallenge(1, PracticeRange.bay(), target, 0,
+                for (int bay = 1; bay <= PracticeRange.bays().size(); bay++) {
+                    Position2d origin = PracticeRange.bays().get(bay - 1);
+                    for (var flag : PracticeRange.targets()) {
+                        TrainingChallenge challenge = new TrainingChallenge(1, origin, flag.position(), 0,
                                 club.club(), family, tolerance, 0);
                         if (compatible(focus, challenge, skills, state))
-                            options.add(new Candidate(challenge, lane(target), rng.nextDouble()));
+                            options.add(new Candidate(challenge, rng.nextDouble()));
                     }
                 }
             }
@@ -152,7 +147,7 @@ public final class TrainingChallengeGenerator {
         for (int number = 1; number <= 8; number++) {
             Candidate best = null;
             double bestScore = Double.NEGATIVE_INFINITY;
-            // Choose a full sequence with new clubs, techniques, distances and directions wherever possible.
+            // Select distinct flag, bay, club and technique combinations; resolver validation follows.
             while (true) {
                 best = null;
                 bestScore = Double.NEGATIVE_INFINITY;
@@ -177,8 +172,10 @@ public final class TrainingChallengeGenerator {
     }
 
     private static boolean distinct(PreparationFocus focus, List<TrainingChallenge> chosen, TrainingChallenge next) {
-        double spacing = focus == PreparationFocus.DRIVING ? 8 : focus == PreparationFocus.IRONS ? 8 : 5;
-        return chosen.stream().allMatch(previous -> previous.target().distanceTo(next.target()) >= spacing);
+        return chosen.stream().noneMatch(previous -> previous.target().equals(next.target())
+                && previous.start().equals(next.start())
+                && previous.suggestedClub() == next.suggestedClub()
+                && previous.suggestedFamily() == next.suggestedFamily());
     }
 
     private static double varietyScore(List<TrainingChallenge> chosen, Candidate candidate) {
@@ -186,22 +183,24 @@ public final class TrainingChallengeGenerator {
         double score = chosen.stream().noneMatch(c -> c.suggestedClub() == next.suggestedClub()) ? 80 : 0;
         score += chosen.stream().noneMatch(c -> c.suggestedFamily() == next.suggestedFamily()) ? 40 : 0;
         score += chosen.stream().noneMatch(c -> Math.abs(c.distance() - next.distance()) < 12) ? 45 : 0;
-        score += chosen.stream().noneMatch(c -> lane(c.target()) == candidate.lane()) ? 35 : 0;
+        score += chosen.stream().noneMatch(c -> c.target().equals(next.target())) ? 65 : 0;
+        score += chosen.stream().noneMatch(c -> c.start().equals(next.start())) ? 35 : 0;
+        score += chosen.stream().noneMatch(c -> c.start().equals(next.start())
+                && c.target().equals(next.target())) ? 45 : 0;
         score += chosen.isEmpty() ? 0 : Math.min(40, chosen.stream()
                 .mapToDouble(c -> c.target().distanceTo(next.target())).min().orElse(0) / 2);
         return score;
     }
 
-    private static int lane(Position2d target) { return target.x() < -3 ? -1 : target.x() > 3 ? 1 : 0; }
-
     private static boolean varied(PreparationFocus focus, List<TrainingChallenge> chosen, List<Candidate> options) {
         if (chosen.size() != 8) return false;
         double band = focus == PreparationFocus.DRIVING ? 14 : focus == PreparationFocus.IRONS ? 10 : 6;
         long distances = chosen.stream().map(c -> Math.round(c.distance() / band)).distinct().count();
-        long lanes = chosen.stream().map(c -> lane(c.target())).distinct().count();
+        long flags = chosen.stream().map(TrainingChallenge::target).distinct().count();
+        long bays = chosen.stream().map(TrainingChallenge::start).distinct().count();
         long clubs = chosen.stream().map(TrainingChallenge::suggestedClub).distinct().count();
         long possibleClubs = options.stream().map(c -> c.challenge().suggestedClub()).distinct().count();
-        return distances >= 3 && lanes >= 2 && (possibleClubs < 2 || clubs >= 2)
+        return distances >= 3 && flags >= 2 && bays >= 2 && (possibleClubs < 2 || clubs >= 2)
                 && chosen.stream().allMatch(c -> distinct(focus, chosen.stream().filter(other -> other.number() < c.number()).toList(), c));
     }
 
@@ -212,7 +211,8 @@ public final class TrainingChallengeGenerator {
     public static Optional<FeasibleAim> assessRangeAim(TrainingChallenge challenge, Attributes skills,
                                                         GolferState state, Handedness handedness, long seed) {
         if (challenge.putting()) return Optional.empty();
-        long coordinate = Double.doubleToLongBits(challenge.target().x())
+        long coordinate = Double.doubleToLongBits(challenge.start().x())
+                ^ Long.rotateLeft(Double.doubleToLongBits(challenge.target().x()), 9)
                 ^ Long.rotateLeft(Double.doubleToLongBits(challenge.target().y()), 17)
                 ^ challenge.suggestedClub().ordinal() * 31L ^ challenge.suggestedFamily().ordinal();
         FeasibleAim direct = sampleAim(challenge, skills, state, handedness, seed, coordinate,
@@ -225,7 +225,8 @@ public final class TrainingChallengeGenerator {
         double intended = Math.round((2 * challenge.distance() - direct.medianRestingDistance()) * 2) / 2.0;
         for (int iteration = 0; iteration < 2; iteration++) {
             double factor = intended / challenge.distance();
-            Position2d aim = new Position2d(challenge.target().x() * factor, challenge.target().y() * factor);
+            Position2d aim = challenge.start().plus((challenge.target().x() - challenge.start().x()) * factor,
+                    (challenge.target().y() - challenge.start().y()) * factor);
             if (intended < 15 || intended > Math.min(320, carryCap) || aim.y() < 15 || aim.y() > 320
                     || Math.abs(aim.x()) > PracticeRange.aimHalfWidth()) return Optional.empty();
             // A disjoint seed set validates the calibration; a second correction gets another independent set.
@@ -244,7 +245,8 @@ public final class TrainingChallengeGenerator {
                                           Handedness handedness, long seed, long coordinate, double intended,
                                           int sampleOffset) {
         double factor = intended / challenge.distance();
-        AimPoint aim = new AimPoint(challenge.target().x() * factor, challenge.target().y() * factor);
+        AimPoint aim = new AimPoint(challenge.start().x() + (challenge.target().x() - challenge.start().x()) * factor,
+                challenge.start().y() + (challenge.target().y() - challenge.start().y()) * factor);
         List<Double> carries = new ArrayList<>(PROBE_SAMPLES);
         List<Double> rests = new ArrayList<>(PROBE_SAMPLES);
         List<Double> proximities = new ArrayList<>(PROBE_SAMPLES);
@@ -254,7 +256,7 @@ public final class TrainingChallengeGenerator {
                     coordinate + sampleOffset + sample);
             PracticeRange range = new PracticeRange(skills, state, handedness, probeSeed);
             var shot = range.hit(new BallStrikeIntent(challenge.suggestedClub(), aim,
-                    challenge.suggestedFamily()), 4, "0");
+                    challenge.suggestedFamily()), PracticeRange.bays().indexOf(challenge.start()) + 1, "0");
             carries.add(shot.outcome().carry());
             rests.add(shot.totalDistance());
             proximities.add(challenge.target().distanceTo(shot.outcome().trace().finalPoint()));

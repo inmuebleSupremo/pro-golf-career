@@ -18,6 +18,7 @@ import { cupDirectedLine, currentPhysicalPuttControls, defaultPaceFeet, physical
 import { golfAudio } from "@/lib/play/golf-audio";
 import { shotSubmissionFeedback } from "@/lib/play/shot-feedback";
 import { visibleTrainingAttempt } from "@/lib/play/training-presentation";
+import { useTrainingResultTransition } from "@/lib/play/use-training-result-transition";
 
 type GreenState = PracticePuttingGreenQuery["practicePuttingGreen"];
 type PuttResult = PracticePhysicalPuttMutation["practicePhysicalPutt"];
@@ -161,6 +162,9 @@ export function PracticePuttingGreen({ id, training }: { id: string; training?: 
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load the next challenge."); }
   }
 
+  useTrainingResultTransition(training && visibleAttempt ? visibleAttempt.number : null,
+    !!playback, nextChallenge);
+
   function rotateLine(degrees: number) {
     const radians = degrees * Math.PI / 180;
     const { x, y } = activeControls.direction;
@@ -239,8 +243,8 @@ export function PracticePuttingGreen({ id, training }: { id: string; training?: 
       <div className="practice-putting-actions flex gap-2">
         {training ? <Button variant="secondary" onClick={training.onAbandon} disabled={trainingPutt.isPending || !!playback}>Abandon Session</Button>
           : <Button variant="secondary" onClick={collectBalls} disabled={locked || !state?.restingBalls.length}>Collect balls</Button>}
-        {training && visibleAttempt ? <Button size="lg" onClick={nextChallenge}>
-          {training.challenge.number === 8 ? "Review session" : "Next challenge"}</Button>
+        {training && visibleAttempt ? <Button size="lg" onClick={nextChallenge} disabled={!error}>
+          {error ? "Retry loading result" : "Next briefing…"}</Button>
           : <Button size="lg" onClick={rollPutt} disabled={locked || placing || !state}>{trainingPutt.isPending || putt.isPending ? "Playing…" : training ? "Play challenge" : "Roll putt"}</Button>}
       </div>
       {error && <p role="alert" className="text-destructive absolute right-2 bottom-full mb-2 rounded-md bg-background px-3 py-2 text-xs">{error}</p>}

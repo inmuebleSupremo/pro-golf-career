@@ -37,8 +37,8 @@ export function unprojectRangePoint(point: Point, aimHalfWidth: number): Point {
     (RANGE_SCENE.bayY - point.y) * RANGE_SCENE.farDistance / (RANGE_SCENE.bayY - RANGE_SCENE.farY)));
   const lateral = (point.x - RANGE_SCENE.width / 2) / rangeScaleAt(distance);
   return {
-    x: Math.round(Math.min(aimHalfWidth, Math.max(-aimHalfWidth, lateral))),
-    y: Math.round(distance),
+    x: Math.min(aimHalfWidth, Math.max(-aimHalfWidth, lateral)),
+    y: distance,
   };
 }
 

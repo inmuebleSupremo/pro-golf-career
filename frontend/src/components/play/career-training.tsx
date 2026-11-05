@@ -399,7 +399,7 @@ export function TrainingChallengeBriefing({ challenge, focus, playable, onBegin,
           : `${Math.round(challenge.distance)} yd to ${challenge.targetLabel}`}</p>
         <p className="text-muted-foreground mt-2 text-sm">{challenge.putting
           ? `Read the green and choose a starting line and pace. Slope at the ball: ${Math.round(challenge.slope * 100)}%. A holed putt scores highest; otherwise your final resting distance counts.`
-          : `Suggested ${humanize(challenge.suggestedClub ?? "")} · ${humanize(challenge.suggestedFamily ?? "")}. Finish in the highlighted zone. Click or tap the range to set intended carry and direction; allow for bounce and rollout.`}</p>
+          : `Suggested ${humanize(challenge.suggestedClub ?? "")} · ${humanize(challenge.suggestedFamily ?? "")}. Finish on the highlighted ${challenge.landingZone ? "zone" : "target green"}. Click or tap the range to set intended carry and direction; allow for bounce and rollout.`}</p>
         <p className="text-muted-foreground mt-2 text-sm">Scoring tolerance: {challenge.putting
           ? `${Math.round(challenge.tolerance * 3)} ft` : `${Math.round(challenge.tolerance)} yd`}. One scored attempt.</p>
       </> : <p className="text-muted-foreground mt-4 text-sm">This saved challenge was generated with an earlier club or target combination that is no longer supported. Your base development remains earned. You can abandon the session without a performance bonus.</p>}

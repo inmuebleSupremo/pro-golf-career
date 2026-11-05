@@ -175,12 +175,16 @@ class WorldGraphQlApiTest {
                 .path("startPlayerTraining.baseProgress").entity(Double.class).isEqualTo(0.95)
                 .path("startPlayerTraining.fatigueBefore").entity(Double.class).isEqualTo(0.0)
                 .path("startPlayerTraining.fatigueAfter").entity(Double.class).isEqualTo(0.035)
-                .path("startPlayerTraining.challenges[0].landingZone").entity(Boolean.class).isEqualTo(true)
+                .path("startPlayerTraining.challenges[0].landingZone").entity(Boolean.class).isEqualTo(false)
                 .path("startPlayerTraining.challenges[0].targetLabel").entity(String.class)
-                .satisfies(label -> org.assertj.core.api.Assertions.assertThat(label).startsWith("Zone "))
+                .satisfies(label -> org.assertj.core.api.Assertions.assertThat(label).endsWith(" flag"))
                 .path("startPlayerTraining.ratingChanges").entityList(Object.class).hasSize(0);
         var session = worldService.playerTrainingSession(OWNER, id);
         var challenge = session.challenges().get(0);
+        org.assertj.core.api.Assertions.assertThat(com.progolf.sim.practice.PracticeRange.targets().stream()
+                .map(com.progolf.sim.practice.PracticeRange.Target::position)).contains(challenge.target());
+        org.assertj.core.api.Assertions.assertThat(com.progolf.sim.practice.PracticeRange.bays())
+                .contains(challenge.start());
         graphQlTester.document(start).variable("id", id).execute()
                 .path("startPlayerTraining.id").entity(String.class).isEqualTo(session.id());
         graphQlTester.document("query($id: ID!){ playerTrainingSession(id: $id) { id status nextChallenge challenges { number } } }")

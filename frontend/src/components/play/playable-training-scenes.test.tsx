@@ -10,7 +10,7 @@ import { PracticePuttingGreen } from "./practice-putting-green";
 
 const range = { practiceRange: {
   ballsHit: 0, shotRevision: "0", aimHalfWidth: 220, fieldHalfWidth: 250, targetGreenRadius: 11,
-  targets: [], clubs: ["DRIVER", "SEVEN_IRON"].map((club) => ({
+  targets: [{ label: "200 yd", position: { x: -110, y: 167 } }], clubs: ["DRIVER", "SEVEN_IRON"].map((club) => ({
     club, label: club === "DRIVER" ? "Driver" : "7 Iron", nominalCarry: 200, normalReach: 220,
     families: ["FULL", "CONTROLLED"].map((family) => ({ family, available: true, reason: null,
       shapes: [{ shape: "STRAIGHT", available: true, reason: null }] })),
@@ -53,7 +53,7 @@ function scene(focus: "DRIVING" | "PUTTING", attemptCount = 0): TrainingScene {
 }
 
 describe("playable training in existing practice scenes", () => {
-  it("shows the generated range objective and fixes the training bay", () => {
+  it("shows a saved legacy range objective without changing its bay or target", () => {
     const html = renderToStaticMarkup(<DrivingRange id="world" training={scene("DRIVING", 2)} />);
     expect(html).toContain("Career Training driving range");
     expect(html).toContain("Challenge 3 of 8");
@@ -74,6 +74,28 @@ describe("playable training in existing practice scenes", () => {
     expect(html).toContain("cursor-crosshair");
     expect(html).toContain("Use arrow keys to adjust direction");
     expect(html).toContain('pointer-events="none"');
+  });
+
+  it("highlights an original flag without adding a zone marker or changing the click aim surface", () => {
+    const original = scene("DRIVING", 2);
+    const training = { ...original, challenge: { ...original.challenge,
+      start: { x: 700 / 11, y: 0 }, target: { x: -110, y: 167 }, targetLabel: "200 yd flag", landingZone: false,
+      distance: Math.hypot(-110 - 700 / 11, 167) } } as TrainingScene;
+    const html = renderToStaticMarkup(<DrivingRange id="world" training={training} />);
+    expect(html).toContain("200 yd flag · training target");
+    expect(html).toContain('stroke="var(--range-active)" stroke-width="3"');
+    expect(html).not.toContain("Zone R-212 training target");
+    expect(html).toContain("cursor-crosshair");
+    expect(html).toContain("pointer-events=\"none\"");
+    expect(html).toContain("Bay 5");
+  });
+
+  it("keeps an incompatible saved origin on the safe exit screen without crashing the scene", () => {
+    const original = scene("DRIVING");
+    const incompatible = { ...original, challenge: { ...original.challenge, start: { x: 999, y: 0 } },
+      challengePlayable: false } as TrainingScene;
+    expect(renderToStaticMarkup(<DrivingRange id="world" training={incompatible} />))
+      .toContain("Career Training driving range");
   });
 
   it("shows the generated putting start, cup and conditions with placement locked", () => {
@@ -136,11 +158,15 @@ describe("playable training in existing practice scenes", () => {
     expect(html).toContain("Challenge 1 of 8");
     expect(html).toContain("212 yd to Zone R-212");
     expect(html).toContain("Suggested Driver");
-    expect(html).toContain("Finish in the highlighted zone");
+    expect(html).toContain("Finish on the highlighted zone");
     expect(html).toContain("bounce and rollout");
     expect(html).toContain("Begin Challenge");
     expect(html).toContain("Return to overview");
     expect(html).toContain("Scoring tolerance: 32 yd");
+    const flag = { ...driving.challenge, targetLabel: "200 yd flag", landingZone: false };
+    expect(renderToStaticMarkup(<TrainingChallengeBriefing challenge={flag} focus="DRIVING"
+      playable onBegin={() => {}} onClose={() => {}} onAbandon={() => {}} />))
+      .toContain("Finish on the highlighted target green");
     const putting = scene("PUTTING");
     expect(renderToStaticMarkup(<TrainingChallengeBriefing challenge={putting.challenge} focus="PUTTING"
       playable onBegin={() => {}} onClose={() => {}} onAbandon={() => {}} />)).toContain("9 ft to Cup 3");

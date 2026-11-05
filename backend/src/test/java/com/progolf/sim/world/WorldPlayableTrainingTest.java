@@ -14,9 +14,6 @@ import com.progolf.sim.progression.PreparationFocus;
 import com.progolf.sim.progression.TrainingChallenge;
 import com.progolf.sim.shot.AimPoint;
 import com.progolf.sim.shot.BallStrikeIntent;
-import com.progolf.sim.shot.ClubId;
-import com.progolf.sim.shot.ShotGuidance;
-import com.progolf.sim.spatial.Surface;
 import com.progolf.sim.putt.PhysicalPuttIntent;
 import org.junit.jupiter.api.Test;
 
@@ -61,11 +58,9 @@ class WorldPlayableTrainingTest {
         World world = playerWorld(699);
         String playerId = world.playerGolferId().orElseThrow();
         var player = world.careerOf(playerId).player();
-        double driverReach = ShotGuidance.clubReaches(player.attributes(), Surface.TEE_BOX).stream()
-                .filter(reach -> reach.club() == ClubId.DRIVER).findFirst().orElseThrow().normalReach();
-        player.state().setEquipment(0, 435 / driverReach - 1, 0, 0);
+        player.state().setEquipment(0, 1, 0, 0);
         assertThatThrownBy(() -> world.startPlayerTraining(PreparationFocus.DRIVING))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("no achievable varied driving");
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("no achievable driving");
         assertThat(world.playerPreparationAvailable()).isTrue();
         assertThat(world.playerTrainingSession()).isNull();
         assertThat(world.playerPreparation().progressFor(PreparationFocus.DRIVING)).isZero();

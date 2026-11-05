@@ -18,6 +18,7 @@ import { golfAudio } from "@/lib/play/golf-audio";
 import { projectRangePoint, projectRangeShotPoint, rangeBayMat, rangeBayOrigin, RANGE_BAY_CENTERS,
   rangeFieldPath, rangeScaleAt, RANGE_MOBILE_VIEWBOX, RANGE_SCENE, unprojectRangePoint } from "@/lib/play/practice-range-geometry";
 import { trainingRestingBalls, visibleTrainingAttempt } from "@/lib/play/training-presentation";
+import { useTrainingResultTransition } from "@/lib/play/use-training-result-transition";
 
 const INITIAL_AIM: Point = { x: 95, y: 116 };
 const markers = [50, 100, 150, 200, 250, 300];
@@ -114,7 +115,10 @@ export function DrivingRange({ id, training }: { id: string; training?: Training
 
   async function hitRequest(intent: BallStrikeInput) { return gqlRequest(PracticeShotDocument, { id, bayNumber: selectedBay, intent }); }
 
-  const activeBay = training ? 4 : selectedBay;
+  const storedBay = training
+    ? RANGE_BAY_CENTERS.findIndex((_, index) => Math.abs(rangeBayOrigin(index + 1).x - training.challenge.start.x) < 0.01) + 1
+    : 0;
+  const activeBay = training ? storedBay || 4 : selectedBay;
   const bayOrigin = rangeBayOrigin(activeBay);
   const bayMat = rangeBayMat(activeBay);
   const targetPoint = projectRangePoint(aim);
@@ -188,11 +192,14 @@ export function DrivingRange({ id, training }: { id: string; training?: Training
     } catch (error) { setTrainingError(error instanceof Error ? error.message : "Could not load the next challenge."); }
   }
 
+  useTrainingResultTransition(training && visibleAttempt ? visibleAttempt.number : null,
+    !!playbackShot, nextChallenge);
+
   return <div role="dialog" aria-modal="true" aria-label={training ? "Career Training driving range" : "Practice Facility driving range"}
     className="practice-facility-page practice-range-page bg-background fixed inset-0 z-[var(--z-modal)] isolate flex h-dvh min-h-0 min-w-0 flex-col overflow-hidden">
     <PracticeFacilityHeader id={id} active={training ? "training" : "range"} showAudio={!!training}
       title={training ? `${training.session.focus[0]}${training.session.focus.slice(1).toLowerCase()} training` : "Driving Range"}
-      subtitle={training ? `Challenge ${training.challenge.number} of 8 · Fixed bay 4` : "Unlimited balls · Seven targets"} />
+      subtitle={training ? `Challenge ${training.challenge.number} of 8 · Bay ${activeBay}` : "Unlimited balls · Seven targets"} />
 
     <div className="border-border-strong relative min-h-0 min-w-0 flex-1 overflow-hidden bg-surface">
       <svg viewBox={mobileScene ? `${RANGE_MOBILE_VIEWBOX.x} 0 ${RANGE_MOBILE_VIEWBOX.width} ${RANGE_SCENE.height}` : `0 0 ${RANGE_SCENE.width} ${RANGE_SCENE.height}`}
@@ -242,21 +249,24 @@ export function DrivingRange({ id, training }: { id: string; training?: Training
           <rect x={center - 80} y="625" width="160" height="75" fill="transparent" />
         </g>)}
         {(range.data?.practiceRange.targets ?? []).map((target) => <TargetGreen key={target.label}
-          distanceLabel={`${Math.round(Math.hypot(target.position.x - bayOrigin.x, target.position.y - bayOrigin.y))} yd`}
+          distanceLabel={target.label}
           point={projectRangePoint(target.position)} radiusX={targetGreenRadius * rangeScaleAt(target.position.y)}
           radiusY={targetGreenRadius * (RANGE_SCENE.bayY - RANGE_SCENE.farY) / RANGE_SCENE.farDistance}
+          active={!!training && !training.challenge.landingZone
+            && Math.hypot(training.challenge.target.x - target.position.x,
+              training.challenge.target.y - target.position.y) < 0.01}
           />)}
-        {training && <g pointerEvents="none" aria-label={`${training.challenge.targetLabel} training target`}>
+        {training?.challenge.landingZone && <g pointerEvents="none" aria-label={`${training.challenge.targetLabel} training target`}>
           <circle cx={projectRangePoint(training.challenge.target).x}
-            cy={projectRangePoint(training.challenge.target).y} r={training.challenge.landingZone ? 20 : 14}
-            fill={training.challenge.landingZone ? "var(--range-label-back)" : "none"}
+            cy={projectRangePoint(training.challenge.target).y} r={20}
+            fill="var(--range-label-back)"
             stroke="var(--range-active)" strokeWidth="3" />
           <circle cx={projectRangePoint(training.challenge.target).x} cy={projectRangePoint(training.challenge.target).y}
             r="3" fill="var(--range-active)" />
-          {training.challenge.landingZone ? <g transform={`translate(${projectRangePoint(training.challenge.target).x} ${projectRangePoint(training.challenge.target).y - 28})`}>
+          <g transform={`translate(${projectRangePoint(training.challenge.target).x} ${projectRangePoint(training.challenge.target).y - 28})`}>
             <rect x="-45" y="-20" width="90" height="22" rx="5" fill="var(--range-label-back)" stroke="var(--range-active)" />
             <text y="-5" textAnchor="middle" fill="var(--range-label)" fontSize="12" fontWeight="700">{training.challenge.targetLabel}</text>
-          </g> : null}
+          </g>
         </g>}
         <g pointerEvents="none">{visualBalls.map((ball) => {
           const point = projectRangeShotPoint(ball.position);
@@ -288,17 +298,17 @@ export function DrivingRange({ id, training }: { id: string; training?: Training
         selection={selection} onSelection={(update) => setRequestedSelection((current) => validShotSelection(situation, { ...current, ...update }))}
         onSubmit={hit} locked={range.isPending || range.isError || mutation.isPending || trainingMutation.isPending || !!playbackShot || !!recordedAttempt || !!training?.briefingActive || training?.challengePlayable === false || !!training && !hasAimed}
         submitting={training ? trainingMutation.isPending : mutation.isPending}
-        onNextBall={training && visibleAttempt ? nextChallenge : undefined}
-        nextLabel={training?.challenge.number === 8 ? "Review session" : "Next challenge"}
+        onNextBall={training && visibleAttempt && trainingError ? nextChallenge : undefined}
+        nextLabel="Retry loading result"
         externalError={trainingError}
-        referenceLabel="Aim" actionLabel={training ? "Play challenge" : "Hit ball"}
+        referenceLabel="Aim" actionLabel={training && visibleAttempt ? "Next briefing…" : training ? "Play challenge" : "Hit ball"}
         statusText={range.isError ? "Could not open the range" : training && visibleAttempt
           ? `Challenge ${visibleAttempt.number} recorded · Score ${Math.round(visibleAttempt.score * 100)}% · ${visibleAttempt.proximity.toFixed(1)} yd from target`
           : playbackShot
           ? `Ball ${playbackShot.ballNumber} · Shot in flight`
           : mutation.isPending || trainingMutation.isPending ? `Ball ${situation.shotNumber} · Resolving shot`
             : training && !hasAimed ? "Click or tap the range to select an aim point before this challenge"
-              : training ? `Challenge ${training.challenge.number} · Bay 4 · ${Math.round(situation.distanceToPin)} yd intended carry · Ready to hit`
+              : training ? `Challenge ${training.challenge.number} · Bay ${activeBay} · ${Math.round(situation.distanceToPin)} yd intended carry · Ready to hit`
               : `Ball ${situation.shotNumber} · Bay ${selectedBay} · ${Math.round(situation.distanceToPin)} yd aim · Ready to hit`}
         extraDetails={<Detail label="Conditions" value="Calm range" />}
         auxiliary={training ? <Button variant="secondary" size="sm" onClick={training.onAbandon}
@@ -317,16 +327,18 @@ export function DrivingRange({ id, training }: { id: string; training?: Training
   </div>;
 }
 
-function TargetGreen({ distanceLabel, point, radiusX, radiusY }: {
-  distanceLabel: string; point: Point; radiusX: number; radiusY: number;
+function TargetGreen({ distanceLabel, point, radiusX, radiusY, active }: {
+  distanceLabel: string; point: Point; radiusX: number; radiusY: number; active: boolean;
 }) {
   const outline = `M${-radiusX * 1.18} 1 Q${-radiusX * 1.12} ${-radiusY * .91} ${-radiusX * .46} ${-radiusY * 1.23} Q${radiusX * .36} ${-radiusY * 1.32} ${radiusX * 1.04} ${-radiusY * .47} Q${radiusX * 1.37} ${radiusY * .31} ${radiusX * .55} ${radiusY * .99} Q${-radiusX * .38} ${radiusY * 1.31} ${-radiusX * 1.18} 1Z`;
   const flagHeight = 29;
   const labelX = radiusX * .75 + 8;
-  return <g transform={`translate(${point.x} ${point.y})`} pointerEvents="none" aria-label={`${distanceLabel} flag`}>
+  return <g transform={`translate(${point.x} ${point.y})`} pointerEvents="none"
+    aria-label={`${distanceLabel} flag${active ? " · training target" : ""}`}>
     <path d={outline} transform="translate(4 5) scale(1.15 1.18)" fill="var(--range-green-collar)" opacity=".24" />
     <path d={outline} transform="scale(1.23 1.23)" fill="var(--range-green-edge)" opacity=".92" />
-    <path d={outline} fill="url(#range-green-fill)" stroke="var(--range-green-light)" strokeWidth="1.1" />
+    <path d={outline} fill="url(#range-green-fill)" stroke={active ? "var(--range-active)" : "var(--range-green-light)"}
+      strokeWidth={active ? "3" : "1.1"} />
     <path d={outline} transform="scale(.8 .74)" fill="none" stroke="var(--range-line)" strokeWidth="1.2" opacity=".36" />
     <path d={`M${-radiusX * .78} ${-radiusY * .18} Q0 ${-radiusY * .95} ${radiusX * .72} ${-radiusY * .32}`}
       stroke="var(--range-line)" strokeWidth="1" fill="none" opacity=".39" />

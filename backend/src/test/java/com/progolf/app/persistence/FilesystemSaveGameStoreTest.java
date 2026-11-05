@@ -76,9 +76,9 @@ class FilesystemSaveGameStoreTest {
         World restored = World.restore(loaded.seed(), loaded.config(), loaded.snapshot());
         assertThat(restored.playerTrainingSession()).isEqualTo(world.playerTrainingSession());
         assertThat(com.progolf.sim.progression.TrainingChallengeGenerator.landingZone(
-                restored.playerTrainingSession().challenges().get(1))).isTrue();
+                restored.playerTrainingSession().challenges().get(1))).isFalse();
         assertThat(com.progolf.sim.progression.TrainingChallengeGenerator.targetLabel(
-                restored.playerTrainingSession().challenges().get(1))).startsWith("Zone ");
+                restored.playerTrainingSession().challenges().get(1))).endsWith(" flag");
         assertThat(restored.playerTrainingSession().nextChallenge()).isEqualTo(2);
         assertThat(restored.startPlayerTraining(PreparationFocus.WEDGES))
                 .isEqualTo(restored.playerTrainingSession());

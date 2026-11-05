@@ -617,7 +617,7 @@ public final class World {
         var golfer = golfers.get(id);
         PracticeRange range = new PracticeRange(golfer.player().attributes(), golfer.player().toGolferState(0),
                 golfer.player().handedness(), Seeds.deriveSeed(trainingSessionSeed(id), challengeNumber));
-        PracticeRange.Result shot = range.hit(intent, 4, "0");
+        PracticeRange.Result shot = range.hit(intent, PracticeRange.bays().indexOf(challenge.start()) + 1, "0");
         var finish = shot.outcome().trace().finalPoint();
         TrainingAttempt attempt = new TrainingAttempt(challengeNumber, TrainingScoring.range(challenge, shot),
                 challenge.target().distanceTo(finish), shot.totalDistance(), false, finish);
