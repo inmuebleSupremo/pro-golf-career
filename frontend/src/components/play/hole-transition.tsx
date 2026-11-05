@@ -13,6 +13,7 @@ import type { HoleGeom, ResolvedShot } from "@/lib/play/hole-geometry";
 import type { PostHoleSummary, SeqPhase } from "@/components/play/use-play-sequence";
 import type { Situation } from "@/components/play/play-shared";
 import type { StageViewport } from "@/lib/play/stage-viewport";
+import { aroundGreenEligible } from "@/lib/play/around-green";
 
 // Between-hole transition timing (spec: web-hole-visualization). The wipe hides the hole swap; its CSS sweep
 // duration is kept in step with the sequence's `wipe` phase length.
@@ -62,15 +63,20 @@ export function StageHole({
   // Chrome (hole chip, pressure) rides with live play and the score beat, but yields to the intro overlay and
   // hides through the wipe so nothing shows over the swap.
   const showChrome = phase === "play" || phase === "holeout" || phase === "score";
+  const physicalPutting = displayHole?.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN"
+    && displayHole.physicalGreen != null;
+  const aroundGreen = aroundGreenEligible(displayHole, situation.lie, presentation);
 
   return (
     <>
       {displayHole ? (
         <div className={cn("relative flex h-full w-full items-center justify-center", presentation === "premium" && "max-sm:overflow-hidden")}>
-          {displayHole.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN" && displayHole.physicalGreen ? (
+          {physicalPutting || aroundGreen ? (
             <PhysicalPuttingGreen hole={displayHole} ball={playbackShot} aimDirection={physicalAimDirection}
               onAimDirection={onPhysicalAimDirection} showReading={showGreenReading}
-              onPlaybackComplete={onPhysicalPlaybackComplete} presentation={presentation} stageViewport={stageViewport} />
+              onPlaybackComplete={onPhysicalPlaybackComplete} presentation={presentation} stageViewport={stageViewport}
+              aroundGreen={aroundGreen} aimPoint={aimPoint} onAimPoint={onAimPoint} showAimMarker={showAimMarker}
+              onTracePlaybackComplete={onTracePlaybackComplete} />
           ) : <Hole2d hole={displayHole} ball={playbackShot} className={cn("block max-h-full touch-manipulation", stageViewport ? "h-full w-full" : presentation === "premium" ? "h-full w-full max-sm:w-auto max-sm:max-w-none max-sm:shrink-0" : "w-auto", onAimPoint && "cursor-crosshair")}
             aimPoint={aimPoint} onAimPoint={onAimPoint} showAimMarker={showAimMarker}
             presentation={presentation} stageViewport={stageViewport}

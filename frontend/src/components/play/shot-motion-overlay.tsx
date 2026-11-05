@@ -29,6 +29,7 @@ interface ShotMotionProps {
   contactEffect: string;
   ballStroke: string;
   statusY: number;
+  statusX?: number;
   shadowFill: string;
   tracerShadow?: boolean;
   holed?: boolean;
@@ -72,7 +73,7 @@ export function ShotMotionOverlay(props: ShotMotionProps) {
 
 /** The production shot marks at one clock position, also renderable with deterministic trace fixtures. */
 export function ShotMotionFrame({ trace, project, contact, finalPoint, contactEffect, ballStroke,
-  statusY, shadowFill, tracerShadow, progress }: ShotMotionProps & { progress: number }) {
+  statusY, statusX = 16, shadowFill, tracerShadow, progress }: ShotMotionProps & { progress: number }) {
   const playback = tracePlaybackFrame(trace, progress);
   const motion = !playback.finalVisible ? traceBallProjection(playback, project) : null;
   const traversed = traversedAirbornePoints(trace, progress);
@@ -116,7 +117,7 @@ export function ShotMotionFrame({ trace, project, contact, finalPoint, contactEf
       <path d={releasePath} stroke="var(--accent)" strokeWidth="1.3" strokeDasharray="2 1" opacity=".95" />
       <text x={(rollFrom.x + rollTo.x) / 2 + 3} y={(rollFrom.y + rollTo.y) / 2 - 3} fill="var(--accent)" fontSize="5">{groundPath ? "Release" : "Roll"}</text>
     </> : null}
-    {playbackStatus ? <text x={16} y={statusY} fill="var(--accent)" fontSize="6" fontWeight="700">{playbackStatus}</text> : null}
+    {playbackStatus ? <text x={statusX} y={statusY} fill="var(--accent)" fontSize="6" fontWeight="700">{playbackStatus}</text> : null}
     {playback.finalVisible && !finalMatchesContact ? <>
       <circle data-shot-final="true" cx={finalPoint.x} cy={finalPoint.y} r="3" fill="#fff" stroke={ballStroke} strokeWidth=".6" />
       <text x={finalPoint.x + 5} y={finalPoint.y + 6} fill="#fff" fontSize="5">Ball</text>

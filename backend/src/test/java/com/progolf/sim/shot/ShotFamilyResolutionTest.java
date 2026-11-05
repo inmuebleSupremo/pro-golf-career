@@ -66,6 +66,30 @@ class ShotFamilyResolutionTest {
     }
 
     @Test
+    void submittedGreensideChipUsesTheExistingIntentAndTraceResolver() {
+        Position2d start = new Position2d(0, 100);
+        Position2d landing = new Position2d(0, 112);
+        CourseGeometry geometry = new CourseGeometry(TEE, CUP, square(-50, -10, 50, 150),
+                List.of(new TerrainRegion(Surface.FIRST_CUT, square(-30, 0, 30, 110)),
+                        new TerrainRegion(Surface.GREEN, square(-12, 110, 12, 135))));
+        BallStrikeIntent intent = new BallStrikeIntent(ClubId.GAP_WEDGE,
+                new AimPoint(landing.x(), landing.y()), ShotFamily.CHIP);
+        ShotDecision decision = ShotDecision.fromIntent(intent, start.distanceTo(landing), Strategy.BALANCED);
+        ShotZoneProfile zones = new ShotZoneProfile(List.of(new ZoneBand(0, 100,
+                List.of(new LateralRegion(100, Surface.FIRST_CUT)))));
+        ShotOutcome outcome = ShotResolver.resolveShotWithTrace(new ShotContext(Attributes.uniform(60),
+                GolferState.fresh(), Environment.calm(), start.distanceTo(CUP), zones, decision,
+                new SeedCoordinate(45, 1, 1, 1, 1, 1, 0), Surface.FIRST_CUT, 0,
+                new BallState(start, Surface.FIRST_CUT), geometry, CUP, landing));
+
+        assertThat(outcome.trace()).isNotNull();
+        assertThat(outcome.trace().clubId()).isEqualTo(ClubId.GAP_WEDGE);
+        assertThat(outcome.trace().origin()).isEqualTo(start);
+        assertThat(outcome.trace().intendedAimPoint()).isEqualTo(intent.aimPoint());
+        assertThat(outcome.trace().finalPoint()).isEqualTo(outcome.settlement().ball().position());
+    }
+
+    @Test
     void bunkerProfileHasNoGroundResponse() {
         ShotExecutionProfile bunker = ShotExecutionProfile.derive(Surface.BUNKER, ClubSpec.of(ClubId.SAND_WEDGE),
                 ShotFamily.BUNKER, Attributes.uniform(60), Environment.calm());

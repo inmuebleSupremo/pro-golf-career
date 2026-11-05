@@ -22,6 +22,7 @@ import { shotSubmissionFeedback } from "@/lib/play/shot-feedback";
 import { formatShotDistance } from "@/lib/play/distance";
 import type { StageViewport } from "@/lib/play/stage-viewport";
 import { shotAimMarkerVisible, stagePlaybackState } from "@/lib/play/stage-playback-state";
+import { aroundGreenEligible } from "@/lib/play/around-green";
 import { golfAudio } from "@/lib/play/golf-audio";
 import { ambienceFamily } from "@/lib/play/golf-audio-policy";
 import {
@@ -244,6 +245,7 @@ export function PlayMode({
         onNonPuttSubmissionStart={() => setNonPuttSubmitting(true)}
         onNonPuttSubmissionEnd={() => setNonPuttSubmitting(false)}
         physicalAimDirection={physicalAimDirection}
+        aroundGreen={aroundGreenEligible(dockHole, dockSituation.lie, selectedPresentation)}
         showGreenReading={showGreenReading}
         onToggleGreenReading={() => setShowGreenReading((current) => !current)}
         floating={fullBleed}
@@ -347,6 +349,7 @@ function ActionDock({
   onNonPuttSubmissionStart,
   onNonPuttSubmissionEnd,
   physicalAimDirection,
+  aroundGreen,
   showGreenReading,
   onToggleGreenReading,
   floating,
@@ -365,6 +368,7 @@ function ActionDock({
   onNonPuttSubmissionStart: () => void;
   onNonPuttSubmissionEnd: () => void;
   physicalAimDirection: { x: number; y: number };
+  aroundGreen: boolean;
   showGreenReading: boolean;
   onToggleGreenReading: () => void;
   floating: boolean;
@@ -435,7 +439,12 @@ function ActionDock({
       lastOutcome={lastOutcome} externalError={formError} floating={floating}
       statusText={lastShotText}
       extraDetails={hole?.effectiveWind ? <Detail label="Wind speed" value={`${hole.effectiveWind.magnitude} ${hole.effectiveWind.unit}`} /> : null}
-      auxiliary={<SimMenu id={id} onShot={onSimShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} />}
+      auxiliary={<div className="flex items-center gap-2">
+        {aroundGreen ? <ReadGreenButton active={showGreenReading} onToggle={onToggleGreenReading}
+          disabled={controlsDisabled} aroundGreen /> : null}
+        <SimMenu id={id} onShot={onSimShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} />
+      </div>}
+      review={aroundGreen && showGreenReading ? <p className="text-muted-foreground text-xs">Green slopes show terrain; chip and pitch rollout follows existing shot rules.</p> : undefined}
       onSubmit={async (intent) => {
         onNonPuttSubmissionStart();
         try {
@@ -482,10 +491,7 @@ function ActionDock({
             </div>
           </DockField>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={onToggleGreenReading} disabled={controlsDisabled} aria-label="Green reading" aria-pressed={showGreenReading}>
-              {showGreenReading ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
-              Read green
-            </Button>
+            <ReadGreenButton active={showGreenReading} onToggle={onToggleGreenReading} disabled={controlsDisabled} />
             <SimMenu id={id} onShot={onSimShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} />
             <Button size="lg" onClick={onPlay} disabled={play.isPending || putt.isPending || physicalPutt.isPending || controlsDisabled}>
               {physicalPutt.isPending ? "Playing…" : "Roll putt"}
@@ -500,6 +506,17 @@ function ActionDock({
       </div>
     </footer>
   );
+}
+
+function ReadGreenButton({ active, onToggle, disabled, aroundGreen = false }: {
+  active: boolean; onToggle: () => void; disabled: boolean; aroundGreen?: boolean;
+}) {
+  return <Button variant="secondary" size="sm" onClick={onToggle} disabled={disabled}
+    aria-label="Green reading" aria-pressed={active}
+    title={aroundGreen ? "Green slopes show terrain; chip and pitch rollout follows existing shot rules." : undefined}>
+    {active ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+    Read green
+  </Button>;
 }
 
 function SimMenu({
