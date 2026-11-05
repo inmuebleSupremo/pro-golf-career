@@ -19,7 +19,7 @@ export type BallStrikeInput = ReturnType<typeof buildBallStrikeIntent>;
 /** The non-putting command dock shared by a live hole and the driving range. */
 export function BallStrikeDock({ situation, origin, aimPoint, onAimPoint, selection, onSelection,
   onSubmit, locked, submitting, lastOutcome, externalError, referenceLabel = "Pin", statusText, extraDetails,
-  auxiliary, review, onNextBall, nextLabel = "Next ball", directAim = false, aimSelected = true, expectedReaches = [], floating = false, actionLabel = "Play shot", className }: {
+  auxiliary, review, onNextBall, nextLabel = "Next ball", directAim = false, aimSelected = true, expectedReaches = [], floating = false, actionLabel = "Play shot", className, allowFringePutt = true }: {
   situation: Situation;
   origin: Point;
   aimPoint: Point;
@@ -44,6 +44,7 @@ export function BallStrikeDock({ situation, origin, aimPoint, onAimPoint, select
   floating?: boolean;
   actionLabel?: string;
   className?: string;
+  allowFringePutt?: boolean;
 }) {
   const [formError, setFormError] = useState<string | null>(null);
   const { club, technique, shape } = selection;
@@ -53,7 +54,7 @@ export function BallStrikeDock({ situation, origin, aimPoint, onAimPoint, select
     family.available && family.shapes.some((candidateShape) => candidateShape.available)))
     .sort((a, b) => b.normalReach - a.normalReach);
   const techniques = [
-    ...(situation.lie === "FRINGE" ? [{ family: "PUTT", available: true, reason: null }] : []),
+    ...(allowFringePutt && situation.lie === "FRINGE" ? [{ family: "PUTT", available: true, reason: null }] : []),
     ...(selectedClub?.families.filter((candidate) => candidate.available
       && candidate.shapes.some((candidateShape) => candidateShape.available)) ?? []),
   ];

@@ -114,6 +114,12 @@ class WorldGraphQlMutationsTest {
         assertThat(worldService.hasPendingEvent(OWNER, session.id())).as("player event should come up").isTrue();
 
         var situation = worldService.currentSituation(OWNER, session.id());
+        graphQlTester.document("""
+                        mutation($id: ID!, $revision: String!){ playPutt(id: $id, expectedShotRevision: $revision){ stale } }
+                        """)
+                .variable("id", session.id()).variable("revision", situation.shotRevision())
+                .execute().errors().expect(error -> error.getErrorType() == ErrorType.BAD_REQUEST
+                        && error.getMessage().contains("legacy putting is unavailable"));
         var cup = session.world().playerEvent().currentEffectiveGeometry().greenCenter();
         graphQlTester.document("""
                         mutation($id: ID!, $x: Float!, $y: Float!, $revision: String!){

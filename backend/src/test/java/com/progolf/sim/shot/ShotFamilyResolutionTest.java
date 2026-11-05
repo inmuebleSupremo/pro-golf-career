@@ -7,6 +7,7 @@ import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.Position2d;
 import com.progolf.sim.course.TerrainRegion;
+import com.progolf.sim.putt.PuttingPolicy;
 import com.progolf.sim.spatial.LateralRegion;
 import com.progolf.sim.spatial.ShotZoneProfile;
 import com.progolf.sim.spatial.Surface;
@@ -105,6 +106,21 @@ class ShotFamilyResolutionTest {
 
         assertThat(policy.decideShotIntent(hole, new BallState(new Position2d(0, 7), Surface.FRINGE), 7,
                 Surface.FRINGE, Attributes.uniform(60), 4)).isInstanceOf(PuttIntent.class);
+        HoleModel physical = new HoleModel() {
+            @Override public double startDistance() { return hole.startDistance(); }
+            @Override public ShotZoneProfile zoneProfileFor(double remainingDistance) {
+                return hole.zoneProfileFor(remainingDistance);
+            }
+            @Override public CourseGeometry geometry() { return geometry; }
+            @Override public Position2d cupPosition() { return CUP; }
+            @Override public PuttingPolicy puttingPolicy() { return PuttingPolicy.PHYSICAL_V1; }
+        };
+        BallStrikeIntent fringe = (BallStrikeIntent) policy.decideShotIntent(physical,
+                new BallState(new Position2d(0, 7), Surface.FRINGE), 7, Surface.FRINGE,
+                Attributes.uniform(60), 4);
+        assertThat(fringe.shotFamily()).isEqualTo(ShotFamily.CHIP);
+        assertThat(ShotFamilyEligibility.evaluate(Surface.FRINGE, ClubSpec.of(fringe.club()), fringe.shotFamily()).allowed())
+                .isTrue();
         assertThat(policy.decideShotIntent(hole, new BallState(new Position2d(0, 25), Surface.FAIRWAY), 25,
                 Surface.FAIRWAY, Attributes.uniform(60), 4)).isInstanceOf(BallStrikeIntent.class);
 

@@ -21,7 +21,6 @@ import {
   SponsorshipStatusDocument,
   SelectLoadoutItemDocument,
   SetDevelopmentFocusDocument,
-  SetEventPuttingPolicyDocument,
   SetRestingDocument,
   SkipEventDocument,
   SpendDevelopmentPointsDocument,
@@ -81,17 +80,6 @@ export function useEnterEvent(id: string) {
   const invalidate = useInvalidateManage(id);
   return useMutation({
     mutationFn: (tournamentId: string) => gqlRequest(EnterEventDocument, { id, tournamentId }),
-    networkMode: "always",
-    onSuccess: invalidate,
-  });
-}
-
-/** Opts one future event into (or back out of) physical putting at a safe event boundary. */
-export function useSetEventPuttingPolicy(id: string) {
-  const invalidate = useInvalidateManage(id);
-  return useMutation({
-    mutationFn: ({ tournamentId, policy }: { tournamentId: string; policy: "LEGACY" | "PHYSICAL_V1" }) =>
-      gqlRequest(SetEventPuttingPolicyDocument, { id, tournamentId, policy }),
     networkMode: "always",
     onSuccess: invalidate,
   });

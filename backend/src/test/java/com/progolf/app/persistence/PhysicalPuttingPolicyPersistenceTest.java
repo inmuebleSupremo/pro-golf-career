@@ -57,4 +57,27 @@ class PhysicalPuttingPolicyPersistenceTest {
         assertThat(restored.snapshot().schedule()).anySatisfy(event ->
                 assertThat(event.puttingPolicy()).isEqualTo(PuttingPolicy.LEGACY));
     }
+
+    @Test
+    void restoredLegacyScheduleStaysIntactUntilItsNextPlayerEventStarts() throws Exception {
+        WorldConfig small = new WorldConfig(40, 6, 3, 20, 4);
+        World original = World.create(92L, small);
+        original.advanceWeek(); // completed unattended legacy results must survive the compatibility path
+        var completed = original.snapshot().seasonResults();
+        assertThat(completed).isNotEmpty();
+        original.assignPlayer(original.activeGolferIds().getFirst());
+        ObjectNode serialized = mapper.valueToTree(original.snapshot());
+        for (JsonNode event : serialized.withArray("schedule")) {
+            ((ObjectNode) event).remove("puttingPolicy");
+        }
+
+        World restored = World.restore(92L, small, mapper.treeToValue(serialized, WorldSnapshot.class));
+        assertThat(restored.snapshot().seasonResults()).isEqualTo(completed);
+        assertThat(restored.snapshot().schedule()).allSatisfy(event ->
+                assertThat(event.puttingPolicy()).isEqualTo(PuttingPolicy.LEGACY));
+        int guard = 0;
+        while (!restored.hasPendingPlayerEvent() && guard++ < 50) restored.advanceWeek();
+        assertThat(restored.hasPendingPlayerEvent()).isTrue();
+        assertThat(restored.playerEvent().puttingPolicy()).isEqualTo(PuttingPolicy.PHYSICAL_V1);
+    }
 }
