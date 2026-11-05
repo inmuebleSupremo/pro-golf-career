@@ -99,6 +99,6 @@ class CoursePoolPolicyTest {
                 s.playerPendingStaff(), s.playerPendingEquipment(), s.achievedGoals(), s.staffPool(),
                 s.playerActiveEquipmentDeal(), s.playerPendingEquipmentDeals(), s.unlockedAchievements(),
                 s.majorsWonThisSeason(), s.playerCareerRecords(), s.courseGeneratorVersion(),
-                s.defaultPinPlacementVersion(), policy);
+                s.defaultPinPlacementVersion(), policy, s.careerPreparation());
     }
 }

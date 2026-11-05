@@ -10,6 +10,13 @@ export function formatShotDistance(yards: number, putting = false): string {
   return `${feet < 10 ? feet.toFixed(1) : Math.round(feet)} ft`;
 }
 
+export type ExpectedRangeReach = { club: string; family: string; yards: number };
+
+/** Server-derived range carry cap for this club and technique. */
+export function expectedRangeReach(reaches: readonly ExpectedRangeReach[], club: string, family: string): number | null {
+  return reaches.find((reach) => reach.club === club && reach.family === family)?.yards ?? null;
+}
+
 /** The comparison shown in the dock; reach comes from the current server club projection. */
 export function shotDistanceReadout(
   situation: Situation,

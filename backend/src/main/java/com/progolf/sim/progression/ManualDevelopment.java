@@ -21,14 +21,14 @@ public final class ManualDevelopment {
                                  int remainingSeasonal, boolean purchasable, BlockingReason blockingReason) {
     }
 
-    /** Only positive purchased development in the current calendar season consumes allowance. */
+    /** All positive development in the current season shares the human attribute allowance. */
     public static List<PurchaseOption> options(Attributes current, Attributes potential, int points,
                                                 List<AttributeChange> history, int season) {
-        int[] purchased = new int[Attribute.values().length];
+        int[] developed = new int[Attribute.values().length];
         for (AttributeChange change : history) {
             if (change.season() == season && change.reason() == AttributeChange.Reason.DEVELOPMENT
                     && change.delta() > 0) {
-                purchased[change.attribute().ordinal()] += change.delta();
+                developed[change.attribute().ordinal()] += change.delta();
             }
         }
         return Arrays.stream(Attribute.values()).map(attribute -> {
@@ -36,7 +36,7 @@ public final class ManualDevelopment {
             int headroom = Math.max(0, potential.get(attribute) - rating);
             int remaining = Math.max(0,
                     ProgressionConstants.PLAYER_MAX_PURCHASED_GAIN_PER_ATTRIBUTE_SEASON
-                            - purchased[attribute.ordinal()]);
+                            - developed[attribute.ordinal()]);
             Integer nextCost = headroom > 0 ? DevelopmentPoints.costToRaise(rating) : null;
             BlockingReason reason = headroom == 0 ? BlockingReason.AT_POTENTIAL
                     : remaining == 0 ? BlockingReason.SEASON_LIMIT

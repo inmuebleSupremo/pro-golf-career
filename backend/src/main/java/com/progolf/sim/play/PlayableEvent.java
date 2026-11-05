@@ -377,7 +377,7 @@ public final class PlayableEvent {
         // The player feels the same situational pressure and scoreboard-bent strategy the auto path would
         // compute for them this round (specs: shot-resolution pressure, tournament-play), read from the
         // pre-round standings — preserving simmed==auto fidelity.
-        var playerState = player.player().toGolferState(tournament.pressureFor(playerFieldIndex, roundNo));
+        var playerState = player.player().toTournamentGolferState(tournament.pressureFor(playerFieldIndex, roundNo));
         Strategy roundStrategy = tournament.roundStrategyFor(playerFieldIndex, roundNo);
         this.currentRound = new PlayableRound(player.player().attributes(), playerState, holes, base, roundStrategy,
                 player.player().handedness());
@@ -473,7 +473,7 @@ public final class PlayableEvent {
             SeedCoordinate coord =
                     new SeedCoordinate(worldSeed, season, tournamentId, playoffRound, playerFieldIndex, holeNumber, 0);
             // A sudden-death playoff is peak pressure, identical to the auto path's playoff resolution.
-            var playoffState = player.player().toGolferState(tournament.playoffPressure());
+            var playoffState = player.player().toTournamentGolferState(tournament.playoffPressure());
             currentPlayoffHole = new PlayableHole(holeNumber, par, player.player().attributes(), playoffState,
                     model, env, coord, simStrategy);
             phase = Phase.PLAYOFF;

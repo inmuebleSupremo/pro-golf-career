@@ -7,7 +7,13 @@ describe("driving range projection", () => {
   it("puts the widened fairway at the scene edges and keeps world targets reversible", () => {
     expect(rangeFieldPath(250)).toBe("M95 80 Q600 75 1105 80 L1260 630 L-60 630Z");
     for (const target of [{ x: -18, y: 36 }, { x: 95, y: 116 }, { x: -145, y: 251 }]) {
-      expect(unprojectRangePoint(projectRangePoint(target), 220)).toEqual(target);
+      const selected = unprojectRangePoint(projectRangePoint(target), 220);
+      expect(selected.x).toBeCloseTo(target.x, 8);
+      expect(selected.y).toBeCloseTo(target.y, 8);
+      const nearby = unprojectRangePoint(projectRangePoint({ x: target.x + 1.4, y: target.y - 2.3 }), 220);
+      expect(nearby.x).toBeCloseTo(target.x + 1.4, 8);
+      expect(nearby.y).toBeCloseTo(target.y - 2.3, 8);
+      expect(nearby).not.toEqual(selected);
     }
   });
 
@@ -25,7 +31,8 @@ describe("driving range projection", () => {
       const point = projectRangePoint(target);
       expect(point.x).toBeGreaterThan(RANGE_MOBILE_VIEWBOX.x + 70);
       expect(point.x).toBeLessThan(RANGE_MOBILE_VIEWBOX.x + RANGE_MOBILE_VIEWBOX.width - 70);
-      expect(unprojectRangePoint(point, 220)).toEqual(target);
+      expect(unprojectRangePoint(point, 220).x).toBeCloseTo(target.x, 8);
+      expect(unprojectRangePoint(point, 220).y).toBeCloseTo(target.y, 8);
     }
   });
 

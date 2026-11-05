@@ -16,6 +16,7 @@ public final class PlayerState {
     private double mentalSupport; // transient staff-support bonus, set before play; 0 = no support
     private double strategicSupport;
     private double injuryImpairment; // transient health-synced shot handicap, set before play; 0 = uninjured
+    private double preparation; // transient next-event readiness, shared by interactive and simulated shots
 
     PlayerState(double fatigue, LiveSkillRating rating) {
         setFatigue(fatigue);
@@ -89,6 +90,14 @@ public final class PlayerState {
 
     public double mentalSupport() {
         return mentalSupport;
+    }
+
+    public double preparation() {
+        return preparation;
+    }
+
+    public void setPreparation(double value) {
+        this.preparation = requireUnit(value, "preparation");
     }
 
     public double strategicSupport() {

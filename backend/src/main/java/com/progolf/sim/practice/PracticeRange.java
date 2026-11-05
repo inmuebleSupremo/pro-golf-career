@@ -15,6 +15,7 @@ import java.util.Objects;
 /** An unsaved sequence of independent balls from seven fixed hitting bays. */
 public final class PracticeRange {
     public record Target(String label, Position2d position) { }
+    public record ExpectedReach(ClubId club, ShotFamily family, double yards) { }
     public record Result(ShotOutcome outcome, double totalDistance, double proximity, int ballNumber) { }
 
     // The seven mat centres are 168 SVG units apart at the range's 2.64 units-per-yard tee projection.
@@ -60,6 +61,16 @@ public final class PracticeRange {
     public static double targetGreenRadius() { return TARGET_GREEN_RADIUS; }
     public synchronized int ballsHit() { return ballsHit; }
     public List<ShotGuidance.ClubReach> clubs() { return ShotGuidance.clubReaches(attributes, Surface.TEE_BOX); }
+    /** Advisory range reach uses the same carry cap and equipment power as the shot resolver. */
+    public List<ExpectedReach> expectedReaches() {
+        return clubs().stream().flatMap(club -> club.families().stream()
+                .filter(ShotGuidance.FamilyAvailability::available)
+                .map(family -> new ExpectedReach(club.club(), family.family(), club.normalReach()
+                        * (1.0 + state.equipmentPower())
+                        * ShotExecutionProfile.derive(Surface.TEE_BOX, ClubSpec.of(club.club()),
+                                family.family(), attributes, Environment.calm()).effectiveCarryCapMultiplier())))
+                .toList();
+    }
 
     public synchronized Result hit(BallStrikeIntent intent, String expectedRevision) {
         return hit(intent, 4, expectedRevision);

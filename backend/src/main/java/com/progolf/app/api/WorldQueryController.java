@@ -3,6 +3,7 @@ package com.progolf.app.api;
 import com.progolf.app.api.dto.AchievementDto;
 import com.progolf.app.api.dto.CareerGoalDto;
 import com.progolf.app.api.dto.CareerInboxDto;
+import com.progolf.app.api.dto.CareerPreparationDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
 import com.progolf.app.api.dto.PlayerDevelopmentDto;
 import com.progolf.app.api.dto.CurrentEventDto;
@@ -58,6 +59,11 @@ public class WorldQueryController {
     @QueryMapping
     public WorldStatusDto world(@Argument String id) {
         return worldService.status(AuthenticatedUser.requireId(), id);
+    }
+
+    @QueryMapping
+    public CareerPreparationDto careerPreparation(@Argument String id) {
+        return worldService.careerPreparation(AuthenticatedUser.requireId(), id);
     }
 
     @QueryMapping

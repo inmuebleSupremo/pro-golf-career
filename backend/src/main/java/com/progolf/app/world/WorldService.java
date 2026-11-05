@@ -7,6 +7,8 @@ import com.progolf.app.api.dto.CalendarEntryDto;
 import com.progolf.app.api.dto.CareerInboxDto;
 import com.progolf.app.api.dto.CareerInboxItemDto;
 import com.progolf.app.api.dto.CareerInboxKind;
+import com.progolf.app.api.dto.CareerPreparationDto;
+import com.progolf.app.api.dto.CareerPreparationResultDto;
 import com.progolf.app.api.dto.CareerRecordsDto;
 import com.progolf.app.api.dto.CurrentEventDto;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
@@ -59,6 +61,8 @@ import com.progolf.sim.player.Identity;
 import com.progolf.sim.player.Nationality;
 import com.progolf.sim.population.StartingBackground;
 import com.progolf.sim.progression.ProgressionConstants;
+import com.progolf.sim.progression.PreparationFocus;
+import com.progolf.sim.progression.PlayableTrainingSession;
 import com.progolf.sim.ranking.RankingSnapshot;
 import com.progolf.sim.ranking.RankingStanding;
 import com.progolf.sim.shot.ShotDecision;
@@ -314,6 +318,78 @@ public class WorldService {
     /** Sets the player's development focus (attribute priority) in a session. */
     public void setDevelopmentFocus(String ownerId, String sessionId, List<Attribute> focus) {
         required(ownerId, sessionId).world().setDevelopmentFocus(focus);
+    }
+
+    public CareerPreparationDto careerPreparation(String ownerId, String sessionId) {
+        World world = required(ownerId, sessionId).world();
+        var state = world.playerPreparation();
+        var progress = java.util.Arrays.stream(PreparationFocus.values())
+                .filter(PreparationFocus::technical)
+                .map(f -> new CareerPreparationDto.TrainingProgressDto(
+                        f.name(), state.progressFor(f))).toList();
+        var preview = world.playerTrainingPreview();
+        var rules = new CareerPreparationDto.Rules(preview.baseProgress(), preview.simulatedBonusProgress(),
+                preview.totalProgress(), com.progolf.sim.health.HealthSystem.TRAINING_FATIGUE,
+                com.progolf.sim.health.HealthSystem.PREPARATION_RECOVERY, World.TOURNAMENT_READINESS);
+        return new CareerPreparationDto(state.standingFocus().name(),
+                world.playerPreparationAvailable(), state.consumedSeason(), state.consumedWeek(),
+                state.committedFocus() == null ? null : state.committedFocus().name(), state.ready(), progress, rules);
+    }
+
+    public void setStandingPreparationFocus(String ownerId, String sessionId,
+                                            PreparationFocus focus) {
+        required(ownerId, sessionId).world().setStandingPreparationFocus(focus);
+    }
+
+    public boolean commitCareerPreparation(String ownerId, String sessionId,
+                                           PreparationFocus focus) {
+        return required(ownerId, sessionId).world().commitPlayerPreparation(focus);
+    }
+
+    public CareerPreparationResultDto commitCareerPreparationWithResult(String ownerId, String sessionId,
+                                                                         PreparationFocus focus) {
+        var outcome = required(ownerId, sessionId).world().commitPlayerPreparationWithOutcome(focus);
+        var improvements = outcome.attributeImprovements().stream()
+                .map(change -> new DevelopmentDeltaDto(change.attribute().name(), change.delta(), change.season()))
+                .toList();
+        return new CareerPreparationResultDto(outcome.committed(), outcome.focus().name(), outcome.season(),
+                outcome.week(), outcome.baseProgress(), outcome.simulatedBonusProgress(), outcome.progressAwarded(),
+                improvements, outcome.fatigueBefore(), outcome.fatigueAfter(),
+                outcome.fatigueAfter() - outcome.fatigueBefore(), outcome.readinessPending());
+    }
+
+    public PlayableTrainingSession playerTrainingSession(String ownerId, String worldId) {
+        return required(ownerId, worldId).world().playerTrainingSession();
+    }
+
+    public boolean playerTrainingChallengePlayable(String ownerId, String worldId) {
+        return required(ownerId, worldId).world().playerTrainingChallengePlayable();
+    }
+
+    public PlayableTrainingSession startPlayerTraining(String ownerId, String worldId, PreparationFocus focus) {
+        PlayableTrainingSession session = required(ownerId, worldId).world().startPlayerTraining(focus);
+        autosave(ownerId, worldId);
+        return session;
+    }
+
+    public PlayableTrainingSession abandonPlayerTraining(String ownerId, String worldId, String trainingId) {
+        PlayableTrainingSession session = required(ownerId, worldId).world().abandonPlayerTraining(trainingId);
+        autosave(ownerId, worldId);
+        return session;
+    }
+
+    public World.TrainingShotResult playerTrainingRangeShot(String ownerId, String worldId, String trainingId,
+                                                             int number, BallStrikeIntent intent) {
+        var result = required(ownerId, worldId).world().playerTrainingRangeShot(trainingId, number, intent);
+        autosave(ownerId, worldId);
+        return result;
+    }
+
+    public World.TrainingShotResult playerTrainingPutt(String ownerId, String worldId, String trainingId,
+                                                        int number, PhysicalPuttIntent intent) {
+        var result = required(ownerId, worldId).world().playerTrainingPutt(trainingId, number, intent);
+        autosave(ownerId, worldId);
+        return result;
     }
 
     /** Sets whether the player's golfer is resting (a blanket sit-out) in a session. */

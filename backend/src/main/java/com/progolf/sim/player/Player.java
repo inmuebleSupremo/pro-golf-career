@@ -157,6 +157,13 @@ public final class Player {
                 state.equipmentWorkability(), state.equipmentFeel(), state.injuryImpairment());
     }
 
+    /** The same shot context with this event's temporary preparation included. Free Practice uses the neutral context. */
+    public GolferState toTournamentGolferState(double pressure) {
+        return new GolferState(state.fatigue(), pressure, state.equipmentForgiveness(), state.equipmentPower(),
+                Math.min(1.0, state.mentalSupport() + state.preparation()), state.strategicSupport(),
+                state.equipmentWorkability(), state.equipmentFeel(), state.injuryImpairment());
+    }
+
     /**
      * A derived statistic (REQ-015): a form-adjusted skill estimate, always recalculated from current
      * inputs and never stored. Illustrates the derived-statistics category.
