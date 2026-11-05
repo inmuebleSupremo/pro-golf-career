@@ -1,15 +1,20 @@
 package com.progolf.sim.play;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.course.Course;
 import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.course.EnvironmentClassification;
+import com.progolf.sim.course.PinPlacementVersion;
 import com.progolf.sim.player.ProfessionalGolfer;
 import com.progolf.sim.population.PopulationGenerator;
+import com.progolf.sim.putt.PuttingPolicy;
+import com.progolf.sim.shot.PuttIntent;
 import com.progolf.sim.tournament.EntryRequirements;
+import com.progolf.sim.tournament.EventPrestige;
 import com.progolf.sim.tournament.PrizeStructure;
 import com.progolf.sim.tournament.Tier;
 import com.progolf.sim.tournament.Tournament;
@@ -128,6 +133,7 @@ class PlayableEventTest {
         Tournament interactive = confirmed(def(course), weather, field);
         interactive.designateInteractiveCompetitor(k);
         PlayableEvent event = new PlayableEvent(interactive, field.get(k), k, course, weather, WORLD, SEASON, TOURN);
+        assertThat(event.puttingPolicy()).isEqualTo(PuttingPolicy.LEGACY);
 
         // Play the first two rounds hole-by-hole via sims, then let the cut apply.
         assertThat(event.currentRoundNumber()).isEqualTo(1);
@@ -166,5 +172,29 @@ class PlayableEventTest {
         event.simEvent();
         assertThat(event.isComplete()).isTrue();
         assertThat(event.result().finishingOrder()).hasSize(FIELD_SIZE);
+    }
+
+    @Test
+    void physicalPolicyIsSharedByPlayerAndSimulatedFieldAndRejectsLegacyPutt() {
+        Course course = course();
+        List<ProfessionalGolfer> field = field();
+        TournamentWeather weather = TournamentWeather.calm();
+        TournamentDefinition physical = new TournamentDefinition("Physical Event", course, Tier.STANDARD,
+                EventPrestige.REGULAR, new EntryRequirements(FIELD_SIZE, true), PrizeStructure.standard(),
+                TournamentFormat.standard(), LocalDate.of(2026, 6, 1), WORLD, SEASON, TOURN,
+                PinPlacementVersion.V5_EFFECTIVE_GREEN, PuttingPolicy.PHYSICAL_V1);
+        Tournament tournament = confirmed(physical, weather, field);
+        tournament.designateInteractiveCompetitor(0);
+        PlayableEvent event = new PlayableEvent(tournament, field.getFirst(), 0, course, weather,
+                WORLD, SEASON, TOURN);
+
+        assertThat(event.puttingPolicy()).isEqualTo(PuttingPolicy.PHYSICAL_V1);
+        assertThat(event.greenSurfaceAt(1)).isNotNull();
+        assertThatThrownBy(() -> event.playPutt(new PuttIntent(), event.situation().shotRevision()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("legacy putting is unavailable");
+        event.simEvent();
+        assertThat(event.isComplete()).isTrue();
+        assertSameResult(confirmed(physical, weather, field).playToCompletion(), event.result());
     }
 }

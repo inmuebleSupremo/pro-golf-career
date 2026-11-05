@@ -100,7 +100,8 @@ public final class StrategyPolicy {
      */
     public ShotIntent decideShotIntent(HoleModel hole, BallState ball, double remainingDistance, Surface lie,
                                        Attributes attributes, int par, Environment environment) {
-        if (lie == Surface.GREEN || (lie == Surface.FRINGE && remainingDistance <= 10.0)) {
+        if (lie == Surface.GREEN || (lie == Surface.FRINGE && remainingDistance <= 10.0
+                && !hole.puttingPolicy().usesPhysicalPutting())) {
             return new PuttIntent();
         }
         return decideIntent(hole, ball, remainingDistance, lie, attributes, par, environment);

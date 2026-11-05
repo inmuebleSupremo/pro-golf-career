@@ -151,6 +151,22 @@ describe("playable training in existing practice scenes", () => {
     expect(full).not.toContain("Normal reach");
   });
 
+  it("offers fringe chips and pitches without a putt option in physical events", () => {
+    const fringe: Situation = { holeNumber: 1, par: 4, shotNumber: 3, strokesThisHole: 2,
+      distanceToPin: 7, lie: "FRINGE", pinLateral: 0, minReach: 0, maxReach: 100, shotRevision: "fringe",
+      guidance: { safe: { x: 0, y: 7 }, primary: { x: 0, y: 7 }, aggressive: { x: 0, y: 7 },
+        strategicOptions: [], clubs: [{ club: "GAP_WEDGE", label: "Gap Wedge", nominalCarry: 90, normalReach: 90,
+          families: ["CHIP", "PITCH"].map((family) => ({ family, available: true, reason: null,
+            shapes: [{ shape: "STRAIGHT", available: true, reason: null }] })) }] } };
+    const props = { situation: fringe, origin: { x: 0, y: 0 }, aimPoint: { x: 0, y: 7 },
+      onAimPoint: () => {}, onSelection: () => {}, onSubmit: async () => {}, locked: false, submitting: false,
+      selection: { club: "GAP_WEDGE", technique: "CHIP", shape: "STRAIGHT" } };
+    const html = renderToStaticMarkup(<BallStrikeDock {...props} allowFringePutt={false} />);
+    expect(html).toContain('value="CHIP"');
+    expect(html).toContain('value="PITCH"');
+    expect(html).not.toContain('value="PUTT"');
+  });
+
   it("briefs each generated objective centrally and offers a safe old-session exit", () => {
     const driving = scene("DRIVING");
     const html = renderToStaticMarkup(<TrainingChallengeBriefing challenge={driving.challenge} focus="DRIVING"

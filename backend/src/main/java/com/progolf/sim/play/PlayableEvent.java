@@ -233,13 +233,16 @@ public final class PlayableEvent {
     /** Checks revision and resolves the existing dedicated putting route. */
     public synchronized ShotSubmission playPutt(PuttIntent intent, String expectedRevision) {
         requireActive();
+        if (puttingPolicy.usesPhysicalPutting()) {
+            throw new IllegalStateException("legacy putting is unavailable in physical events");
+        }
         if (!situation().shotRevision().equals(expectedRevision)) return ShotSubmission.staleResult();
         ShotOutcome outcome = phase == Phase.PLAYOFF ? currentPlayoffHole.playPutt(intent) : currentRound.playPutt(intent);
         syncProgress();
         return ShotSubmission.resolved(outcome);
     }
 
-    /** Backend-only physical putting seam; frontend controls are intentionally deferred to Task 3B2. */
+    /** Physical line-and-pace putting seam for an active event. */
     public synchronized ShotSubmission playPhysicalPutt(PhysicalPuttIntent intent, String expectedRevision) {
         requireActive();
         if (!situation().shotRevision().equals(expectedRevision)) return ShotSubmission.staleResult();

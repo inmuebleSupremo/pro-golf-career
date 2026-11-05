@@ -162,9 +162,6 @@ type Mutation {
     "Explicitly adopts corrected V5 pin placement for future unstarted events at a clean event boundary."
     adoptV5PinPlacement(id: ID!): PinPlacementStatus!
 
-    "Explicitly chooses one unstarted event's putting policy; active and completed events cannot change."
-    setEventPuttingPolicy(id: ID!, tournamentId: Long!, policy: String!): Boolean!
-
     # --- Player control (add-graphql-mutations). Enum args use engine enum names. ---
 
     "Designates an existing golfer as the human-controlled player."
@@ -220,7 +217,7 @@ type Mutation {
     "Plays the current shot from an individual club and canonical intended-contact point."
     playShot(id: ID!, intent: BallStrikeIntentInput!): ShotSubmission!
 
-    "Uses the existing dedicated, non-spatial putting model from green or fringe."
+    "Historical legacy-event compatibility only; physical events reject this route."
     playPutt(id: ID!, expectedShotRevision: String!): ShotSubmission!
 
     "Plays a physical-policy green putt from a player-selected line and level-ground pace."
@@ -291,7 +288,7 @@ type ScheduleEntry {
     location: String!
     "The host course's environment classification (e.g. PARKLAND, LINKS, DESERT) — drives scene imagery."
     courseType: String!
-    "The explicitly pinned putting policy for this event."
+    "The scheduled policy; a player-entered event is pinned to physical putting when play begins."
     puttingPolicy: String!
 }
 
@@ -323,7 +320,7 @@ type CalendarEntry {
     name: String!
     "The event's place — a major's hinting location, or the host course's region."
     location: String!
-    "The explicitly pinned putting policy for this event."
+    "The scheduled policy; a player-entered event is pinned to physical putting when play begins."
     puttingPolicy: String!
     "Whether the event has been played (its result is available)."
     played: Boolean!
@@ -838,7 +835,7 @@ type PlayingHole {
     ball: BallState!
     "Effective local wind flow after weather, exposure, and synthetic orientation conversion."
     effectiveWind: EffectiveWind!
-    "Policy pinned to this event; ordinary and historical events remain LEGACY."
+    "Policy pinned when this playable event began; historical legacy events retain their policy."
     puttingPolicy: String!
     "Sparse elevation/gradient samples from the same GreenSurface used by physical resolution."
     physicalGreen: PhysicalGreen

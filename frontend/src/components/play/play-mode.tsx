@@ -377,12 +377,13 @@ function ActionDock({
   const [formError, setFormError] = useState<string | null>(null);
   const clubs = situation.guidance?.clubs ?? [];
   // Re-derive on every server situation so a stale browser selection is never submitted.
-  const selection = validShotSelection(situation, requestedSelection);
+  const allowFringePutt = hole?.puttingPolicy !== "PHYSICAL_V1";
+  const selection = validShotSelection(situation, requestedSelection, allowFringePutt);
   const { club, technique } = selection;
   const selectedClub = clubs.find((candidate) => candidate.club === club);
-  const puttingAvailable = situation.lie === "GREEN" || situation.lie === "FRINGE";
-  const puttRoute = situation.lie === "GREEN" || technique === "PUTT";
-  const physicalRoute = hole?.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN" && hole.physicalGreen != null;
+  const puttingAvailable = situation.lie === "GREEN" || allowFringePutt && situation.lie === "FRINGE";
+  const puttRoute = situation.lie === "GREEN" || allowFringePutt && technique === "PUTT";
+  const physicalRoute = hole?.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN";
   const techniques = puttRoute && situation.lie === "GREEN"
     ? [{ family: "PUTT", available: true, reason: null }]
     : [
@@ -405,7 +406,7 @@ function ActionDock({
   const onSimShot = (outcome: Outcome) => onShot(outcome, { hole, situation });
 
   function updateSelection(update: Partial<typeof selection>) {
-    setRequestedSelection((current) => validShotSelection(situation, { ...current, ...update }));
+    setRequestedSelection((current) => validShotSelection(situation, { ...current, ...update }, allowFringePutt));
   }
 
   async function onPlay() {
@@ -429,6 +430,7 @@ function ActionDock({
 
   if (!puttRoute && !physicalRoute) {
     return <BallStrikeDock situation={situation} origin={origin} aimPoint={aimPoint} onAimPoint={onAimPoint}
+      allowFringePutt={allowFringePutt}
       selection={selection} onSelection={updateSelection} locked={controlsDisabled} submitting={play.isPending}
       lastOutcome={lastOutcome} externalError={formError} floating={floating}
       statusText={lastShotText}

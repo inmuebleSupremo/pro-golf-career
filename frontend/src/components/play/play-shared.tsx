@@ -40,10 +40,11 @@ type GuidedFamily = GuidedClub["families"][number];
  * A still-legal player choice wins; otherwise this selects the nearest legal club and its
  * first legal family/shape. The server remains authoritative when the shot is submitted.
  */
-export function validShotSelection(situation: Situation, current?: ShotSelection): ShotSelection {
+export function validShotSelection(situation: Situation, current?: ShotSelection,
+                                   allowFringePutt = true): ShotSelection {
   const lie = situation.lie.toUpperCase();
   if (lie === "GREEN") return { club: "PUTTER", technique: "PUTT", shape: "STRAIGHT" };
-  if (lie === "FRINGE" && current?.technique === "PUTT") {
+  if (allowFringePutt && lie === "FRINGE" && current?.technique === "PUTT") {
     return { club: current.club, technique: "PUTT", shape: "STRAIGHT" };
   }
 

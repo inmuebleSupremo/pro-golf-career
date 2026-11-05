@@ -241,13 +241,6 @@ export const AdoptV5PinPlacementDocument = graphql(`
   }
 `);
 
-/** Explicitly selects physical or legacy putting for one future unstarted event. */
-export const SetEventPuttingPolicyDocument = graphql(`
-  mutation SetEventPuttingPolicy($id: ID!, $tournamentId: Long!, $policy: String!) {
-    setEventPuttingPolicy(id: $id, tournamentId: $tournamentId, policy: $policy)
-  }
-`);
-
 /** Current, aggregated career attention. Individual management spokes remain the decision owners. */
 export const CareerInboxDocument = graphql(`
   query CareerInbox($id: ID!) {

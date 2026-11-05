@@ -843,6 +843,11 @@ public final class World {
             if (isPlayerEntered(event)) {
                 BuiltEvent built = buildEvent(event);
                 if (built != null && built.playerFieldIndex() >= 0) {
+                    if (built.event() != event) {
+                        schedule.replaceAll(scheduled -> scheduled.tournamentId() == event.tournamentId()
+                                ? built.event() : scheduled);
+                        weekEvents.set(i, built.event());
+                    }
                     built.tournament().designateInteractiveCompetitor(built.playerFieldIndex());
                     // The player's own risk approach (their choice, or the one their build implies), resolved
                     // to a shot strategy in the population layer so the World never names the shot engine.
@@ -1027,6 +1032,11 @@ public final class World {
 
         Course course = coursePool.get(event.courseIndex());
         Tier tier = mapTier(event.tier());
+        boolean playable = isPlayerEntered(event) && field.stream().anyMatch(g -> isPlayer(g.player().id()));
+        ScheduledTournament effectiveEvent = playable && event.puttingPolicy() != PuttingPolicy.PHYSICAL_V1
+                ? new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
+                        event.tournamentId(), event.pinPlacementVersion(), PuttingPolicy.PHYSICAL_V1)
+                : event;
 
         // The cut is sized to the actual field so it bites at any scale (~45% make the weekend); making the
         // cut is the pay line — only the made-cut positions earn, on a tier/prestige-scaled purse (spec:
@@ -1037,7 +1047,7 @@ public final class World {
                 nameFor(event), course, tier, event.prestige(),
                 new EntryRequirements(config.fieldSize(), true),
                 PrizeStructure.forEvent(tier, event.prestige(), cutSize), format, date,
-                masterSeed, season, event.tournamentId(), event.pinPlacementVersion(), event.puttingPolicy());
+                masterSeed, season, event.tournamentId(), event.pinPlacementVersion(), effectiveEvent.puttingPolicy());
 
         // Weather is generated before play from the course's climate and the point in the season; the
         // whole field plays under the same per-round conditions (REQ-228/231/232).
@@ -1082,7 +1092,7 @@ public final class World {
             tournament.register(g);
         }
         tournament.confirmField();
-        return new BuiltEvent(event, tournament, field, def, tier, date, weather, course, season, playerFieldIndex);
+        return new BuiltEvent(effectiveEvent, tournament, field, def, tier, date, weather, course, season, playerFieldIndex);
     }
 
     /**

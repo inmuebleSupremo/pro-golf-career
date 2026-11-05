@@ -107,6 +107,9 @@ public final class PlayableHole {
     public ShotOutcome playPutt(PuttIntent intent) {
         requireNotComplete();
         Objects.requireNonNull(intent, "intent");
+        if (model.puttingPolicy().usesPhysicalPutting()) {
+            throw new IllegalStateException("legacy putting is unavailable in physical events");
+        }
         if (lie != Surface.GREEN && lie != Surface.FRINGE) throw new IllegalArgumentException("putting is available only on green or fringe");
         return resolveOne(new ShotDecision(com.progolf.sim.shot.Club.PUTTER, remaining, 0.0, Strategy.BALANCED),
                 ball == null ? null : model.cupPosition(), true);

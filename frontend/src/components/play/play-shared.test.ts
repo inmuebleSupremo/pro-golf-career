@@ -62,4 +62,17 @@ describe("validShotSelection", () => {
 
     expect(selection).toEqual({ club: "PUTTER", technique: "PUTT", shape: "STRAIGHT" });
   });
+
+  it("replaces a saved fringe putt with a legal strike in a physical event", () => {
+    const fringe = situation("FRINGE", [
+      club("GAP_WEDGE", 90, [
+        family("CHIP", true, [{ shape: "STRAIGHT", available: true }]),
+        family("PITCH", true, [{ shape: "STRAIGHT", available: true }]),
+      ]),
+    ]);
+    expect(validShotSelection(fringe, { club: "PUTTER", technique: "PUTT", shape: "STRAIGHT" }, false))
+      .toEqual({ club: "GAP_WEDGE", technique: "CHIP", shape: "STRAIGHT" });
+    expect(validShotSelection(fringe, { club: "GAP_WEDGE", technique: "PITCH", shape: "STRAIGHT" }, false))
+      .toEqual({ club: "GAP_WEDGE", technique: "PITCH", shape: "STRAIGHT" });
+  });
 });

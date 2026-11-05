@@ -144,6 +144,9 @@ public final class PlayableRound {
     public ShotOutcome playPutt(PuttIntent intent) {
         requireNotComplete();
         Objects.requireNonNull(intent, "intent");
+        if (holes.get(holeIndex).model().puttingPolicy().usesPhysicalPutting()) {
+            throw new IllegalStateException("legacy putting is unavailable in physical events");
+        }
         if (lie != Surface.GREEN && lie != Surface.FRINGE) throw new IllegalArgumentException("putting is available only on green or fringe");
         return resolveOne(puttDecision(), ball == null ? null : holes.get(holeIndex).model().cupPosition(), true);
     }
