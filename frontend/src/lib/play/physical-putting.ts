@@ -186,11 +186,13 @@ export function physicalTraversedTrajectory<T extends { timeSeconds: number; pos
 type SlopeSample = { readonly position: Point; readonly slope: number };
 
 /** Keeps only authoritative samples inside the current camera and one strongest sample per readable screen cell. */
-export function visibleSlopeSamples<T extends SlopeSample>(samples: readonly T[], projector: PhysicalPuttingProjector): readonly T[] {
+export function visibleSlopeSamples<T extends SlopeSample>(samples: readonly T[], projector: PhysicalPuttingProjector,
+  scene: { x: number; y: number; width: number; height: number } = { x: 0, y: 0, width: projector.width, height: projector.height }): readonly T[] {
   const selected = new Map<string, T>();
   for (const sample of samples) {
     const point = projector.project(sample.position);
-    if (point.x < -12 || point.x > projector.width + 12 || point.y < -12 || point.y > projector.height + 12) continue;
+    if (point.x < scene.x - 12 || point.x > scene.x + scene.width + 12
+      || point.y < scene.y - 12 || point.y > scene.y + scene.height + 12) continue;
     const key = `${Math.floor(point.x / PHYSICAL_PUTTING_PRESENTATION.slopeCellPixels)}:${Math.floor(point.y / PHYSICAL_PUTTING_PRESENTATION.slopeCellPixels)}`;
     const current = selected.get(key);
     if (!current || sample.slope > current.slope) selected.set(key, sample);

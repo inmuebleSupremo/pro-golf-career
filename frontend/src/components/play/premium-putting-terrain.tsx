@@ -1,9 +1,10 @@
 import { memo, useMemo } from "react";
 
 import type { HoleGeom, Point } from "@/lib/play/hole-geometry";
-import { pointInPolygon, puttingDecoration, puttingPolygonPath, type PuttingFamily, type PuttingScene } from "@/lib/play/premium-putting";
+import { pointInPolygon, puttingDecoration, puttingPolygonPath, validPolygon, type PuttingFamily, type PuttingScene } from "@/lib/play/premium-putting";
 import type { PhysicalPuttingProjector } from "@/lib/play/physical-putting";
 import { StageSideFocusGradient } from "./stage-side-focus";
+import { premiumSurfacePrecedence } from "@/lib/play/premium-parkland-decoration";
 
 /** Material stops and layered shapes transcribed from the approved Python/SVG source package. */
 const PALETTES = {
@@ -13,16 +14,27 @@ const PALETTES = {
   desert: { ground: ["#694d36", "#a57851", "#c39b68", "#926744"], sand: ["#f3d9a5", "#dfbd8b", "#9c7550"], shade: "#211915" },
 } as const;
 
-export const PremiumPuttingTerrain = memo(function PremiumPuttingTerrain({ hole, projector, family, id, greenPath, scene }: {
-  hole: HoleGeom; projector: PhysicalPuttingProjector; family: PuttingFamily; id: string; greenPath: string; scene: PuttingScene;
+const SURROUNDINGS: Record<PuttingFamily, Record<string, string>> = {
+  parkland: { DEEP_ROUGH: "#244a25", PRIMARY_ROUGH: "#35602d", FIRST_CUT: "#4b7838", FAIRWAY: "#649444", TREES: "#1b3924", RECOVERY_AREA: "#29472a" },
+  links: { DEEP_ROUGH: "#7c8050", PRIMARY_ROUGH: "#92945b", FIRST_CUT: "#a6a66b", FAIRWAY: "#c0b879", TREES: "#656c49", RECOVERY_AREA: "#797954" },
+  heathland: { DEEP_ROUGH: "#404b31", PRIMARY_ROUGH: "#586543", FIRST_CUT: "#6f7e4d", FAIRWAY: "#87965a", TREES: "#283b30", RECOVERY_AREA: "#49563c" },
+  desert: { DEEP_ROUGH: "#866545", PRIMARY_ROUGH: "#9b7850", FIRST_CUT: "#9b935f", FAIRWAY: "#a7aa67", TREES: "#765d43", RECOVERY_AREA: "#806048" },
+};
+
+export const PremiumPuttingTerrain = memo(function PremiumPuttingTerrain({ hole, projector, family, id, greenPath, scene, aroundGreen = false }: {
+  hole: HoleGeom; projector: PhysicalPuttingProjector; family: PuttingFamily; id: string; greenPath: string; scene: PuttingScene; aroundGreen?: boolean;
 }) {
   const palette = PALETTES[family];
   const fringe = hole.geometry!.regions.find((r) => r.surface === "FRINGE")!.boundary;
   const fringePath = puttingPolygonPath(fringe, projector);
-  const hazards = hole.geometry!.regions.filter((r) => r.surface === "BUNKER" || r.surface === "WATER");
+  const hazards = hole.geometry!.regions.filter((r) => (r.surface === "BUNKER" || r.surface === "WATER" || aroundGreen && r.surface === "WASTE_AREA")
+    && validPolygon(r.boundary));
+  const surrounding = aroundGreen ? hole.geometry!.regions.filter((region) => SURROUNDINGS[family][region.surface]
+    && validPolygon(region.boundary)).sort((a, b) => premiumSurfacePrecedence(b.surface) - premiumSurfacePrecedence(a.surface)) : [];
   const decoration = useMemo(() => puttingDecoration(hole, projector, family, scene), [hole, projector, family, scene]);
   const terrain = useMemo(() => terrainDetail(hole.layoutSeed, family, scene), [hole.layoutSeed, family, scene]);
-  const turf = useMemo(() => turfMarks(hole.layoutSeed, projector, hole.geometry!.regions.find((r) => r.surface === "GREEN")!.boundary), [hole.layoutSeed, hole.geometry, projector]);
+  const turf = useMemo(() => turfMarks(hole.layoutSeed, projector, hole.geometry!.regions.find((r) => r.surface === "GREEN")!.boundary,
+    aroundGreen ? scene : undefined), [hole.layoutSeed, hole.geometry, projector, aroundGreen, scene]);
   // No exterior band when a tight short-putt view is entirely inside the green/fringe.
   const edgeWidth = Math.max(1, Math.min(4, projector.pixelsPerYard * .32));
   return <g pointerEvents="none" aria-label={`Premium ${family} putting terrain`}>
@@ -57,12 +69,14 @@ export const PremiumPuttingTerrain = memo(function PremiumPuttingTerrain({ hole,
     <TerrainDetail detail={terrain} family={family}/>
     <Scenery objects={decoration} family={family}/>
     <rect x={scene.x} y={scene.y} width={scene.width} height={scene.height} fill={`url(#${id}-light)`}/>
+    {surrounding.map((region, i) => <path key={`${region.surface}-${i}`} d={puttingPolygonPath(region.boundary, projector)}
+      fill={SURROUNDINGS[family][region.surface]} fillOpacity=".84" aria-label={`${region.surface} terrain`} />)}
     {hazards.map((region, i) => region.boundary.length >= 3 ? <g key={i}>
-      {region.surface === "BUNKER" ? <path d={puttingPolygonPath(region.boundary, projector)} fill="none"
+      {region.surface !== "WATER" ? <path d={puttingPolygonPath(region.boundary, projector)} fill="none"
         stroke={palette.sand[2]} strokeOpacity=".55" strokeWidth={edgeWidth * 3}/>: null}
-      <path d={puttingPolygonPath(region.boundary, projector)} fill={region.surface === "BUNKER" ? `url(#${id}-sand)` : "#426b74"}
-        stroke={region.surface === "BUNKER" ? palette.sand[2] : "#8fb6b1"} strokeWidth={edgeWidth * 1.5}/>
-      {region.surface === "BUNKER" ? <>
+      <path d={puttingPolygonPath(region.boundary, projector)} fill={region.surface !== "WATER" ? `url(#${id}-sand)` : "#426b74"}
+        stroke={region.surface !== "WATER" ? palette.sand[2] : "#8fb6b1"} strokeWidth={edgeWidth * 1.5}/>
+      {region.surface !== "WATER" ? <>
         <clipPath id={`${id}-bunker-${i}`}><path d={puttingPolygonPath(region.boundary, projector)}/></clipPath>
         <path d={bunkerRaking(region.boundary, projector, i)} clipPath={`url(#${id}-bunker-${i})`}
           fill="none" stroke={palette.sand[2]} strokeOpacity=".15" strokeWidth=".65"/>
@@ -208,12 +222,13 @@ function bunkerRaking(boundary: readonly Point[], projector: PhysicalPuttingProj
   }).join(" ");
 }
 
-function turfMarks(seed: string, projector: PhysicalPuttingProjector, green: readonly Point[]) {
+function turfMarks(seed: string, projector: PhysicalPuttingProjector, green: readonly Point[], scene?: PuttingScene) {
   let state = [...seed].reduce((n, c) => Math.imul(n ^ c.charCodeAt(0), 16777619), 2166136261) >>> 0;
   const random = () => ((state = (Math.imul(state, 1664525) + 1013904223) >>> 0) / 4294967296);
   const light: string[] = [], dark: string[] = [];
   for (let i = 0; i < 180; i++) {
-    const x = random() * projector.width, y = random() * projector.height;
+    const x = (scene?.x ?? 0) + random() * projector.width;
+    const y = (scene?.y ?? 0) + random() * projector.height;
     if (!pointInPolygon(projector.unproject({ x, y }), green)) continue;
     (i % 3 ? light : dark).push(`M${x.toFixed(1)} ${y.toFixed(1)} l${(2 + random() * 4).toFixed(1)} 1`);
   }

@@ -8,8 +8,11 @@ import { premiumPuttingFamily, puttingPolygonPath } from "../../lib/play/premium
 import { PremiumPuttingTerrain } from "./premium-putting-terrain";
 import { scenicFrame, type StageViewport } from "@/lib/play/stage-viewport";
 import { usePhysicalPuttPlayback } from "./use-physical-putt-playback";
+import { aroundGreenProjector } from "@/lib/play/around-green";
+import { ShotMotionOverlay } from "./shot-motion-overlay";
+import { pointerWorldTarget } from "@/lib/play/canonical-geometry";
 
-/** A green-local SVG: all terrain facts, slope arrows and ball motion come from backend physical data. */
+/** World-space putting SVG: terrain and slope data come from the authoritative hole. */
 export function PhysicalPuttingGreen({
   hole,
   ball,
@@ -19,6 +22,11 @@ export function PhysicalPuttingGreen({
   onPlaybackComplete,
   presentation = "polished",
   stageViewport,
+  aroundGreen = false,
+  aimPoint,
+  onAimPoint,
+  showAimMarker = true,
+  onTracePlaybackComplete,
 }: {
   hole: HoleGeom;
   ball: ResolvedShot | null;
@@ -28,12 +36,18 @@ export function PhysicalPuttingGreen({
   onPlaybackComplete?: () => void;
   presentation?: string;
   stageViewport?: StageViewport;
+  aroundGreen?: boolean;
+  aimPoint?: Point;
+  onAimPoint?: (point: Point) => void;
+  showAimMarker?: boolean;
+  onTracePlaybackComplete?: () => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [measuredAspect, setMeasuredAspect] = useState<number | null>(null);
   const clipId = useId().replace(/:/g, "");
   const { trajectory, elapsed } = usePhysicalPuttPlayback(ball, onPlaybackComplete);
-  const origin = trajectory[0]?.position ?? hole.ball?.position ?? hole.geometry!.tee;
+  const shotTrace = aroundGreen ? ball?.trace ?? null : null;
+  const origin = shotTrace?.origin ?? trajectory[0]?.position ?? hole.ball?.position ?? hole.geometry!.tee;
   const green = useMemo(() => hole.geometry!.regions.find((region) => region.surface === "GREEN")?.boundary ?? [], [hole.geometry]);
   const premiumFamily = premiumPuttingFamily(hole, presentation);
   useLayoutEffect(() => {
@@ -63,13 +77,19 @@ export function PhysicalPuttingGreen({
     const sceneWidth = frame.height * stageAspect;
     return { x: (width - sceneWidth) / 2, y: -frame.safeTop, width: sceneWidth, height: frame.height };
   }, [premiumFamily, stageAspect, frame.height, frame.safeTop, stageViewport]);
+  const cameraScene = useMemo(() => aroundGreen && stageViewport
+    ? { x: scene.x, y: scene.y + frame.safeTop, width: scene.width, height: frame.safeHeight }
+    : scene, [aroundGreen, stageViewport, scene, frame.safeTop, frame.safeHeight]);
   const cupDistanceFeet = Math.hypot(hole.geometry!.cup.x - origin.x, hole.geometry!.cup.y - origin.y) * 3;
   const basePadding = cupDistanceFeet >= 45 ? 6 : cupDistanceFeet >= 15 ? 3.5 : 2;
   const safeSceneWidth = Math.min(PHYSICAL_PUTTING_PRESENTATION.width, scene.width);
   const horizontalSpan = Math.abs(hole.geometry!.cup.x - origin.x);
   const neededVerticalSpan = horizontalSpan * PHYSICAL_PUTTING_PRESENTATION.width / Math.max(40, safeSceneWidth - 40);
   const visualPadding = premiumFamily ? Math.max(basePadding, (neededVerticalSpan - cupDistanceFeet / 3) / 2) : undefined;
-  const projector = useMemo(() => physicalPuttingProjector(origin, hole.geometry!.cup, green, visualPadding), [green, origin, hole.geometry, visualPadding]);
+  const projector = useMemo(() => aroundGreen
+    ? aroundGreenProjector(hole, cameraScene, aimPoint, shotTrace)
+    : physicalPuttingProjector(origin, hole.geometry!.cup, green, visualPadding),
+  [aroundGreen, hole, cameraScene, aimPoint, shotTrace, origin, green, visualPadding]);
   const traversedTrajectory = physicalTraversedTrajectory(trajectory, elapsed);
   const moving = trajectory.length ? physicalTrajectoryPoint(trajectory, elapsed) : origin;
   const ballPoint = projector.project(moving);
@@ -79,8 +99,8 @@ export function PhysicalPuttingGreen({
   const greenPath = puttingPolygonPath(green, projector);
   const aimEnd = projector.project(physicalAimGuideEndpoint(origin, aimDirection,
     Math.hypot(hole.geometry!.cup.x - origin.x, hole.geometry!.cup.y - origin.y)));
-  const cupMarkerRadius = physicalWorldMarkerRadius(PHYSICAL_CUP_RADIUS_YARDS, projector.pixelsPerYard);
-  const ballMarkerRadius = physicalWorldMarkerRadius(PHYSICAL_BALL_RADIUS_YARDS, projector.pixelsPerYard);
+  const cupMarkerRadius = Math.max(aroundGreen ? 2.5 : 0, physicalWorldMarkerRadius(PHYSICAL_CUP_RADIUS_YARDS, projector.pixelsPerYard));
+  const ballMarkerRadius = Math.max(aroundGreen ? 3 : 0, physicalWorldMarkerRadius(PHYSICAL_BALL_RADIUS_YARDS, projector.pixelsPerYard));
   // Flag artwork follows the existing yard-to-screen scale; physical ball/cup dimensions stay separate.
   const flagScale = Math.max(1, Math.min(1.8, Math.sqrt(projector.pixelsPerYard / 9)));
   const flagHeight = 15 * flagScale;
@@ -90,12 +110,15 @@ export function PhysicalPuttingGreen({
   const ballLocatorRadius = physicalBallLocatorRadius(ballMarkerRadius);
 
   function chooseLine(event: PointerEvent<SVGSVGElement>) {
-    if (trajectory.length > 0 || !svgRef.current) return;
+    if (trajectory.length > 0 || shotTrace || !svgRef.current) return;
     const screenMatrix = svgRef.current.getScreenCTM();
     if (!screenMatrix) return;
     const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(screenMatrix.inverse());
     if (local.x < scene.x || local.x > scene.x + scene.width || local.y < scene.y || local.y > scene.y + scene.height) return;
-    const target = projector.unproject({ x: local.x, y: local.y });
+    const target = aroundGreen
+      ? pointerWorldTarget({ x: event.clientX, y: event.clientY }, screenMatrix.inverse(), projector.unproject)
+      : projector.unproject({ x: local.x, y: local.y });
+    if (aroundGreen) { onAimPoint?.(target); return; }
     const dx = target.x - origin.x;
     const dy = target.y - origin.y;
     const length = Math.hypot(dx, dy);
@@ -103,24 +126,30 @@ export function PhysicalPuttingGreen({
   }
 
   return <svg ref={svgRef} viewBox={`${scene.x} ${scene.y} ${scene.width} ${scene.height}`} className={premiumFamily ? "absolute inset-0 block h-full w-full touch-manipulation" : "block max-h-full max-w-full"} role="img"
-    aria-label="Physical putting green: choose a starting line by clicking the green" onPointerDown={chooseLine}>
-    {premiumFamily ? <PremiumPuttingTerrain hole={hole} projector={projector} family={premiumFamily} id={clipId} greenPath={greenPath} scene={scene}/>
+    aria-label={aroundGreen ? "Around the green: click or tap to aim a short-game shot" : "Physical putting green: choose a starting line by clicking the green"} onPointerDown={chooseLine}>
+    {premiumFamily ? <PremiumPuttingTerrain hole={hole} projector={projector} family={premiumFamily} id={clipId} greenPath={greenPath} scene={scene} aroundGreen={aroundGreen}/>
       : <rect width={PHYSICAL_PUTTING_PRESENTATION.width} height={PHYSICAL_PUTTING_PRESENTATION.height} fill={PHYSICAL_PUTTING_SVG_STYLE.canvasFill} />}
     <defs><clipPath id={clipId}><path d={greenPath} /></clipPath></defs>
     {!premiumFamily ? <><path d={greenPath} fill={PHYSICAL_PUTTING_SVG_STYLE.greenFill} fillOpacity=".62" stroke="var(--border-strong)" strokeWidth="2" />
       <path d={greenPath} fill="none" stroke="var(--foreground)" strokeOpacity=".18" strokeWidth=".8" /></> : null}
-    {showReading || premiumFamily ? <GreenReading samples={hole.physicalGreen?.slopeSamples ?? []}
-      contours={hole.physicalGreen?.contours ?? []} projector={projector} clipId={clipId} premium={!!premiumFamily} showArrows={showReading} /> : null}
+    {(showReading || premiumFamily) ? <GreenReading samples={hole.physicalGreen?.slopeSamples ?? []}
+      contours={hole.physicalGreen?.contours ?? []} projector={projector} clipId={clipId} premium={!!premiumFamily}
+      showArrows={showReading} scene={aroundGreen ? cameraScene : undefined} /> : null}
     {path ? <path d={path} fill="none" stroke={premiumFamily ? "#eef6e5" : "var(--foreground)"} strokeWidth="1.5" strokeOpacity=".72" pointerEvents="none" /> : null}
-    {physicalAimGuideVisible(trajectory.length > 0) ? <g aria-label="Submitted starting direction">
+    {!aroundGreen && physicalAimGuideVisible(trajectory.length > 0) ? <g aria-label="Submitted starting direction">
       <line x1={originPoint.x} y1={originPoint.y} x2={aimEnd.x} y2={aimEnd.y} stroke={premiumFamily ? "#132c1b" : PHYSICAL_PUTTING_SVG_STYLE.guideOutline} strokeWidth="4" strokeLinecap="round" strokeOpacity=".7" pointerEvents="none" />
       <line x1={originPoint.x} y1={originPoint.y} x2={aimEnd.x} y2={aimEnd.y} stroke={premiumFamily ? "#eef6e5" : PHYSICAL_PUTTING_SVG_STYLE.guideStroke} strokeWidth="2" strokeDasharray="6 4" strokeLinecap="round" pointerEvents="none" />
       {premiumFamily ? <circle cx={aimEnd.x} cy={aimEnd.y} r="3" fill="#eef6e5" stroke="#132c1b" strokeWidth="1" pointerEvents="none"/> : null}
     </g> : null}
+    {aroundGreen && !shotTrace && showAimMarker && aimPoint ? <g aria-label="Selected landing target" pointerEvents="none">
+      <circle cx={projector.project(aimPoint).x} cy={projector.project(aimPoint).y} r="6" fill="none" stroke="var(--accent)" strokeWidth="1.5" />
+      <path d={`M${projector.project(aimPoint).x - 9} ${projector.project(aimPoint).y}h18M${projector.project(aimPoint).x} ${projector.project(aimPoint).y - 9}v18`}
+        stroke="var(--accent)" strokeWidth="1" />
+    </g> : null}
     {cupLocatorRadius ? <g aria-label="Cup location aid, not to scale" pointerEvents="none">
       <circle cx={cup.x} cy={cup.y} r={cupLocatorRadius} fill="none" stroke={premiumFamily ? "#f3eee1" : "var(--gold)"} strokeWidth="1.2" strokeDasharray="2 2" />
     </g> : null}
-    <g aria-label="Physical cup opening, 4.25 inches">
+    <g aria-label={aroundGreen ? "Cup marker at authoritative pin" : "Physical cup opening, 4.25 inches"}>
       {premiumFamily ? <ellipse cx={cup.x + 1.2} cy={cup.y + 1.7} rx={Math.max(2, cupMarkerRadius * 1.3)} ry={Math.max(1.3, cupMarkerRadius * .8)} fill="#223e23" opacity=".38" pointerEvents="none"/> : null}
       <circle cx={cup.x} cy={cup.y} r={cupMarkerRadius} fill={premiumFamily ? "#0c1811" : PHYSICAL_PUTTING_SVG_STYLE.cupFill} stroke={premiumFamily ? "#c8d9b0" : "var(--gold)"} strokeWidth={Math.max(.6, cupMarkerRadius * .22)} pointerEvents="none" />
       {premiumFamily ? <g pointerEvents="none" opacity=".86" aria-label="Flag anchored at cup">
@@ -128,25 +157,32 @@ export function PhysicalPuttingGreen({
         <path d={`M${cup.x} ${cup.y - flagHeight} l ${flagWidth} ${flagHalfHeight} ${-flagWidth} ${flagHalfHeight} Z`} fill="#e45d48"/>
       </g> : null}
     </g>
-    {ballLocatorRadius ? <g aria-label="Ball location aid, not to scale" pointerEvents="none">
+    {ballLocatorRadius && !shotTrace ? <g aria-label="Ball location aid, not to scale" pointerEvents="none">
       <circle cx={ballPoint.x} cy={ballPoint.y} r={ballLocatorRadius} fill="none" stroke={premiumFamily ? "#fff" : "var(--foreground)"} strokeWidth="1.2" strokeOpacity=".88" />
     </g> : null}
-    <g aria-label="Golf ball, 1.68 inches">
+    {!shotTrace ? <g aria-label={aroundGreen ? "Ball marker at authoritative lie" : "Golf ball, 1.68 inches"}>
       {premiumFamily ? <ellipse cx={ballPoint.x + 1} cy={ballPoint.y + 1.3} rx={Math.max(1.5, ballMarkerRadius * 1.2)} ry={Math.max(.8, ballMarkerRadius * .65)} fill="#142d1d" opacity=".48" pointerEvents="none"/> : null}
       <circle cx={ballPoint.x} cy={ballPoint.y} r={ballMarkerRadius} fill={premiumFamily ? `url(#${clipId}-ball)` : PHYSICAL_PUTTING_SVG_STYLE.ballFill} pointerEvents="none" />
-    </g>
+    </g> : null}
+    {shotTrace ? <ShotMotionOverlay trace={shotTrace} project={projector.project}
+      contact={projector.project(shotTrace.contact.position)} finalPoint={projector.project(shotTrace.finalPoint)}
+      contactEffect={shotTrace.contact.surface === "WATER" ? "var(--info)" : "var(--accent)"}
+      ballStroke="var(--background)" shadowFill="#142d1d" tracerShadow
+      statusY={cameraScene.y + cameraScene.height - 16} statusX={cameraScene.x + 16} holed={ball?.holed}
+      onPlaybackComplete={onTracePlaybackComplete} /> : null}
   </svg>;
 }
 
-export function GreenReading({ samples, contours, projector, clipId, premium, showArrows }: {
+export function GreenReading({ samples, contours, projector, clipId, premium, showArrows, scene }: {
   samples: NonNullable<HoleGeom["physicalGreen"]>["slopeSamples"];
   contours: NonNullable<HoleGeom["physicalGreen"]>["contours"];
   projector: PhysicalPuttingProjector;
   clipId: string;
   premium: boolean;
   showArrows: boolean;
+  scene?: { x: number; y: number; width: number; height: number };
 }) {
-  const sampled = visibleSlopeSamples(samples, projector);
+  const sampled = visibleSlopeSamples(samples, projector, scene);
   const readableSamples = premium ? [...sampled.reduce((cells, sample) => {
     const point = projector.project(sample.position);
     const key = `${Math.floor(point.x / 82)}:${Math.floor(point.y / 82)}`;
