@@ -23,6 +23,7 @@ export function PhysicalPuttingGreen({
   presentation = "polished",
   stageViewport,
   aroundGreen = false,
+  fringePutting = false,
   aimPoint,
   onAimPoint,
   showAimMarker = true,
@@ -37,6 +38,7 @@ export function PhysicalPuttingGreen({
   presentation?: string;
   stageViewport?: StageViewport;
   aroundGreen?: boolean;
+  fringePutting?: boolean;
   aimPoint?: Point;
   onAimPoint?: (point: Point) => void;
   showAimMarker?: boolean;
@@ -87,9 +89,9 @@ export function PhysicalPuttingGreen({
   const neededVerticalSpan = horizontalSpan * PHYSICAL_PUTTING_PRESENTATION.width / Math.max(40, safeSceneWidth - 40);
   const visualPadding = premiumFamily ? Math.max(basePadding, (neededVerticalSpan - cupDistanceFeet / 3) / 2) : undefined;
   const projector = useMemo(() => aroundGreen
-    ? aroundGreenProjector(hole, cameraScene, aimPoint, shotTrace)
+    ? aroundGreenProjector(hole, cameraScene, fringePutting ? undefined : aimPoint, shotTrace)
     : physicalPuttingProjector(origin, hole.geometry!.cup, green, visualPadding),
-  [aroundGreen, hole, cameraScene, aimPoint, shotTrace, origin, green, visualPadding]);
+  [aroundGreen, hole, cameraScene, fringePutting, aimPoint, shotTrace, origin, green, visualPadding]);
   const traversedTrajectory = physicalTraversedTrajectory(trajectory, elapsed);
   const moving = trajectory.length ? physicalTrajectoryPoint(trajectory, elapsed) : origin;
   const ballPoint = projector.project(moving);
@@ -118,7 +120,7 @@ export function PhysicalPuttingGreen({
     const target = aroundGreen
       ? pointerWorldTarget({ x: event.clientX, y: event.clientY }, screenMatrix.inverse(), projector.unproject)
       : projector.unproject({ x: local.x, y: local.y });
-    if (aroundGreen) { onAimPoint?.(target); return; }
+    if (aroundGreen && !fringePutting) { onAimPoint?.(target); return; }
     const dx = target.x - origin.x;
     const dy = target.y - origin.y;
     const length = Math.hypot(dx, dy);
@@ -126,7 +128,8 @@ export function PhysicalPuttingGreen({
   }
 
   return <svg ref={svgRef} viewBox={`${scene.x} ${scene.y} ${scene.width} ${scene.height}`} className={premiumFamily ? "absolute inset-0 block h-full w-full touch-manipulation" : "block max-h-full max-w-full"} role="img"
-    aria-label={aroundGreen ? "Around the green: click or tap to aim a short-game shot" : "Physical putting green: choose a starting line by clicking the green"} onPointerDown={chooseLine}>
+    aria-label={fringePutting ? "Physical fringe putt: click or tap to choose a starting line"
+      : aroundGreen ? "Around the green: click or tap to aim a short-game shot" : "Physical putting green: choose a starting line by clicking the green"} onPointerDown={chooseLine}>
     {premiumFamily ? <PremiumPuttingTerrain hole={hole} projector={projector} family={premiumFamily} id={clipId} greenPath={greenPath} scene={scene} aroundGreen={aroundGreen}/>
       : <rect width={PHYSICAL_PUTTING_PRESENTATION.width} height={PHYSICAL_PUTTING_PRESENTATION.height} fill={PHYSICAL_PUTTING_SVG_STYLE.canvasFill} />}
     <defs><clipPath id={clipId}><path d={greenPath} /></clipPath></defs>
@@ -136,12 +139,12 @@ export function PhysicalPuttingGreen({
       contours={hole.physicalGreen?.contours ?? []} projector={projector} clipId={clipId} premium={!!premiumFamily}
       showArrows={showReading} scene={aroundGreen ? cameraScene : undefined} /> : null}
     {path ? <path d={path} fill="none" stroke={premiumFamily ? "#eef6e5" : "var(--foreground)"} strokeWidth="1.5" strokeOpacity=".72" pointerEvents="none" /> : null}
-    {!aroundGreen && physicalAimGuideVisible(trajectory.length > 0) ? <g aria-label="Submitted starting direction">
+    {(!aroundGreen || fringePutting) && physicalAimGuideVisible(trajectory.length > 0) ? <g aria-label="Submitted starting direction">
       <line x1={originPoint.x} y1={originPoint.y} x2={aimEnd.x} y2={aimEnd.y} stroke={premiumFamily ? "#132c1b" : PHYSICAL_PUTTING_SVG_STYLE.guideOutline} strokeWidth="4" strokeLinecap="round" strokeOpacity=".7" pointerEvents="none" />
       <line x1={originPoint.x} y1={originPoint.y} x2={aimEnd.x} y2={aimEnd.y} stroke={premiumFamily ? "#eef6e5" : PHYSICAL_PUTTING_SVG_STYLE.guideStroke} strokeWidth="2" strokeDasharray="6 4" strokeLinecap="round" pointerEvents="none" />
       {premiumFamily ? <circle cx={aimEnd.x} cy={aimEnd.y} r="3" fill="#eef6e5" stroke="#132c1b" strokeWidth="1" pointerEvents="none"/> : null}
     </g> : null}
-    {aroundGreen && !shotTrace && showAimMarker && aimPoint ? <g aria-label="Selected landing target" pointerEvents="none">
+    {aroundGreen && !fringePutting && !shotTrace && showAimMarker && aimPoint ? <g aria-label="Selected landing target" pointerEvents="none">
       <circle cx={projector.project(aimPoint).x} cy={projector.project(aimPoint).y} r="6" fill="none" stroke="var(--accent)" strokeWidth="1.5" />
       <path d={`M${projector.project(aimPoint).x - 9} ${projector.project(aimPoint).y}h18M${projector.project(aimPoint).x} ${projector.project(aimPoint).y - 9}v18`}
         stroke="var(--accent)" strokeWidth="1" />

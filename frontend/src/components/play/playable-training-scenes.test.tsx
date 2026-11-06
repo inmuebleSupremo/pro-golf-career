@@ -151,7 +151,7 @@ describe("playable training in existing practice scenes", () => {
     expect(full).not.toContain("Normal reach");
   });
 
-  it("offers fringe chips and pitches without a putt option in physical events", () => {
+  it("keeps fringe chip and pitch controls without putting in the standalone strike dock", () => {
     const fringe: Situation = { holeNumber: 1, par: 4, shotNumber: 3, strokesThisHole: 2,
       distanceToPin: 7, lie: "FRINGE", pinLateral: 0, minReach: 0, maxReach: 100, shotRevision: "fringe",
       guidance: { safe: { x: 0, y: 7 }, primary: { x: 0, y: 7 }, aggressive: { x: 0, y: 7 },
