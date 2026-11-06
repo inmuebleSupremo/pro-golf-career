@@ -38,6 +38,7 @@ export function StageHole({
   physicalAimDirection,
   onPhysicalAimDirection,
   showGreenReading,
+  fringePutting = false,
   onPhysicalPlaybackComplete,
   onTracePlaybackComplete,
   presentation = "polished",
@@ -55,6 +56,7 @@ export function StageHole({
   physicalAimDirection: { x: number; y: number };
   onPhysicalAimDirection: (direction: { x: number; y: number }) => void;
   showGreenReading: boolean;
+  fringePutting?: boolean;
   onPhysicalPlaybackComplete: () => void;
   onTracePlaybackComplete?: () => void;
   presentation?: "polished" | "premium-v1" | "premium";
@@ -76,6 +78,7 @@ export function StageHole({
               onAimDirection={onPhysicalAimDirection} showReading={showGreenReading}
               onPlaybackComplete={onPhysicalPlaybackComplete} presentation={presentation} stageViewport={stageViewport}
               aroundGreen={aroundGreen} aimPoint={aimPoint} onAimPoint={onAimPoint} showAimMarker={showAimMarker}
+              fringePutting={fringePutting}
               onTracePlaybackComplete={onTracePlaybackComplete} />
           ) : <Hole2d hole={displayHole} ball={playbackShot} className={cn("block max-h-full touch-manipulation", stageViewport ? "h-full w-full" : presentation === "premium" ? "h-full w-full max-sm:w-auto max-sm:max-w-none max-sm:shrink-0" : "w-auto", onAimPoint && "cursor-crosshair")}
             aimPoint={aimPoint} onAimPoint={onAimPoint} showAimMarker={showAimMarker}

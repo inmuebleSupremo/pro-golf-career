@@ -106,6 +106,7 @@ export function PlayMode({
   const setPhysicalAimDirection = (direction: { x: number; y: number }) =>
     setPhysicalAimState({ revision: situation.shotRevision, source: physicalAimSource, direction });
   const [showGreenReading, setShowGreenReading] = useState(false);
+  const [fringePuttSelection, setFringePuttSelection] = useState<{ revision: string; selected: boolean } | null>(null);
   const [parklandPresentation, setParklandPresentation] = useState<PlayPresentation | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -176,6 +177,8 @@ export function PlayMode({
   const showParklandPrototype = process.env.NODE_ENV === "development" && id !== "fixture-evidence"
     && isParklandFamily(seq.displayHole);
   const selectedPresentation = playPresentation(seq.displayHole, parklandPresentation, showParklandPrototype);
+  const stageFringePutting = seq.displaySituation.lie === "FRINGE" && (seq.playbackShot?.physicalPutt != null
+    || fringePuttSelection?.revision === seq.displaySituation.shotRevision && fringePuttSelection.selected);
   const fullBleed = selectedPresentation === "premium" && !!seq.displayHole && layoutOverride !== "stacked";
   const interactionLocked = seq.locked || nonPuttSubmitting;
   const toggle = (t: DrawerTab) => setTab((prev) => (prev === t ? null : t));
@@ -210,6 +213,7 @@ export function PlayMode({
             showAimMarker={shotAimMarkerVisible(nonPuttSubmitting, seq.playbackShot)}
             physicalAimDirection={physicalAimDirection}
             onPhysicalAimDirection={setPhysicalAimDirection}
+            fringePutting={stageFringePutting}
             showGreenReading={showGreenReading}
             onPhysicalPlaybackComplete={seq.onPhysicalPlaybackComplete}
             onTracePlaybackComplete={seq.onTracePlaybackComplete}
@@ -246,6 +250,7 @@ export function PlayMode({
         onNonPuttSubmissionEnd={() => setNonPuttSubmitting(false)}
         physicalAimDirection={physicalAimDirection}
         aroundGreen={aroundGreenEligible(dockHole, dockSituation.lie, selectedPresentation)}
+        onFringePuttSelection={(selected) => setFringePuttSelection({ revision: dockSituation.shotRevision, selected })}
         showGreenReading={showGreenReading}
         onToggleGreenReading={() => setShowGreenReading((current) => !current)}
         floating={fullBleed}
@@ -350,6 +355,7 @@ function ActionDock({
   onNonPuttSubmissionEnd,
   physicalAimDirection,
   aroundGreen,
+  onFringePuttSelection,
   showGreenReading,
   onToggleGreenReading,
   floating,
@@ -369,6 +375,7 @@ function ActionDock({
   onNonPuttSubmissionEnd: () => void;
   physicalAimDirection: { x: number; y: number };
   aroundGreen: boolean;
+  onFringePuttSelection: (selected: boolean) => void;
   showGreenReading: boolean;
   onToggleGreenReading: () => void;
   floating: boolean;
@@ -381,13 +388,16 @@ function ActionDock({
   const [formError, setFormError] = useState<string | null>(null);
   const clubs = situation.guidance?.clubs ?? [];
   // Re-derive on every server situation so a stale browser selection is never submitted.
-  const allowFringePutt = hole?.puttingPolicy !== "PHYSICAL_V1";
+  const physicalFringe = hole?.puttingPolicy === "PHYSICAL_V1" && situation.lie === "FRINGE" && aroundGreen;
+  const legacyFringe = hole?.puttingPolicy !== "PHYSICAL_V1" && situation.lie === "FRINGE";
+  const allowFringePutt = physicalFringe || legacyFringe;
   const selection = validShotSelection(situation, requestedSelection, allowFringePutt);
   const { club, technique } = selection;
   const selectedClub = clubs.find((candidate) => candidate.club === club);
-  const puttingAvailable = situation.lie === "GREEN" || allowFringePutt && situation.lie === "FRINGE";
-  const puttRoute = situation.lie === "GREEN" || allowFringePutt && technique === "PUTT";
-  const physicalRoute = hole?.puttingPolicy === "PHYSICAL_V1" && situation.lie === "GREEN";
+  const puttingAvailable = situation.lie === "GREEN" || allowFringePutt;
+  const puttRoute = situation.lie === "GREEN" || legacyFringe && technique === "PUTT";
+  const physicalRoute = hole?.puttingPolicy === "PHYSICAL_V1"
+    && (situation.lie === "GREEN" || physicalFringe && technique === "PUTT");
   const techniques = puttRoute && situation.lie === "GREEN"
     ? [{ family: "PUTT", available: true, reason: null }]
     : [
@@ -402,15 +412,17 @@ function ActionDock({
   const activePhysicalControls = currentPhysicalPuttControls(physicalControlSource, origin, cup, physicalControls);
   const physicalDefaultPace = currentPhysicalPuttControls(physicalControlSource, origin, cup, null).paceFeet;
   const paceFeet = activePhysicalControls.paceFeet;
-  const paceSliderMaximum = Math.max(20, Math.ceil(physicalDefaultPace * 1.5 / 5) * 5);
+  const paceSliderMaximum = Math.max(20, Math.ceil((physicalDefaultPace * 1.5 + (physicalFringe ? 9 : 0)) / 5) * 5);
   const controlsDisabled = locked || foreground.hasPendingForegroundOperation;
   const lastShotText = lastOutcome
     ? `${lastOutcome.physicalPutt ? "Last putt" : "Last shot"}: ${lastOutcome.holed ? "Holed" : formatShotDistance(lastOutcome.carry, lastOutcome.physicalPutt != null)} · ${humanize(lastOutcome.finalSurface)}`
-    : physicalRoute ? "Tap the green to set a starting line" : usedCourseAim ? "" : "Tap the course to aim";
+    : physicalRoute ? "Tap the scene to set a starting line" : usedCourseAim ? "" : "Tap the course to aim";
   const onSimShot = (outcome: Outcome) => onShot(outcome, { hole, situation });
 
   function updateSelection(update: Partial<typeof selection>) {
-    setRequestedSelection((current) => validShotSelection(situation, { ...current, ...update }, allowFringePutt));
+    const next = validShotSelection(situation, { ...selection, ...update }, allowFringePutt);
+    setRequestedSelection(next);
+    if (physicalFringe) onFringePuttSelection(next.technique === "PUTT");
   }
 
   async function onPlay() {
@@ -444,7 +456,7 @@ function ActionDock({
           disabled={controlsDisabled} aroundGreen /> : null}
         <SimMenu id={id} onShot={onSimShot} onSimJump={onSimJump} onError={setFormError} disabled={controlsDisabled} />
       </div>}
-      review={aroundGreen && showGreenReading ? <p className="text-muted-foreground text-xs">Green slopes show terrain; chip and pitch rollout follows existing shot rules.</p> : undefined}
+      review={aroundGreenSlopeReview(aroundGreen)}
       onSubmit={async (intent) => {
         onNonPuttSubmissionStart();
         try {
@@ -479,7 +491,9 @@ function ActionDock({
         </div>
         <p className="text-subtle-foreground min-h-4 min-w-0 truncate text-xs" title={lastShotText}>{lastShotText}</p>
         {physicalRoute ? <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(7rem,1fr)_minmax(12rem,2fr)_auto] lg:items-end">
-          <p className="text-muted-foreground hidden text-xs lg:block">Starting line: tap the green</p>
+          {physicalFringe ? <ShotTechniqueControl technique={technique} techniques={techniques}
+            onTechnique={(value) => updateSelection({ technique: value })} disabled={controlsDisabled} />
+            : <p className="text-muted-foreground hidden text-xs lg:block">Starting line: tap the green</p>}
           <DockField label={`Pace · ${paceFeet.toFixed(1)} ft`}>
             <div className="flex min-w-0 items-center gap-2">
               <Input type="range" min="0.1" max={paceSliderMaximum} step="0.1" value={Math.min(paceFeet, paceSliderMaximum)} disabled={controlsDisabled}
@@ -508,7 +522,14 @@ function ActionDock({
   );
 }
 
-function ReadGreenButton({ active, onToggle, disabled, aroundGreen = false }: {
+/** The terrain explanation occupies the same dock space before and after reading is toggled. */
+export function aroundGreenSlopeReview(aroundGreen: boolean) {
+  return aroundGreen
+    ? <p className="text-muted-foreground text-xs">Green slopes show terrain; chip and pitch rollout follows existing shot rules.</p>
+    : undefined;
+}
+
+export function ReadGreenButton({ active, onToggle, disabled, aroundGreen = false }: {
   active: boolean; onToggle: () => void; disabled: boolean; aroundGreen?: boolean;
 }) {
   return <Button variant="secondary" size="sm" onClick={onToggle} disabled={disabled}

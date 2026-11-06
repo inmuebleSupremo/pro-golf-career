@@ -32,14 +32,19 @@ public final class PhysicalPuttResolution {
         if (hole.puttingPolicy() == null || !hole.puttingPolicy().usesPhysicalPutting()) {
             throw new IllegalStateException("physical putt requires a PHYSICAL_V1 hole policy");
         }
-        if (ball.lie() != Surface.GREEN) {
-            throw new IllegalArgumentException("physical putting is currently supported only from the green");
+        if (ball.lie() != Surface.GREEN && ball.lie() != Surface.FRINGE) {
+            throw new IllegalArgumentException("physical putting is available only from green or fringe");
+        }
+        if (ball.lie() == Surface.FRINGE && (hole.geometry() == null
+                || hole.geometry().surfaceAt(ball.position()) != Surface.FRINGE)) {
+            throw new IllegalArgumentException("physical fringe putt requires an actual fringe position");
         }
         GreenSurface surface = Objects.requireNonNull(hole.greenSurface(), "physical putting requires GreenSurface V1");
         Position2d cup = Objects.requireNonNull(hole.cupPosition(), "physical putting requires an effective cup");
         PhysicalPuttOutcome physical = PhysicalPuttSolver.resolve(new PhysicalPuttRequest(
                 hole.puttingPolicy().physicalModelVersion(), surface, ball.position(), cup, intent, attributes, state,
-                Seeds.forCoordinate(coordinate), PhysicalPuttExecutionMode.ATTRIBUTE_DRIVEN));
+                Seeds.forCoordinate(coordinate), PhysicalPuttExecutionMode.ATTRIBUTE_DRIVEN,
+                ball.lie() == Surface.FRINGE ? hole.geometry() : null));
         Position2d finalPosition = physical.finalPosition();
         Surface finalSurface = physical.holed() ? Surface.GREEN : hole.geometry().surfaceAt(finalPosition);
         boolean hazard = !physical.holed() && finalSurface.isHazard();

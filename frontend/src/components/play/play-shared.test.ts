@@ -75,4 +75,18 @@ describe("validShotSelection", () => {
     expect(validShotSelection(fringe, { club: "GAP_WEDGE", technique: "PITCH", shape: "STRAIGHT" }, false))
       .toEqual({ club: "GAP_WEDGE", technique: "PITCH", shape: "STRAIGHT" });
   });
+
+  it("lets a physical fringe selection switch between a putt and legal chip or pitch", () => {
+    const fringe = situation("FRINGE", [club("GAP_WEDGE", 90, [
+      family("CHIP", true, [{ shape: "STRAIGHT", available: true }]),
+      family("PITCH", true, [{ shape: "STRAIGHT", available: true }]),
+    ])]);
+    const chip = validShotSelection(fringe);
+    expect(chip.technique).toBe("CHIP");
+    const putt = validShotSelection(fringe, { ...chip, technique: "PUTT" }, true);
+    expect(putt).toEqual({ club: "GAP_WEDGE", technique: "PUTT", shape: "STRAIGHT" });
+    expect(validShotSelection(fringe, { ...putt, technique: "PITCH" }, true).technique).toBe("PITCH");
+    expect(validShotSelection(situation("PRIMARY_ROUGH", fringe.guidance!.clubs), putt, true).technique)
+      .not.toBe("PUTT");
+  });
 });

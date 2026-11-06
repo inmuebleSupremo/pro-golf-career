@@ -9,6 +9,7 @@ import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.putt.PhysicalPuttIntent;
 import com.progolf.sim.putt.PhysicalPuttPlanner;
 import com.progolf.sim.putt.PhysicalPuttResolution;
+import com.progolf.sim.putt.PhysicalPuttSolver;
 import com.progolf.sim.putt.PuttingPolicy;
 import com.progolf.sim.shot.BallState;
 import com.progolf.sim.shot.Environment;
@@ -116,6 +117,36 @@ class PhysicalPuttingIntegrationTest {
     }
 
     @Test
+    void actualFringeBallUsesTheSharedPhysicalResolverAndConservativeAiEligibility() {
+        HoleModel hole = course().holeModel(18, 1, CourseSetup.standard(), PinPlacementVersion.V5_EFFECTIVE_GREEN,
+                PuttingPolicy.PHYSICAL_V1);
+        Position2d start = nearestFringePoint(hole);
+        BallState ball = new BallState(start, Surface.FRINGE);
+        double distance = start.distanceTo(hole.cupPosition());
+        assertThat(distance).isLessThan(10.0);
+        assertThat(PhysicalPuttPlanner.shouldPuttFromFringe(hole, ball, distance)).isTrue();
+        assertThat(PhysicalPuttPlanner.shouldPuttFromFringe(hole, ball, 10.1)).isFalse();
+        PhysicalPuttIntent plan = PhysicalPuttPlanner.decide(hole.greenSurface(), start, hole.cupPosition());
+        double greenOnlyPace = (distance + PhysicalPuttSolver.GRAVITY_YARDS_PER_SECOND_SQUARED
+                / PhysicalPuttSolver.ROLLING_DECELERATION_YARDS_PER_SECOND_SQUARED
+                * (hole.greenSurface().elevationAt(hole.cupPosition()) - hole.greenSurface().elevationAt(start))) * 3.0;
+        assertThat(plan.intendedRollFeet()).isGreaterThan(greenOnlyPace);
+
+        ShotOutcome human = PhysicalPuttResolution.resolve(hole, PUTTER, GolferState.fresh(), COORDINATE.withShot(81),
+                ball, plan);
+        ShotOutcome ai = PhysicalPuttResolution.resolve(hole, PUTTER, GolferState.fresh(), COORDINATE.withShot(81),
+                ball, plan);
+        assertThat(ai).isEqualTo(human);
+        assertThat(human.physicalPutt().trajectory().getFirst().position()).isEqualTo(start);
+        assertThat(human.strokes()).isEqualTo(1);
+        if (human.settlement() != null) assertThat(human.settlement().ball().position()).isEqualTo(human.physicalPutt().finalPosition());
+        assertThatThrownBy(() -> PhysicalPuttResolution.resolve(hole, PUTTER, GolferState.fresh(), COORDINATE,
+                new BallState(hole.cupPosition(), Surface.FRINGE), plan)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> PhysicalPuttResolution.resolve(hole, PUTTER, GolferState.fresh(), COORDINATE,
+                new BallState(start, Surface.PRIMARY_ROUGH), plan)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void policyIsExplicitAndHistoricalPolicyDataDefaultsToLegacy() {
         ScheduledTournament historical = new ScheduledTournament(1, TourTier.PRO, 0, EventPrestige.REGULAR, 9L,
                 PinPlacementVersion.V5_EFFECTIVE_GREEN);
@@ -145,6 +176,24 @@ class PhysicalPuttingIntegrationTest {
             if (surface.contains(candidate)) return candidate;
         }
         throw new IllegalStateException("could not find a valid physical-putt start");
+    }
+
+    private static Position2d nearestFringePoint(HoleModel hole) {
+        Position2d centre = hole.geometry().greenCenter();
+        Position2d cup = hole.cupPosition();
+        Position2d nearest = null;
+        double distance = Double.POSITIVE_INFINITY;
+        for (Position2d edge : hole.greenSurface().footprint()) {
+            Position2d outward = toward(centre, edge);
+            for (double step = 0.2; step <= 2.0; step += 0.2) {
+                Position2d candidate = edge.plus(outward.x() * step, outward.y() * step);
+                if (hole.geometry().surfaceAt(candidate) == Surface.FRINGE && candidate.distanceTo(cup) < distance) {
+                    nearest = candidate;
+                    distance = candidate.distanceTo(cup);
+                }
+            }
+        }
+        return java.util.Objects.requireNonNull(nearest, "generated green must have a fringe point");
     }
 
     private static Position2d centre(java.util.List<Position2d> points) {

@@ -47,7 +47,8 @@ public final class RoundResolver {
         for (int shotNo = 1; shotNo <= SimConstants.MAX_SHOTS_PER_HOLE; shotNo++) {
             double preShotRemaining = remaining;
             ShotOutcome outcome;
-            if (lie == Surface.GREEN && hole.puttingPolicy().usesPhysicalPutting()) {
+            if (lie == Surface.GREEN && hole.puttingPolicy().usesPhysicalPutting()
+                    || PhysicalPuttPlanner.shouldPuttFromFringe(hole, ball, remaining)) {
                 if (ball == null) throw new IllegalStateException("physical putting requires canonical ball geometry");
                 outcome = PhysicalPuttResolution.resolve(hole, attributes, state, holeCoordinate.withShot(shotNo), ball,
                         PhysicalPuttPlanner.decide(hole.greenSurface(), ball.position(), hole.cupPosition()));

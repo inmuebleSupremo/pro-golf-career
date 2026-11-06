@@ -9,10 +9,12 @@ import { pointerWorldTarget } from "@/lib/play/canonical-geometry";
 import { puttingPolygonPath } from "@/lib/play/premium-putting";
 import { stagePlaybackState } from "@/lib/play/stage-playback-state";
 import { scenicFrame } from "@/lib/play/stage-viewport";
-import { visibleSlopeSamples } from "@/lib/play/physical-putting";
+import { cupDirectedLine, physicalTrajectoryPoint, visibleSlopeSamples } from "@/lib/play/physical-putting";
 import { StageHole } from "./hole-transition";
 import { PhysicalPuttingGreen } from "./physical-putting-green";
 import { ShotMotionFrame } from "./shot-motion-overlay";
+import { BallStrikeDock } from "./ball-strike-dock";
+import { ReadGreenButton, aroundGreenSlopeReview } from "./play-mode";
 
 const polygon = (left: number, bottom: number, right: number, top: number): Point[] => [
   { x: left, y: bottom }, { x: right, y: bottom }, { x: right, y: top }, { x: left, y: top },
@@ -57,12 +59,13 @@ const narrow = { x: 0, y: 0, width: 190, height: 500 };
 const target = { x: 0, y: -6 };
 
 function stageHtml(h: HoleGeom, lie: string, playbackShot: ResolvedShot | null = null,
-                   stageViewport?: { width: number; height: number; safeTop: number; safeBottom: number }, read = false) {
+                   stageViewport?: { width: number; height: number; safeTop: number; safeBottom: number }, read = false,
+                   fringePutting = false) {
   return renderToStaticMarkup(<StageHole displayHole={h} situation={situation(lie, h.ball!.position)} pressure={null}
     playbackShot={playbackShot} phase="play" postHole={null} aimPoint={target} onAimPoint={() => {}}
     physicalAimDirection={{ x: 0, y: 1 }} onPhysicalAimDirection={() => {}} showGreenReading={read}
     onPhysicalPlaybackComplete={() => {}} onTracePlaybackComplete={() => {}} presentation="premium"
-    stageViewport={stageViewport} />);
+    stageViewport={stageViewport} fringePutting={fringePutting} />);
 }
 
 describe("around the green in the existing tournament stage", () => {
@@ -181,6 +184,56 @@ describe("around the green in the existing tournament stage", () => {
     expect(read).toContain('marker-end="url(#downhill-arrow-');
   });
 
+  it("toggles reading without changing dock boxes, stage framing or aim positions at desktop and mobile sizes", () => {
+    const h = hole();
+    const current = situation("FIRST_CUT", h.ball!.position);
+    const selection = { club: "GAP_WEDGE", technique: "CHIP", shape: "STRAIGHT" };
+    const dock = (read: boolean) => renderToStaticMarkup(<BallStrikeDock situation={current}
+      origin={h.ball!.position} aimPoint={target} onAimPoint={() => {}} selection={selection}
+      onSelection={() => {}} onSubmit={async () => {}} locked={false} submitting={false}
+      review={aroundGreenSlopeReview(true)} floating
+      auxiliary={<ReadGreenButton active={read} onToggle={() => {}} disabled={false} aroundGreen />} />);
+    const offDock = dock(false);
+    const onDock = dock(true);
+    const stableBoxes = (markup: string) => markup.replace(/aria-pressed="(?:true|false)"/g, 'aria-pressed="STATE"')
+      .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/g, "<svg/>");
+    expect(stableBoxes(onDock)).toBe(stableBoxes(offDock));
+    expect(offDock).toContain("Green slopes show terrain; chip and pitch rollout follows existing shot rules.");
+    expect(aroundGreenSlopeReview(false)).toBeUndefined();
+    expect(onDock).toContain('value="CHIP"');
+    expect(onDock).toContain('value="GAP_WEDGE"');
+
+    for (const viewport of [{ width: 1600, height: 900, safeTop: 63, safeBottom: 157 },
+      { width: 390, height: 844, safeTop: 63, safeBottom: 265 }]) {
+      const offStage = stageHtml(h, "FIRST_CUT", null, viewport, false);
+      const onStage = stageHtml(h, "FIRST_CUT", null, viewport, true);
+      const viewBox = (markup: string) => markup.match(/viewBox="([^"]+)"/)?.[1];
+      const marker = (markup: string, label: string) => markup.match(
+        new RegExp(`aria-label="${label}"[\\s\\S]*?<circle cx="([^"]+)" cy="([^"]+)"`))?.slice(1);
+      expect(viewBox(onStage)).toBe(viewBox(offStage));
+      for (const label of ["Ball marker at authoritative lie", "Cup marker at authoritative pin", "Selected landing target"]) {
+        expect(marker(onStage, label)).toEqual(marker(offStage, label));
+      }
+      expect(onStage).toContain('marker-end="url(#downhill-arrow-');
+      expect(offStage).not.toContain('marker-end="url(#downhill-arrow-');
+      const frame = scenicFrame(viewport, 300);
+      const width = frame.height * frame.aspect;
+      const scene = { x: (430 - width) / 2, y: 0, width, height: frame.safeHeight };
+      const camera = aroundGreenProjector(h, scene, target);
+      for (const [label, point] of [["Ball marker at authoritative lie", h.ball!.position],
+        ["Cup marker at authoritative pin", h.geometry!.cup], ["Selected landing target", target]] as const) {
+        expect(Number(marker(onStage, label)?.[0])).toBeCloseTo(camera.project(point).x, 8);
+        expect(Number(marker(onStage, label)?.[1])).toBeCloseTo(camera.project(point).y, 8);
+      }
+      for (const region of h.geometry!.regions.filter((candidate) =>
+        ["GREEN", "BUNKER", "WATER"].includes(candidate.surface))) {
+        const path = puttingPolygonPath(region.boundary, camera);
+        expect(onStage).toContain(path);
+        expect(offStage).toContain(path);
+      }
+    }
+  });
+
   it("keeps the SVG camera aligned with desktop and narrow stage areas across the four biomes", () => {
     const families = [
       ["PARKLAND", "PARKLAND"], ["LINKS", "LINKS"],
@@ -259,6 +312,44 @@ describe("around the green in the existing tournament stage", () => {
       displayHole: held.dockHole, liveSituation: situation("GREEN", after.ball!.position), liveHole: after,
       liveAimPoint: target });
     expect(stageHtml(settled.dockHole!, settled.dockSituation.lie)).toContain("Physical putting green: choose a starting line");
+  });
+
+  it("uses the fringe camera for a physical line and holds the authoritative roll until the green transition", () => {
+    const before = hole({ x: 0, y: -27 }, "FRINGE");
+    const after = hole({ x: 0, y: -5 }, "GREEN");
+    const trajectory = [
+      { timeSeconds: 0, position: before.ball!.position, speedYardsPerSecond: 4 },
+      { timeSeconds: 1, position: { x: 0, y: -20 }, speedYardsPerSecond: 2 },
+      { timeSeconds: 2, position: after.ball!.position, speedYardsPerSecond: 0 },
+    ];
+    const shot = { physicalPutt: { trajectory, finalPosition: after.ball!.position, holed: false,
+      terminalCondition: "STOPPED" }, finalSurface: "GREEN", carry: 22, lateral: 0,
+      distanceRemaining: 5, holed: false } satisfies ResolvedShot;
+    const camera = aroundGreenProjector(before, stage);
+    for (const scene of [stage, narrow]) {
+      const projector = aroundGreenProjector(before, scene);
+      const selected = { x: 2, y: -15 };
+      const screen = projector.project(selected);
+      const mapped = pointerWorldTarget({ x: screen.x * 2 + 11, y: screen.y * 2 + 17 },
+        { a: .5, b: 0, c: 0, d: .5, e: -5.5, f: -8.5 }, projector.unproject);
+      expect(cupDirectedLine(before.ball!.position, mapped)).toEqual(cupDirectedLine(before.ball!.position, selected));
+    }
+    expect(stageHtml(before, "FRINGE", null, undefined, false, true))
+      .toContain("Physical fringe putt: click or tap to choose a starting line");
+    expect(stageHtml(before, "FRINGE", null, undefined, false, true))
+      .toContain('aria-label="Submitted starting direction"');
+    expect(stageHtml(before, "FRINGE", null, undefined, false, true))
+      .not.toContain('aria-label="Selected landing target"');
+    const held = stagePlaybackState({ playbackShot: shot, displaySituation: situation("FRINGE", before.ball!.position),
+      displayHole: before, liveSituation: situation("GREEN", after.ball!.position), liveHole: after,
+      liveAimPoint: target, shotAimPoint: target });
+    expect(stageHtml(held.dockHole!, held.dockSituation.lie, shot, undefined, false, true))
+      .toContain("Physical fringe putt: click or tap to choose a starting line");
+    expect(stageHtml(held.dockHole!, held.dockSituation.lie, shot, undefined, false, true))
+      .not.toContain('aria-label="Submitted starting direction"');
+    const midPoint = physicalTrajectoryPoint(trajectory, .5);
+    expect(camera.unproject(camera.project(midPoint))).toEqual(midPoint);
+    expect(stageHtml(after, "GREEN")).toContain("Physical putting green: choose a starting line");
   });
 
   it("keeps the putting renderer's existing green view available", () => {

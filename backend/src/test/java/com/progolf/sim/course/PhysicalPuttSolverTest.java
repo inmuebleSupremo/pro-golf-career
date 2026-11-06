@@ -14,6 +14,7 @@ import com.progolf.sim.putt.PhysicalPuttSolver;
 import com.progolf.sim.putt.PhysicalPuttTerminalCondition;
 import com.progolf.sim.shot.GolferState;
 import com.progolf.sim.shot.SimConstants;
+import com.progolf.sim.spatial.Surface;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -186,6 +187,80 @@ class PhysicalPuttSolverTest {
                 new Position2d(1, 0), 30, Attributes.uniform(50), 6L, PhysicalPuttExecutionMode.IDEAL);
         assertThat(outcome.terminalCondition()).isEqualTo(PhysicalPuttTerminalCondition.LEFT_SUPPORTED_SURFACE);
         assertThat(outcome.holed()).isFalse();
+    }
+
+    @Test
+    void aFringeStartRollsFromItsActualPositionAndCanStopBeforeTheGreen() {
+        GreenSurface green = compactGreen(0.0);
+        CourseGeometry terrain = compactFringe();
+        Position2d start = new Position2d(-1, 0), cup = new Position2d(2, 0);
+        PhysicalPuttOutcome stopped = fringePutt(green, terrain, start, cup, 1.0);
+        assertThat(stopped.terminalCondition()).isEqualTo(PhysicalPuttTerminalCondition.STOPPED);
+        assertThat(stopped.trajectory().getFirst().position()).isEqualTo(start);
+        assertThat(terrain.surfaceAt(stopped.finalPosition())).isEqualTo(Surface.FRINGE);
+        assertThat(stopped.finalPosition().x()).isBetween(-1.0, 0.0);
+    }
+
+    @Test
+    void theTrueBoundarySwitchesResistanceAndThenAppliesGreenBreak() {
+        GreenSurface green = compactGreen(0.02);
+        CourseGeometry terrain = compactFringe();
+        Position2d start = new Position2d(-1, 0), cup = new Position2d(3, 0);
+        PhysicalPuttOutcome putt = fringePutt(green, terrain, start, cup, 12.0);
+        assertThat(putt.trajectory()).anySatisfy(sample -> assertThat(sample.position().x()).isLessThan(0.0));
+        assertThat(putt.trajectory()).anySatisfy(sample -> assertThat(sample.position().x()).isGreaterThan(0.0));
+        assertThat(putt.trajectory().stream().filter(sample -> sample.position().x() < 0.0)
+                .mapToDouble(sample -> Math.abs(sample.position().y())).max().orElseThrow()).isLessThan(1.0e-9);
+        assertThat(putt.trajectory().stream().filter(sample -> sample.position().x() > 0.5)
+                .mapToDouble(sample -> sample.position().y()).min().orElseThrow()).isLessThan(-0.001);
+        assertThat(PhysicalPuttSolver.FRINGE_ROLLING_DECELERATION_YARDS_PER_SECOND_SQUARED)
+                .isGreaterThan(PhysicalPuttSolver.ROLLING_DECELERATION_YARDS_PER_SECOND_SQUARED);
+    }
+
+    @Test
+    void aFringePuttCanReachAndCaptureTheCupWithoutLegacyProbability() {
+        GreenSurface green = compactGreen(0.0);
+        Position2d start = new Position2d(-1, 0), cup = new Position2d(2, 0);
+        PhysicalPuttOutcome captured = fringePutt(green, compactFringe(), start, cup, 13.0);
+        assertThat(captured.terminalCondition()).isEqualTo(PhysicalPuttTerminalCondition.CAPTURED);
+        assertThat(captured.finalPosition()).isEqualTo(cup);
+        assertThat(captured.trajectory().getFirst().position()).isEqualTo(start);
+    }
+
+    @Test
+    void aPhysicalFringeRequestRejectsEveryOtherOffGreenOrigin() {
+        GreenSurface green = compactGreen(0.0);
+        CourseGeometry terrain = compactFringe();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> fringePutt(green, terrain,
+                new Position2d(-3, 0), new Position2d(2, 0), 12.0))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    private static PhysicalPuttOutcome fringePutt(GreenSurface green, CourseGeometry terrain, Position2d start,
+                                                   Position2d cup, double feet) {
+        return PhysicalPuttSolver.resolve(new PhysicalPuttRequest(PhysicalPuttModelVersion.V1, green, start, cup,
+                new PhysicalPuttIntent(new Position2d(1, 0), feet), Attributes.uniform(50), GolferState.fresh(),
+                17L, PhysicalPuttExecutionMode.IDEAL, terrain));
+    }
+
+    private static CourseGeometry compactFringe() {
+        return new CourseGeometry(new Position2d(-5, 0), new Position2d(5, 0), rectangle(-5, -8, 15, 8),
+                List.of(new TerrainRegion(Surface.FRINGE, rectangle(-2, -6, 12, 6)),
+                        new TerrainRegion(Surface.GREEN, rectangle(0, -4, 10, 4))));
+    }
+
+    private static GreenSurface compactGreen(double crossSlope) {
+        double[] heights = new double[11 * 9];
+        for (int row = 0; row < 9; row++) for (int column = 0; column < 11; column++) {
+            heights[row * 11 + column] = crossSlope * (row - 4);
+        }
+        return new GreenSurface(new GreenSurfaceProvenance(GreenSurfaceVersion.V1, 8L, 9L, 10L,
+                new Position2d(1, 0)), rectangle(0, -4, 10, 4), 0, 10, -4, 4, 11, 9, heights);
+    }
+
+    private static List<Position2d> rectangle(double left, double bottom, double right, double top) {
+        return List.of(new Position2d(left, bottom), new Position2d(right, bottom),
+                new Position2d(right, top), new Position2d(left, top));
     }
 
     private static PhysicalPuttOutcome resolve(GreenSurface surface, Position2d start, Position2d cup, Position2d direction,

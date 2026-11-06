@@ -158,8 +158,8 @@ public final class PlayableRound {
         if (!holes.get(holeIndex).model().puttingPolicy().usesPhysicalPutting()) {
             throw new IllegalStateException("current event does not use physical putting");
         }
-        if (lie != Surface.GREEN || ball == null) {
-            throw new IllegalArgumentException("physical putting is currently available only from the green");
+        if (ball == null || lie != Surface.GREEN && lie != Surface.FRINGE) {
+            throw new IllegalArgumentException("physical putting is available only from green or fringe");
         }
         return resolvePhysicalOne(intent, true);
     }
@@ -268,7 +268,9 @@ public final class PlayableRound {
     }
 
     private boolean usesPhysicalPuttingNow() {
-        return lie == Surface.GREEN && ball != null && holes.get(holeIndex).model().puttingPolicy().usesPhysicalPutting();
+        HoleModel model = holes.get(holeIndex).model();
+        return lie == Surface.GREEN && ball != null && model.puttingPolicy().usesPhysicalPutting()
+                || PhysicalPuttPlanner.shouldPuttFromFringe(model, ball, remaining);
     }
 
     private PhysicalPuttIntent physicalAiIntent() {

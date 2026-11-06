@@ -6,6 +6,7 @@ import com.progolf.sim.core.SplitMix64Rng;
 import com.progolf.sim.course.GreenSurfaceGradient;
 import com.progolf.sim.course.GreenSurfaceLocation;
 import com.progolf.sim.course.Position2d;
+import com.progolf.sim.spatial.Surface;
 import com.progolf.sim.shot.GolferState;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +20,8 @@ public final class PhysicalPuttSolver {
     /** Fixed 10 ms semi-implicit Euler step keeps V1 replay deterministic and inexpensive. */
     public static final double TIME_STEP_SECONDS = 0.01;
     public static final double ROLLING_DECELERATION_YARDS_PER_SECOND_SQUARED = 1.25;
+    /** The fringe is modeled as level, longer grass until the authoritative green boundary is crossed. */
+    public static final double FRINGE_ROLLING_DECELERATION_YARDS_PER_SECOND_SQUARED = 2.50;
     public static final double GRAVITY_YARDS_PER_SECOND_SQUARED = 10.725;
     public static final double STOP_SPEED_YARDS_PER_SECOND = 0.025;
     public static final double MAXIMUM_DURATION_SECONDS = 30.0;
@@ -47,6 +50,7 @@ public final class PhysicalPuttSolver {
         PhysicalPuttExecution execution = execute(request);
         List<PhysicalPuttTrajectoryPoint> trajectory = new ArrayList<>();
         Position2d position = request.start();
+        boolean fringeStart = request.fringeGeometry() != null && !request.surface().contains(position);
         double velocityX = execution.direction().x() * execution.initialSpeedYardsPerSecond();
         double velocityY = execution.direction().y() * execution.initialSpeedYardsPerSecond();
         trajectory.add(new PhysicalPuttTrajectoryPoint(0.0, position, execution.initialSpeedYardsPerSecond()));
@@ -54,25 +58,30 @@ public final class PhysicalPuttSolver {
         int maximumSteps = (int) StrictMath.ceil(MAXIMUM_DURATION_SECONDS / TIME_STEP_SECONDS);
         for (int step = 1; step <= maximumSteps; step++) {
             double speed = StrictMath.hypot(velocityX, velocityY);
-            GreenSurfaceGradient gradient = request.surface().gradientAt(position);
+            Surface terrain = fringeStart ? request.fringeGeometry().surfaceAt(position) : Surface.GREEN;
+            double rollingDeceleration = terrain == Surface.FRINGE
+                    ? FRINGE_ROLLING_DECELERATION_YARDS_PER_SECOND_SQUARED
+                    : ROLLING_DECELERATION_YARDS_PER_SECOND_SQUARED;
+            GreenSurfaceGradient gradient = terrain == Surface.FRINGE
+                    ? new GreenSurfaceGradient(0.0, 0.0) : request.surface().gradientAt(position);
             double slopeAccelerationX = -GRAVITY_YARDS_PER_SECOND_SQUARED * gradient.x();
             double slopeAccelerationY = -GRAVITY_YARDS_PER_SECOND_SQUARED * gradient.y();
             double slopeAcceleration = StrictMath.hypot(slopeAccelerationX, slopeAccelerationY);
-            if (speed < STOP_SPEED_YARDS_PER_SECOND && slopeAcceleration <= ROLLING_DECELERATION_YARDS_PER_SECOND_SQUARED) {
+            if (speed < STOP_SPEED_YARDS_PER_SECOND && slopeAcceleration <= rollingDeceleration) {
                 return stopped(request, execution, trajectory, position, step - 1);
             }
 
             double accelerationX = slopeAccelerationX;
             double accelerationY = slopeAccelerationY;
             if (speed >= STOP_SPEED_YARDS_PER_SECOND) {
-                accelerationX -= ROLLING_DECELERATION_YARDS_PER_SECOND_SQUARED * velocityX / speed;
-                accelerationY -= ROLLING_DECELERATION_YARDS_PER_SECOND_SQUARED * velocityY / speed;
+                accelerationX -= rollingDeceleration * velocityX / speed;
+                accelerationY -= rollingDeceleration * velocityY / speed;
             }
             double nextVelocityX = velocityX + accelerationX * TIME_STEP_SECONDS;
             double nextVelocityY = velocityY + accelerationY * TIME_STEP_SECONDS;
             if (speed >= STOP_SPEED_YARDS_PER_SECOND
                     && nextVelocityX * velocityX + nextVelocityY * velocityY <= 0.0
-                    && slopeAcceleration <= ROLLING_DECELERATION_YARDS_PER_SECOND_SQUARED) {
+                    && slopeAcceleration <= rollingDeceleration) {
                 return stopped(request, execution, trajectory, position, step - 1);
             }
             Position2d next = position.plus(nextVelocityX * TIME_STEP_SECONDS, nextVelocityY * TIME_STEP_SECONDS);
@@ -87,7 +96,9 @@ public final class PhysicalPuttSolver {
                     }
                 }
             }
-            if (request.surface().sampleAt(next).location() == GreenSurfaceLocation.OUTSIDE) {
+            Surface nextTerrain = fringeStart ? request.fringeGeometry().surfaceAt(next) : Surface.GREEN;
+            if (fringeStart ? nextTerrain != Surface.GREEN && nextTerrain != Surface.FRINGE
+                    : request.surface().sampleAt(next).location() == GreenSurfaceLocation.OUTSIDE) {
                 trajectory.add(new PhysicalPuttTrajectoryPoint(time, next, nextSpeed));
                 return new PhysicalPuttOutcome(request.modelVersion(), execution, trajectory, next, false,
                         PhysicalPuttTerminalCondition.LEFT_SUPPORTED_SURFACE);
