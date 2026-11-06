@@ -6,7 +6,10 @@ import type { Situation } from "@/components/play/play-shared";
 import { BallStrikeDock } from "./ball-strike-dock";
 import { TrainingChallengeBriefing } from "./career-training";
 import { DrivingRange } from "./driving-range";
+import { GreensideTraining } from "./greenside-training";
+import { ReadGreenButton } from "./play-mode";
 import { PracticePuttingGreen } from "./practice-putting-green";
+import { Button } from "@/components/ui/button";
 
 const range = { practiceRange: {
   ballsHit: 0, shotRevision: "0", aimHalfWidth: 220, fieldHalfWidth: 250, targetGreenRadius: 11,
@@ -28,10 +31,32 @@ const green = { practicePuttingGreen: {
   cups: Array.from({ length: 5 }, (_, index) => ({ number: index + 1, position: { x: index - 2, y: 0 } })),
   physicalGreen: { slopeSamples: [], contours: [] },
 } };
+const greenside = { playerTrainingGreensideHole: {
+  holeNumber: 6, par: 4, length: 350, fairwayHalfWidth: 10, greenHalfWidth: 12, greenDepth: 40,
+  elevationDelta: 0, hasGreensideBunker: true, hasWater: false, hasTrees: false,
+  pinLateral: 0, pinDepth: 0, courseType: "PARKLAND", courseFamily: "PARKLAND", canonicalBiome: "PARKLAND",
+  courseGeneratorVersion: 8, canonicalGeometrySource: "GENERATOR_8_PRINCIPLED_ARCHITECTURE",
+  layoutSeed: "greenside-training", puttingPolicy: "PHYSICAL_V1",
+  effectiveWind: { x: 0, y: 0, magnitude: 0, unit: "EFFECTIVE_YARDS" },
+  ball: { position: { x: 0, y: -34 }, lie: "FIRST_CUT" },
+  physicalGreen: { slopeSamples: [{ position: { x: 0, y: -4 }, elevation: .2,
+    downhillX: .3, downhillY: .1, slope: .02 }], contours: [] },
+  geometry: { tee: { x: 0, y: -300 }, cup: { x: 0, y: 0 },
+    playableBoundary: [{ x: -70, y: -80 }, { x: 70, y: -80 }, { x: 70, y: 60 }, { x: -70, y: 60 }],
+    regions: [
+      { surface: "FAIRWAY", boundary: [{ x: -12, y: -78 }, { x: 12, y: -78 }, { x: 12, y: 25 }, { x: -12, y: 25 }] },
+      { surface: "FIRST_CUT", boundary: [{ x: -20, y: -78 }, { x: 20, y: -78 }, { x: 20, y: 28 }, { x: -20, y: 28 }] },
+      { surface: "FRINGE", boundary: [{ x: -15, y: -28 }, { x: 15, y: -28 }, { x: 15, y: 18 }, { x: -15, y: 18 }] },
+      { surface: "GREEN", boundary: [{ x: -12, y: -25 }, { x: 12, y: -25 }, { x: 12, y: 15 }, { x: -12, y: 15 }] },
+    ] },
+}, playerTrainingGreensideClubs: [{ club: "GAP_WEDGE", label: "Gap Wedge", nominalCarry: 90, normalReach: 90,
+  families: ["CHIP", "PITCH"].map((family) => ({ family, available: true, reason: null,
+    shapes: [{ shape: "STRAIGHT", available: true, reason: null }] })) }] };
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => ({
-    data: queryKey[0] === "practiceRange" ? range : green, isPending: false, isError: false,
+    data: queryKey[0] === "practiceRange" ? range
+      : queryKey[0] === "playerTrainingGreensideHole" ? greenside : green, isPending: false, isError: false,
   }),
   useMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useQueryClient: () => ({ setQueryData: vi.fn() }),
@@ -43,6 +68,7 @@ function scene(focus: "DRIVING" | "PUTTING", attemptCount = 0): TrainingScene {
     attempts: Array.from({ length: attemptCount }, (_, index) => ({ number: index + 1,
       finalPosition: { x: 0, y: 0 } })), nextChallenge: number } as unknown as PlayableSession;
   return { session, challenge: { number, putting: focus === "PUTTING",
+    greenside: false,
     start: focus === "PUTTING" ? { x: -3, y: 0 } : { x: 0, y: 0 },
     target: focus === "PUTTING" ? { x: 0, y: 0 } : { x: 85, y: 195 },
     cupNumber: 3, suggestedClub: "DRIVER", suggestedFamily: "CONTROLLED",
@@ -108,6 +134,67 @@ describe("playable training in existing practice scenes", () => {
     expect(html).toContain("Fixed training cup");
     expect(html).not.toContain("Place ball</button>");
     expect(html).not.toContain("Collect balls</button>");
+    expect(html.match(/<g[^>]*data-practice-cup="3"[^>]*>/)?.[0]).toContain('pointer-events="none"');
+    expect(html).toContain('aria-label="Aim half a degree left"');
+    expect(html).toContain('aria-label="Aim half a degree right"');
+    expect(html).toContain('aria-label="Exact intended rolling distance in feet"');
+  });
+
+  it("mounts a genuine wedge challenge in the existing premium green stage and stable shot dock", () => {
+    const original = scene("DRIVING");
+    const training = { ...original, session: { ...original.session, focus: "WEDGES" },
+      challenge: { ...original.challenge, number: 4, greenside: true,
+        start: { x: 0, y: -34 }, target: { x: 0, y: 0 }, suggestedClub: "GAP_WEDGE",
+        suggestedFamily: "CHIP", distance: 34, targetLabel: "Hole 6 cup", landingZone: false } } as TrainingScene;
+    const html = renderToStaticMarkup(<GreensideTraining id="world" training={training} />);
+    expect(html).toContain("Career Training greenside wedge challenge");
+    expect(html).toContain("Around the green: click or tap to aim a short-game shot");
+    expect(html).toContain("Green reading overlay");
+    expect(html).toContain("Read green");
+    expect(html).toContain('aria-label="Green reading"');
+    expect(html).toContain("md:flex-wrap lg:justify-between");
+    expect(html).toContain("col-span-2 row-start-3 justify-self-end");
+    expect(html).toContain("Flight shape");
+    expect(html).toContain("Abandon Session");
+    expect(html).toContain('value="CHIP"');
+    expect(html).toContain('value="PITCH"');
+    expect(html).toContain("Click or tap the green surroundings to select a landing point");
+    expect(html).not.toContain("Driving range with seven target flags");
+    expect(html).toContain("practice-facility-page");
+  });
+
+  it("briefs real greenside lies and bunkers without range instructions", () => {
+    const original = scene("DRIVING").challenge;
+    const challenge = { ...original, greenside: true, targetLabel: "Hole 6 cup",
+      suggestedClub: "SAND_WEDGE", suggestedFamily: "BUNKER" };
+    const html = renderToStaticMarkup(<TrainingChallengeBriefing challenge={challenge} focus="WEDGES"
+      playable onBegin={() => {}} onClose={() => {}} onAbandon={() => {}} />);
+    expect(html).toContain("real greenside bunker");
+    expect(html).toContain("Click or tap the green surroundings");
+    expect(html).toContain("final resting distance counts");
+    expect(html).not.toContain("Click or tap the range");
+  });
+
+  it("keeps the greenside dock footprint and controls stable when Read green changes", () => {
+    const hole = greenside.playerTrainingGreensideHole;
+    const situation: Situation = { holeNumber: 6, par: 4, shotNumber: 1, strokesThisHole: 0,
+      distanceToPin: 34, lie: "FIRST_CUT", pinLateral: 0, minReach: 0, maxReach: 320, shotRevision: "0",
+      guidance: { safe: hole.geometry.cup, primary: hole.geometry.cup, aggressive: hole.geometry.cup,
+        clubs: greenside.playerTrainingGreensideClubs, strategicOptions: [] } };
+    const dock = (reading: boolean) => renderToStaticMarkup(<BallStrikeDock situation={situation}
+      origin={hole.ball.position} aimPoint={hole.geometry.cup} onAimPoint={() => {}}
+      selection={{ club: "GAP_WEDGE", technique: "CHIP", shape: "STRAIGHT" }}
+      onSelection={() => {}} onSubmit={async () => {}} locked={false} submitting={false} responsiveAuxiliary
+      auxiliary={<div className="flex flex-nowrap items-center gap-2"><ReadGreenButton active={reading}
+        onToggle={() => {}} disabled={false} aroundGreen /><Button variant="secondary" size="sm">
+          Abandon Session</Button></div>} />);
+    const stable = (markup: string) => markup.replace(/aria-pressed="(?:true|false)"/g, 'aria-pressed="STATE"')
+      .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/g, "<svg/>");
+    expect(stable(dock(true))).toBe(stable(dock(false)));
+    expect(dock(true)).toContain("md:flex-wrap lg:justify-between");
+    expect(dock(true)).toContain("col-span-2 row-start-3 justify-self-end");
+    expect(dock(true)).toContain("Flight shape");
+    expect(dock(true)).toContain("Play shot");
   });
 
   it("keeps unlimited Free Practice controls separate", () => {
@@ -123,6 +210,7 @@ describe("playable training in existing practice scenes", () => {
     expect(greenHtml).toContain("Five cups · Place anywhere · Unlimited balls");
     expect(greenHtml).toContain("Place ball");
     expect(greenHtml).toContain("Collect balls");
+    expect(greenHtml.match(/<g[^>]*data-practice-cup="3"[^>]*>/)?.[0]).not.toContain('pointer-events="none"');
     expect(rangeHtml + greenHtml).not.toContain("Abandon Session");
   });
 

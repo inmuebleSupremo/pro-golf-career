@@ -218,6 +218,42 @@ class WorldGraphQlApiTest {
     }
 
     @Test
+    void greensideTrainingApiExposesThePhysicalHoleAndResolvedChipTrace() {
+        WorldSession world = worldService.create(OWNER, 213L, SMALL);
+        worldService.createPlayer(OWNER, world.id(), "Prep", "Greenside", Nationality.USA, 19,
+                Archetype.ALL_ROUNDER);
+        String id = world.id();
+        var session = worldService.startPlayerTraining(OWNER, id, com.progolf.sim.progression.PreparationFocus.WEDGES);
+        int greensideNumber = session.challenges().stream().filter(com.progolf.sim.progression.TrainingChallenge::greenside)
+                .findFirst().orElseThrow().number();
+        for (int number = 1; number < greensideNumber; number++) {
+            var challenge = session.challenges().get(number - 1);
+            session = worldService.playerTrainingRangeShot(OWNER, id, session.id(), number,
+                    new com.progolf.sim.shot.BallStrikeIntent(challenge.suggestedClub(),
+                            new com.progolf.sim.shot.AimPoint(challenge.target().x(), challenge.target().y()),
+                            challenge.suggestedFamily())).session();
+        }
+        var challenge = session.challenges().get(greensideNumber - 1);
+        org.assertj.core.api.Assertions.assertThat(challenge.greenside()).isTrue();
+        graphQlTester.document("query($id: ID!){ playerTrainingGreensideHole(id: $id) { puttingPolicy geometry { cup { x y } regions { surface } } ball { lie position { x y } } physicalGreen { slopeSamples { elevation } } } playerTrainingGreensideClubs(id: $id) { club families { family available } } }")
+                .variable("id", id).execute()
+                .path("playerTrainingGreensideHole.puttingPolicy").entity(String.class).isEqualTo("PHYSICAL_V1")
+                .path("playerTrainingGreensideHole.ball.position.x").entity(Double.class).isEqualTo(challenge.start().x())
+                .path("playerTrainingGreensideHole.geometry.cup.x").entity(Double.class).isEqualTo(challenge.target().x())
+                .path("playerTrainingGreensideHole.physicalGreen.slopeSamples").entityList(Object.class).hasSizeGreaterThan(0)
+                .path("playerTrainingGreensideClubs").entityList(Object.class).hasSizeGreaterThan(0);
+        var intent = Map.of("club", challenge.suggestedClub().name(),
+                "aimPoint", Map.of("x", challenge.target().x(), "y", challenge.target().y()),
+                "shotFamily", challenge.suggestedFamily().name(), "expectedShotRevision", Integer.toString(greensideNumber - 1));
+        graphQlTester.document("mutation($id: ID!, $trainingId: ID!, $number: Int!, $intent: BallStrikeIntentInput!){ playerTrainingRangeShot(id: $id, trainingId: $trainingId, challengeNumber: $number, intent: $intent) { attempt { score finalPosition { x y } } session { nextChallenge } rangeOutcome { trace { groundPath { kind } finalPoint { x y } } } } }")
+                .variable("id", id).variable("trainingId", session.id()).variable("number", greensideNumber)
+                .variable("intent", intent).execute()
+                .path("playerTrainingRangeShot.session.nextChallenge").entity(Integer.class).isEqualTo(greensideNumber + 1)
+                .path("playerTrainingRangeShot.rangeOutcome.trace.finalPoint.x").entity(Double.class)
+                .satisfies(value -> org.assertj.core.api.Assertions.assertThat(value).isFinite());
+    }
+
+    @Test
     void playablePuttingApiReturnsTheAuthoritativePhysicalPuttOutcome() {
         WorldSession world = worldService.create(OWNER, 212L, SMALL);
         worldService.createPlayer(OWNER, world.id(), "Prep", "Putting", Nationality.USA, 19,

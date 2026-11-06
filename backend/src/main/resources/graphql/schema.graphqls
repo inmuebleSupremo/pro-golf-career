@@ -12,6 +12,10 @@ type Query {
     "The current or most recent playable Career Training session; null for older careers or simulated preparation."
     playerTrainingSession(id: ID!): PlayableTrainingSession
     playerTrainingChallengePlayable(id: ID!): Boolean!
+    "The current greenside training hole; null for range and putting challenges."
+    playerTrainingGreensideHole(id: ID!): PlayingHole
+    "Lie-aware wedge controls for the current greenside training challenge."
+    playerTrainingGreensideClubs(id: ID!): [ClubReach!]!
     "Temporary, session-local driving range state."
     practiceRange(id: ID!): PracticeRange!
     "Temporary five-cup practice green; never changes a career or tournament."
@@ -546,6 +550,8 @@ type TrainingChallenge {
     targetLabel: String!
     "True for an additional marked range landing zone; false for a permanent flag or cup."
     landingZone: Boolean!
+    "True only for a saved wedge challenge on a generated physical hole."
+    greenside: Boolean!
     "Local green slope magnitude at the start; zero for range challenges."
     slope: Float!
 }

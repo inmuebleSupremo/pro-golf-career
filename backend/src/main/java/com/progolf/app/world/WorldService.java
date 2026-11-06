@@ -366,6 +366,21 @@ public class WorldService {
         return required(ownerId, worldId).world().playerTrainingChallengePlayable();
     }
 
+    public PlayingHoleDto playerTrainingGreensideHole(String ownerId, String worldId) {
+        World world = required(ownerId, worldId).world();
+        var scene = world.playerTrainingGreensideScene();
+        if (scene == null) return null;
+        var classification = scene.course().identity().classification();
+        return ApiMapper.playingHole(scene.hole(), scene.model().pin(), classification.name(),
+                classification.name(), world.courseGeneratorVersion(), scene.ball(), scene.model().geometry(),
+                scene.model().cupPosition(), new com.progolf.sim.shot.WindVector(0, 0), PuttingPolicy.PHYSICAL_V1,
+                scene.model().greenSurface(), world.courseFamilyFor(classification));
+    }
+
+    public List<com.progolf.sim.shot.ShotGuidance.ClubReach> playerTrainingGreensideClubs(String ownerId, String worldId) {
+        return required(ownerId, worldId).world().playerTrainingGreensideClubs();
+    }
+
     public PlayableTrainingSession startPlayerTraining(String ownerId, String worldId, PreparationFocus focus) {
         PlayableTrainingSession session = required(ownerId, worldId).world().startPlayerTraining(focus);
         autosave(ownerId, worldId);

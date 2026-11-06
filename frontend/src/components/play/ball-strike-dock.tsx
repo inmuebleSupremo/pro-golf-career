@@ -19,7 +19,7 @@ export type BallStrikeInput = ReturnType<typeof buildBallStrikeIntent>;
 /** The non-putting command dock shared by a live hole and the driving range. */
 export function BallStrikeDock({ situation, origin, aimPoint, onAimPoint, selection, onSelection,
   onSubmit, locked, submitting, lastOutcome, externalError, referenceLabel = "Pin", statusText, extraDetails,
-  auxiliary, review, onNextBall, nextLabel = "Next ball", directAim = false, aimSelected = true, expectedReaches = [], floating = false, actionLabel = "Play shot", className, allowFringePutt = true }: {
+  auxiliary, review, onNextBall, nextLabel = "Next ball", directAim = false, aimSelected = true, expectedReaches = [], floating = false, actionLabel = "Play shot", className, allowFringePutt = true, responsiveAuxiliary = false }: {
   situation: Situation;
   origin: Point;
   aimPoint: Point;
@@ -45,6 +45,7 @@ export function BallStrikeDock({ situation, origin, aimPoint, onAimPoint, select
   actionLabel?: string;
   className?: string;
   allowFringePutt?: boolean;
+  responsiveAuxiliary?: boolean;
 }) {
   const [formError, setFormError] = useState<string | null>(null);
   const { club, technique, shape } = selection;
@@ -117,7 +118,8 @@ export function BallStrikeDock({ situation, origin, aimPoint, onAimPoint, select
       <p className="text-subtle-foreground min-h-4 min-w-0 truncate text-xs" title={displayStatus}>{displayStatus}</p>
       {directAim ? <p className="text-muted-foreground text-xs" aria-live="polite">{selectedClub?.label} · {humanize(technique)} · Approx. maximum carry: <strong className="text-foreground font-mono font-semibold tabular-nums">{selectedReach == null ? "—" : formatShotDistance(selectedReach)}</strong></p> : null}
       {review}
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 md:flex lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+      <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 md:flex",
+        responsiveAuxiliary ? "md:flex-wrap lg:justify-between" : "lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]")}>
         <div className="contents lg:col-start-2 lg:flex lg:items-end lg:gap-2">
           <DockField label="Club" className="md:w-52 md:shrink-0"><Select value={club} disabled={locked || !!onNextBall} onChange={(event) => onSelection({ club: event.target.value })}>
             {playableClubs.map((candidate) => {
@@ -139,8 +141,10 @@ export function BallStrikeDock({ situation, origin, aimPoint, onAimPoint, select
             <ShotShapeControl shape={shape} shapes={shapes} onShape={(value) => onSelection({ shape: value })} disabled={locked || !!onNextBall} />
           </div>
         </details>
-        <div className="contents lg:col-start-3 lg:flex lg:items-end lg:justify-self-end lg:gap-2">
-          {auxiliary ? <div className="col-start-2 row-start-2 md:ml-auto">{auxiliary}</div> : null}
+        <div className={cn("contents lg:flex lg:items-end lg:gap-2",
+          !responsiveAuxiliary && "lg:col-start-3 lg:justify-self-end")}>
+          {auxiliary ? <div className={cn("md:ml-auto", responsiveAuxiliary
+            ? "col-span-2 row-start-3 justify-self-end" : "col-start-2 row-start-2")}>{auxiliary}</div> : null}
           <Button className="col-start-2 row-start-1 min-w-32 md:shrink-0" size="lg" onClick={play} disabled={submitting || locked && !onNextBall || playableClubs.length === 0}>
             {submitting ? "Playing…" : onNextBall ? nextLabel : actionLabel}
           </Button>

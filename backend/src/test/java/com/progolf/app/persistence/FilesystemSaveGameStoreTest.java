@@ -75,14 +75,95 @@ class FilesystemSaveGameStoreTest {
         SaveGame loaded = store.load(OWNER, "training");
         World restored = World.restore(loaded.seed(), loaded.config(), loaded.snapshot());
         assertThat(restored.playerTrainingSession()).isEqualTo(world.playerTrainingSession());
-        assertThat(com.progolf.sim.progression.TrainingChallengeGenerator.landingZone(
-                restored.playerTrainingSession().challenges().get(1))).isFalse();
-        assertThat(com.progolf.sim.progression.TrainingChallengeGenerator.targetLabel(
-                restored.playerTrainingSession().challenges().get(1))).endsWith(" flag");
+        var second = restored.playerTrainingSession().challenges().get(1);
+        assertThat(restored.playerTrainingSession().challenges())
+                .hasSize(8).allMatch(com.progolf.sim.progression.TrainingChallenge::greenside);
+        assertThat(com.progolf.sim.progression.TrainingChallengeGenerator.landingZone(second)).isFalse();
+        assertThat(com.progolf.sim.progression.TrainingChallengeGenerator.targetLabel(second))
+                .isEqualTo("Hole " + second.holeNumber() + " cup");
         assertThat(restored.playerTrainingSession().nextChallenge()).isEqualTo(2);
         assertThat(restored.startPlayerTraining(PreparationFocus.WEDGES))
                 .isEqualTo(restored.playerTrainingSession());
         assertThat(restored.playerPreparation().progressFor(PreparationFocus.WEDGES)).isEqualTo(0.95);
+    }
+
+    @Test
+    void olderRangeOnlyWedgeSessionWithoutHoleLocatorStillLoadsAndPlays() throws Exception {
+        World world = World.create(127L, SMALL);
+        world.createPlayer("Old", "Wedges", Nationality.USA, 19, Archetype.ALL_ROUNDER);
+        var generated = world.startPlayerTraining(PreparationFocus.WEDGES);
+        var golfer = world.careerOf(world.playerGolferId().orElseThrow()).player();
+        var oldRange = com.progolf.sim.progression.TrainingChallengeGenerator.generate(PreparationFocus.WEDGES,
+                golfer.attributes(), golfer.toGolferState(0), golfer.handedness(),
+                Long.parseUnsignedLong(generated.id(), 16));
+        store.save(OWNER, "range-only", gameFrom(world, 127L, "range-only"));
+        Path file = dir.resolve(OWNER).resolve("range-only.json");
+        SaveEnvelope current = mapper.readValue(Files.readString(file), SaveEnvelope.class);
+        ObjectNode payload = (ObjectNode) mapper.readTree(current.payload());
+        var preparation = (ObjectNode) payload.get("snapshot").get("careerPreparation");
+        preparation.properties().forEach(entry -> {
+            if (!(entry.getValue().get("playableSession") instanceof ObjectNode session)) return;
+            var challenges = (com.fasterxml.jackson.databind.node.ArrayNode) mapper.valueToTree(oldRange);
+            challenges.forEach(value -> ((ObjectNode) value).remove(java.util.List.of("courseIndex", "holeNumber")));
+            session.set("challenges", challenges);
+        });
+        String oldPayload = mapper.writeValueAsString(payload);
+        Files.writeString(file, mapper.writeValueAsString(new SaveEnvelope(
+                current.formatVersion(), sha256(oldPayload), oldPayload)));
+        SaveGame loaded = store.load(OWNER, "range-only");
+        World restored = World.restore(loaded.seed(), loaded.config(), loaded.snapshot());
+        var session = restored.playerTrainingSession();
+        assertThat(session.challenges()).noneMatch(com.progolf.sim.progression.TrainingChallenge::greenside);
+        for (int number = 1; number <= 4; number++) {
+            var challenge = session.challenges().get(number - 1);
+            session = restored.playerTrainingRangeShot(session.id(), number, new com.progolf.sim.shot.BallStrikeIntent(
+                    challenge.suggestedClub(), new com.progolf.sim.shot.AimPoint(
+                    challenge.target().x(), challenge.target().y()), challenge.suggestedFamily())).session();
+        }
+        assertThat(session.nextChallenge()).isEqualTo(5);
+        assertThat(restored.playerTrainingGreensideScene()).isNull();
+    }
+
+    @Test
+    void previouslyMixedWedgeSessionKeepsItsPersistedRangeAndGreensideRoutes() throws Exception {
+        World world = World.create(128L, SMALL);
+        world.createPlayer("Mixed", "Wedges", Nationality.USA, 19, Archetype.ALL_ROUNDER);
+        var generated = world.startPlayerTraining(PreparationFocus.WEDGES);
+        var golfer = world.careerOf(world.playerGolferId().orElseThrow()).player();
+        var oldRange = com.progolf.sim.progression.TrainingChallengeGenerator.generate(PreparationFocus.WEDGES,
+                golfer.attributes(), golfer.toGolferState(0), golfer.handedness(),
+                Long.parseUnsignedLong(generated.id(), 16));
+        store.save(OWNER, "mixed", gameFrom(world, 128L, "mixed"));
+        Path file = dir.resolve(OWNER).resolve("mixed.json");
+        SaveEnvelope current = mapper.readValue(Files.readString(file), SaveEnvelope.class);
+        ObjectNode payload = (ObjectNode) mapper.readTree(current.payload());
+        var preparation = (ObjectNode) payload.get("snapshot").get("careerPreparation");
+        preparation.properties().forEach(entry -> {
+            if (!(entry.getValue().get("playableSession") instanceof ObjectNode session)) return;
+            var challenges = (com.fasterxml.jackson.databind.node.ArrayNode) session.get("challenges");
+            challenges.set(0, mapper.valueToTree(oldRange.get(0)));
+            challenges.set(2, mapper.valueToTree(oldRange.get(2)));
+        });
+        String oldPayload = mapper.writeValueAsString(payload);
+        Files.writeString(file, mapper.writeValueAsString(new SaveEnvelope(
+                current.formatVersion(), sha256(oldPayload), oldPayload)));
+        SaveGame loaded = store.load(OWNER, "mixed");
+        World restored = World.restore(loaded.seed(), loaded.config(), loaded.snapshot());
+        var session = restored.playerTrainingSession();
+        assertThat(restored.startPlayerTraining(PreparationFocus.WEDGES)).isEqualTo(session);
+        assertThat(session.challenges()).hasSize(8);
+        assertThat(session.challenges().get(0).greenside()).isFalse();
+        assertThat(session.challenges().get(1).greenside()).isTrue();
+        assertThat(session.challenges().get(2).greenside()).isFalse();
+        assertThat(restored.playerTrainingGreensideScene()).isNull();
+        for (int number = 1; number <= 3; number++) {
+            var challenge = session.challenges().get(number - 1);
+            assertThat(restored.playerTrainingGreensideScene() != null).isEqualTo(challenge.greenside());
+            session = restored.playerTrainingRangeShot(session.id(), number, new com.progolf.sim.shot.BallStrikeIntent(
+                    challenge.suggestedClub(), new com.progolf.sim.shot.AimPoint(
+                    challenge.target().x(), challenge.target().y()), challenge.suggestedFamily())).session();
+        }
+        assertThat(session.nextChallenge()).isEqualTo(4);
     }
 
     @Test

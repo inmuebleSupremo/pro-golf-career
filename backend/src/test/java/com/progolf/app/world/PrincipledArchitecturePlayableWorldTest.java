@@ -57,7 +57,7 @@ class PrincipledArchitecturePlayableWorldTest {
         assertThat(hole.canonicalGeometrySource()).isEqualTo("GENERATOR_9_COASTAL_LINKS");
         assertThat(hole.canonicalBiome()).isNotBlank();
         assertThat(hole.geometry().regions()).isNotEmpty();
-        assertThat(hole.puttingPolicy()).isEqualTo(com.progolf.sim.putt.PuttingPolicy.LEGACY.name());
+        assertThat(hole.puttingPolicy()).isEqualTo(com.progolf.sim.putt.PuttingPolicy.PHYSICAL_V1.name());
         assertThat(normal.currentSituation(OWNER, loaded.id())).isNotNull();
         assertThat(normal.simShot(OWNER, loaded.id()).trace()).isNotNull();
 

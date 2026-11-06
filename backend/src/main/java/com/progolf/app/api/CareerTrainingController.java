@@ -4,6 +4,7 @@ import com.progolf.app.api.dto.BallStrikeIntentInput;
 import com.progolf.app.api.dto.DevelopmentDeltaDto;
 import com.progolf.app.api.dto.PhysicalPuttIntentInput;
 import com.progolf.app.api.dto.PhysicalPuttOutcomeDto;
+import com.progolf.app.api.dto.PlayingHoleDto;
 import com.progolf.app.api.dto.ShotOutcomeDto;
 import com.progolf.app.auth.AuthenticatedUser;
 import com.progolf.app.world.WorldService;
@@ -25,7 +26,8 @@ public class CareerTrainingController {
     public record Point(double x, double y) { }
     public record Challenge(int number, boolean putting, Point start, Point target, int cupNumber,
                             String suggestedClub, String suggestedFamily, double distance,
-                            double tolerance, double slope, String targetLabel, boolean landingZone) { }
+                            double tolerance, double slope, String targetLabel, boolean landingZone,
+                            boolean greenside) { }
     public record Attempt(int number, double score, double proximity, double totalDistance,
                           boolean holedTarget, Point finalPosition) { }
     public record RatingChange(String attribute, int before, int after) { }
@@ -48,6 +50,16 @@ public class CareerTrainingController {
     @QueryMapping
     public boolean playerTrainingChallengePlayable(@Argument String id) {
         return worlds.playerTrainingChallengePlayable(AuthenticatedUser.requireId(), id);
+    }
+
+    @QueryMapping
+    public PlayingHoleDto playerTrainingGreensideHole(@Argument String id) {
+        return worlds.playerTrainingGreensideHole(AuthenticatedUser.requireId(), id);
+    }
+
+    @QueryMapping
+    public List<com.progolf.sim.shot.ShotGuidance.ClubReach> playerTrainingGreensideClubs(@Argument String id) {
+        return worlds.playerTrainingGreensideClubs(AuthenticatedUser.requireId(), id);
     }
 
     @MutationMapping
@@ -100,7 +112,7 @@ public class CareerTrainingController {
                 value.suggestedFamily() == null ? null : value.suggestedFamily().name(),
                 value.distance(), value.tolerance(), value.slope(),
                 com.progolf.sim.progression.TrainingChallengeGenerator.targetLabel(value),
-                com.progolf.sim.progression.TrainingChallengeGenerator.landingZone(value));
+                com.progolf.sim.progression.TrainingChallengeGenerator.landingZone(value), value.greenside());
     }
 
     private static Attempt attempt(TrainingAttempt value) {

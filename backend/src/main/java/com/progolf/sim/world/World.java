@@ -86,6 +86,7 @@ import com.progolf.sim.progression.PlayableTrainingSession;
 import com.progolf.sim.progression.TrainingAttempt;
 import com.progolf.sim.progression.TrainingChallenge;
 import com.progolf.sim.progression.TrainingChallengeGenerator;
+import com.progolf.sim.progression.GreensideTraining;
 import com.progolf.sim.progression.TrainingScoring;
 import com.progolf.sim.progression.TrainingRatingChange;
 import com.progolf.sim.practice.PracticeRange;
@@ -562,8 +563,10 @@ public final class World {
         if (!playerPreparationAvailable()) throw new IllegalStateException("weekly preparation is unavailable");
         long seed = trainingSessionSeed(id);
         var golfer = golfers.get(id).player();
-        var challenges = TrainingChallengeGenerator.generate(focus, golfer.attributes(),
-                golfer.toGolferState(0), golfer.handedness(), seed);
+        var challenges = focus == PreparationFocus.WEDGES
+                ? GreensideTraining.generate(coursePool, golfer.attributes(), golfer.toGolferState(0), seed, 8)
+                : TrainingChallengeGenerator.generate(focus, golfer.attributes(),
+                        golfer.toGolferState(0), golfer.handedness(), seed);
         Attributes ratingsBefore = golfers.get(id).player().attributes();
         CareerPreparationOutcome base = commitPreparation(id, focus, false);
         if (!base.committed()) throw new IllegalStateException("weekly preparation was already used");
@@ -585,8 +588,22 @@ public final class World {
                 || session.season() != calendar.currentSeason() || session.week() != calendar.currentWeek()
                 || pendingEvent != null) return false;
         var player = golfers.get(requirePlayer().golferId()).player();
-        return TrainingChallengeGenerator.compatible(session.focus(),
-                session.challenges().get(session.nextChallenge() - 1), player.attributes(), player.toGolferState(0));
+        return trainingChallengeCompatible(session.focus(), session.challenges().get(session.nextChallenge() - 1),
+                player.attributes(), player.toGolferState(0));
+    }
+
+    /** A saved locator reconstructs the same generated hole; older range challenges have no locator. */
+    public synchronized GreensideTraining.Scene playerTrainingGreensideScene() {
+        PlayableTrainingSession session = playerTrainingSession();
+        if (session == null || session.status() != PlayableTrainingSession.Status.ACTIVE) return null;
+        TrainingChallenge challenge = session.challenges().get(session.nextChallenge() - 1);
+        return challenge.greenside() ? GreensideTraining.scene(coursePool, challenge) : null;
+    }
+
+    public synchronized List<com.progolf.sim.shot.ShotGuidance.ClubReach> playerTrainingGreensideClubs() {
+        var scene = playerTrainingGreensideScene();
+        return scene == null ? List.of() : com.progolf.sim.shot.ShotGuidance.clubReaches(
+                golfers.get(requirePlayer().golferId()).player().attributes(), scene.ball().lie());
     }
 
     public synchronized PlayableTrainingSession abandonPlayerTraining(String sessionId) {
@@ -615,12 +632,19 @@ public final class World {
                 || session.focus() == PreparationFocus.WEDGES && family != Club.WEDGE)
             throw new IllegalArgumentException("club does not match the training focus");
         var golfer = golfers.get(id);
-        PracticeRange range = new PracticeRange(golfer.player().attributes(), golfer.player().toGolferState(0),
-                golfer.player().handedness(), Seeds.deriveSeed(trainingSessionSeed(id), challengeNumber));
-        PracticeRange.Result shot = range.hit(intent, PracticeRange.bays().indexOf(challenge.start()) + 1, "0");
+        long seed = Seeds.deriveSeed(trainingSessionSeed(id), challengeNumber);
+        PracticeRange.Result shot;
+        if (challenge.greenside()) {
+            shot = GreensideTraining.hit(GreensideTraining.scene(coursePool, challenge), challenge, intent,
+                    golfer.player().attributes(), golfer.player().toGolferState(0), golfer.player().handedness(), seed);
+        } else {
+            PracticeRange range = new PracticeRange(golfer.player().attributes(), golfer.player().toGolferState(0),
+                    golfer.player().handedness(), seed);
+            shot = range.hit(intent, PracticeRange.bays().indexOf(challenge.start()) + 1, "0");
+        }
         var finish = shot.outcome().trace().finalPoint();
         TrainingAttempt attempt = new TrainingAttempt(challengeNumber, TrainingScoring.range(challenge, shot),
-                challenge.target().distanceTo(finish), shot.totalDistance(), false, finish);
+                challenge.target().distanceTo(finish), shot.totalDistance(), challenge.greenside() && shot.outcome().holed(), finish);
         return new TrainingShotResult(recordTrainingAttempt(id, session, attempt), attempt, shot, null);
     }
 
@@ -663,10 +687,18 @@ public final class World {
             throw new IllegalStateException("training challenge is unavailable or out of order");
         TrainingChallenge challenge = session.challenges().get(number - 1);
         var player = golfers.get(requirePlayer().golferId()).player();
-        if (!TrainingChallengeGenerator.compatible(session.focus(), challenge,
+        if (!trainingChallengeCompatible(session.focus(), challenge,
                 player.attributes(), player.toGolferState(0)))
             throw new IllegalStateException("saved training challenge is incompatible; abandon the session to retain base progress");
         return challenge;
+    }
+
+    private boolean trainingChallengeCompatible(PreparationFocus focus, TrainingChallenge challenge,
+                                                 Attributes attributes, com.progolf.sim.shot.GolferState state) {
+        if (!challenge.greenside()) return TrainingChallengeGenerator.compatible(focus, challenge, attributes, state);
+        if (focus != PreparationFocus.WEDGES) return false;
+        try { GreensideTraining.scene(coursePool, challenge); return true; }
+        catch (IllegalArgumentException incompatible) { return false; }
     }
 
     private long trainingSessionSeed(String id) {

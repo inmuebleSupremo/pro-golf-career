@@ -5,13 +5,14 @@ import { useId, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } 
 import { Button } from "@/components/ui/button";
 import { GreenReading } from "@/components/play/physical-putting-green";
 import { usePhysicalPuttPlayback } from "@/components/play/use-physical-putt-playback";
+import { pointerWorldTarget } from "@/lib/play/canonical-geometry";
 import type { PracticePhysicalPuttMutation, PracticePuttingGreenQuery } from "@/lib/graphql/generated/graphql";
 import type { Point } from "@/lib/play/hole-geometry";
 import { PHYSICAL_BALL_RADIUS_YARDS, PHYSICAL_CUP_RADIUS_YARDS, physicalAimGuideEndpoint,
   physicalAimGuideVisible, physicalTrajectoryPoint, physicalTraversedTrajectory,
   physicalWorldMarkerRadius } from "@/lib/play/physical-putting";
 import { pointInPolygon, puttingPolygonPath } from "@/lib/play/premium-putting";
-import { PRACTICE_PUTTING_SCENE, practicePuttingEnvironmentViewBox, practicePuttingFocusViewBox, practicePuttingProjector,
+import { PRACTICE_PUTTING_SCENE, practicePuttingAimDirection, practicePuttingEnvironmentViewBox, practicePuttingFocusViewBox, practicePuttingProjector,
   practicePuttingWideViewBox } from "@/lib/play/practice-putting-geometry";
 
 type GreenState = PracticePuttingGreenQuery["practicePuttingGreen"];
@@ -93,17 +94,14 @@ export function PracticePuttingStage({ green, selectedCup, direction, placing, r
   }, []);
 
   function choosePoint(event: PointerEvent<SVGSVGElement>) {
-    if (locked || !svgRef.current || (event.target as Element).closest("[data-practice-cup]")) return;
+    if (locked || !svgRef.current || (!training && (event.target as Element).closest("[data-practice-cup]"))) return;
     const matrix = svgRef.current.getScreenCTM();
     if (!matrix) return;
-    const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
-    const world = projector.unproject(local);
+    const world = pointerWorldTarget({ x: event.clientX, y: event.clientY }, matrix.inverse(), projector.unproject);
     if (!pointInPolygon(world, green.footprint)) return;
     if (placing && !training) { onPlace(world); return; }
-    const dx = world.x - green.readyPosition.x;
-    const dy = world.y - green.readyPosition.y;
-    const length = Math.hypot(dx, dy);
-    if (length > .01) onAim({ x: dx / length, y: dy / length });
+    const direction = practicePuttingAimDirection(green.readyPosition, world);
+    if (direction) onAim(direction);
   }
 
   return <main ref={stageRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-[var(--practice-green-ground-mid)]">
@@ -177,9 +175,10 @@ export function PracticePuttingStage({ green, selectedCup, direction, placing, r
         const point = projector.project(target.position);
         const selected = target.number === selectedCup;
         return <g key={target.number} data-practice-cup={target.number} transform={`translate(${point.x} ${point.y})`}
+          pointerEvents={training ? "none" : undefined}
           role="button" tabIndex={locked || training ? -1 : 0} aria-label={`Select cup ${target.number}`} aria-pressed={selected}
           aria-disabled={!!training}
-          onPointerDown={(event) => event.stopPropagation()}
+          onPointerDown={training ? undefined : (event) => event.stopPropagation()}
           onClick={() => { if (!locked && !training) onSelectCup(target.number); }}
           onKeyDown={(event) => { if ((event.key === "Enter" || event.key === " ") && !locked && !training) {
             event.preventDefault(); onSelectCup(target.number);
