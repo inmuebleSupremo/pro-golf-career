@@ -233,7 +233,8 @@ public final class PlayableHole {
         ShotAim.Reference aim = humanAimTarget == null ? ShotAim.forBall(model, ball, decision.strategy())
                 : new ShotAim.Reference(humanAimTarget, 0.0, false);
         return new ShotContext(attributes, state, environment, remaining, model.zoneProfileFor(remaining), decision,
-                coordinate.withShot(shotNumber), lie, aim.pinLateral(), ball, model.geometry(), model.cupPosition(), aim.target());
+                coordinate.withShot(shotNumber), lie, aim.pinLateral(), ball, model.geometry(), model.cupPosition(), aim.target(),
+                com.progolf.sim.core.Handedness.RIGHT, ShotContext.physicalShortGameSurface(model, decision));
     }
 
     private void requireNotComplete() {

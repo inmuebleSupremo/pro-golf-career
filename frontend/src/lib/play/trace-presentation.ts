@@ -25,11 +25,12 @@ const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 
 type GroundPoint = NonNullable<ShotTrace["groundPath"]>[number];
 type GroundSegment = { from: Point; to: Point; fromHeight: number; toHeight: number;
-  kind: "rise" | "fall" | "roll"; durationMs: number };
+  kind: "rise" | "fall" | "roll"; durationMs: number; intermediateRoll: boolean };
 
 function runningChip(trace: ShotTrace): boolean {
   const path = authoritativeGroundPath(trace);
-  return path?.length === 1 && path[0].kind === "ROLL_STOP" && path[0].heightYards === 0
+  return !!path?.length && path[path.length - 1].kind === "ROLL_STOP"
+    && path.every((point) => (point.kind === "ROLL_SAMPLE" || point.kind === "ROLL_STOP") && point.heightYards === 0)
     && (trace.club.endsWith("_IRON") || trace.club.endsWith("_WEDGE"))
     && typeof trace.backspinRpm === "number" && trace.backspinRpm > 0 && trace.backspinRpm <= 2500
     && distance(trace.origin, trace.contact.position) > 0;
@@ -54,6 +55,8 @@ export function authoritativeGroundPath(trace: ShotTrace): readonly GroundPoint[
       if (!awaitingLanding || point.heightYards !== 0) return null;
       awaitingLanding = false;
       landed = true;
+    } else if (point.kind === "ROLL_SAMPLE") {
+      if (awaitingLanding || index === path.length - 1 || point.heightYards !== 0) return null;
     } else if (point.kind === "ROLL_STOP" || point.kind === "BOUNDARY_STOP") {
       if (awaitingLanding || index !== path.length - 1 || point.heightYards !== 0) return null;
     } else return null;
@@ -87,7 +90,8 @@ function groundSegments(trace: ShotTrace, flightMs: number): GroundSegment[] | n
       // the displayed incoming flight speed, then let it decelerate naturally.
       durationMs = Math.max(durationMs, Math.ceil(2.5 * segmentDistance * flightMs / carry));
     }
-    segments.push({ from, to: point.position, fromHeight, toHeight: point.heightYards, kind, durationMs });
+    segments.push({ from, to: point.position, fromHeight, toHeight: point.heightYards, kind, durationMs,
+      intermediateRoll: point.kind === "ROLL_SAMPLE" });
     from = point.position;
     fromHeight = point.heightYards;
   }
@@ -209,7 +213,8 @@ export function tracePlaybackFrame(trace: ShotTrace, progress: number): TracePla
     for (const segment of segments) {
       if (remaining < segment.durationMs) {
         const local = clamp(remaining / segment.durationMs, 0, 1);
-        const positionProgress = segment.kind === "roll" ? 1 - Math.pow(1 - local, 2.5) : local;
+        const positionProgress = segment.kind === "roll" && !segment.intermediateRoll
+          ? 1 - Math.pow(1 - local, 2.5) : local;
         const height = segment.kind === "rise"
           ? segment.toHeight * (2 * local - local * local)
           : segment.kind === "fall" ? segment.fromHeight * (1 - local * local) : 0;

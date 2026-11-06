@@ -525,7 +525,7 @@ function ActionDock({
 /** The terrain explanation occupies the same dock space before and after reading is toggled. */
 export function aroundGreenSlopeReview(aroundGreen: boolean) {
   return aroundGreen
-    ? <p className="text-muted-foreground text-xs">Green slopes show terrain; chip and pitch rollout follows existing shot rules.</p>
+    ? <p className="text-muted-foreground text-xs">Green slopes affect roll on the green; contours do not predict a shot path.</p>
     : undefined;
 }
 
@@ -534,7 +534,7 @@ export function ReadGreenButton({ active, onToggle, disabled, aroundGreen = fals
 }) {
   return <Button variant="secondary" size="sm" onClick={onToggle} disabled={disabled}
     aria-label="Green reading" aria-pressed={active}
-    title={aroundGreen ? "Green slopes show terrain; chip and pitch rollout follows existing shot rules." : undefined}>
+    title={aroundGreen ? "Green slopes affect roll on the green; contours do not predict a shot path." : undefined}>
     {active ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
     Read green
   </Button>;

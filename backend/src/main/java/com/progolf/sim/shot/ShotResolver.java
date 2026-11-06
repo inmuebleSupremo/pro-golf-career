@@ -5,6 +5,8 @@ import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.Rng;
 import com.progolf.sim.core.RngFactory;
 import com.progolf.sim.course.CourseGeometry;
+import com.progolf.sim.course.GreenSurface;
+import com.progolf.sim.course.GreenSurfaceGradient;
 import com.progolf.sim.course.Position2d;
 import com.progolf.sim.course.TerrainRegion;
 import com.progolf.sim.spatial.Surface;
@@ -297,6 +299,7 @@ public final class ShotResolver {
         ShotContact contact = new ShotContact(contactPosition, contactSurface);
         ShotSettlement settlement;
         ShotTraceRoll roll = null;
+        List<GroundMotionPoint> physicalGroundPath = null;
         GroundResponse ground = raw.putt() ? null : groundResponse(context, contactSurface, raw.carry(),
                 backspinRpm(context, raw.carry()));
         if (contactSurface == Surface.WATER) {
@@ -315,8 +318,16 @@ public final class ShotResolver {
             if (ground != null) {
                 double releaseYards = ground.totalYards();
                 if (releaseYards > 0) {
-                    Position2d candidate = boundedRelease(context.geometry(), flight, frame, contactPosition,
-                            contactSurface, releaseYards);
+                    Position2d candidate;
+                    if (physicalGreenRollApplies(context, ground, flight, frame, contactPosition, contactSurface)) {
+                        GreenRoll release = greenRoll(context, ground, flight, frame, contactPosition, contactSurface,
+                                materializeTrace);
+                        candidate = release.position();
+                        physicalGroundPath = release.path();
+                    } else {
+                        candidate = boundedRelease(context.geometry(), flight, frame, contactPosition,
+                                contactSurface, releaseYards);
+                    }
                     if (!candidate.equals(contactPosition)) {
                         finalPosition = candidate;
                         roll = new ShotTraceRoll(contactPosition, candidate);
@@ -327,7 +338,7 @@ public final class ShotResolver {
                     new BallState(finalPosition, context.geometry().surfaceAt(finalPosition)));
         }
         BallState playable = settlement.ball();
-        ShotTrace trace = materializeTrace ? trace(context, settlement, roll, flight, ground) : null;
+        ShotTrace trace = materializeTrace ? trace(context, settlement, roll, flight, ground, physicalGroundPath) : null;
         return new ShotOutcome(playable.lie(), raw.carry(), raw.lateral(), playable.position().distanceTo(cup),
                 contactSurface.isHazard(), contactSurface.penaltyStrokes(), 1 + contactSurface.penaltyStrokes(),
                 raw.factors(), settlement, raw.putt(), trace);
@@ -364,14 +375,7 @@ public final class ShotResolver {
             rollingSpeed = Math.max(0, landing.forward() * (0.50 + 0.20 * firmness)
                     * surfaceRetention - 0.20 * spinSurfaceSpeed);
         }
-        double friction = (family == ShotFamily.CHIP ? 0.50 + 0.46 * (1 - firmness)
-                : 0.55 + 0.54 * (1 - firmness)) * switch (surface) {
-                    case GREEN -> 0.85;
-                    case FRINGE, FAIRWAY, TEE_BOX -> 1.0;
-                    case FIRST_CUT -> 1.2;
-                    case PRIMARY_ROUGH -> 1.6;
-                    default -> 1.0;
-                };
+        double friction = rollFriction(family, firmness, surface);
         double rollYards = rollingSpeed * rollingSpeed / (2 * friction * 9.81) * 1.0936133;
         double total = bounceYards + rollYards;
         double cap = family == ShotFamily.CHIP ? Math.min(12.0, carryYards)
@@ -451,6 +455,17 @@ public final class ShotResolver {
     }
     private record LandingVelocity(double forward, double vertical) { }
 
+    private static double rollFriction(ShotFamily family, double firmness, Surface surface) {
+        return (family == ShotFamily.CHIP ? 0.50 + 0.46 * (1 - firmness)
+                : 0.55 + 0.54 * (1 - firmness)) * switch (surface) {
+                    case GREEN -> 0.85;
+                    case FRINGE, FAIRWAY, TEE_BOX -> 1.0;
+                    case FIRST_CUT -> 1.2;
+                    case PRIMARY_ROUGH -> 1.6;
+                    default -> 1.0;
+                };
+    }
+
     /** Builds a presentation projection from existing context and settlement facts without recalculation. */
     private static FlightSolution flight(ShotContext context, ShotFrame frame, ShotOutcome raw, ShotExecutionProfile profile) {
         ShotShape shape = context.decision().shotShape();
@@ -469,16 +484,8 @@ public final class ShotResolver {
     private static Position2d boundedRelease(CourseGeometry geometry, FlightSolution flight, ShotFrame frame,
                                              Position2d contact, Surface contactSurface, double rollYards) {
         if (!ordinaryPlayable(contactSurface)) return contact;
-        Position2d previous = flight == null ? frame.project(-0.01, 0.0) : flight.positionAt(0.99);
-        double dx = contact.x() - previous.x();
-        double dy = contact.y() - previous.y();
-        double length = StrictMath.hypot(dx, dy);
-        if (length < 1.0e-9) {
-            dx = frame.forwardX();
-            dy = frame.forwardY();
-            length = 1.0;
-        }
-        Position2d desired = contact.plus(dx / length * rollYards, dy / length * rollYards);
+        Position2d direction = releaseDirection(flight, frame, contact);
+        Position2d desired = contact.plus(direction.x() * rollYards, direction.y() * rollYards);
         List<Double> boundaries = boundaryParameters(geometry, contact, desired);
         boundaries.add(0.0);
         boundaries.add(1.0);
@@ -500,6 +507,130 @@ public final class ShotResolver {
         }
         return desired;
     }
+
+    private static Position2d releaseDirection(FlightSolution flight, ShotFrame frame, Position2d contact) {
+        Position2d previous = flight == null ? frame.project(-0.01, 0.0) : flight.positionAt(0.99);
+        double dx = contact.x() - previous.x();
+        double dy = contact.y() - previous.y();
+        double length = StrictMath.hypot(dx, dy);
+        if (length < 1.0e-9) {
+            dx = frame.forwardX();
+            dy = frame.forwardY();
+            length = 1.0;
+        }
+        return new Position2d(dx / length, dy / length);
+    }
+
+    /** Only a physical chip/pitch whose existing release can touch the exact green footprint uses slope roll. */
+    private static boolean physicalGreenRollApplies(ShotContext context, GroundResponse ground, FlightSolution flight,
+                                                     ShotFrame frame, Position2d contact, Surface contactSurface) {
+        GreenSurface surface = context.greenSurface();
+        ShotFamily family = context.decision().shotFamily();
+        if (surface == null || (family != ShotFamily.CHIP && family != ShotFamily.PITCH)
+                || ground.rollYards() <= 0 || !ordinaryPlayable(contactSurface)) return false;
+        boolean matchingGreen = context.geometry().regions().stream()
+                .anyMatch(region -> region.surface() == Surface.GREEN && region.boundary().equals(surface.footprint()));
+        if (!matchingGreen) return false;
+        if (contactSurface == Surface.GREEN) return true;
+        Position2d direction = releaseDirection(flight, frame, contact);
+        Position2d endpoint = contact.plus(direction.x() * ground.totalYards(), direction.y() * ground.totalYards());
+        List<Double> crossings = new ArrayList<>();
+        addBoundaryParameters(crossings, surface.footprint(), contact, endpoint);
+        return !crossings.isEmpty();
+    }
+
+    /** Reuses the spin/cap-adjusted roll distance as energy, then resolves its two-dimensional path. */
+    private static GreenRoll greenRoll(ShotContext context, GroundResponse ground, FlightSolution flight,
+                                       ShotFrame frame, Position2d contact, Surface contactSurface, boolean trace) {
+        CourseGeometry geometry = context.geometry();
+        ShotFamily family = context.decision().shotFamily();
+        double firmness = context.environment().groundFirmness();
+        Position2d direction = releaseDirection(flight, frame, contact);
+        List<GroundMotionPoint> path = trace ? new ArrayList<>() : null;
+        Position2d bounceLanding = ground.bounceYards() > 0
+                ? boundedRelease(geometry, flight, frame, contact, contactSurface, ground.bounceYards()) : contact;
+        double actualBounce = contact.distanceTo(bounceLanding);
+        if (path != null && ground.bounceHeightYards() > 0.0 && actualBounce > 0.01) {
+            path.add(new GroundMotionPoint(GroundMotionPoint.Kind.BOUNCE_APEX,
+                    contact.plus(direction.x() * actualBounce / 2, direction.y() * actualBounce / 2),
+                    ground.bounceHeightYards()));
+            path.add(new GroundMotionPoint(GroundMotionPoint.Kind.BOUNCE_LANDING, bounceLanding, 0));
+        }
+        if (actualBounce < ground.bounceYards() - 1.0e-6) {
+            return finishGreenRoll(bounceLanding, path, true);
+        }
+
+        double initialDeceleration = rollingDeceleration(family, firmness, contactSurface);
+        double speed = StrictMath.sqrt(2 * initialDeceleration * ground.rollYards());
+        double velocityX = direction.x() * speed, velocityY = direction.y() * speed;
+        Position2d position = bounceLanding;
+        Position2d lastSample = position;
+        double sampleSpacing = Math.max(0.35, Math.min(2.0, ground.rollYards() / 8));
+        for (int step = 0; step < 1000; step++) {
+            speed = StrictMath.hypot(velocityX, velocityY);
+            if (speed <= 0.01) return finishGreenRoll(position, path, false);
+            Surface terrain = geometry.surfaceAt(position);
+            double resistance = rollingDeceleration(family, firmness, terrain);
+            GreenSurfaceGradient grade = terrain == Surface.GREEN
+                    ? context.greenSurface().gradientAt(position) : new GreenSurfaceGradient(0, 0);
+            double accelerationX = -GROUND_GRAVITY_YARDS_PER_SECOND_SQUARED * grade.x() - resistance * velocityX / speed;
+            double accelerationY = -GROUND_GRAVITY_YARDS_PER_SECOND_SQUARED * grade.y() - resistance * velocityY / speed;
+            double timeStep = Math.min(0.02, 0.1 / speed);
+            double nextVelocityX = velocityX + accelerationX * timeStep;
+            double nextVelocityY = velocityY + accelerationY * timeStep;
+            if (nextVelocityX * velocityX + nextVelocityY * velocityY <= 0) {
+                return finishGreenRoll(position, path, false);
+            }
+            Position2d next = position.plus((velocityX + nextVelocityX) * timeStep / 2,
+                    (velocityY + nextVelocityY) * timeStep / 2);
+            BoundaryTraversal boundary = traverseRollStep(geometry, position, next, terrain);
+            if (boundary.stopped()) return finishGreenRoll(boundary.position(), path, true);
+            position = next;
+            velocityX = nextVelocityX;
+            velocityY = nextVelocityY;
+            if (path != null && position.distanceTo(lastSample) >= sampleSpacing) {
+                path.add(new GroundMotionPoint(GroundMotionPoint.Kind.ROLL_SAMPLE, position, 0));
+                lastSample = position;
+            }
+        }
+        return finishGreenRoll(position, path, false);
+    }
+
+    private static final double GROUND_GRAVITY_YARDS_PER_SECOND_SQUARED = 9.81 * 1.0936133;
+
+    private static double rollingDeceleration(ShotFamily family, double firmness, Surface terrain) {
+        return rollFriction(family, firmness, terrain) * GROUND_GRAVITY_YARDS_PER_SECOND_SQUARED;
+    }
+
+    private static BoundaryTraversal traverseRollStep(CourseGeometry geometry, Position2d from, Position2d to,
+                                                        Surface current) {
+        List<Double> boundaries = boundaryParameters(geometry, from, to);
+        if (boundaries.isEmpty() && geometry.surfaceAt(to) == current) return new BoundaryTraversal(to, false);
+        boundaries.add(1.0);
+        double start = 0.0;
+        for (double end : boundaries) {
+            if (end - start < 1.0e-9) continue;
+            Surface next = geometry.surfaceAt(interpolate(from, to, (start + end) / 2));
+            if (next != current) {
+                if (!ordinaryPlayable(next)) {
+                    return new BoundaryTraversal(pointBefore(from, to, start), true);
+                }
+                current = next;
+            }
+            start = end;
+        }
+        return new BoundaryTraversal(to, false);
+    }
+
+    private static GreenRoll finishGreenRoll(Position2d position, List<GroundMotionPoint> path, boolean boundaryStop) {
+        if (path == null) return new GreenRoll(position, List.of());
+        path.add(new GroundMotionPoint(boundaryStop ? GroundMotionPoint.Kind.BOUNDARY_STOP
+                : GroundMotionPoint.Kind.ROLL_STOP, position, 0));
+        return new GreenRoll(position, List.copyOf(path));
+    }
+
+    private record GreenRoll(Position2d position, List<GroundMotionPoint> path) { }
+    private record BoundaryTraversal(Position2d position, boolean stopped) { }
 
     private static boolean ordinaryPlayable(Surface surface) {
         return switch (surface) {
@@ -557,7 +688,7 @@ public final class ShotResolver {
     }
 
     private static ShotTrace trace(ShotContext context, ShotSettlement settlement, ShotTraceRoll roll,
-                                   FlightSolution flight, GroundResponse ground) {
+                                   FlightSolution flight, GroundResponse ground, List<GroundMotionPoint> physicalGroundPath) {
         ShotContact contact = settlement.contact();
         ShotTraceTransition transition = settlement.recoveryKind() == RecoveryKind.NONE ? null
                 : new ShotTraceTransition(settlement.recoveryKind(), contact.position(),
@@ -566,7 +697,7 @@ public final class ShotResolver {
         return new ShotTrace(context.decision().clubSpec().id(), context.ball().position(),
                 new AimPoint(aim.x(), aim.y()), contact, flight == null ? java.util.List.of() : flight.samples(),
                 roll, transition, settlement.ball().position(), ground == null ? 0 : ground.spinRpm(),
-                groundPath(contact.position(), roll, ground));
+                physicalGroundPath == null ? groundPath(contact.position(), roll, ground) : physicalGroundPath);
     }
 
     private static List<GroundMotionPoint> groundPath(Position2d contact, ShotTraceRoll release, GroundResponse ground) {

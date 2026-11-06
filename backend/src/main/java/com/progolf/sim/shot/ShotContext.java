@@ -4,6 +4,7 @@ import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.Handedness;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.course.CourseGeometry;
+import com.progolf.sim.course.GreenSurface;
 import com.progolf.sim.course.Position2d;
 import com.progolf.sim.spatial.ShotZoneProfile;
 import com.progolf.sim.spatial.Surface;
@@ -35,7 +36,8 @@ public record ShotContext(
         CourseGeometry geometry,
         Position2d cupPosition,
         Position2d aimTarget,
-        Handedness handedness) {
+        Handedness handedness,
+        GreenSurface greenSurface) {
 
     public ShotContext {
         Objects.requireNonNull(attributes, "attributes");
@@ -56,6 +58,18 @@ public record ShotContext(
                 || (ball == null) != (aimTarget == null)) {
             throw new IllegalArgumentException("spatial ball, geometry, cup, and aim target must be supplied together");
         }
+        if (greenSurface != null && geometry == null) {
+            throw new IllegalArgumentException("physical green rollout requires canonical geometry");
+        }
+    }
+
+    /** Existing contexts without an event-pinned physical surface retain their original resolution. */
+    public ShotContext(Attributes attributes, GolferState state, Environment environment, double pinDistance,
+                       ShotZoneProfile zoneProfile, ShotDecision decision, SeedCoordinate coordinate, Surface lie,
+                       double pinLateral, BallState ball, CourseGeometry geometry, Position2d cupPosition,
+                       Position2d aimTarget, Handedness handedness) {
+        this(attributes, state, environment, pinDistance, zoneProfile, decision, coordinate, lie, pinLateral,
+                ball, geometry, cupPosition, aimTarget, handedness, null);
     }
 
     /** Constructor for a shot with a centre pin (defaults {@code pinLateral} to 0). */
@@ -102,5 +116,12 @@ public record ShotContext(
 
     public boolean hasCanonicalGeometry() {
         return geometry != null;
+    }
+
+    /** Build the on-demand field only for physical short-game shots that can use it. */
+    public static GreenSurface physicalShortGameSurface(HoleModel hole, ShotDecision decision) {
+        return hole.puttingPolicy().usesPhysicalPutting()
+                && (decision.shotFamily() == ShotFamily.CHIP || decision.shotFamily() == ShotFamily.PITCH)
+                ? hole.greenSurface() : null;
     }
 }

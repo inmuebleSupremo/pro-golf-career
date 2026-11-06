@@ -105,7 +105,8 @@ public final class RoundResolver {
         com.progolf.sim.course.Position2d aim = new com.progolf.sim.course.Position2d(strike.aimPoint().x(), strike.aimPoint().y());
         ShotDecision decision = ShotDecision.fromIntent(strike, ball.position().distanceTo(aim), policy.executionStrategyFor(lie));
         return new ShotContext(attributes, state, environment, remainingDistance, hole.zoneProfileFor(remainingDistance),
-                decision, holeCoordinate.withShot(shotNo), lie, 0.0, ball, hole.geometry(), hole.cupPosition(), aim);
+                decision, holeCoordinate.withShot(shotNo), lie, 0.0, ball, hole.geometry(), hole.cupPosition(), aim,
+                com.progolf.sim.core.Handedness.RIGHT, ShotContext.physicalShortGameSurface(hole, decision));
     }
 
     /**
