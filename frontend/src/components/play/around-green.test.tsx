@@ -198,7 +198,7 @@ describe("around the green in the existing tournament stage", () => {
     const stableBoxes = (markup: string) => markup.replace(/aria-pressed="(?:true|false)"/g, 'aria-pressed="STATE"')
       .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/g, "<svg/>");
     expect(stableBoxes(onDock)).toBe(stableBoxes(offDock));
-    expect(offDock).toContain("Green slopes show terrain; chip and pitch rollout follows existing shot rules.");
+    expect(offDock).toContain("Green slopes affect roll on the green; contours do not predict a shot path.");
     expect(aroundGreenSlopeReview(false)).toBeUndefined();
     expect(onDock).toContain('value="CHIP"');
     expect(onDock).toContain('value="GAP_WEDGE"');

@@ -8,7 +8,10 @@ import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.course.Course;
 import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.CourseGenerator;
+import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.course.EnvironmentClassification;
+import com.progolf.sim.course.PinPlacementVersion;
+import com.progolf.sim.putt.PuttingPolicy;
 import com.progolf.sim.shot.Club;
 import com.progolf.sim.shot.ClubId;
 import com.progolf.sim.shot.AimPoint;
@@ -81,6 +84,25 @@ class PlayableRoundTest {
         PlayableRound pr = round(course);
         pr.simRound();
         assertThat(pr.totalStrokes()).as("simmed round is faithful to the AI round").isEqualTo(aiTotal);
+    }
+
+    @Test
+    void aPhysicalRoundKeepsPlayableAndHeadlessResolutionAligned() {
+        Course course = course();
+        List<HoleToPlay> physicalHoles = new ArrayList<>();
+        int aiTotal = 0;
+        for (int hole = 1; hole <= 18; hole++) {
+            var model = course.holeModel(hole, ROUND, CourseSetup.standard(),
+                    PinPlacementVersion.V5_EFFECTIVE_GREEN, PuttingPolicy.PHYSICAL_V1);
+            physicalHoles.add(new HoleToPlay(model, course.holes().get(hole - 1).par(), Environment.calm()));
+            aiTotal += RoundResolver.resolveHole(model, Attributes.uniform(55), GolferState.fresh(), Environment.calm(),
+                    Strategy.BALANCED, new SeedCoordinate(WORLD, SEASON, TOURN, ROUND, FIELD_INDEX, hole, 0))
+                    .totalStrokes();
+        }
+        PlayableRound playable = new PlayableRound(Attributes.uniform(55), GolferState.fresh(), physicalHoles,
+                new SeedCoordinate(WORLD, SEASON, TOURN, ROUND, FIELD_INDEX, 0, 0), Strategy.BALANCED);
+        playable.simRound();
+        assertThat(playable.totalStrokes()).isEqualTo(aiTotal);
     }
 
     @Test

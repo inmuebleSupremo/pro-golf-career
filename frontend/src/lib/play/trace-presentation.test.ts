@@ -154,6 +154,25 @@ describe("trace presentation", () => {
     expect(tracePlaybackFrame(boundary, .95)).toMatchObject({ phase: "roll", height: 0 });
     expect(authoritativeGroundPath(boundary)).toHaveLength(1);
   });
+  it("follows resolver-authored curved roll samples before showing the final ball", () => {
+    const curved = { ...bouncingTrace, club: "GAP_WEDGE", backspinRpm: 1400,
+      finalPoint: { x: 2, y: 108 },
+      roll: { from: bouncingTrace.contact.position, to: { x: 2, y: 108 } },
+      groundPath: [
+        { kind: "ROLL_SAMPLE", position: { x: 0.5, y: 104 }, heightYards: 0 },
+        { kind: "ROLL_SAMPLE", position: { x: 1.5, y: 106 }, heightYards: 0 },
+        { kind: "ROLL_STOP", position: { x: 2, y: 108 }, heightYards: 0 },
+      ] } satisfies ShotTrace;
+    expect(authoritativeGroundPath(curved)).toHaveLength(3);
+    const timing = tracePlaybackTiming(curved);
+    const rollStart = timing.flightMs + timing.contactMs;
+    const halfway = tracePlaybackFrame(curved, (rollStart + timing.rollMs / 2) / timing.totalMs);
+    expect(halfway.phase).toBe("roll");
+    expect(halfway.point.x).toBeGreaterThan(0);
+    expect(halfway.point.x).toBeLessThan(2);
+    expect(halfway.finalVisible).toBe(false);
+    expect(tracePlaybackFrame(curved, 1)).toEqual({ phase: "final", point: curved.finalPoint, finalVisible: true });
+  });
   it("keeps the completed trace target over a newly selected planning target", () => {
     expect(feedbackAimPoint(trace, { x: 0, y: 200 })).toEqual(trace.aimPoint);
     expect(feedbackAimPoint(null, { x: 0, y: 200 })).toEqual({ x: 0, y: 200 });

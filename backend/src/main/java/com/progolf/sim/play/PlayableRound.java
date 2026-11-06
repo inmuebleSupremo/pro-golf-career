@@ -354,7 +354,8 @@ public final class PlayableRound {
                 ? ShotAim.forBall(hole.model(), ball, decision.strategy())
                 : new ShotAim.Reference(humanAimTarget, 0.0, false);
         return new ShotContext(attributes, state, hole.environment(), remaining, hole.model().zoneProfileFor(remaining),
-                decision, coord, lie, aim.pinLateral(), ball, hole.model().geometry(), hole.model().cupPosition(), aim.target(), handedness);
+                decision, coord, lie, aim.pinLateral(), ball, hole.model().geometry(), hole.model().cupPosition(), aim.target(),
+                handedness, ShotContext.physicalShortGameSurface(hole.model(), decision));
     }
 
     private static void validateAim(Position2d target, com.progolf.sim.course.CourseGeometry geometry) {
