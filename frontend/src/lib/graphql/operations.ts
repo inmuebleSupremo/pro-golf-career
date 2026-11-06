@@ -161,7 +161,7 @@ export const CareerTrainingDocument = graphql(`
       id focus season week status nextChallenge score baseProgress bonusProgress bonusSettled
       fatigueBefore fatigueAfter ratingChanges { attribute before after }
       attributeImprovements { attribute delta season }
-      challenges { number putting start { x y } target { x y } cupNumber suggestedClub suggestedFamily distance tolerance slope targetLabel landingZone }
+      challenges { number putting greenside start { x y } target { x y } cupNumber suggestedClub suggestedFamily distance tolerance slope targetLabel landingZone }
       attempts { number score proximity totalDistance holedTarget finalPosition { x y } }
     }
     playerTrainingChallengePlayable(id: $id)
@@ -204,7 +204,7 @@ export const PlayerTrainingRangeShotDocument = graphql(`
       session { id status nextChallenge score bonusProgress bonusSettled }
       attempt { number score proximity totalDistance holedTarget finalPosition { x y } }
       rangeOutcome {
-        carry finalSurface
+        carry lateral distanceRemaining finalSurface holed
         trace {
           club origin { x y } aimPoint { x y }
           contact { position { x y } surface }
@@ -216,6 +216,31 @@ export const PlayerTrainingRangeShotDocument = graphql(`
           finalPoint { x y }
         }
       }
+    }
+  }
+`);
+
+/** The one physical hole backing the current greenside training challenge. */
+export const PlayerTrainingGreensideHoleDocument = graphql(`
+  query PlayerTrainingGreensideHole($id: ID!) {
+    playerTrainingGreensideClubs(id: $id) {
+      club label nominalCarry normalReach
+      families { family available reason shapes { shape available reason } }
+    }
+    playerTrainingGreensideHole(id: $id) {
+      holeNumber par length fairwayHalfWidth greenHalfWidth greenDepth elevationDelta
+      hasGreensideBunker hasWater hasTrees pinLateral pinDepth courseType canonicalBiome
+      courseFamily courseGeneratorVersion canonicalGeometrySource layoutSeed puttingPolicy
+      effectiveWind { x y magnitude unit }
+      physicalGreen {
+        slopeSamples { position { x y } elevation downhillX downhillY slope }
+        contours { elevation points { x y } }
+      }
+      geometry {
+        tee { x y } cup { x y } playableBoundary { x y }
+        regions { surface boundary { x y } }
+      }
+      ball { position { x y } lie }
     }
   }
 `);

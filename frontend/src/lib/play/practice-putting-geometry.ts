@@ -3,6 +3,28 @@ import type { PhysicalPuttingProjector } from "./physical-putting";
 
 /** The approved overhead composition uses a uniform 35 SVG units per authoritative yard. */
 export const PRACTICE_PUTTING_SCENE = { width: 1280, height: 720, pixelsPerYard: 35 } as const;
+export const PRACTICE_PUTTING_AIM_STEP_DEGREES = 0.5;
+
+/** The selected point defines a line from the live ball, with no target-area snapping. */
+export function practicePuttingAimDirection(ball: Point, target: Point): Point | null {
+  const dx = target.x - ball.x;
+  const dy = target.y - ball.y;
+  const length = Math.hypot(dx, dy);
+  return length > 0.01 ? { x: dx / length, y: dy / length } : null;
+}
+
+export function rotatePracticePuttingLine(direction: Point, degrees: number): Point {
+  const radians = degrees * Math.PI / 180;
+  return { x: direction.x * Math.cos(radians) - direction.y * Math.sin(radians),
+    y: direction.x * Math.sin(radians) + direction.y * Math.cos(radians) };
+}
+
+/** Practice and training send the selected physical controls without quantizing either value. */
+export function practicePuttingShotIntent(
+  direction: Point, paceFeet: number, expectedShotRevision: string,
+) {
+  return { direction, intendedRollFeet: paceFeet, expectedShotRevision };
+}
 
 export const practicePuttingProjector: PhysicalPuttingProjector = {
   ...PRACTICE_PUTTING_SCENE,

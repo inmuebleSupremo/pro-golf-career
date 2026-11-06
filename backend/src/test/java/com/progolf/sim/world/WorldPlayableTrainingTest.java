@@ -12,8 +12,14 @@ import com.progolf.sim.player.Nationality;
 import com.progolf.sim.progression.PlayableTrainingSession;
 import com.progolf.sim.progression.PreparationFocus;
 import com.progolf.sim.progression.TrainingChallenge;
+import com.progolf.sim.progression.TrainingChallengeGenerator;
+import com.progolf.sim.progression.TrainingScoring;
+import com.progolf.sim.shot.ClubSpec;
+import com.progolf.sim.shot.ShotFamilyEligibility;
+import com.progolf.sim.spatial.Surface;
 import com.progolf.sim.shot.AimPoint;
 import com.progolf.sim.shot.BallStrikeIntent;
+import com.progolf.sim.shot.GroundMotionPoint;
 import com.progolf.sim.putt.PhysicalPuttIntent;
 import org.junit.jupiter.api.Test;
 
@@ -130,6 +136,126 @@ class WorldPlayableTrainingTest {
         assertThat(retry.session()).isEqualTo(session);
         assertThat(restored.playerPreparation().progressFor(PreparationFocus.WEDGES))
                 .isEqualTo(world.playerPreparation().progressFor(PreparationFocus.WEDGES));
+    }
+
+    @Test
+    void persistedGreensideChallengeUsesThePhysicalHoleAndSharedTrace() {
+        World world = playerWorld(611);
+        var session = world.startPlayerTraining(PreparationFocus.WEDGES);
+        assertThat(playerWorld(611).startPlayerTraining(PreparationFocus.WEDGES).challenges())
+                .isEqualTo(session.challenges());
+        assertThat(session.challenges()).hasSize(8).allMatch(TrainingChallenge::greenside);
+        assertThat(session.challenges().stream().filter(challenge -> challenge.suggestedFamily()
+                == com.progolf.sim.shot.ShotFamily.BUNKER).count()).isGreaterThanOrEqualTo(1);
+        int greensideNumber = session.challenges().stream().filter(challenge -> challenge.greenside()
+                && challenge.suggestedFamily() != com.progolf.sim.shot.ShotFamily.BUNKER)
+                .findFirst().orElseThrow().number();
+        for (int number = 1; number < greensideNumber; number++) {
+            var challenge = session.challenges().get(number - 1);
+            session = world.playerTrainingRangeShot(session.id(), number, new BallStrikeIntent(
+                    challenge.suggestedClub(), new AimPoint(challenge.target().x(), challenge.target().y()),
+                    challenge.suggestedFamily())).session();
+        }
+        var challenge = session.challenges().get(greensideNumber - 1);
+        var scene = world.playerTrainingGreensideScene();
+        assertThat(scene).isNotNull();
+        assertThat(scene.model().greenSurface()).isNotNull();
+        assertThat(scene.model().greenSurface().footprint()).isEqualTo(scene.model().geometry().regions().stream()
+                .filter(region -> region.surface() == com.progolf.sim.spatial.Surface.GREEN).findFirst().orElseThrow().boundary());
+        assertThat(scene.ball().position()).isEqualTo(challenge.start());
+        assertThat(scene.ball().lie()).isIn(com.progolf.sim.spatial.Surface.FRINGE,
+                com.progolf.sim.spatial.Surface.FIRST_CUT, com.progolf.sim.spatial.Surface.PRIMARY_ROUGH,
+                com.progolf.sim.spatial.Surface.FAIRWAY);
+        assertThat(scene.model().cupPosition()).isEqualTo(challenge.target());
+        var beforeShot = world.snapshot();
+        World restored = World.restore(611, SMALL, beforeShot);
+        assertThat(restored.playerTrainingGreensideScene().ball()).isEqualTo(scene.ball());
+        var intent = new BallStrikeIntent(challenge.suggestedClub(),
+                new AimPoint(challenge.target().x(), challenge.target().y()), challenge.suggestedFamily());
+        var shot = world.playerTrainingRangeShot(session.id(), greensideNumber, intent);
+        var pitch = restored.playerTrainingRangeShot(session.id(), greensideNumber,
+                new BallStrikeIntent(challenge.suggestedClub(),
+                        new AimPoint(challenge.target().x(), challenge.target().y()),
+                        com.progolf.sim.shot.ShotFamily.PITCH));
+        assertThat(pitch.rangeShot().outcome().trace()).isNotNull();
+        restored = World.restore(611, SMALL, beforeShot);
+        var replay = restored.playerTrainingRangeShot(session.id(), greensideNumber, intent);
+        assertThat(replay.attempt()).isEqualTo(shot.attempt());
+        assertThat(replay.rangeShot().outcome().trace()).isEqualTo(shot.rangeShot().outcome().trace());
+        assertThat(shot.rangeShot().outcome().trace().origin()).isEqualTo(challenge.start());
+        assertThat(shot.rangeShot().outcome().trace().groundPath()).isNotEmpty();
+        assertThat(shot.rangeShot().outcome().trace().groundPath().stream()
+                .map(GroundMotionPoint::kind)).contains(GroundMotionPoint.Kind.ROLL_STOP);
+        assertThat(shot.attempt().finalPosition()).isEqualTo(shot.rangeShot().outcome().trace().finalPoint());
+        assertThat(shot.attempt().score()).isEqualTo(TrainingScoring.range(challenge, shot.rangeShot()));
+        assertThat(shot.session().baseProgress()).isEqualTo(session.baseProgress());
+    }
+
+    @Test
+    void newWedgeSessionsKeepEightVariedRealAndReachableGreensideChallenges() {
+        for (long seed : new long[]{610, 611, 612}) {
+            World world = playerWorld(seed);
+            var session = world.startPlayerTraining(PreparationFocus.WEDGES);
+            assertThat(session.challenges()).hasSize(8).allMatch(TrainingChallenge::greenside);
+            assertThat(session.challenges().stream()
+                    .map(TrainingChallenge::suggestedFamily).toList())
+                    .contains(com.progolf.sim.shot.ShotFamily.CHIP,
+                            com.progolf.sim.shot.ShotFamily.PITCH,
+                            com.progolf.sim.shot.ShotFamily.BUNKER);
+            assertThat(World.restore(seed, SMALL, world.snapshot()).playerTrainingSession().challenges())
+                    .isEqualTo(session.challenges());
+            boolean bunkerFound = false;
+            var lies = new java.util.HashSet<Surface>();
+            var directions = new java.util.HashSet<Integer>();
+            var distances = new java.util.ArrayList<Double>();
+            for (TrainingChallenge challenge : session.challenges()) {
+                assertThat(world.playerTrainingChallengePlayable()).isTrue();
+                var scene = world.playerTrainingGreensideScene();
+                assertThat(scene).isNotNull();
+                Surface lie = scene.model().geometry().surfaceAt(challenge.start());
+                lies.add(lie);
+                distances.add(challenge.distance());
+                double angle = Math.atan2(challenge.start().y() - scene.model().geometry().greenCenter().y(),
+                        challenge.start().x() - scene.model().geometry().greenCenter().x());
+                directions.add((int) Math.floor((angle + Math.PI) / (Math.PI / 2)));
+                assertThat(lie).isNotEqualTo(Surface.GREEN);
+                assertThat(scene.ball().lie()).isEqualTo(lie);
+                assertThat(scene.model().greenSurface()).isNotNull();
+                assertThat(ShotFamilyEligibility.evaluate(lie, ClubSpec.of(challenge.suggestedClub()),
+                        challenge.suggestedFamily()).allowed()).isTrue();
+                if (lie == Surface.BUNKER) {
+                    bunkerFound = true;
+                    assertThat(challenge.suggestedFamily()).isEqualTo(com.progolf.sim.shot.ShotFamily.BUNKER);
+                    assertThat(scene.model().geometry().regions().stream()
+                            .filter(region -> region.surface() == Surface.BUNKER)
+                            .anyMatch(region -> region.boundary().stream().anyMatch(point ->
+                                    point.distanceTo(challenge.start()) < 15))).isTrue();
+                }
+                var result = world.playerTrainingRangeShot(session.id(), challenge.number(),
+                        new BallStrikeIntent(challenge.suggestedClub(),
+                                new AimPoint(challenge.target().x(), challenge.target().y()),
+                                challenge.suggestedFamily()));
+                assertThat(result.attempt().finalPosition()).isEqualTo(result.rangeShot().outcome().trace().finalPoint());
+                assertThat(result.attempt().score()).isEqualTo(TrainingScoring.range(challenge, result.rangeShot()));
+            }
+            assertThat(bunkerFound).isTrue();
+            assertThat(lies.size()).isGreaterThanOrEqualTo(3);
+            assertThat(directions.size()).isGreaterThanOrEqualTo(3);
+            assertThat(java.util.Collections.max(distances) - java.util.Collections.min(distances))
+                    .isGreaterThanOrEqualTo(12);
+            assertThat(world.playerTrainingSession().status()).isEqualTo(PlayableTrainingSession.Status.COMPLETED);
+        }
+    }
+
+    @Test
+    void otherTechnicalTrainingFocusesKeepTheirExistingPracticeEnvironments() {
+        for (PreparationFocus focus : new PreparationFocus[]{PreparationFocus.DRIVING,
+                PreparationFocus.IRONS, PreparationFocus.PUTTING}) {
+            var session = playerWorld(620 + focus.ordinal()).startPlayerTraining(focus);
+            assertThat(session.challenges()).hasSize(8).noneMatch(TrainingChallenge::greenside);
+            assertThat(session.challenges().stream().allMatch(TrainingChallenge::putting))
+                    .isEqualTo(focus == PreparationFocus.PUTTING);
+        }
     }
 
     @Test

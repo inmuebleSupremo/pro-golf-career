@@ -6,6 +6,7 @@ import { ArrowRight, Check, Flag, HeartPulse, Target, TrendingUp } from "lucide-
 
 import { PracticeFacilityHeader } from "@/components/play/practice-facility-nav";
 import { DrivingRange } from "@/components/play/driving-range";
+import { GreensideTraining } from "@/components/play/greenside-training";
 import { PracticePuttingGreen } from "@/components/play/practice-putting-green";
 import { Button } from "@/components/ui/button";
 import {
@@ -399,6 +400,8 @@ export function TrainingChallengeBriefing({ challenge, focus, playable, onBegin,
           : `${Math.round(challenge.distance)} yd to ${challenge.targetLabel}`}</p>
         <p className="text-muted-foreground mt-2 text-sm">{challenge.putting
           ? `Read the green and choose a starting line and pace. Slope at the ball: ${Math.round(challenge.slope * 100)}%. A holed putt scores highest; otherwise your final resting distance counts.`
+          : challenge.greenside
+          ? `Suggested ${humanize(challenge.suggestedClub ?? "")} · ${humanize(challenge.suggestedFamily ?? "")}. ${challenge.suggestedFamily === "BUNKER" ? "Play from the real greenside bunker" : "Play from this greenside lie"} and finish near the cup. Click or tap the green surroundings to choose a landing point; allow for bounce and rollout. Your final resting distance counts.`
           : `Suggested ${humanize(challenge.suggestedClub ?? "")} · ${humanize(challenge.suggestedFamily ?? "")}. Finish on the highlighted ${challenge.landingZone ? "zone" : "target green"}. Click or tap the range to set intended carry and direction; allow for bounce and rollout.`}</p>
         <p className="text-muted-foreground mt-2 text-sm">Scoring tolerance: {challenge.putting
           ? `${Math.round(challenge.tolerance * 3)} ft` : `${Math.round(challenge.tolerance)} yd`}. One scored attempt.</p>
@@ -606,7 +609,8 @@ export function CareerTraining({ id }: { id: string }) {
       onReview: () => { setPlaying(false); setStageWeek(weekKey); setStage("result"); },
       onAbandon: () => setConfirmAbandon(true) };
     return <><div inert={briefingActive || unsupported}>{currentSession.focus === "PUTTING" ? <PracticePuttingGreen key={`${currentSession.id}-${sceneChallenge.number}`} id={id} training={training} />
-      : <DrivingRange key={`${currentSession.id}-${sceneChallenge.number}`} id={id} training={training} />}</div>
+      : sceneChallenge.greenside ? <GreensideTraining key={`${currentSession.id}-${sceneChallenge.number}`} id={id} training={training} />
+        : <DrivingRange key={`${currentSession.id}-${sceneChallenge.number}`} id={id} training={training} />}</div>
       {briefingActive || unsupported ? <TrainingChallengeBriefing key={briefingKey} challenge={sceneChallenge}
         focus={currentSession.focus} playable={challengePlayable}
         onBegin={() => setBriefedChallenge(briefingKey)} onClose={() => setPlaying(false)}

@@ -46,11 +46,12 @@ public final class TrainingChallengeGenerator {
 
     /** Derived from persisted world coordinates; older fixed-flag challenges need no save migration. */
     public static boolean landingZone(TrainingChallenge challenge) {
-        return !challenge.putting() && nearestFlag(challenge.target()) < 0;
+        return !challenge.putting() && !challenge.greenside() && nearestFlag(challenge.target()) < 0;
     }
 
     public static String targetLabel(TrainingChallenge challenge) {
         if (challenge.putting()) return "Cup " + challenge.cupNumber();
+        if (challenge.greenside()) return "Hole " + challenge.holeNumber() + " cup";
         int flag = nearestFlag(challenge.target());
         if (flag >= 0) return PracticeRange.targets().get(flag).label() + " flag";
         String lane = challenge.target().x() < -3 ? "L" : challenge.target().x() > 3 ? "R" : "C";

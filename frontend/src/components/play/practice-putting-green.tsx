@@ -15,6 +15,8 @@ import { CollectPracticeBallsDocument, PlacePracticeBallDocument, PracticePhysic
 import type { Point } from "@/lib/play/hole-geometry";
 import { cupDirectedLine, currentPhysicalPuttControls, defaultPaceFeet, physicalPuttControlSource,
   validPaceFeet, type PhysicalPuttControls } from "@/lib/play/physical-putting";
+import { PRACTICE_PUTTING_AIM_STEP_DEGREES, practicePuttingShotIntent,
+  rotatePracticePuttingLine } from "@/lib/play/practice-putting-geometry";
 import { golfAudio } from "@/lib/play/golf-audio";
 import { shotSubmissionFeedback } from "@/lib/play/shot-feedback";
 import { visibleTrainingAttempt } from "@/lib/play/training-presentation";
@@ -123,15 +125,15 @@ export function PracticePuttingGreen({ id, training }: { id: string; training?: 
     golfAudio.unlock();
     setError(null);
     if (!training) {
-      try { await putt.mutateAsync({ direction: activeControls.direction, intendedRollFeet: activeControls.paceFeet,
-        expectedShotRevision: state.shotRevision, targetCup: chosenCup.number }); }
+      try { await putt.mutateAsync({ ...practicePuttingShotIntent(activeControls.direction, activeControls.paceFeet,
+        state.shotRevision), targetCup: chosenCup.number }); }
       catch (cause) { setError(shotSubmissionFeedback(cause)); }
       return;
     }
     inFlight.current = true;
     try {
-      const response = (await trainingPutt.mutateAsync({ direction: activeControls.direction,
-        intendedRollFeet: activeControls.paceFeet, expectedShotRevision: String(training.challenge.number - 1) })).playerTrainingPutt;
+      const response = (await trainingPutt.mutateAsync(practicePuttingShotIntent(activeControls.direction,
+        activeControls.paceFeet, String(training.challenge.number - 1)))).playerTrainingPutt;
       setTrainingShot(response);
       if (response.puttOutcome?.trajectory && response.puttOutcome.trajectory.length > 1)
         setPlayback({ outcome: response.puttOutcome });
@@ -166,10 +168,7 @@ export function PracticePuttingGreen({ id, training }: { id: string; training?: 
     !!playback, nextChallenge);
 
   function rotateLine(degrees: number) {
-    const radians = degrees * Math.PI / 180;
-    const { x, y } = activeControls.direction;
-    setControls({ ...activeControls, direction: { x: x * Math.cos(radians) - y * Math.sin(radians),
-      y: x * Math.sin(radians) + y * Math.cos(radians) } });
+    setControls({ ...activeControls, direction: rotatePracticePuttingLine(activeControls.direction, degrees) });
   }
 
   function finishPlayback() {
@@ -221,11 +220,11 @@ export function PracticePuttingGreen({ id, training }: { id: string; training?: 
           </div>
           <div className="practice-putting-line flex min-w-0 flex-col gap-1">
             <span className="text-subtle-foreground text-[9px] font-bold uppercase">Starting line</span>
-            <div className="flex items-center gap-1"><Button variant="secondary" size="sm" className="px-2" onClick={() => rotateLine(-2)}
-              aria-label="Aim two degrees left" disabled={locked}>−</Button>
+            <div className="flex items-center gap-1"><Button variant="secondary" size="sm" className="px-2" onClick={() => rotateLine(-PRACTICE_PUTTING_AIM_STEP_DEGREES)}
+              aria-label="Aim half a degree left" disabled={locked}>−</Button>
               <output className="text-foreground w-12 text-center text-xs font-semibold tabular-nums">{angle > 0 ? "+" : ""}{angle.toFixed(1)}°</output>
-              <Button variant="secondary" size="sm" className="px-2" onClick={() => rotateLine(2)}
-                aria-label="Aim two degrees right" disabled={locked}>+</Button></div>
+              <Button variant="secondary" size="sm" className="px-2" onClick={() => rotateLine(PRACTICE_PUTTING_AIM_STEP_DEGREES)}
+                aria-label="Aim half a degree right" disabled={locked}>+</Button></div>
           </div>
           <div className="practice-putting-pace flex min-w-0 flex-1 flex-col gap-1">
             <label htmlFor="practice-putt-pace" className="text-subtle-foreground text-[9px] font-bold uppercase">Putt pace · {activeControls.paceFeet.toFixed(1)} ft</label>
