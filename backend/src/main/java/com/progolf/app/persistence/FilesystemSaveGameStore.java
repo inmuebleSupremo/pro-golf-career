@@ -6,16 +6,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -41,6 +48,7 @@ public class FilesystemSaveGameStore implements SaveGameStore {
     static final int FORMAT_VERSION = 3;
     private static final int LEGACY_FORMAT_VERSION = 2;
     private static final String EXTENSION = ".json";
+    private static final ConcurrentMap<Path, ReentrantLock> LOCAL_SLOT_LOCKS = new ConcurrentHashMap<>();
 
     private final Path directory;
     private final ObjectMapper mapper;
@@ -65,33 +73,61 @@ public class FilesystemSaveGameStore implements SaveGameStore {
     }
 
     @Override
-    public void save(String ownerId, String saveId, SaveGame game) {
-        Path target = fileFor(ownerId, saveId);
-        try {
-            Path ownerDir = ownerDir(ownerId);
-            Files.createDirectories(ownerDir);
+    public String save(String ownerId, String saveId, SaveGame game) {
+        return write(ownerId, saveId, null, false, game);
+    }
+
+    @Override
+    public String saveIfUnchanged(String ownerId, String saveId, String expectedRevision, SaveGame game) {
+        return write(ownerId, saveId, expectedRevision, true, game);
+    }
+
+    private String write(String ownerId, String saveId, String expectedRevision, boolean conditional, SaveGame game) {
+        return withSlotLock(ownerId, saveId, target -> {
+            if (conditional) {
+                boolean present = Files.isRegularFile(target);
+                if (expectedRevision == null ? present
+                        : !present || !expectedRevision.equals(sha256(Files.readAllBytes(target)))) {
+                    throw new SaveConflictException(saveId);
+                }
+            }
             String payload = mapper.writeValueAsString(game);
             SaveEnvelope envelope = new SaveEnvelope(FORMAT_VERSION, sha256(payload), payload);
             byte[] bytes = mapper.writeValueAsBytes(envelope);
-            Path temp = Files.createTempFile(ownerDir, saveId + "-", ".tmp");
-            Files.write(temp, bytes);
+            Path temp = Files.createTempFile(ownerDir(ownerId), saveId + "-", ".tmp");
             try {
-                Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (IOException atomicUnsupported) {
-                Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING); // fall back if the FS lacks atomic move
+                Files.write(temp, bytes);
+                try {
+                    Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                } catch (AtomicMoveNotSupportedException atomicUnsupported) {
+                    Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(temp);
             }
-        } catch (IOException e) {
-            throw new SaveException("Failed to write save: " + saveId, e);
-        }
+            return sha256(bytes);
+        });
     }
 
     @Override
     public SaveGame load(String ownerId, String saveId) {
+        return loadVersioned(ownerId, saveId).game();
+    }
+
+    @Override
+    public VersionedSave loadVersioned(String ownerId, String saveId) {
         Path file = fileFor(ownerId, saveId);
         if (!Files.isRegularFile(file)) {
             throw new SaveNotFoundException(saveId);
         }
-        SaveEnvelope envelope = readEnvelope(saveId, file);
+        byte[] bytes;
+        SaveEnvelope envelope;
+        try {
+            bytes = Files.readAllBytes(file);
+            envelope = mapper.readValue(bytes, SaveEnvelope.class);
+        } catch (IOException e) {
+            throw new SaveCorruptedException(saveId);
+        }
         if (envelope.formatVersion() != FORMAT_VERSION && envelope.formatVersion() != LEGACY_FORMAT_VERSION) {
             throw new SaveVersionMismatchException(saveId, envelope.formatVersion(), FORMAT_VERSION);
         }
@@ -99,7 +135,7 @@ public class FilesystemSaveGameStore implements SaveGameStore {
             throw new SaveCorruptedException(saveId);
         }
         try {
-            return mapper.readValue(envelope.payload(), SaveGame.class);
+            return new VersionedSave(mapper.readValue(envelope.payload(), SaveGame.class), sha256(bytes));
         } catch (IOException e) {
             throw new SaveCorruptedException(saveId); // payload no longer deserializes to a SaveGame
         }
@@ -130,11 +166,7 @@ public class FilesystemSaveGameStore implements SaveGameStore {
 
     @Override
     public void delete(String ownerId, String saveId) {
-        try {
-            Files.deleteIfExists(fileFor(ownerId, saveId));
-        } catch (IOException e) {
-            throw new SaveException("Failed to delete save: " + saveId, e);
-        }
+        withSlotLock(ownerId, saveId, target -> { Files.deleteIfExists(target); return null; });
     }
 
     /** Reads a save's metadata cheaply (parse + pluck) without binding the whole snapshot; skips unreadable files. */
@@ -149,11 +181,26 @@ public class FilesystemSaveGameStore implements SaveGameStore {
         }
     }
 
-    private SaveEnvelope readEnvelope(String saveId, Path file) {
+    @FunctionalInterface
+    private interface SlotOperation<T> {
+        T run(Path target) throws IOException;
+    }
+
+    private <T> T withSlotLock(String ownerId, String saveId, SlotOperation<T> operation) {
+        Path target = fileFor(ownerId, saveId);
+        Path lockPath = ownerDir(ownerId).resolve(saveId + ".lock").toAbsolutePath().normalize();
+        ReentrantLock local = LOCAL_SLOT_LOCKS.computeIfAbsent(lockPath, ignored -> new ReentrantLock());
+        local.lock();
         try {
-            return mapper.readValue(Files.readString(file, StandardCharsets.UTF_8), SaveEnvelope.class);
+            Files.createDirectories(ownerDir(ownerId));
+            try (FileChannel channel = FileChannel.open(lockPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                    FileLock ignored = channel.lock()) {
+                return operation.run(target);
+            }
         } catch (IOException e) {
-            throw new SaveCorruptedException(saveId); // the envelope itself is unreadable
+            throw new SaveException("Failed to access save: " + saveId, e);
+        } finally {
+            local.unlock();
         }
     }
 
@@ -172,9 +219,13 @@ public class FilesystemSaveGameStore implements SaveGameStore {
     }
 
     private static String sha256(String value) {
+        return sha256(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String sha256(byte[] value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+            return HexFormat.of().formatHex(digest.digest(value));
         } catch (NoSuchAlgorithmException e) {
             throw new UncheckedIOException(new IOException("SHA-256 unavailable", e));
         }

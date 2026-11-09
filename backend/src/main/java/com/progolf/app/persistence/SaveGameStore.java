@@ -11,8 +11,15 @@ import java.util.List;
  */
 public interface SaveGameStore {
 
-    /** Writes {@code game} under {@code saveId} for {@code ownerId}, overwriting any existing save with that id. */
-    void save(String ownerId, String saveId, SaveGame game);
+    /** Writes a save unconditionally and returns the revision of the committed file. */
+    String save(String ownerId, String saveId, SaveGame game);
+
+    /**
+     * Writes only if the slot still has {@code expectedRevision}; a null expectation means create only when
+     * absent. The comparison and replacement must be one serialized write operation across store instances.
+     * Returns the revision of the committed file, or throws {@link SaveConflictException} without writing.
+     */
+    String saveIfUnchanged(String ownerId, String saveId, String expectedRevision, SaveGame game);
 
     /**
      * Reads the save stored under {@code saveId} for {@code ownerId}.
@@ -22,6 +29,9 @@ public interface SaveGameStore {
      * @throws SaveCorruptedException if the save's payload fails its checksum
      */
     SaveGame load(String ownerId, String saveId);
+
+    /** Loads the game and revision from the same committed file image. */
+    VersionedSave loadVersioned(String ownerId, String saveId);
 
     /** The metadata of every save owned by {@code ownerId}, for listing without loading each world. */
     List<SaveMetadata> list(String ownerId);
