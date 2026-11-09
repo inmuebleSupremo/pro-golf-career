@@ -30,10 +30,12 @@ import com.progolf.app.api.dto.SeasonReviewDto;
 import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.api.dto.PinPlacementStatusDto;
+import com.progolf.app.persistence.SaveConflictException;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
 import com.progolf.app.persistence.SaveMetadata;
 import com.progolf.app.persistence.SaveNotFoundException;
+import com.progolf.app.persistence.VersionedSave;
 import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.career.Career;
 import com.progolf.sim.career.CareerEventRecord;
@@ -162,28 +164,81 @@ public class WorldService {
 
     // --- Persistence (spec: save-persistence): durable saves attach at this seam, scoped to the owner ---
 
-    /** Saves a session's world to the owner's durable storage under {@code saveId}, overwriting any existing save. */
+    /** Saves under an explicit slot; writing the session's original named slot requires its current revision. */
     public void save(String ownerId, String sessionId, String saveId) {
         WorldSession session = required(ownerId, sessionId);
+        synchronized (session.world()) {
+            session = required(ownerId, sessionId);
+            SaveGame game = capture(session, saveId);
+            String revision;
+            if (!AUTOSAVE_ID.equals(saveId) && saveId.equals(session.originSaveId())) {
+                if (session.originRevision() == null) {
+                    throw new IllegalStateException("This session has no revision for its original save");
+                }
+                revision = saveStore.saveIfUnchanged(ownerId, saveId, session.originRevision(), game);
+            } else {
+                revision = saveStore.save(ownerId, saveId, game);
+            }
+            // The original explicit-save API remains available for creation and existing callers. A write to
+            // another slot never changes provenance; a successful write to the source advances its revision.
+            if (!AUTOSAVE_ID.equals(saveId)) {
+                WorldSession current = session;
+                sessions.computeIfPresent(sessionId, (id, stored) -> stored.originSaveId() == null
+                        || saveId.equals(stored.originSaveId())
+                        ? new WorldSession(id, current.ownerId(), current.seed(), current.world(), saveId, revision)
+                        : stored);
+            }
+        }
+    }
+
+    /** Explicitly saves to a session's original named career, or adopts an autosave as a new named career. */
+    public SaveMetadata saveCareer(String ownerId, String sessionId) {
+        WorldSession session = required(ownerId, sessionId);
+        synchronized (session.world()) {
+            session = required(ownerId, sessionId);
+            String origin = session.originSaveId();
+            if (origin == null || session.originRevision() == null) {
+                throw new IllegalStateException("This session has no saved career to update");
+            }
+            if (AUTOSAVE_ID.equals(origin)) {
+                for (int attempt = 0; attempt < 3; attempt++) {
+                    String namedId = "career-" + UUID.randomUUID();
+                    SaveGame game = capture(session, namedId);
+                    try {
+                        String revision = saveStore.saveIfUnchanged(ownerId, namedId, null, game);
+                        sessions.put(sessionId, new WorldSession(session.id(), ownerId, session.seed(),
+                                session.world(), namedId, revision));
+                        return game.metadata();
+                    } catch (SaveConflictException collision) {
+                        // A generated id collided with an existing slot. Try a different id; never overwrite it.
+                    }
+                }
+                throw new IllegalStateException("Could not allocate a new career save id");
+            }
+            SaveGame game = capture(session, origin);
+            String revision = saveStore.saveIfUnchanged(ownerId, origin, session.originRevision(), game);
+            sessions.put(sessionId, new WorldSession(session.id(), ownerId, session.seed(), session.world(),
+                    origin, revision));
+            return game.metadata();
+        }
+    }
+
+    private SaveGame capture(WorldSession session, String saveId) {
         World world = session.world();
+        var snapshot = world.snapshot(); // retains the existing pending-event restriction
         SaveMetadata metadata = new SaveMetadata(saveId, Instant.now(), world.currentSeason(), world.currentWeek(),
                 world.playerGolferId().orElse(null));
-        saveStore.save(ownerId, saveId, new SaveGame(session.seed(), world.config(), world.snapshot(), metadata,
-                scheduleReviewAcknowledgements.get(session.id()), staffReviewAcknowledgements.get(session.id())));
-        // Only the first successful named save establishes a new session's source. Autosave and later explicit
-        // saves to other slots must not silently redirect a future Save & Exit away from the original career.
-        if (!AUTOSAVE_ID.equals(saveId)) {
-            sessions.computeIfPresent(sessionId, (id, current) -> current.originSaveId() == null
-                    ? new WorldSession(id, current.ownerId(), current.seed(), current.world(), saveId) : current);
-        }
+        return new SaveGame(session.seed(), world.config(), snapshot, metadata,
+                scheduleReviewAcknowledgements.get(session.id()), staffReviewAcknowledgements.get(session.id()));
     }
 
     /** Loads one of the owner's saves into a new session they own and returns it (the world continues identically). */
     public WorldSession load(String ownerId, String saveId) {
-        SaveGame game = saveStore.load(ownerId, saveId);
+        VersionedSave loaded = saveStore.loadVersioned(ownerId, saveId);
+        SaveGame game = loaded.game();
         World world = World.restore(game.seed(), game.config(), game.snapshot());
         String sessionId = UUID.randomUUID().toString();
-        WorldSession session = new WorldSession(sessionId, ownerId, game.seed(), world, saveId);
+        WorldSession session = new WorldSession(sessionId, ownerId, game.seed(), world, saveId, loaded.revision());
         sessions.put(sessionId, session);
         if (game.scheduleReviewAcknowledgedSeason() != null) {
             scheduleReviewAcknowledgements.put(sessionId, game.scheduleReviewAcknowledgedSeason());

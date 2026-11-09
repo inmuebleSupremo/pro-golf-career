@@ -419,6 +419,26 @@ class WorldGraphQlMutationsTest {
                 .expect(error -> error.getErrorType() == ErrorType.NOT_FOUND);
     }
 
+    @Test
+    void saveCareerReturnsItsSlotAndClassifiesStaleWritesAsConflict() {
+        WorldSession created = worldService.create(OWNER, 31L, SMALL);
+        worldService.createPlayer(OWNER, created.id(), "Safe", "Golfer",
+                com.progolf.sim.player.Nationality.USA, 18, com.progolf.sim.player.Archetype.ALL_ROUNDER);
+        String saveId = "gql-career-" + java.util.UUID.randomUUID();
+        worldService.save(OWNER, created.id(), saveId);
+        WorldSession first = worldService.load(OWNER, saveId);
+        WorldSession stale = worldService.load(OWNER, saveId);
+
+        graphQlTester.document("mutation($id: ID!){ saveCareer(id: $id){ saveId savedAt } }")
+                .variable("id", first.id()).execute()
+                .path("saveCareer.saveId").entity(String.class).isEqualTo(saveId)
+                .path("saveCareer.savedAt").entity(String.class).satisfies(savedAt -> assertThat(savedAt).isNotBlank());
+
+        graphQlTester.document("mutation($id: ID!){ saveCareer(id: $id){ saveId } }")
+                .variable("id", stale.id()).execute().errors()
+                .expect(error -> error.getErrorType().toString().equals("CONFLICT"));
+    }
+
     // --- Error classification ---
 
     @Test

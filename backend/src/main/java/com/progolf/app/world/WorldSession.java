@@ -10,10 +10,15 @@ import java.util.Objects;
  * addressable, and reachable only by their owner. Save provenance belongs to the live session, not the world
  * snapshot; it is recovered from the selected save slot whenever that save is loaded into a new session.
  */
-public record WorldSession(String id, String ownerId, long seed, World world, String originSaveId) {
+public record WorldSession(String id, String ownerId, long seed, World world, String originSaveId,
+                           String originRevision) {
 
     public WorldSession(String id, String ownerId, long seed, World world) {
-        this(id, ownerId, seed, world, null);
+        this(id, ownerId, seed, world, null, null);
+    }
+
+    public WorldSession(String id, String ownerId, long seed, World world, String originSaveId) {
+        this(id, ownerId, seed, world, originSaveId, null);
     }
 
     public WorldSession {
@@ -22,6 +27,9 @@ public record WorldSession(String id, String ownerId, long seed, World world, St
         Objects.requireNonNull(world, "world");
         if (originSaveId != null && originSaveId.isBlank()) {
             throw new IllegalArgumentException("Origin save id must not be blank");
+        }
+        if (originRevision != null && (originSaveId == null || originRevision.isBlank())) {
+            throw new IllegalArgumentException("Origin revision requires a save id");
         }
     }
 }

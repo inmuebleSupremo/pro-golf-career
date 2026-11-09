@@ -247,6 +247,9 @@ type Mutation {
     "Saves a session to durable storage under a save id."
     save(id: ID!, saveId: ID!): Boolean!
 
+    "Explicitly saves to the session's original career, or creates a named career from an autosave."
+    saveCareer(id: ID!): Save!
+
     "Loads a save into a new session; returns the restored session's status (including its new id)."
     load(saveId: ID!): WorldStatus!
 

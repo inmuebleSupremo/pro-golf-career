@@ -1,5 +1,6 @@
 package com.progolf.app.api;
 
+import com.progolf.app.api.dto.SaveDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.auth.AuthenticatedUser;
 import com.progolf.app.world.WorldService;
@@ -26,6 +27,11 @@ public class PersistenceMutationController {
     public boolean save(@Argument String id, @Argument String saveId) {
         worldService.save(AuthenticatedUser.requireId(), id, saveId);
         return true;
+    }
+
+    @MutationMapping
+    public SaveDto saveCareer(@Argument String id) {
+        return ApiMapper.save(worldService.saveCareer(AuthenticatedUser.requireId(), id));
     }
 
     @MutationMapping
