@@ -66,13 +66,13 @@ public class FilesystemSaveGameStore implements SaveGameStore {
 
     @Override
     public void save(String ownerId, String saveId, SaveGame game) {
+        Path target = fileFor(ownerId, saveId);
         try {
             Path ownerDir = ownerDir(ownerId);
             Files.createDirectories(ownerDir);
             String payload = mapper.writeValueAsString(game);
             SaveEnvelope envelope = new SaveEnvelope(FORMAT_VERSION, sha256(payload), payload);
             byte[] bytes = mapper.writeValueAsBytes(envelope);
-            Path target = fileFor(ownerId, saveId);
             Path temp = Files.createTempFile(ownerDir, saveId + "-", ".tmp");
             Files.write(temp, bytes);
             try {
@@ -163,6 +163,11 @@ public class FilesystemSaveGameStore implements SaveGameStore {
     }
 
     private Path fileFor(String ownerId, String saveId) {
+        // A save id is one filename within the authenticated owner's directory, never a path supplied by a client.
+        if (saveId == null || saveId.isBlank() || saveId.indexOf('/') >= 0 || saveId.indexOf('\\') >= 0
+                || saveId.indexOf(':') >= 0) {
+            throw new IllegalArgumentException("Invalid save id");
+        }
         return ownerDir(ownerId).resolve(saveId + EXTENSION);
     }
 

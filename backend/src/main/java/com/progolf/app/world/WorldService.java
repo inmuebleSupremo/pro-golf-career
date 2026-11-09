@@ -33,6 +33,7 @@ import com.progolf.app.api.dto.PinPlacementStatusDto;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
 import com.progolf.app.persistence.SaveMetadata;
+import com.progolf.app.persistence.SaveNotFoundException;
 import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.career.Career;
 import com.progolf.sim.career.CareerEventRecord;
@@ -92,6 +93,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -168,6 +170,12 @@ public class WorldService {
                 world.playerGolferId().orElse(null));
         saveStore.save(ownerId, saveId, new SaveGame(session.seed(), world.config(), world.snapshot(), metadata,
                 scheduleReviewAcknowledgements.get(session.id()), staffReviewAcknowledgements.get(session.id())));
+        // Only the first successful named save establishes a new session's source. Autosave and later explicit
+        // saves to other slots must not silently redirect a future Save & Exit away from the original career.
+        if (!AUTOSAVE_ID.equals(saveId)) {
+            sessions.computeIfPresent(sessionId, (id, current) -> current.originSaveId() == null
+                    ? new WorldSession(id, current.ownerId(), current.seed(), current.world(), saveId) : current);
+        }
     }
 
     /** Loads one of the owner's saves into a new session they own and returns it (the world continues identically). */
@@ -175,7 +183,7 @@ public class WorldService {
         SaveGame game = saveStore.load(ownerId, saveId);
         World world = World.restore(game.seed(), game.config(), game.snapshot());
         String sessionId = UUID.randomUUID().toString();
-        WorldSession session = new WorldSession(sessionId, ownerId, game.seed(), world);
+        WorldSession session = new WorldSession(sessionId, ownerId, game.seed(), world, saveId);
         sessions.put(sessionId, session);
         if (game.scheduleReviewAcknowledgedSeason() != null) {
             scheduleReviewAcknowledgements.put(sessionId, game.scheduleReviewAcknowledgedSeason());
@@ -206,6 +214,31 @@ public class WorldService {
     /** The owner's session with the given id, or a 404-mapped exception if unknown or not theirs. */
     public WorldSession get(String ownerId, String id) {
         return required(ownerId, id);
+    }
+
+    /**
+     * Resolves a live session's original named career only while that owner's slot still holds the same golfer.
+     * An unsaved session, a session loaded from the shared autosave, or a missing/replaced slot has no safe
+     * original-career target. This is a read-only guard for a future explicit Save & Exit action.
+     */
+    public Optional<String> originalCareerSaveId(String ownerId, String sessionId) {
+        WorldSession session = required(ownerId, sessionId);
+        String saveId = session.originSaveId();
+        if (saveId == null || AUTOSAVE_ID.equals(saveId)) {
+            return Optional.empty();
+        }
+        try {
+            SaveGame source = saveStore.load(ownerId, saveId);
+            String golferId = session.world().playerGolferId().orElse(null);
+            if (golferId == null || !saveId.equals(source.metadata().saveId())
+                    || source.seed() != session.seed()
+                    || !Objects.equals(source.metadata().playerGolferId(), golferId)) {
+                return Optional.empty();
+            }
+            return Optional.of(saveId);
+        } catch (SaveNotFoundException missing) {
+            return Optional.empty();
+        }
     }
 
     public PracticeRange practiceRange(String ownerId, String sessionId) {
