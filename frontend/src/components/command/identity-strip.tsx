@@ -7,6 +7,7 @@ import { ArrowRight, Check, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { MobileCareerNavigation } from "@/components/command/sidebar";
+import { CareerAccountMenu } from "@/components/command/career-account-menu";
 import { useForegroundOperation } from "@/components/loading/foreground-loading-provider";
 import { useCareerOverview, usePlayerProfile } from "@/lib/api/queries";
 import { useAdvanceSeason, useAdvanceWeek, useCompleteEvent } from "@/lib/api/play";
@@ -18,7 +19,8 @@ import { formatMoney, ordinalPosition, tourTierLabel } from "@/lib/career/labels
  * always in the same place. Reads from the shared query cache the hub also uses.
  */
 export function IdentityStrip({ id }: { id: string }) {
-  const overview = useCareerOverview(id).data;
+  const careerOverview = useCareerOverview(id);
+  const overview = careerOverview.data;
   const profile = usePlayerProfile(id).data?.playerProfile ?? null;
 
   const world = overview?.world;
@@ -29,7 +31,7 @@ export function IdentityStrip({ id }: { id: string }) {
 
   return (
     <header className="border-border bg-surface/60 sticky top-0 z-[var(--z-sticky)] flex flex-wrap items-center gap-x-6 gap-y-3 border-b px-5 py-3.5 backdrop-blur-md md:px-7">
-      <div className="flex min-w-0 items-center gap-3.5">
+      <div className="flex min-w-0 flex-1 items-center gap-3.5 lg:flex-none">
         <MobileCareerNavigation id={id} />
         <span className="border-border-strong from-surface-elevated to-surface text-primary grid size-10 shrink-0 place-items-center rounded-xl border bg-gradient-to-br text-base font-bold tracking-[-0.03em] sm:size-12">
           {initials}
@@ -55,6 +57,8 @@ export function IdentityStrip({ id }: { id: string }) {
             )}
           </div>
         </div>
+        <CareerAccountMenu id={id} hasPendingEvent={Boolean(world?.hasPendingEvent)}
+          statusReady={Boolean(world)} statusError={careerOverview.isError} />
       </div>
 
       <div className="hidden items-stretch xl:flex">

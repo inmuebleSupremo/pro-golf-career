@@ -25,6 +25,9 @@ vi.mock("@/lib/api/play", () => ({
 vi.mock("@/components/loading/foreground-loading-provider", () => ({
   useForegroundOperation: () => ({ isPending: false, hasPendingForegroundOperation: false }),
 }));
+vi.mock("@/components/command/career-account-menu", () => ({
+  CareerAccountMenu: () => <button type="button" aria-label="Account menu" />,
+}));
 
 const destinations = [
   ["Hub", ""],
@@ -102,6 +105,7 @@ describe("career navigation", () => {
     expect(sidebar.querySelector("nav")).not.toBeNull();
     expect(trigger.className).toContain("lg:hidden");
     expect(host.querySelector("header")?.contains(trigger)).toBe(true);
+    expect(host.querySelector("header")?.contains(host.querySelector('button[aria-label="Account menu"]'))).toBe(true);
     expect(trigger.closest("header")?.querySelector(".truncate")).not.toBeNull();
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     expect(host.querySelector("dialog")?.hasAttribute("open")).toBe(false);

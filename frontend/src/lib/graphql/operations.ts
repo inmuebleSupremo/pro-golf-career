@@ -65,6 +65,16 @@ export const SaveGameDocument = graphql(`
   }
 `);
 
+/** Saves to the active session's trusted career destination. */
+export const SaveCareerDocument = graphql(`
+  mutation SaveCareer($id: ID!) {
+    saveCareer(id: $id) {
+      saveId
+      savedAt
+    }
+  }
+`);
+
 /* --- Career hub: resume a save, then read the loaded session's overview. --- */
 
 /** Permanently deletes a stored save. */
