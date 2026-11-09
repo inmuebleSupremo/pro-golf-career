@@ -8,6 +8,7 @@ import {
   CreateWorldDocument,
   DeleteSaveDocument,
   LoadCareerDocument,
+  SaveCareerDocument,
   SaveGameDocument,
 } from "@/lib/graphql/operations";
 
@@ -98,5 +99,15 @@ export function useLoadCareer() {
       const { load } = await gqlRequest(LoadCareerDocument, { saveId });
       return load.id;
     },
+  });
+}
+
+/** Explicit safe save for the active career; the backend chooses the destination. */
+export function useSaveCareer(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => (await gqlRequest(SaveCareerDocument, { id })).saveCareer,
+    networkMode: "always",
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["saves"] }),
   });
 }
