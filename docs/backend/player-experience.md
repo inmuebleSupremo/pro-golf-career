@@ -37,7 +37,7 @@ When your golfer plays a tournament round, you may play it **shot by shot**, mak
 - **Explicitly excluded (§1.7):** swing timing, reflex mechanics, or manual curvature/swing meters. A discrete legal flight-shape choice is available for ordinary shots.
 - **Always skippable:** sim a shot, "sim to the end of the round," or auto-play a whole round. Because the game is *about decades* (Pillar 2), you never have to grind every shot — but you *can* play the ones that matter (a major Sunday, in contention, a career-defining putt).
 
-*Engine reality:* **done.** `PlayableRound`/`PlayableEvent` let the player submit a literal ball-strike intent or sim any part of a real tournament round through `WorldService`; human and AI shots use the same resolver. Legacy events retain the make-% putting model; explicitly enabled events offer the first playable physical-putting route described in §9.
+*Engine reality:* **done.** `PlayableRound`/`PlayableEvent` let the player submit a literal ball-strike intent or sim any part of a real tournament round through `WorldService`; human and AI shots use the same resolver. Current play uses physical putting as described in §9.
 
 ### B. Career management — the decisions *between* rounds
 The strategic spine that makes an age-18 choice matter at 40. All of these are **player decisions**, now exposed through `WorldService` (for the player's golfer; the AI still auto-manages the rest of the field):
@@ -142,10 +142,10 @@ playback and outcomes remain backend-authored, and Sim shortcuts remain availabl
 
 ### Physical putting V1: first playable milestone
 
-**Status (2026-10-23):** the first playable physical-putting route is integrated and remains opt-in for eligible
-unstarted events. Ordinary and historical events continue to use `LEGACY` putting.
+**Status (2026-11-10):** physical putting is the default and only current play mode. The original opt-in V1 milestone
+has since been superseded by the merged default-putting change.
 
-An owner can explicitly enable `PHYSICAL_V1` for an eligible unstarted event. On the green, the player receives a dedicated overhead view, chooses starting direction and intended roll pace independently, can toggle backend-derived contours and downhill indicators, and watches the backend-returned trajectory before the next state is shown. The physical solver owns the GreenSurface, roll, final ball position and cup capture; the frontend does not predict or determine them. The physical UI and AI/simulated path use the same solver.
+On the green, the player receives a dedicated overhead view, chooses starting direction and intended roll pace independently, can toggle backend-derived contours and downhill indicators, and watches the backend-returned trajectory before the next state is shown. The physical solver owns the GreenSurface, roll, final ball position and cup capture; the frontend does not predict or determine them. The physical UI and AI/simulated path use the same solver.
 
 This is a playable foundation, not a claim of finished putting quality. Professional-performance/attribute calibration, evidence-driven visual refinement (including occasional apparent cup-edge ambiguity), and broader green-shape/contour diversity remain separate future work. See [`physical-putting.md`](physical-putting.md) for the technical boundary.
 
@@ -154,7 +154,7 @@ This is a playable foundation, not a claim of finished putting quality. Professi
 Conservative / balanced / aggressive dispositions remain internal to AI policy and legacy compatibility, not the
 current human shot-control surface. The player expresses risk through target, club, technique, and shape choices.
 
-Likewise, the current procedural hole generator is the authoritative spatial platform rather than the final standard of course design. Legacy putting remains probability/calibration driven, while an explicitly enabled physical-putting V1 provides spatial green roll, player line/pace input and authoritative playback. Non-putting playback follows backend shot traces; richer physical flight remains future work.
+Likewise, the current procedural hole generator is the authoritative spatial platform rather than the final standard of course design. Physical putting provides spatial green roll, player line/pace input and authoritative playback. Non-putting playback follows backend shot traces; richer physical flight remains future work.
 
 ### Desired human decision surface
 
@@ -166,7 +166,7 @@ Human play uses recognisable golf decisions without becoming a reflex game: `tar
 2. **Real human shot intent.** ✅ Direct target/aim, club, shot technique, and legal intentional shape replace abstract human risk selection. Further trajectory controls, if warranted, remain separate future work bounded by lie and situation.
 3. **Ball flight and terrain response.** Model believable deterministic/stochastic differences in carry, launch, apex, spin, curvature, wind, landing angle, bounce, rollout, slope, firmness, surface, lie, golfer skill, and mishits. This should serve an indie game's credible golf simulation, not scientific aerodynamics for its own sake.
 4. **Authoritative shot-trace presentation.** ✅ Current playback uses backend trace, contact, roll, recovery, final settlement, and flight-height samples with distance-sensitive timing. Physical bounce, spin, and timed rollout remain future work.
-5. **Short game, greens, and putting.** ✅ First playable physical putting is delivered: an opt-in GreenSurface V1, deterministic roll/cup capture, human line/pace controls, AI parity, and truthful playback/green reading. Further work remains in professional-performance calibration, evidence-driven presentation refinement, green/contour architectural diversity, and broader short-game behaviour.
+5. **Short game, greens, and putting.** ✅ Physical putting is current play: deterministic roll/cup capture, human line/pace controls, AI parity, and truthful playback/green reading. Further work remains in professional-performance calibration, evidence-driven presentation refinement, green/contour architectural diversity, and broader short-game behaviour.
 
 The working dependency order is: canonical spatial foundation (complete) → stronger course/hole design → real club/target/shot intent → richer flight/landing/terrain response → authoritative shot-trace presentation → short-game/green/putting depth. Workstreams may overlap or be decomposed differently after exploration; this is not a release plan.
 
