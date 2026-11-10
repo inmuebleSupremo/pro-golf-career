@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useIsMutating } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { BriefcaseBusiness, ChevronDown, LogOut } from "lucide-react";
+import { ChevronDown, FolderOpen, LogOut } from "lucide-react";
 
 import { useLogoutAction } from "@/components/app/logout-button";
 import { useForegroundOperation } from "@/components/loading/foreground-loading-provider";
@@ -139,7 +139,9 @@ export function CareerAccountMenu({ id, hasPendingEvent, statusReady, statusErro
     }
   }
 
-  const destinationLabel = destination === "logout" ? "Sign Out" : "My Careers";
+  const signingOut = destination === "logout";
+  const saveActionLabel = signingOut ? "Save & Sign Out" : "Save & Return";
+  const discardActionLabel = signingOut ? "Sign Out without Saving" : "Return without Saving";
 
   return (
     <>
@@ -161,9 +163,9 @@ export function CareerAccountMenu({ id, hasPendingEvent, statusReady, statusErro
               setMenuOpen(false);
             }
           }}
-          className="border-border text-foreground hover:bg-surface-elevated focus-visible:outline-primary inline-flex size-10 items-center justify-center gap-1 rounded-lg border focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 sm:w-auto sm:px-3"
+          className="border-border text-foreground hover:bg-surface-elevated focus-visible:outline-primary inline-flex h-10 shrink-0 items-center justify-center gap-1 rounded-lg border px-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 sm:px-3"
         >
-          <span className="hidden text-sm font-semibold sm:inline">Account</span>
+          <span className="text-sm font-semibold">Account</span>
           <ChevronDown className="size-4" aria-hidden="true" />
         </button>
         {menuOpen ? (
@@ -189,7 +191,7 @@ export function CareerAccountMenu({ id, hasPendingEvent, statusReady, statusErro
           >
             <button type="button" role="menuitem" onClick={() => choose("saves")}
               className="hover:bg-surface-elevated focus-visible:bg-surface-elevated flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm">
-              <BriefcaseBusiness className="size-4" aria-hidden="true" /> My Careers
+              <FolderOpen className="size-4" aria-hidden="true" /> My Careers
             </button>
             <button type="button" role="menuitem" onClick={() => choose("logout")}
               className="hover:bg-surface-elevated focus-visible:bg-surface-elevated flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm">
@@ -212,13 +214,18 @@ export function CareerAccountMenu({ id, hasPendingEvent, statusReady, statusErro
         }}
         className="border-border bg-surface text-foreground backdrop:bg-background/80 m-auto max-h-dvh w-[calc(100vw-2rem)] max-w-md overflow-y-auto rounded-xl border p-5 shadow-[var(--shadow-lg)] sm:p-6"
       >
-        <h2 id="career-exit-title" className="text-lg font-bold">
-          {discardConfirm ? "Exit without saving?" : `Go to ${destinationLabel}?`}
+        <h2 id="career-exit-title" className="flex items-center gap-2 text-lg font-bold">
+          {signingOut ? <LogOut className="size-5 shrink-0" aria-hidden="true" />
+            : <FolderOpen className="size-5 shrink-0 text-primary" aria-hidden="true" />}
+          {discardConfirm ? `${discardActionLabel}?`
+            : signingOut ? "Sign out of Pro Golf Career?" : "Return to My Careers?"}
         </h2>
         <p id="career-exit-description" className="text-muted-foreground mt-2 text-sm leading-relaxed">
           {discardConfirm
-            ? "Unsaved progress in this career will be lost. This cannot be undone."
-            : "Save your current career progress before leaving, or choose to leave without saving."}
+            ? `Unsaved progress in this career will be lost. This cannot be undone. ${signingOut ? "You will return to sign-in." : "You will return to My Careers."}`
+            : signingOut
+              ? "Save your current career progress before leaving your account and returning to sign-in."
+              : "Save your current career progress before returning to the signed-in career-selection screen."}
         </p>
         {!discardConfirm && pendingSave ? (
           <p role="status" className="text-warning mt-3 text-sm">Finish the current event before progress can be saved.</p>
@@ -234,23 +241,25 @@ export function CareerAccountMenu({ id, hasPendingEvent, statusReady, statusErro
         {!discardConfirm && activeWork && !saving ? (
           <p role="status" className="text-muted-foreground mt-3 text-sm">Wait for the current action to finish before leaving.</p>
         ) : null}
-        <div className="mt-6 flex flex-wrap justify-end gap-2">
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
           {discardConfirm ? (
             <>
-              <Button ref={cancelRef} type="button" variant="secondary" disabled={saving || exiting}
+              <Button ref={cancelRef} type="button" variant="secondary" className="w-full sm:w-auto" disabled={saving || exiting}
                 onClick={() => setDiscardConfirm(false)}>Keep playing</Button>
-              <Button type="button" variant="destructive" disabled={busy} onClick={discardAndExit}>
-                {exiting ? "Leaving…" : "Confirm exit without saving"}
+              <Button type="button" variant="destructive" className="w-full sm:w-auto" disabled={busy} onClick={discardAndExit}>
+                {exiting ? "Leaving…" : `Confirm ${discardActionLabel}`}
               </Button>
             </>
           ) : (
             <>
-              <Button ref={cancelRef} type="button" variant="secondary" disabled={saving || exiting} onClick={closeConfirmation}>Cancel</Button>
-              <Button type="button" variant="ghost" disabled={busy} onClick={() => setDiscardConfirm(true)}>
-                Exit without Saving
+              <Button ref={cancelRef} type="button" variant="secondary" className="w-full sm:w-auto" disabled={saving || exiting} onClick={closeConfirmation}>Cancel</Button>
+              <Button type="button" variant="ghost" className="w-full sm:w-auto" disabled={busy} onClick={() => setDiscardConfirm(true)}>
+                {discardActionLabel}
               </Button>
-              <Button type="button" disabled={!canSave} onClick={saveAndExit}>
-                {saving ? "Saving…" : saveError?.kind === "other" ? "Retry Save & Exit" : "Save & Exit"}
+              <Button type="button" variant={signingOut ? "secondary" : "primary"}
+                className={`w-full sm:w-auto ${signingOut ? "border-warning text-warning hover:bg-surface-elevated" : ""}`}
+                disabled={!canSave} onClick={saveAndExit}>
+                {saving ? "Saving…" : saveError?.kind === "other" ? `Retry ${saveActionLabel}` : saveActionLabel}
               </Button>
             </>
           )}

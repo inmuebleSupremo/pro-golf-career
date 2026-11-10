@@ -31,7 +31,7 @@ vi.mock("@/components/loading/foreground-loading-provider", () => ({
   useForegroundOperation: () => ({ isPending: false, hasPendingForegroundOperation: false }),
 }));
 vi.mock("@/components/command/career-account-menu", () => ({
-  CareerAccountMenu: () => <button type="button" aria-label="Account menu" />,
+  CareerAccountMenu: () => <button type="button" aria-label="Account menu">Account</button>,
 }));
 
 const destinations = [
@@ -124,6 +124,29 @@ describe("career navigation", () => {
     expect(trigger.closest("header")?.querySelector(".truncate")).not.toBeNull();
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     expect(host.querySelector("dialog")?.hasAttribute("open")).toBe(false);
+  });
+
+  it("separates the mobile identity controls from both simulation actions at 390px", () => {
+    render(<IdentityStrip id="test-career" />);
+    const header = host.querySelector("header")!;
+    const identityRow = header.children[0];
+    const actionRow = header.children[2];
+    const navigation = host.querySelector('button[aria-label="Open career navigation"]')!;
+    const account = host.querySelector('button[aria-label="Account menu"]')!;
+
+    expect(header.className).toContain("flex-col");
+    expect(header.className).toContain("lg:flex-row");
+    expect(identityRow.className).toContain("w-full");
+    expect(identityRow.className).toContain("min-w-0");
+    expect(identityRow.contains(navigation)).toBe(true);
+    expect(identityRow.contains(account)).toBe(true);
+    expect(account.textContent).toContain("Account");
+    expect(actionRow.className).toContain("w-full");
+    expect(actionRow.className).toContain("flex-wrap");
+    expect(actionRow.className).toContain("lg:flex-nowrap");
+    expect(actionRow.textContent).toContain("Sim season");
+    expect(actionRow.textContent).toContain("Advance week");
+    expect(identityRow.textContent).not.toContain("Sim season");
   });
 
   it("uses the same destinations, groups, active route and inbox badge in both surfaces", () => {

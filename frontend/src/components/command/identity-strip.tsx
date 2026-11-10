@@ -31,8 +31,8 @@ export function IdentityStrip({ id }: { id: string }) {
     : "··";
 
   return (
-    <header className="border-border bg-surface/60 sticky top-0 z-[var(--z-sticky)] flex flex-wrap items-center gap-x-6 gap-y-3 border-b px-5 py-3.5 backdrop-blur-md md:px-7">
-      <div className="flex min-w-0 flex-1 items-center gap-3.5 lg:flex-none">
+    <header className="border-border bg-surface/60 sticky top-0 z-[var(--z-sticky)] flex flex-col items-stretch gap-x-6 gap-y-3 border-b px-5 py-3.5 backdrop-blur-md md:px-7 lg:flex-row lg:flex-wrap lg:items-center">
+      <div className="flex w-full min-w-0 items-center gap-2 sm:gap-3.5 lg:w-auto lg:flex-none">
         <MobileCareerNavigation id={id} />
         <span className="border-border-strong from-surface-elevated to-surface text-primary grid size-10 shrink-0 place-items-center rounded-xl border bg-gradient-to-br text-base font-bold tracking-[-0.03em] sm:size-12">
           {initials}
@@ -72,7 +72,7 @@ export function IdentityStrip({ id }: { id: string }) {
         />
       </div>
 
-      <div className="ml-auto flex items-center gap-2.5">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-2.5 lg:ml-auto lg:w-auto lg:flex-nowrap">
         <NextAction
           id={id}
           hasPendingEvent={Boolean(world?.hasPendingEvent)}
