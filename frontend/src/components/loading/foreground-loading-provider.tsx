@@ -1,6 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+
+import { Button } from "@/components/ui/button";
 
 import {
   DelayedOperationRegistry,
@@ -14,6 +16,21 @@ import {
 type ForegroundLoadingContextValue = {
   readonly hasPendingForegroundOperation: boolean;
   run<T>(options: ForegroundOperationOptions, work: () => Promise<T>): Promise<T>;
+  readonly seasonTransition: SeasonReviewTransition | null;
+  startSeasonTransition(transition: Omit<SeasonReviewTransition, "stage">): boolean;
+  updateSeasonTransition(requestId: string, stage: SeasonTransitionStage): void;
+  finishSeasonTransition(requestId: string): void;
+};
+
+type SeasonTransitionStage = "simulating" | "checking" | "running" | "refreshing" | "opening"
+  | "review-unavailable" | "failed" | "unknown";
+type SeasonReviewTransition = {
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly expectedSeason: number;
+  readonly stage: SeasonTransitionStage;
+  readonly checkStatus: () => void;
+  readonly openReview: () => void;
 };
 
 const ForegroundLoadingContext = createContext<ForegroundLoadingContextValue | null>(null);
@@ -22,6 +39,8 @@ const EMPTY_SNAPSHOT: ForegroundOperationSnapshot = { activeCount: 0, visibleOpe
 export function ForegroundLoadingProvider({ children }: { children: React.ReactNode }) {
   const [registry] = useState(() => new DelayedOperationRegistry());
   const [snapshot, setSnapshot] = useState<ForegroundOperationSnapshot>(EMPTY_SNAPSHOT);
+  const [seasonTransition, setSeasonTransition] = useState<SeasonReviewTransition | null>(null);
+  const seasonTransitionRef = useRef<SeasonReviewTransition | null>(null);
 
   useEffect(() => {
     return registry.subscribe(() => setSnapshot(registry.snapshot()));
@@ -36,16 +55,105 @@ export function ForegroundLoadingProvider({ children }: { children: React.ReactN
     [registry],
   );
 
+  const startSeasonTransition = useCallback((transition: Omit<SeasonReviewTransition, "stage">) => {
+    if (seasonTransitionRef.current) return false;
+    const active = { ...transition, stage: "simulating" as const };
+    seasonTransitionRef.current = active;
+    setSeasonTransition(active);
+    return true;
+  }, []);
+
+  const updateSeasonTransition = useCallback((requestId: string, stage: SeasonTransitionStage) => {
+    const active = seasonTransitionRef.current;
+    if (!active || active.requestId !== requestId || active.stage === stage) return;
+    const updated = { ...active, stage };
+    seasonTransitionRef.current = updated;
+    setSeasonTransition(updated);
+  }, []);
+
+  const finishSeasonTransition = useCallback((requestId: string) => {
+    if (seasonTransitionRef.current?.requestId !== requestId) return;
+    seasonTransitionRef.current = null;
+    setSeasonTransition(null);
+  }, []);
+
   const visibleOperation = snapshot.visibleOperations.at(-1) ?? null;
   return (
     <ForegroundLoadingContext.Provider
-      value={{ hasPendingForegroundOperation: snapshot.activeCount > 0, run }}
+      value={{ hasPendingForegroundOperation: snapshot.activeCount > 0 || seasonTransition !== null,
+        run, seasonTransition, startSeasonTransition, updateSeasonTransition, finishSeasonTransition }}
     >
-      <div className="contents" inert={visibleOperation ? true : undefined}>
+      <div className="contents" inert={visibleOperation || seasonTransition ? true : undefined}>
         {children}
       </div>
-      {visibleOperation ? <ForegroundLoadingOverlay label={visibleOperation.label} /> : null}
+      {seasonTransition ? <SeasonTransitionOverlay transition={seasonTransition} onFinish={finishSeasonTransition} />
+        : visibleOperation ? <ForegroundLoadingOverlay label={visibleOperation.label} /> : null}
     </ForegroundLoadingContext.Provider>
+  );
+}
+
+/** A transition remains active across the mutation response, reconciliation and route preparation. */
+export function useSeasonReviewTransition() {
+  const context = useContext(ForegroundLoadingContext);
+  if (!context) throw new Error("useSeasonReviewTransition must be used within ForegroundLoadingProvider");
+  return {
+    transition: context.seasonTransition,
+    start: context.startSeasonTransition,
+    update: context.updateSeasonTransition,
+    finish: context.finishSeasonTransition,
+  };
+}
+
+function SeasonTransitionOverlay({ transition, onFinish }: {
+  transition: SeasonReviewTransition;
+  onFinish: (requestId: string) => void;
+}) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { overlayRef.current?.focus(); }, []);
+  const labels: Record<SeasonTransitionStage, string> = {
+    simulating: "Simulating season…",
+    checking: "Checking season simulation status…",
+    running: "Season simulation is still running…",
+    refreshing: "Refreshing career data…",
+    opening: "Preparing Season Review…",
+    "review-unavailable": "Season Review is not available yet.",
+    failed: "Season simulation stopped after progress may have changed.",
+    unknown: "Season completion is unknown.",
+  };
+  const { stage } = transition;
+  return (
+    <div ref={overlayRef} tabIndex={-1}
+      className="command-centre foreground-loading-scrim fixed inset-0 z-[var(--z-toast)] grid place-items-center overflow-y-auto p-5"
+      role="status" aria-live="polite" aria-label={labels[stage]}>
+      <div className="flex w-full max-w-sm flex-col items-center gap-4 text-center">
+        <GolfLoadingMark />
+        <p className="text-foreground text-base font-semibold">{labels[stage]}</p>
+        {stage === "unknown" ? (
+          <>
+            <p className="text-muted-foreground text-sm">The request may still be running. Check its status before taking another action.</p>
+            <Button onClick={transition.checkStatus}>Check status</Button>
+          </>
+        ) : stage === "running" ? (
+          <p className="text-muted-foreground text-sm">The career is protected while the backend finishes. Status updates automatically.</p>
+        ) : stage === "failed" ? (
+          <>
+            <p className="text-muted-foreground text-sm">The session is preserved. Review its current state; this season cannot safely be retried.</p>
+            <Button variant="secondary" onClick={() => onFinish(transition.requestId)}>Inspect career</Button>
+          </>
+        ) : stage === "review-unavailable" ? (
+          <>
+            <p className="text-muted-foreground text-sm">The season completed, but the expected review could not be loaded. Your session is preserved.</p>
+            <Button onClick={transition.openReview}>Check review again</Button>
+            <Button variant="secondary" onClick={() => window.location.reload()}>Reload review page</Button>
+          </>
+        ) : stage === "refreshing" || stage === "opening" ? (
+          <>
+            <p className="text-muted-foreground text-sm">The season completed. The review is being prepared.</p>
+            <Button variant="secondary" onClick={transition.openReview}>Open Season Review</Button>
+          </>
+        ) : <p className="text-muted-foreground text-sm">Working on your career…</p>}
+      </div>
+    </div>
   );
 }
 
