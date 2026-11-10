@@ -59,6 +59,16 @@ const GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Manage",
+    items: [
+      { label: "Development", icon: Dumbbell, path: "/manage" },
+      { label: "Fitness", icon: Activity, path: "/fitness" },
+      { label: "Equipment", icon: Wrench, path: "/equipment" },
+      { label: "Staff", icon: Handshake, path: "/staff" },
+      { label: "Finances", icon: Wallet, path: "/finances" },
+    ],
+  },
+  {
     label: "Career",
     items: [
       { label: "Profile", icon: User, path: "/profile" },
@@ -66,16 +76,6 @@ const GROUPS: NavGroup[] = [
       { label: "Career Records", icon: ScrollText, path: "/career-records" },
       { label: "Achievements", icon: Medal, path: "/achievements" },
       { label: "Hall of Fame", icon: Trophy, path: "/hall-of-fame" },
-    ],
-  },
-  {
-    label: "Manage",
-    items: [
-      { label: "Development", icon: Dumbbell, path: "/manage" },
-      { label: "Equipment", icon: Wrench, path: "/equipment" },
-      { label: "Staff", icon: Handshake, path: "/staff" },
-      { label: "Finances", icon: Wallet, path: "/finances" },
-      { label: "Fitness", icon: Activity, path: "/fitness" },
     ],
   },
   {
@@ -221,7 +221,7 @@ function CareerNavigation({ id, onNavigate }: { id: string; onNavigate?: () => v
   return (
     <nav aria-label="Career navigation" className="flex min-h-0 flex-col gap-1 overflow-y-auto">
       {GROUPS.map((group, gi) => (
-        <div key={group.label ?? gi} className={cn(gi > 0 && "mt-4")}>
+        <div key={group.label ?? gi} className={cn(gi > 0 && "mt-4 lg:mt-3")}>
           {group.label && (
             <p className="text-subtle-foreground px-3 pt-1.5 pb-1.5 text-[0.625rem] font-bold tracking-[0.14em] uppercase">
               {group.label}

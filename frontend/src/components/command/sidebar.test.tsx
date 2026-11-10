@@ -41,16 +41,16 @@ const destinations = [
   ["Schedule", "/calendar"],
   ["Play Event", "/play"],
   ["Practice Facility", "/practice"],
+  ["Development", "/manage"],
+  ["Fitness", "/fitness"],
+  ["Equipment", "/equipment"],
+  ["Staff", "/staff"],
+  ["Finances", "/finances"],
   ["Profile", "/profile"],
   ["Season Stats", "/seasons"],
   ["Career Records", "/career-records"],
   ["Achievements", "/achievements"],
   ["Hall of Fame", "/hall-of-fame"],
-  ["Development", "/manage"],
-  ["Equipment", "/equipment"],
-  ["Staff", "/staff"],
-  ["Finances", "/finances"],
-  ["Fitness", "/fitness"],
   ["News", "/news"],
   ["Rankings", "/rankings"],
   ["Rivals", "/rivals"],
@@ -165,8 +165,8 @@ describe("career navigation", () => {
       expect(navLinks(nav)).toEqual(expected);
       expect([...nav.querySelectorAll("p")].map((p) => p.textContent?.trim())).toEqual([
         "Compete",
-        "Career",
         "Manage",
+        "Career",
         "World",
       ]);
       expect(
