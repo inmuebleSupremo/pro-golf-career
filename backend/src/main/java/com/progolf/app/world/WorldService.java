@@ -100,6 +100,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -121,6 +122,8 @@ public class WorldService {
     public static final String AUTOSAVE_ID = "autosave";
 
     private final ConcurrentMap<String, WorldSession> sessions = new ConcurrentHashMap<>();
+    /** Latest attempt per live session. A failed or running attempt blocks another season simulation. */
+    private final ConcurrentMap<String, SeasonAdvanceOperation> seasonAdvanceOperations = new ConcurrentHashMap<>();
     /** Session-local range balls; deliberately excluded from save snapshots. */
     private final ConcurrentMap<String, PracticeRange> practiceRanges = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, PracticePuttingGreen> practicePuttingGreens = new ConcurrentHashMap<>();
@@ -339,8 +342,55 @@ public class WorldService {
 
     /** Advances one of the owner's sessions by one full season, then autosaves the checkpoint. */
     public void advanceSeason(String ownerId, String id) {
-        required(ownerId, id).world().advanceSeason();
-        autosave(ownerId, id);
+        advanceSeason(ownerId, id, UUID.randomUUID().toString(), required(ownerId, id).world().currentSeason());
+    }
+
+    /** Idempotent, session-scoped season advance. The first call runs synchronously; replays only read its state. */
+    public SeasonAdvanceOperation advanceSeason(String ownerId, String id, String requestId, int expectedSeason) {
+        WorldSession session = required(ownerId, id);
+        if (requestId == null || requestId.isBlank() || requestId.length() > 100 || expectedSeason < 1) {
+            throw new IllegalArgumentException("A valid season request id and starting season are required");
+        }
+        SeasonAdvanceOperation running = SeasonAdvanceOperation.running(requestId, expectedSeason);
+        AtomicBoolean started = new AtomicBoolean();
+        SeasonAdvanceOperation selected = seasonAdvanceOperations.compute(id, (key, previous) -> {
+            if (previous != null && previous.requestId().equals(requestId)) {
+                if (previous.startingSeason() != expectedSeason) {
+                    throw new IllegalArgumentException("Season request id was used for another starting season");
+                }
+                return previous;
+            }
+            if (previous != null && previous.state() != SeasonAdvanceOperation.State.COMPLETED) {
+                throw new IllegalStateException("A season simulation is running or failed; a new attempt is unsafe");
+            }
+            if (session.world().currentSeason() != expectedSeason) {
+                throw new IllegalStateException("The career has advanced beyond the requested starting season");
+            }
+            started.set(true);
+            return running;
+        });
+        if (!started.get()) return selected;
+        try {
+            synchronized (session.world()) {
+                if (session.world().currentSeason() != expectedSeason) {
+                    throw new IllegalStateException("The career advanced before this simulation started");
+                }
+                session.world().advanceSeason();
+                autosave(ownerId, id);
+                SeasonAdvanceOperation completed = running.completed(session.world().currentSeason());
+                seasonAdvanceOperations.put(id, completed);
+                return completed;
+            }
+        } catch (RuntimeException | Error failure) {
+            seasonAdvanceOperations.put(id, running.failed());
+            throw failure;
+        }
+    }
+
+    /** Returns the latest attempt without waiting for the world's long-running simulation lock. */
+    public SeasonAdvanceOperation seasonAdvanceOperation(String ownerId, String id) {
+        required(ownerId, id);
+        return seasonAdvanceOperations.get(id);
     }
 
     /** Advances one of the owner's sessions by one week. */

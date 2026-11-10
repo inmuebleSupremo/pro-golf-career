@@ -82,9 +82,15 @@ class WorldGraphQlApiTest {
                 .variable("id", id).execute()
                 .path("advanceWeek.week").entity(Integer.class).isEqualTo(2);
 
-        graphQlTester.document("mutation($id: ID!){ advanceSeason(id: $id){ season } }")
+        graphQlTester.document("mutation($id: ID!){ advanceSeason(id: $id, requestId: \"api-test-season\", expectedSeason: 1){ completedSeason } }")
                 .variable("id", id).execute()
-                .path("advanceSeason.season").entity(Integer.class).isEqualTo(2);
+                .path("advanceSeason.completedSeason").entity(Integer.class).isEqualTo(2);
+
+        graphQlTester.document("query($id: ID!){ seasonAdvanceOperation(id: $id){ requestId state startingSeason completedSeason } }")
+                .variable("id", id).execute()
+                .path("seasonAdvanceOperation.requestId").entity(String.class).isEqualTo("api-test-season")
+                .path("seasonAdvanceOperation.state").entity(String.class).isEqualTo("COMPLETED")
+                .path("seasonAdvanceOperation.startingSeason").entity(Integer.class).isEqualTo(1);
     }
 
     // --- Read model ---

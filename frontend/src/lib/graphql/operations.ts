@@ -800,14 +800,20 @@ export const AcceptSponsorshipDocument = graphql(`
 
 /* --- Play: advance the calendar, then play/sim a pending tournament event. --- */
 
-/** Advances the session to the end of the season, simming any events the player is entered in. */
+/** Advances at most the requested season; the request id makes a lost response safe to reconcile. */
 export const AdvanceSeasonDocument = graphql(`
-  mutation AdvanceSeason($id: ID!) {
-    advanceSeason(id: $id) {
-      id
-      season
-      week
-      hasPendingEvent
+  mutation AdvanceSeason($id: ID!, $requestId: ID!, $expectedSeason: Int!) {
+    advanceSeason(id: $id, requestId: $requestId, expectedSeason: $expectedSeason) {
+      requestId startingSeason state completedSeason
+    }
+  }
+`);
+
+/** The backend-owned state of the latest season simulation in this live session. */
+export const SeasonAdvanceOperationDocument = graphql(`
+  query SeasonAdvanceOperation($id: ID!) {
+    seasonAdvanceOperation(id: $id) {
+      requestId startingSeason state completedSeason
     }
   }
 `);

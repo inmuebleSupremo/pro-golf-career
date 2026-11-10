@@ -23,6 +23,9 @@ type Query {
     "Read-only status of a world session by id."
     world(id: ID!): WorldStatus
 
+    "The latest season simulation attempt for this live session; null if none has started."
+    seasonAdvanceOperation(id: ID!): SeasonAdvanceOperation
+
     "The owner's future-event pin-placement policy and whether explicit V5 adoption is currently safe."
     pinPlacementStatus(id: ID!): PinPlacementStatus!
 
@@ -157,8 +160,8 @@ type Mutation {
     "Creates a new world session from a seed, optionally with an explicit configuration; returns its status."
     createWorld(seed: Long!, config: WorldConfigInput): WorldStatus!
 
-    "Advances a session by one full season; returns the new status."
-    advanceSeason(id: ID!): WorldStatus!
+    "Starts a guarded season simulation. Repeating a request id never advances another season."
+    advanceSeason(id: ID!, requestId: ID!, expectedSeason: Int!): SeasonAdvanceOperation!
 
     "Advances a session by one week; returns the new status."
     advanceWeek(id: ID!): WorldStatus!
@@ -267,6 +270,15 @@ type WorldStatus {
     courseGeneratorVersion: Int!
     "True when the pending event has been played to its end and only awaits completion (the finish-event window)."
     pendingEventFinished: Boolean!
+}
+
+enum SeasonAdvanceState { RUNNING COMPLETED FAILED }
+
+type SeasonAdvanceOperation {
+    requestId: ID!
+    startingSeason: Int!
+    state: SeasonAdvanceState!
+    completedSeason: Int
 }
 
 type PinPlacementStatus {

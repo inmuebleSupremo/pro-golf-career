@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { MobileCareerNavigation } from "@/components/command/sidebar";
 import { CareerAccountMenu } from "@/components/command/career-account-menu";
 import { useForegroundOperation } from "@/components/loading/foreground-loading-provider";
 import { useCareerOverview, usePlayerProfile } from "@/lib/api/queries";
-import { useAdvanceSeason, useAdvanceWeek, useCompleteEvent } from "@/lib/api/play";
+import { useAdvanceSeason, useAdvanceWeek, useCompleteEvent, useSeasonAdvanceOperation } from "@/lib/api/play";
 import { formatMoney, ordinalPosition, tourTierLabel } from "@/lib/career/labels";
 
 /*
@@ -110,8 +111,17 @@ function NextAction({
   const advance = useAdvanceWeek(id);
   const complete = useCompleteEvent(id);
   const foreground = useForegroundOperation();
+  const seasonOperation = useSeasonAdvanceOperation(id);
   const [actionError, setActionError] = useState<string | null>(null);
   const seasonBefore = useCareerOverview(id).data?.world?.season ?? null;
+
+  // A season simulation can remain active after its HTTP response is lost. Keep its status visible even if
+  // a fresh overview read happens to observe an intermediate pending event.
+  if (seasonOperation.isPending || seasonOperation.isError
+      || seasonOperation.data?.seasonAdvanceOperation?.state === "RUNNING"
+      || seasonOperation.data?.seasonAdvanceOperation?.state === "FAILED") {
+    return <SimSeasonControl id={id} />;
+  }
 
   // The pending event has been played to its end (the completion screen): the primary action is to finish
   // it — bank the result and resume the week — exactly like the "Finish event" button on that screen, not
@@ -184,33 +194,93 @@ function NextAction({
 }
 
 /**
- * Fast-forward to the end of the season. It sims every remaining event the player is
- * entered in, so it confirms in place first. Only reachable when no event is pending
- * (the engine cannot advance past one) — NextAction only renders it in that branch.
+ * Fast-forward to the end of the season. It sims every remaining entered event and
+ * confirms in place first. The operation status stays visible after a lost response.
  */
-function SimSeasonControl({ id }: { id: string }) {
+export function SimSeasonControl({ id }: { id: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const advanceSeason = useAdvanceSeason(id);
+  const operation = useSeasonAdvanceOperation(id);
+  const startingSeason = useCareerOverview(id).data?.world?.season;
   const foreground = useForegroundOperation();
   const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [uncertain, setUncertain] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const completedRef = useRef(false);
+  const latest = operation.data?.seasonAdvanceOperation;
+  const trackedId = requestId ?? (latest?.state === "RUNNING" || latest?.state === "FAILED" ? latest.requestId : null);
+  const trackedState = latest?.requestId === trackedId ? latest.state : null;
+  const running = trackedState === "RUNNING" && !operation.isError;
+  const failed = trackedState === "FAILED";
+  const unknown = !completed && !running && !failed && (uncertain || operation.isError);
+  const blocked = completed || running || failed || unknown || operation.isPending || advanceSeason.isPending
+    || foreground.hasPendingForegroundOperation || startingSeason == null;
+
+  const finishCompleted = useCallback(async () => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    setCompleted(true);
+    await queryClient.invalidateQueries();
+    router.push(`/career/${id}/offseason`);
+  }, [id, queryClient, router]);
+
+  useEffect(() => {
+    if (!requestId && latest?.state === "RUNNING") {
+      const timer = setTimeout(() => setRequestId(latest.requestId), 0);
+      return () => clearTimeout(timer);
+    }
+  }, [latest?.requestId, latest?.state, requestId]);
+
+  useEffect(() => {
+    if (trackedState === "COMPLETED" && requestId && latest?.requestId === requestId) {
+      void finishCompleted();
+    }
+  }, [finishCompleted, latest?.requestId, requestId, trackedState]);
 
   // Simming the season always crosses the boundary, so it lands on the off-season review.
   async function onConfirm() {
-    setError(null);
+    if (blocked || startingSeason == null) return;
+    const nextRequestId = crypto.randomUUID();
+    setRequestId(nextRequestId);
+    setUncertain(false);
     try {
-      const result = await foreground.run({ label: "Simulating season", presentation: "immediate" }, () => advanceSeason.mutateAsync());
-      if (result) router.push(`/career/${id}/offseason`);
+      const result = await foreground.run({ label: "Simulating season", presentation: "immediate" },
+        () => advanceSeason.mutateAsync({ requestId: nextRequestId, expectedSeason: startingSeason }));
+      if (result?.advanceSeason.state === "COMPLETED") {
+        await finishCompleted();
+      } else if (result) {
+        setUncertain(true);
+        await operation.refetch();
+      }
     } catch {
-      setError("The season simulation couldn't be completed. Please try again.");
+      // A lost HTTP response says nothing about whether the backend finished. Read its operation record.
+      setUncertain(true);
+      await operation.refetch();
     }
   }
 
+  const notice = completed ? "Season complete. Opening the off-season review…"
+    : running ? "Season simulation is still running. Another simulation cannot start."
+    : failed ? "Season simulation stopped after progress may have changed. This session cannot safely retry."
+    : unknown ? "Season completion is unknown. Check status before taking another action."
+    : operation.isPending ? "Checking season simulation status…"
+    : null;
+  const noticeContent = notice ? (
+    <span role={failed || unknown ? "alert" : "status"}
+      className={`${failed || unknown ? "text-destructive" : "text-muted-foreground"} text-sm`}>
+      {notice}
+      {unknown ? <Button variant="ghost" size="sm" onClick={() => void operation.refetch()}>Check status</Button> : null}
+    </span>
+  ) : null;
+
   if (!confirming) {
     return (
-      <Button variant="ghost" onClick={() => setConfirming(true)} disabled={foreground.hasPendingForegroundOperation}>
-        Sim season
-      </Button>
+      <span className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" onClick={() => setConfirming(true)} disabled={blocked}>Sim season</Button>
+        {noticeContent}
+      </span>
     );
   }
 
@@ -220,14 +290,14 @@ function SimSeasonControl({ id }: { id: string }) {
       <Button
         variant="secondary"
         onClick={onConfirm}
-        disabled={advanceSeason.isPending || foreground.isPending}
+        disabled={blocked}
       >
         {advanceSeason.isPending || foreground.isPending ? "Simming…" : "Confirm"}
       </Button>
       <Button variant="ghost" onClick={() => setConfirming(false)} disabled={advanceSeason.isPending || foreground.isPending}>
         Cancel
       </Button>
-      {error ? <span role="alert" className="text-destructive text-sm">{error}</span> : null}
+      {noticeContent}
     </span>
   );
 }

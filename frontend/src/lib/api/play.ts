@@ -6,6 +6,7 @@ import { gqlRequest } from "@/lib/api/graphql-client";
 import type { BallStrikeIntentInput, PhysicalPuttIntentInput } from "@/lib/graphql/generated/graphql";
 import {
   AdvanceSeasonDocument,
+  SeasonAdvanceOperationDocument,
   AdvanceWeekDocument,
   CompleteEventDocument,
   PlayingHoleDocument,
@@ -65,16 +66,32 @@ export function useAdvanceWeek(id: string) {
 
 /**
  * Advance to the end of the season, simming the player's remaining entered events. A whole season
- * moves ranking, earnings, standings, offers and history at once, so every session-scoped query is
- * refetched rather than trying to enumerate what changed.
+ * moves ranking, earnings, standings, offers and history at once. The caller refreshes session-scoped
+ * queries after confirmed completion, including when completion is learned from the status query.
  */
 export function useAdvanceSeason(id: string) {
-  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => gqlRequest(AdvanceSeasonDocument, { id }),
+    mutationFn: ({ requestId, expectedSeason }: { requestId: string; expectedSeason: number }) =>
+      gqlRequest(AdvanceSeasonDocument, { id, requestId, expectedSeason }),
     networkMode: "always",
-    onSuccess: () => queryClient.invalidateQueries(),
   });
+}
+
+/** Reads the backend operation record; RUNNING attempts are polled until they settle. */
+export function useSeasonAdvanceOperation(id: string) {
+  return useQuery({
+    queryKey: ["season-advance", id],
+    queryFn: () => gqlRequest(SeasonAdvanceOperationDocument, { id }),
+    networkMode: "always",
+    retry: false,
+    refetchInterval: (query) => seasonAdvancePollingInterval(
+      query.state.status, query.state.data?.seasonAdvanceOperation?.state),
+  });
+}
+
+/** A failed status read makes cached RUNNING data stale; wait for an explicit Check status action. */
+export function seasonAdvancePollingInterval(status: string, state?: string | null): number | false {
+  return status !== "error" && state === "RUNNING" ? 2_000 : false;
 }
 
 export function usePlayShot(id: string) {
