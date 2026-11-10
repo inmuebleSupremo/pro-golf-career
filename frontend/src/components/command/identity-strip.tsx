@@ -9,7 +9,7 @@ import { ArrowRight, Check, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MobileCareerNavigation } from "@/components/command/sidebar";
 import { CareerAccountMenu } from "@/components/command/career-account-menu";
-import { useForegroundOperation } from "@/components/loading/foreground-loading-provider";
+import { useForegroundOperation, useSeasonReviewTransition } from "@/components/loading/foreground-loading-provider";
 import { useCareerOverview, usePlayerProfile } from "@/lib/api/queries";
 import { useAdvanceSeason, useAdvanceWeek, useCompleteEvent, useSeasonAdvanceOperation } from "@/lib/api/play";
 import { formatMoney, ordinalPosition, tourTierLabel } from "@/lib/career/labels";
@@ -112,12 +112,13 @@ function NextAction({
   const complete = useCompleteEvent(id);
   const foreground = useForegroundOperation();
   const seasonOperation = useSeasonAdvanceOperation(id);
+  const seasonTransition = useSeasonReviewTransition().transition;
   const [actionError, setActionError] = useState<string | null>(null);
   const seasonBefore = useCareerOverview(id).data?.world?.season ?? null;
 
   // A season simulation can remain active after its HTTP response is lost. Keep its status visible even if
   // a fresh overview read happens to observe an intermediate pending event.
-  if (seasonOperation.isPending || seasonOperation.isError
+  if (seasonTransition?.sessionId === id || seasonOperation.isPending || seasonOperation.isError
       || seasonOperation.data?.seasonAdvanceOperation?.state === "RUNNING"
       || seasonOperation.data?.seasonAdvanceOperation?.state === "FAILED") {
     return <SimSeasonControl id={id} />;
@@ -204,13 +205,17 @@ export function SimSeasonControl({ id }: { id: string }) {
   const operation = useSeasonAdvanceOperation(id);
   const startingSeason = useCareerOverview(id).data?.world?.season;
   const foreground = useForegroundOperation();
+  const seasonTransition = useSeasonReviewTransition();
+  const { start: startTransition, update: updateTransition } = seasonTransition;
   const [confirming, setConfirming] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [uncertain, setUncertain] = useState(false);
   const [completed, setCompleted] = useState(false);
   const completedRef = useRef(false);
   const latest = operation.data?.seasonAdvanceOperation;
-  const trackedId = requestId ?? (latest?.state === "RUNNING" || latest?.state === "FAILED" ? latest.requestId : null);
+  const activeTransition = seasonTransition.transition?.sessionId === id ? seasonTransition.transition : null;
+  const trackedId = requestId ?? activeTransition?.requestId
+    ?? (latest?.state === "RUNNING" || latest?.state === "FAILED" ? latest.requestId : null);
   const trackedState = latest?.requestId === trackedId ? latest.state : null;
   const running = trackedState === "RUNNING" && !operation.isError;
   const failed = trackedState === "FAILED";
@@ -218,13 +223,30 @@ export function SimSeasonControl({ id }: { id: string }) {
   const blocked = completed || running || failed || unknown || operation.isPending || advanceSeason.isPending
     || foreground.hasPendingForegroundOperation || startingSeason == null;
 
-  const finishCompleted = useCallback(async () => {
+  const finishCompleted = useCallback(async (operationId: string) => {
     if (completedRef.current) return;
     completedRef.current = true;
     setCompleted(true);
-    await queryClient.invalidateQueries();
+    updateTransition(operationId, "refreshing");
+    // Query failures are surfaced by the review page; they must not reopen the simulation path.
+    await queryClient.invalidateQueries().catch(() => {});
+    updateTransition(operationId, "opening");
     router.push(`/career/${id}/offseason`);
-  }, [id, queryClient, router]);
+  }, [id, queryClient, router, updateTransition]);
+
+  async function checkStatus(operationId: string) {
+    updateTransition(operationId, "checking");
+    try {
+      const result = await operation.refetch();
+      const status = result.data?.seasonAdvanceOperation;
+      if (result.isError || status?.requestId !== operationId) updateTransition(operationId, "unknown");
+      else if (status.state === "RUNNING") updateTransition(operationId, "running");
+      else if (status.state === "FAILED") updateTransition(operationId, "failed");
+      else if (status.state === "COMPLETED") await finishCompleted(operationId);
+    } catch {
+      updateTransition(operationId, "unknown");
+    }
+  }
 
   useEffect(() => {
     if (!requestId && latest?.state === "RUNNING") {
@@ -234,30 +256,44 @@ export function SimSeasonControl({ id }: { id: string }) {
   }, [latest?.requestId, latest?.state, requestId]);
 
   useEffect(() => {
-    if (trackedState === "COMPLETED" && requestId && latest?.requestId === requestId) {
-      void finishCompleted();
+    if (activeTransition?.stage === "refreshing" || activeTransition?.stage === "opening") return;
+    if (trackedState === "COMPLETED" && trackedId && latest?.requestId === trackedId) {
+      void finishCompleted(trackedId);
+    } else if (activeTransition && operation.isError) {
+      updateTransition(activeTransition.requestId, "unknown");
+    } else if (activeTransition && trackedState === "RUNNING") {
+      updateTransition(activeTransition.requestId, "running");
+    } else if (activeTransition && trackedState === "FAILED") {
+      updateTransition(activeTransition.requestId, "failed");
     }
-  }, [finishCompleted, latest?.requestId, requestId, trackedState]);
+  }, [activeTransition, finishCompleted, latest?.requestId, operation.isError, trackedId, trackedState, updateTransition]);
 
   // Simming the season always crosses the boundary, so it lands on the off-season review.
   async function onConfirm() {
     if (blocked || startingSeason == null) return;
     const nextRequestId = crypto.randomUUID();
+    if (!startTransition({ sessionId: id, requestId: nextRequestId, expectedSeason: startingSeason,
+      checkStatus: () => { void checkStatus(nextRequestId); },
+      openReview: () => {
+        void queryClient.invalidateQueries({ queryKey: ["seasonReview", id] });
+        router.push(`/career/${id}/offseason`);
+      },
+    })) return;
     setRequestId(nextRequestId);
     setUncertain(false);
     try {
       const result = await foreground.run({ label: "Simulating season", presentation: "immediate" },
         () => advanceSeason.mutateAsync({ requestId: nextRequestId, expectedSeason: startingSeason }));
       if (result?.advanceSeason.state === "COMPLETED") {
-        await finishCompleted();
+        await finishCompleted(nextRequestId);
       } else if (result) {
         setUncertain(true);
-        await operation.refetch();
+        await checkStatus(nextRequestId);
       }
     } catch {
       // A lost HTTP response says nothing about whether the backend finished. Read its operation record.
       setUncertain(true);
-      await operation.refetch();
+      await checkStatus(nextRequestId);
     }
   }
 

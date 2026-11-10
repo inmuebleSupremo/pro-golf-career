@@ -6,6 +6,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, Sparkles, Trophy } from "luci
 
 import { Button } from "@/components/ui/button";
 import { SpokeMessage, useSpokeGate } from "@/components/career/spoke";
+import { useSeasonReviewTransition } from "@/components/loading/foreground-loading-provider";
 import { useCareerInbox, useCareerOverview, useSeasonReview } from "@/lib/api/queries";
 import { formatMoney, ordinalPosition } from "@/lib/career/labels";
 import { humanize } from "@/lib/play/options";
@@ -48,6 +49,19 @@ export function OffSeasonReview({ id }: { id: string }) {
   const query = useSeasonReview(id);
   const inbox = useCareerInbox(id);
   const nextSeason = useCareerOverview(id).data?.world?.season ?? null;
+  const { transition, update, finish } = useSeasonReviewTransition();
+
+  // The review route owns the handoff: cached data is not enough while a fresh read is in flight.
+  useEffect(() => {
+    if (transition?.sessionId !== id || !["opening", "refreshing", "review-unavailable"].includes(transition.stage)) return;
+    if (query.isPending || query.isFetching || inbox.isPending || inbox.isFetching) return;
+    if (query.isError || inbox.isError || query.data?.seasonReview?.season === transition.expectedSeason) {
+      finish(transition.requestId);
+    } else {
+      update(transition.requestId, "review-unavailable");
+    }
+  }, [finish, id, inbox.isError, inbox.isFetching, inbox.isPending, query.data, query.isError,
+    query.isFetching, query.isPending, transition, update]);
 
   // The off-season review is a blocking moment: crossing the season boundary has already advanced the
   // world, so the review covers the command shell and locks body scroll while it's up — the sidebar and

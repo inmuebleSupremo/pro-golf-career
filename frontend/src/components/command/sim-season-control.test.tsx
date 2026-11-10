@@ -6,6 +6,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { SimSeasonControl } from "./identity-strip";
 
 type Operation = { requestId: string; startingSeason: number; state: "RUNNING" | "COMPLETED" | "FAILED"; completedSeason: number | null };
+type Transition = { sessionId: string; requestId: string; expectedSeason: number; stage: string;
+  checkStatus: () => void; openReview: () => void };
 const state = vi.hoisted(() => ({
   push: vi.fn(),
   invalidate: vi.fn(async () => {}),
@@ -14,6 +16,10 @@ const state = vi.hoisted(() => ({
   operation: null as Operation | null,
   statusError: false,
   season: 1,
+  transition: null as Transition | null,
+  startTransition: vi.fn(),
+  updateTransition: vi.fn(),
+  finishTransition: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: state.push }) }));
@@ -29,8 +35,10 @@ vi.mock("@/lib/api/play", () => ({
   }),
 }));
 vi.mock("@/components/loading/foreground-loading-provider", () => ({
-  useForegroundOperation: () => ({ hasPendingForegroundOperation: false, isPending: false,
+  useForegroundOperation: () => ({ hasPendingForegroundOperation: Boolean(state.transition), isPending: false,
     run: async (_options: unknown, work: () => Promise<unknown>) => work() }),
+  useSeasonReviewTransition: () => ({ transition: state.transition, start: state.startTransition,
+    update: state.updateTransition, finish: state.finishTransition }),
 }));
 
 let host: HTMLDivElement;
@@ -64,6 +72,19 @@ beforeEach(() => {
   state.operation = null;
   state.statusError = false;
   state.season = 1;
+  state.transition = null;
+  state.startTransition.mockReset().mockImplementation((transition) => {
+    if (state.transition) return false;
+    state.transition = { ...transition, stage: "simulating" };
+    return true;
+  });
+  state.updateTransition.mockReset().mockImplementation((requestId, stage) => {
+    const active = state.transition as Transition | null;
+    if (active && active.requestId === requestId) state.transition = { ...active, stage };
+  });
+  state.finishTransition.mockReset().mockImplementation((requestId) => {
+    if (state.transition?.requestId === requestId) state.transition = null;
+  });
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -85,7 +106,24 @@ it("shows confirmed success and refreshes authoritative career queries", async (
   expect(state.mutate.mock.calls[0][0].expectedSeason).toBe(1);
   expect(state.invalidate).toHaveBeenCalledTimes(1);
   expect(state.push).toHaveBeenCalledExactlyOnceWith("/career/career-session/offseason");
+  expect(state.transition?.stage).toBe("opening");
+  expect(state.finishTransition).not.toHaveBeenCalled();
   expect(host.textContent).toContain("Season complete");
+});
+
+it("keeps the transition active while career refresh is delayed", async () => {
+  let release!: () => void;
+  state.invalidate.mockImplementationOnce(() => new Promise<void>((resolve) => { release = resolve; }));
+  state.mutate.mockImplementation(async ({ requestId }: { requestId: string }) => ({
+    advanceSeason: { requestId, startingSeason: 1, state: "COMPLETED", completedSeason: 2 },
+  }));
+  click("Sim season");
+  await act(async () => { button("Confirm").click(); await Promise.resolve(); });
+  expect(state.transition?.stage).toBe("refreshing");
+  expect(state.push).not.toHaveBeenCalled();
+  await act(async () => { release(); await Promise.resolve(); });
+  expect(state.transition?.stage).toBe("opening");
+  expect(state.push).toHaveBeenCalledExactlyOnceWith("/career/career-session/offseason");
 });
 
 it("permits an intentional later season with a new starting-season guard", async () => {
@@ -113,6 +151,7 @@ it("reconciles a lost response when the backend already completed", async () => 
   await act(async () => { await Promise.resolve(); });
   expect(state.push).toHaveBeenCalledExactlyOnceWith("/career/career-session/offseason");
   expect(state.invalidate).toHaveBeenCalledTimes(1);
+  expect(state.transition?.stage).toBe("opening");
   expect(host.textContent).not.toContain("couldn't be completed");
 });
 
@@ -126,6 +165,7 @@ it("shows a running operation, blocks resubmission and later completes", async (
   await confirm();
   render();
   expect(host.textContent).toContain("still running");
+  expect(state.transition?.stage).toBe("running");
   expect(button("Confirm").disabled).toBe(true);
   expect(state.push).not.toHaveBeenCalled();
   state.operation = { ...state.operation!, state: "COMPLETED", completedSeason: 2 };
@@ -151,6 +191,7 @@ it("shows completion unknown when the operation record cannot be found", async (
   await confirm();
   render();
   expect(host.textContent).toContain("completion is unknown");
+  expect(state.transition?.stage).toBe("unknown");
   expect(button("Confirm").disabled).toBe(true);
   expect(button("Check status")).toBeTruthy();
   expect(state.push).not.toHaveBeenCalled();
@@ -189,6 +230,7 @@ it("keeps a failed post-progress attempt blocked without claiming rollback", asy
   await confirm();
   render();
   expect(host.textContent).toContain("progress may have changed");
+  expect(state.transition?.stage).toBe("failed");
   expect(button("Confirm").disabled).toBe(true);
   expect(state.push).not.toHaveBeenCalled();
 });

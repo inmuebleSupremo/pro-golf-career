@@ -29,6 +29,7 @@ vi.mock("@/lib/api/play", () => ({
 }));
 vi.mock("@/components/loading/foreground-loading-provider", () => ({
   useForegroundOperation: () => ({ isPending: false, hasPendingForegroundOperation: false }),
+  useSeasonReviewTransition: () => ({ transition: null }),
 }));
 vi.mock("@/components/command/career-account-menu", () => ({
   CareerAccountMenu: () => <button type="button" aria-label="Account menu">Account</button>,
