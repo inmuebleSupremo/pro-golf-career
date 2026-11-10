@@ -1,5 +1,7 @@
 package com.progolf.app.persistence;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,6 +26,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -37,6 +41,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class FilesystemSaveGameStore implements SaveGameStore {
 
+    private static final Logger LOG = LoggerFactory.getLogger(FilesystemSaveGameStore.class);
+
     /**
      * The current on-disk format version. The prior v2 payload remains readable as a V1-course default.
      *
@@ -46,6 +52,8 @@ public class FilesystemSaveGameStore implements SaveGameStore {
      * save is rejected rather than loaded against a guessed ceiling.
      */
     static final int FORMAT_VERSION = 3;
+    /** The envelope stores the full snapshot as one string; 256 MiB allows roughly 11x the Season 5 payload. */
+    static final int MAX_SAVE_STRING_LENGTH = 256 * 1024 * 1024;
     private static final int LEGACY_FORMAT_VERSION = 2;
     private static final String EXTENSION = ".json";
     private static final ConcurrentMap<Path, ReentrantLock> LOCAL_SLOT_LOCKS = new ConcurrentHashMap<>();
@@ -65,7 +73,12 @@ public class FilesystemSaveGameStore implements SaveGameStore {
      * constructor. Package-private so tests share the exact configuration.
      */
     static ObjectMapper persistenceMapper() {
-        return JsonMapper.builder()
+        JsonFactory factory = JsonFactory.builder()
+                .streamReadConstraints(StreamReadConstraints.builder()
+                        .maxStringLength(MAX_SAVE_STRING_LENGTH)
+                        .build())
+                .build();
+        return JsonMapper.builder(factory)
                 .findAndAddModules() // jackson-datatype-jsr310 (dates) + jdk8 (Optional)
                 .addModule(new SimSnapshotModule())
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
@@ -174,9 +187,14 @@ public class FilesystemSaveGameStore implements SaveGameStore {
         try {
             SaveEnvelope envelope = mapper.readValue(Files.readString(file, StandardCharsets.UTF_8), SaveEnvelope.class);
             JsonNode metadata = mapper.readTree(envelope.payload()).get("metadata");
-            return metadata == null ? java.util.Optional.empty()
-                    : java.util.Optional.of(mapper.treeToValue(metadata, SaveMetadata.class));
+            if (metadata == null) {
+                LOG.warn("Skipping save {}: missing metadata", file.getFileName());
+                return java.util.Optional.empty();
+            }
+            return java.util.Optional.of(mapper.treeToValue(metadata, SaveMetadata.class));
         } catch (IOException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            LOG.warn("Skipping unreadable save {}: {}", file.getFileName(), cause.getClass().getSimpleName());
             return java.util.Optional.empty();
         }
     }

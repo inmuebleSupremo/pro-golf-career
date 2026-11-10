@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.PinPlacementVersion;
 import com.progolf.sim.player.Archetype;
@@ -23,6 +24,9 @@ import java.util.HexFormat;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /**
  * save-persistence / resource-ownership: the filesystem store round-trips a world through disk, detects
@@ -59,6 +63,54 @@ class FilesystemSaveGameStoreTest {
         assertThat(loaded.seed()).isEqualTo(123L);
         assertThat(loaded.config()).isEqualTo(SMALL);
         assertThat(loaded.snapshot()).isEqualTo(world.snapshot()); // full structural equality through JSON
+    }
+
+    @Test
+    void aPayloadBeyondTheOldJacksonLimitIsListedAndLoadedWithCorrectMetadata() throws Exception {
+        World world = World.create(123L, SMALL);
+        world.advanceSeason();
+        store.save(OWNER, "large", gameFrom(world, 123L, "large"));
+        store.save(OWNER, "small", gameFrom(World.create(456L, SMALL), 456L, "small"));
+
+        Path file = dir.resolve(OWNER).resolve("large.json");
+        SaveEnvelope original = mapper.readValue(Files.readString(file), SaveEnvelope.class);
+        String payload = original.payload().substring(0, original.payload().length() - 1)
+                + ",\"futureExtension\":\"" + "x".repeat(20_000_001) + "\"}";
+        assertThat(payload.length()).isGreaterThan(20_000_000);
+        Files.writeString(file, mapper.writeValueAsString(
+                new SaveEnvelope(original.formatVersion(), sha256(payload), payload)));
+
+        assertThat(store.list(OWNER)).extracting(SaveMetadata::saveId).containsExactlyInAnyOrder("large", "small");
+        SaveMetadata listed = store.list(OWNER).stream().filter(s -> s.saveId().equals("large")).findFirst().orElseThrow();
+        assertThat(listed.season()).isEqualTo(world.currentSeason());
+        assertThat(listed.week()).isEqualTo(world.currentWeek());
+        SaveGame loaded = store.load(OWNER, "large");
+        assertThat(loaded.snapshot()).isEqualTo(world.snapshot());
+        assertThat(store.load(OWNER, "small").seed()).isEqualTo(456L);
+    }
+
+    @Test
+    void theSaveParserLimitIsExplicitAndBounded() {
+        var constraints = mapper.getFactory().streamReadConstraints();
+        assertThat(constraints.getMaxStringLength()).isEqualTo(FilesystemSaveGameStore.MAX_SAVE_STRING_LENGTH)
+                .isLessThan(Integer.MAX_VALUE);
+        assertThatThrownBy(() -> constraints.validateStringLength(FilesystemSaveGameStore.MAX_SAVE_STRING_LENGTH + 1))
+                .isInstanceOf(StreamConstraintsException.class);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void unreadableSavesAreSkippedWithAConciseWarning(CapturedOutput output) throws Exception {
+        Path owner = Files.createDirectories(dir.resolve(OWNER));
+        Files.writeString(owner.resolve("broken.json"), "{not-json");
+        Files.writeString(owner.resolve("missing-metadata.json"), mapper.writeValueAsString(
+                new SaveEnvelope(FilesystemSaveGameStore.FORMAT_VERSION, sha256("{}"), "{}")));
+
+        assertThat(store.list(OWNER)).isEmpty();
+        assertThat(output.getOut()).contains("Skipping unreadable save broken.json")
+                .contains("Skipping save missing-metadata.json: missing metadata")
+                .doesNotContain("{not-json");
+        assertThatThrownBy(() -> store.load(OWNER, "broken")).isInstanceOf(SaveCorruptedException.class);
     }
 
     @Test
