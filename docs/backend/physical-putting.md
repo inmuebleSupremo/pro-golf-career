@@ -2,9 +2,9 @@
 
 ## Status and activation
 
-Physical putting is a playable, **explicit event opt-in**, not the default game mode. A scheduled event has a `PuttingPolicy`: `LEGACY` preserves the probability-based putting route, while `PHYSICAL_V1` enables physical putting on green lies. New and historical events without a stored policy resolve as `LEGACY`; an unstarted eligible event may be switched deliberately. The policy is carried with event provenance, so a started event does not silently change rules.
+**Current status (2026-11-10):** physical putting is integrated into `develop` and is the default and only mode for player-playable events. A scheduled event still carries a `PuttingPolicy` for save compatibility: older records without a stored policy deserialize as `LEGACY`, while `PHYSICAL_V1` identifies the physical solver. When a player-entered event becomes playable, the world upgrades its effective event policy to `PHYSICAL_V1` without rewriting the saved schedule record.
 
-This boundary preserves historical saves and ordinary gameplay. It does not claim that physical putting is globally enabled, fully calibrated to professional performance, or merged into `develop`.
+Historical save compatibility remains important. This milestone does not claim finished professional-performance calibration or green-contour variety.
 
 ## Authoritative simulation
 
@@ -22,8 +22,8 @@ The frontend uses that data for the dedicated overhead putting view, optional gr
 
 ## Compatibility and remaining work
 
-Legacy `playPutt` remains the route for `LEGACY` events. Existing saves with no putting-policy field deserialize to `LEGACY`; explicit `PHYSICAL_V1` policy and event provenance survive save/load. No duplicate mutable GreenSurface payload is stored solely for presentation.
+Legacy `playPutt` remains a compatibility route for `LEGACY` events. Existing saves with no putting-policy field deserialize to `LEGACY`; explicit `PHYSICAL_V1` policy and event provenance survive save/load. No duplicate mutable GreenSurface payload is stored solely for presentation.
 
-The frontend and automatic paths select the policy-appropriate route, and `playPhysicalPutt` rejects non-physical events. The retained legacy `playPutt` endpoint is a compatibility route and does not itself reject a physical event, so a non-UI client must select the route from the reported policy. This is a limited API-boundary caveat, not a different solver for the shipped physical interface.
+The frontend and automatic paths select the policy-appropriate route. The retained legacy `playPutt` endpoint rejects physical events; `playPhysicalPutt` rejects non-physical green states. A non-UI client must select the route from the reported policy.
 
 The current milestone intentionally leaves these concerns open: evidence-based putting-difficulty and golfer-attribute calibration, broader green footprint/contour diversity, and any visual polish warranted by gameplay evidence. Manual testing observed occasional apparent cup-edge/remaining-distance ambiguity; focused investigation found no demonstrated physical-solver defect.
