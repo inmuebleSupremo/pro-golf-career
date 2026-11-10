@@ -63,14 +63,14 @@ function ChoiceCards({
       aria-label={label}
       aria-invalid={invalid || undefined}
       aria-describedby={describedBy}
-      className="grid gap-3 sm:grid-cols-2"
+      className="flex flex-col gap-3"
     >
       {options.map((option) => (
         <RadioGroup.Item
           key={option.value}
           value={option.value}
           className={cn(
-            "group border-border bg-surface flex flex-col items-start gap-1.5 rounded-lg border p-4 text-left",
+            "group border-border bg-surface flex flex-col items-start gap-1 rounded-lg border p-4 text-left",
             "transition-colors duration-[var(--duration-base)] ease-[var(--ease-out)]",
             "hover:border-primary/50 data-[state=checked]:border-primary data-[state=checked]:bg-primary/[0.06]",
           )}

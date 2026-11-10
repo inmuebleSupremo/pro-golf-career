@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { motion, useReducedMotion } from "motion/react";
+import { ArrowLeft, ArrowRight, Check, Flag, Shield, UserRound, Goal } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,11 +26,11 @@ import {
   backgroundLabel,
   nationalityLabel,
 } from "@/lib/onboarding/options";
-import { useCreateCareer, type CreatedGolfer } from "@/lib/api/mutations";
+import { useCreateCareer } from "@/lib/api/mutations";
 import { isUnauthorized } from "@/lib/api/graphql-client";
+import "./create-golfer.css";
 
 const ageRange = `Between ${MIN_START_AGE} and ${MAX_START_AGE}.`;
-
 const schema = z.object({
   firstName: z.string().trim().min(1, "Enter a first name."),
   lastName: z.string().trim().min(1, "Enter a last name."),
@@ -45,16 +45,39 @@ const schema = z.object({
   handedness: z.enum(["RIGHT", "LEFT"]),
 });
 type Values = z.infer<typeof schema>;
+type Step = 1 | 2 | 3;
+
+const countryFlags: Record<string, string> = {
+  USA: "🇺🇸",
+  GBR: "🇬🇧",
+  IRL: "🇮🇪",
+  ESP: "🇪🇸",
+  ZAF: "🇿🇦",
+  AUS: "🇦🇺",
+  JPN: "🇯🇵",
+  KOR: "🇰🇷",
+  SWE: "🇸🇪",
+  GER: "🇩🇪",
+  FRA: "🇫🇷",
+  CAN: "🇨🇦",
+  ARG: "🇦🇷",
+  NZL: "🇳🇿",
+  ITA: "🇮🇹",
+  MEX: "🇲🇽",
+};
 
 export function CreateGolferForm() {
   const router = useRouter();
   const create = useCreateCareer();
-  const [created, setCreated] = useState<CreatedGolfer | null>(null);
+  const creating = useRef(false);
+  const [step, setStep] = useState<Step>(1);
+  const [confirmed, setConfirmed] = useState<Values | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-
+  const [submitting, setSubmitting] = useState(false);
   const {
     register,
     handleSubmit,
+    trigger,
     control,
     formState: { errors },
   } = useForm<Values>({
@@ -70,12 +93,29 @@ export function CreateGolferForm() {
     },
   });
 
-  async function onSubmit(values: Values) {
+  async function nextStep() {
+    if (await trigger(["firstName", "lastName", "nationality", "startAge", "handedness"]))
+      setStep(2);
+  }
+
+  function showConfirmation(values: Values) {
+    setConfirmed(values);
+    setFormError(null);
+    setStep(3);
+  }
+
+  async function startCareer() {
+    if (!confirmed || creating.current) return;
+    creating.current = true;
+    setSubmitting(true);
     setFormError(null);
     try {
-      const golfer = await create.mutateAsync(values);
-      setCreated(golfer);
+      const golfer = await create.mutateAsync(confirmed);
+      router.push(`/career/${golfer.sessionId}`);
+      router.refresh();
     } catch (error) {
+      creating.current = false;
+      setSubmitting(false);
       if (isUnauthorized(error)) {
         router.push("/login");
         router.refresh();
@@ -85,150 +125,266 @@ export function CreateGolferForm() {
     }
   }
 
-  if (created) return <CareerCreated golfer={created} />;
-
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-6">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field id="firstName" label="First name" error={errors.firstName?.message}>
-          <Input {...register("firstName")} autoComplete="given-name" autoFocus />
-        </Field>
-        <Field id="lastName" label="Last name" error={errors.lastName?.message}>
-          <Input {...register("lastName")} autoComplete="family-name" />
-        </Field>
-      </div>
-      <Field id="handedness" label="Playing hand">
-        <Select {...register("handedness")}>
-          <option value="RIGHT">Right-handed</option>
-          <option value="LEFT">Left-handed</option>
-        </Select>
-      </Field>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field id="nationality" label="Nationality" error={errors.nationality?.message}>
-          <Select {...register("nationality")}>
-            <option value="" disabled>
-              Select a country
-            </option>
-            {NATIONALITIES.map((n) => (
-              <option key={n.value} value={n.value}>
-                {n.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field id="startAge" label="Starting age" error={errors.startAge?.message} hint={ageRange}>
-          <Input
-            type="number"
-            min={MIN_START_AGE}
-            max={MAX_START_AGE}
-            className="max-w-28"
-            {...register("startAge", { valueAsNumber: true })}
-          />
-        </Field>
-      </div>
-
-      <Controller
-        control={control}
-        name="background"
-        render={({ field, fieldState }) => (
-          <div className="flex flex-col gap-2.5">
-            <span className="text-foreground text-sm font-medium">Starting Background</span>
-            <p className="text-muted-foreground text-sm">
-              Set your opening ability. Playing style determines your strengths and potential.
+    <div className={`golfer-creation golfer-creation--step-${step}`}>
+      {step === 2 ? (
+        <div className="golfer-creation__step-heading">
+          <h1>Create your golfer</h1>
+          <div className="golfer-creation__step-two-progress" aria-label="Step 2 of 2">
+            <span>Step 2 of 2</span>
+            <span className="golfer-creation__step-circle golfer-creation__step-circle--past">
+              1
+            </span>
+            <span className="golfer-creation__step-line" />
+            <span className="golfer-creation__step-circle golfer-creation__step-circle--current">
+              2
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="golfer-creation__heading">
+          <div>
+            <h1>Create your golfer</h1>
+            <p>
+              This is the career you&apos;ll guide across decades. Choose who they are and how they
+              play.
             </p>
-            <StartingBackgroundSelect
-              value={field.value}
-              onValueChange={field.onChange}
-              onBlur={field.onBlur}
-              invalid={Boolean(fieldState.error)}
-              describedBy={fieldState.error ? "background-error" : undefined}
-            />
-            {fieldState.error ? (
-              <p id="background-error" className="text-destructive text-sm">
-                {fieldState.error.message}
-              </p>
-            ) : null}
           </div>
-        )}
-      />
+          {step === 1 ? (
+            <span className="golfer-creation__step-pill">
+              <strong>Step 1</strong> of 2
+            </span>
+          ) : null}
+        </div>
+      )}
 
-      <Controller
-        control={control}
-        name="archetype"
-        render={({ field, fieldState }) => (
-          <div className="flex flex-col gap-2.5">
-            <span className="text-foreground text-sm font-medium">Playing style</span>
-            <ArchetypeSelect
-              value={field.value}
-              onValueChange={field.onChange}
-              onBlur={field.onBlur}
-              invalid={Boolean(fieldState.error)}
-              describedBy={fieldState.error ? "archetype-error" : undefined}
-            />
-            {fieldState.error ? (
-              <p id="archetype-error" className="text-destructive text-sm">
-                {fieldState.error.message}
-              </p>
-            ) : null}
+      {step === 1 ? (
+        <div className="golfer-creation__details">
+          <div className="golfer-creation__details-heading">
+            <h2>Your details</h2>
+            <p>Set your golfer&apos;s identity and key characteristics.</p>
           </div>
-        )}
-      />
-
-      {formError ? (
-        <p role="alert" className="text-destructive text-sm">
-          {formError}
-        </p>
+          <div className="golfer-creation__details-grid">
+            <Field id="firstName" label="First name" error={errors.firstName?.message}>
+              <Input {...register("firstName")} autoComplete="given-name" autoFocus />
+            </Field>
+            <Field id="lastName" label="Last name" error={errors.lastName?.message}>
+              <Input {...register("lastName")} autoComplete="family-name" />
+            </Field>
+            <Field id="handedness" label="Playing hand">
+              <Select {...register("handedness")}>
+                <option value="RIGHT">Right-handed</option>
+                <option value="LEFT">Left-handed</option>
+              </Select>
+            </Field>
+            <Field id="nationality" label="Nationality" error={errors.nationality?.message}>
+              <Select {...register("nationality")}>
+                <option value="" disabled>
+                  Select a country
+                </option>
+                {NATIONALITIES.map((n) => (
+                  <option key={n.value} value={n.value}>
+                    {n.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              id="startAge"
+              label="Starting age"
+              error={errors.startAge?.message}
+              hint={ageRange}
+              className="golfer-creation__age"
+            >
+              <Input
+                type="number"
+                min={MIN_START_AGE}
+                max={MAX_START_AGE}
+                {...register("startAge", { valueAsNumber: true })}
+              />
+            </Field>
+          </div>
+        </div>
       ) : null}
 
-      <div className="flex items-center gap-3">
-        <Button type="submit" size="lg" disabled={create.isPending}>
-          {create.isPending ? "Creating…" : "Create golfer"}
-        </Button>
-        <Button asChild variant="ghost" size="lg">
-          <Link href="/saves">Cancel</Link>
-        </Button>
-      </div>
-    </form>
-  );
-}
+      {step === 2 ? (
+        <form onSubmit={handleSubmit(showConfirmation)} noValidate>
+          <div className="golfer-creation__profile-heading">
+            <h2>Your Starting Profile</h2>
+            <p>
+              Choose your starting background and the playing style that will define your strengths
+              and approach to the game.
+            </p>
+          </div>
+          <div className="golfer-creation__profile-grid">
+            <section className="golfer-creation__choice-panel">
+              <h3>Starting Background</h3>
+              <Controller
+                control={control}
+                name="background"
+                render={({ field, fieldState }) => (
+                  <>
+                    <StartingBackgroundSelect
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      onBlur={field.onBlur}
+                      invalid={Boolean(fieldState.error)}
+                      describedBy={fieldState.error ? "background-error" : undefined}
+                    />
+                    {fieldState.error ? (
+                      <p id="background-error" className="golfer-creation__error">
+                        {fieldState.error.message}
+                      </p>
+                    ) : null}
+                  </>
+                )}
+              />
+            </section>
+            <section className="golfer-creation__choice-panel">
+              <h3>Playing Style</h3>
+              <Controller
+                control={control}
+                name="archetype"
+                render={({ field, fieldState }) => (
+                  <>
+                    <ArchetypeSelect
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      onBlur={field.onBlur}
+                      invalid={Boolean(fieldState.error)}
+                      describedBy={fieldState.error ? "archetype-error" : undefined}
+                    />
+                    {fieldState.error ? (
+                      <p id="archetype-error" className="golfer-creation__error">
+                        {fieldState.error.message}
+                      </p>
+                    ) : null}
+                  </>
+                )}
+              />
+            </section>
+          </div>
+          <div className="golfer-creation__actions">
+            <Button type="button" variant="ghost" onClick={() => setStep(1)}>
+              <ArrowLeft aria-hidden="true" />
+              Back
+            </Button>
+            <Button type="submit" className="golfer-creation__primary">
+              Create golfer
+            </Button>
+          </div>
+        </form>
+      ) : null}
 
-function CareerCreated({ golfer }: { golfer: CreatedGolfer }) {
-  const router = useRouter();
-  const reduce = useReducedMotion();
+      {step === 1 ? (
+        <div className="golfer-creation__actions">
+          <Button asChild variant="ghost">
+            <Link href="/saves">
+              <ArrowLeft aria-hidden="true" />
+              Back to careers
+            </Link>
+          </Button>
+          <Button type="button" className="golfer-creation__primary" onClick={nextStep}>
+            Next: Career setup <ArrowRight aria-hidden="true" />
+          </Button>
+        </div>
+      ) : null}
 
-  return (
-    <motion.div
-      initial={reduce ? false : { opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      className="flex flex-col items-center gap-6 text-center"
-    >
-      <div className="flex flex-col gap-2">
-        <p className="text-subtle-foreground font-mono text-xs tracking-[0.18em] uppercase">
-          Your golfer is ready
-        </p>
-        <h2 className="text-foreground text-4xl font-bold tracking-[-0.03em]">
-          {golfer.firstName} {golfer.lastName}
-        </h2>
-      </div>
-      <p className="text-muted-foreground">
-        {backgroundLabel(golfer.background)} · {archetypeLabel(golfer.archetype)} ·{" "}
-        {nationalityLabel(golfer.nationality)} · age {golfer.startAge}
-      </p>
-      <p className="text-muted-foreground max-w-sm text-sm">
-        Their career begins on the Development tour. Guide the decisions — the rest is theirs to
-        earn.
-      </p>
-      <Button
-        size="lg"
-        onClick={() => {
-          router.push(`/career/${golfer.sessionId}`);
-          router.refresh();
-        }}
-      >
-        Start your career
-      </Button>
-    </motion.div>
+      {step === 3 && confirmed ? (
+        <div className="golfer-creation__confirmation-wrap">
+          <div className="golfer-creation__complete-progress" aria-label="Step 2 complete">
+            <span className="golfer-creation__complete-check">
+              <Check aria-hidden="true" />
+            </span>
+            <span>Create golfer</span>
+            <span className="golfer-creation__step-line" />
+            <span className="golfer-creation__step-circle golfer-creation__step-circle--current">
+              2
+            </span>
+            <strong>Step 2 complete</strong>
+          </div>
+          <section className="golfer-creation__confirmation">
+            <p className="golfer-creation__eyebrow">Your golfer is ready</p>
+            <h2>
+              {confirmed.firstName} {confirmed.lastName}
+            </h2>
+            <p className="golfer-creation__summary-line">
+              {backgroundLabel(confirmed.background)} · {archetypeLabel(confirmed.archetype)} ·{" "}
+              {nationalityLabel(confirmed.nationality)} · Age {confirmed.startAge}
+            </p>
+            <div className="golfer-creation__tour-row">
+              <span className="golfer-creation__tour-line" />
+              <span className="golfer-creation__tour-pill">
+                <Flag aria-hidden="true" />
+                Begins on the Development tour
+              </span>
+              <span className="golfer-creation__tour-line" />
+            </div>
+            <p className="golfer-creation__confirmation-copy">
+              Your career begins on the Development tour. Guide the decisions — the rest is theirs
+              to earn.
+            </p>
+            <div className="golfer-creation__summary-cards">
+              <div className="golfer-creation__summary-card">
+                <Shield aria-hidden="true" />
+                <span>
+                  <small>Background</small>
+                  <strong>{backgroundLabel(confirmed.background)}</strong>
+                </span>
+              </div>
+              <div className="golfer-creation__summary-card">
+                <Goal aria-hidden="true" />
+                <span>
+                  <small>Playing Style</small>
+                  <strong>{archetypeLabel(confirmed.archetype)}</strong>
+                </span>
+              </div>
+              <div className="golfer-creation__summary-card">
+                <span className="golfer-creation__flag" aria-hidden="true">
+                  {countryFlags[confirmed.nationality]}
+                </span>
+                <span>
+                  <small>Nationality</small>
+                  <strong>{nationalityLabel(confirmed.nationality)}</strong>
+                </span>
+              </div>
+              <div className="golfer-creation__summary-card">
+                <UserRound aria-hidden="true" />
+                <span>
+                  <small>Age</small>
+                  <strong>{confirmed.startAge}</strong>
+                </span>
+              </div>
+            </div>
+            {formError ? (
+              <p role="alert" className="golfer-creation__error">
+                {formError}
+              </p>
+            ) : null}
+            <div className="golfer-creation__confirmation-actions">
+              <Button
+                type="button"
+                className="golfer-creation__primary"
+                disabled={submitting}
+                onClick={startCareer}
+              >
+                {submitting ? "Creating…" : "Start your career"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={submitting}
+                onClick={() => {
+                  setFormError(null);
+                  setStep(2);
+                }}
+              >
+                Back to setup
+              </Button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </div>
   );
 }
