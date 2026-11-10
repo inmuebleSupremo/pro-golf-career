@@ -24,6 +24,17 @@ function formatSavedAt(savedAt: string): string {
   return Number.isNaN(date.getTime()) ? savedAt : format(date, "d MMM yyyy, HH:mm");
 }
 
+function saveKind(save: Save): string {
+  return save.saveId === "autosave" ? "Autosave · recovery" : "Named career";
+}
+
+/** Only the featured save's exact ID is excluded; similar snapshots remain separate saves. */
+export function featuredAndOtherSaves(saves: Save[]): { featured: Save; others: Save[] } {
+  const sorted = [...saves].sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime());
+  const [featured] = sorted;
+  return { featured, others: sorted.filter((save) => save.saveId !== featured.saveId) };
+}
+
 /**
  * The post-auth home menu (spec: entry-flow): a prominent "Continue" that resumes the most recent
  * career, a clear "New career" path, and — separately — the rest of the saved games to browse and
@@ -52,13 +63,11 @@ export function HomeMenu() {
     );
   }
 
-  const saves: Save[] = [...data.listSaves].sort(
-    (a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime(),
-  );
+  const saves: Save[] = data.listSaves;
 
   if (saves.length === 0) return <FirstCareer />;
 
-  const [mostRecent, ...others] = saves;
+  const { featured: mostRecent, others } = featuredAndOtherSaves(saves);
 
   return (
     <div className="flex flex-col gap-8">
@@ -76,19 +85,17 @@ export function HomeMenu() {
           </h2>
           <ul className="divide-divider border-border bg-surface flex flex-col divide-y overflow-hidden rounded-lg border">
             {others.map((save) => (
-              <li key={save.saveId} className="flex items-center justify-between gap-4 px-5 py-4">
+              <li key={save.saveId} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <div className="flex min-w-0 flex-col gap-1">
                   <span className="font-medium">
                     Season {save.season} · Week {save.week}
                   </span>
                   <span className="text-muted-foreground text-sm">
-                    {save.playerGolferId ? "Career in progress" : "No player assigned"}
+                    {saveKind(save)} · saved <span className="tabular-nums">{formatSavedAt(save.savedAt)}</span>
+                    {!save.playerGolferId ? " · No player assigned" : null}
                   </span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-subtle-foreground mr-1 hidden font-mono text-sm tabular-nums sm:inline">
-                    {formatSavedAt(save.savedAt)}
-                  </span>
+                <div className="flex items-center gap-3 self-end sm:self-auto">
                   <DeleteControl saveId={save.saveId} />
                   <ResumeButton saveId={save.saveId} label="Resume" variant="secondary" />
                 </div>
@@ -114,8 +121,9 @@ function ContinueHero({ save }: { save: Save }) {
             Season {save.season} · Week {save.week}
           </h2>
           <p className="text-muted-foreground text-sm">
-            {save.playerGolferId ? "Career in progress" : "No player assigned"} · saved{" "}
+            {saveKind(save)} · saved{" "}
             <span className="tabular-nums">{formatSavedAt(save.savedAt)}</span>
+            {!save.playerGolferId ? " · No player assigned" : null}
           </p>
         </div>
         <div className="flex items-center gap-3">

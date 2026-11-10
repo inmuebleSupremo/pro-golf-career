@@ -74,8 +74,10 @@ describe("career account exits", () => {
   it("offers exactly two keyboard-accessible actions from one compact desktop/mobile trigger", () => {
     render();
     const trigger = button("Account menu");
-    expect(trigger.className).toContain("size-10");
-    expect(trigger.className).toContain("sm:w-auto");
+    expect(trigger.className).toContain("h-10");
+    expect(trigger.className).toContain("px-2");
+    expect(trigger.textContent).toContain("Account");
+    expect(trigger.querySelector("span")?.className).not.toContain("hidden");
     expect(trigger.className).not.toContain("lg:hidden");
     expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
@@ -98,7 +100,11 @@ describe("career account exits", () => {
   it("uses one confirmation for either destination and Cancel preserves the career", () => {
     render();
     openExit();
-    expect(host.querySelector("dialog")?.textContent).toContain("Go to My Careers?");
+    expect(host.querySelector("dialog")?.textContent).toContain("Return to My Careers?");
+    expect(host.querySelector("dialog")?.textContent).toContain("signed-in career-selection screen");
+    expect(button("Save & Return").getAttribute("class")).toContain("bg-primary");
+    expect(button("Return without Saving")).toBeTruthy();
+    expect(button("Save & Return").className).toContain("w-full sm:w-auto");
     expect(document.activeElement).toBe(button("Cancel"));
     expect(document.body.style.overflow).toBe("hidden");
     click("Cancel");
@@ -107,7 +113,11 @@ describe("career account exits", () => {
     expect(state.save).not.toHaveBeenCalled();
     expect(document.body.style.overflow).toBe("");
     openExit("Sign Out");
-    expect(host.querySelector("dialog")?.textContent).toContain("Go to Sign Out?");
+    expect(host.querySelector("dialog")?.textContent).toContain("Sign out of Pro Golf Career?");
+    expect(host.querySelector("dialog")?.textContent).toContain("returning to sign-in");
+    expect(button("Save & Sign Out").className).toContain("bg-surface");
+    expect(button("Save & Sign Out").className).toContain("border-warning");
+    expect(button("Sign Out without Saving")).toBeTruthy();
     click("Cancel");
     expect(state.logout).not.toHaveBeenCalled();
   });
@@ -117,7 +127,7 @@ describe("career account exits", () => {
     state.save.mockImplementation(() => new Promise((resolve) => { resolveSave = resolve; }));
     render();
     openExit();
-    click("Save & Exit");
+    click("Save & Return");
     click("Saving…");
     expect(state.save).toHaveBeenCalledTimes(1);
     expect(state.push).not.toHaveBeenCalled();
@@ -131,7 +141,7 @@ describe("career account exits", () => {
     state.save.mockResolvedValue({ saveId: "career-new-from-autosave", savedAt: "2026-11-09T10:00:00Z" });
     render();
     openExit("Sign Out");
-    click("Save & Exit");
+    click("Save & Sign Out");
     await settle();
     expect(state.save).toHaveBeenCalledTimes(1);
     expect(state.logout).toHaveBeenCalledTimes(1);
@@ -142,11 +152,11 @@ describe("career account exits", () => {
     state.save.mockRejectedValueOnce(new Error("disk failed"));
     render();
     openExit();
-    click("Save & Exit");
+    click("Save & Return");
     await settle();
     expect(state.push).not.toHaveBeenCalled();
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("could not be saved");
-    click("Retry Save & Exit");
+    click("Retry Save & Return");
     await settle();
     expect(state.save).toHaveBeenCalledTimes(2);
     expect(state.push).toHaveBeenCalledExactlyOnceWith("/saves");
@@ -156,10 +166,10 @@ describe("career account exits", () => {
     state.save.mockRejectedValue(new GraphQLRequestError("changed", 200, "CONFLICT"));
     render();
     openExit();
-    click("Save & Exit");
+    click("Save & Return");
     await settle();
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("another session");
-    expect(button("Save & Exit").disabled).toBe(true);
+    expect(button("Save & Return").disabled).toBe(true);
     expect(state.push).not.toHaveBeenCalled();
     expect(state.logout).not.toHaveBeenCalled();
     click("Cancel");
@@ -170,8 +180,8 @@ describe("career account exits", () => {
     render({ hasPendingEvent: true });
     openExit();
     expect(host.querySelector('[role="status"]')?.textContent).toContain("Finish the current event");
-    expect(button("Save & Exit").disabled).toBe(true);
-    click("Save & Exit");
+    expect(button("Save & Return").disabled).toBe(true);
+    click("Save & Return");
     expect(state.save).not.toHaveBeenCalled();
     click("Cancel");
     expect(state.push).not.toHaveBeenCalled();
@@ -181,10 +191,10 @@ describe("career account exits", () => {
     state.save.mockRejectedValue(new GraphQLRequestError("Cannot snapshot while a player event is pending", 200, "BAD_REQUEST"));
     render();
     openExit();
-    click("Save & Exit");
+    click("Save & Return");
     await settle();
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("Finish the current event");
-    expect(button("Save & Exit").disabled).toBe(true);
+    expect(button("Save & Return").disabled).toBe(true);
     expect(state.push).not.toHaveBeenCalled();
   });
 
@@ -198,8 +208,8 @@ describe("career account exits", () => {
     openExit();
     state.foreground = true;
     render();
-    expect(button("Save & Exit").disabled).toBe(true);
-    expect(button("Exit without Saving").disabled).toBe(true);
+    expect(button("Save & Return").disabled).toBe(true);
+    expect(button("Return without Saving").disabled).toBe(true);
     expect(host.textContent).toContain("Wait for the current action");
     click("Cancel");
     expect(state.push).not.toHaveBeenCalled();
@@ -208,13 +218,13 @@ describe("career account exits", () => {
   it("requires a separate progress-loss confirmation before either unsaved exit", async () => {
     render();
     openExit();
-    click("Exit without Saving");
+    click("Return without Saving");
     expect(state.push).not.toHaveBeenCalled();
     expect(host.textContent).toContain("Unsaved progress in this career will be lost");
     click("Keep playing");
     expect(state.push).not.toHaveBeenCalled();
-    click("Exit without Saving");
-    click("Confirm exit without saving");
+    click("Return without Saving");
+    click("Confirm Return without Saving");
     await settle();
     expect(state.push).toHaveBeenCalledExactlyOnceWith("/saves");
     expect(state.save).not.toHaveBeenCalled();
@@ -223,9 +233,9 @@ describe("career account exits", () => {
   it("requires the same second confirmation before signing out without saving", async () => {
     render();
     openExit("Sign Out");
-    click("Exit without Saving");
+    click("Sign Out without Saving");
     expect(state.logout).not.toHaveBeenCalled();
-    click("Confirm exit without saving");
+    click("Confirm Sign Out without Saving");
     await settle();
     expect(state.logout).toHaveBeenCalledTimes(1);
     expect(state.save).not.toHaveBeenCalled();
