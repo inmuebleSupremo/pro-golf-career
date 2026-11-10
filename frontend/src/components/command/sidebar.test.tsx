@@ -7,19 +7,24 @@ import { MobileCareerNavigation, Sidebar } from "./sidebar";
 import { IdentityStrip } from "./identity-strip";
 
 const route = vi.hoisted(() => ({ pathname: "/career/test-career" }));
+const seasonState = vi.hoisted(() => ({ pendingEvent: false, operation: null as null | {
+  requestId: string; startingSeason: number; state: "RUNNING"; completedSeason: null;
+} }));
 
 vi.mock("next/link", () => ({
   default: (props: ComponentProps<"a">) => <a {...props} />,
 }));
 vi.mock("next/navigation", () => ({ usePathname: () => route.pathname, useRouter: () => ({}) }));
+vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 vi.mock("@/lib/api/queries", () => ({
   useCareerInbox: () => ({ data: { careerInbox: { items: [{}, {}] } } }),
-  useCareerOverview: () => ({ data: { world: { season: 1, hasPendingEvent: false } } }),
+  useCareerOverview: () => ({ data: { world: { season: 1, hasPendingEvent: seasonState.pendingEvent } } }),
   usePlayerProfile: () => ({ data: { playerProfile: null } }),
 }));
 vi.mock("@/lib/api/play", () => ({
   useAdvanceWeek: () => ({ isPending: false }),
   useAdvanceSeason: () => ({ isPending: false }),
+  useSeasonAdvanceOperation: () => ({ data: { seasonAdvanceOperation: seasonState.operation }, isPending: false, isError: false }),
   useCompleteEvent: () => ({ isPending: false }),
 }));
 vi.mock("@/components/loading/foreground-loading-provider", () => ({
@@ -76,6 +81,8 @@ beforeEach(() => {
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
   route.pathname = "/career/test-career";
+  seasonState.pendingEvent = false;
+  seasonState.operation = null;
   window.innerWidth = 390;
   host = document.createElement("div");
   document.body.append(host);
@@ -90,6 +97,14 @@ afterEach(() => {
 });
 
 describe("career navigation", () => {
+  it("keeps a running season operation visible if an overview sees an intermediate event", () => {
+    seasonState.pendingEvent = true;
+    seasonState.operation = { requestId: "in-progress", startingSeason: 1, state: "RUNNING", completedSeason: null };
+    render(<IdentityStrip id="test-career" />);
+    expect(host.textContent).toContain("Season simulation is still running");
+    expect(host.textContent).not.toContain("Play event");
+  });
+
   it("keeps the desktop sidebar and shows a mobile-only menu trigger", () => {
     render(
       <>

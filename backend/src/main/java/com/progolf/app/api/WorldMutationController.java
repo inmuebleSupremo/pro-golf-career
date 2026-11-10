@@ -4,6 +4,7 @@ import com.progolf.app.api.dto.WorldConfigInput;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.api.dto.PinPlacementStatusDto;
 import com.progolf.app.auth.AuthenticatedUser;
+import com.progolf.app.world.SeasonAdvanceOperation;
 import com.progolf.app.world.WorldService;
 import com.progolf.app.world.WorldSession;
 import com.progolf.sim.world.WorldConfig;
@@ -35,10 +36,10 @@ public class WorldMutationController {
     }
 
     @MutationMapping
-    public WorldStatusDto advanceSeason(@Argument String id) {
+    public SeasonAdvanceOperation advanceSeason(@Argument String id, @Argument String requestId,
+                                                @Argument int expectedSeason) {
         String owner = AuthenticatedUser.requireId();
-        worldService.advanceSeason(owner, id);
-        return worldService.status(owner, id);
+        return worldService.advanceSeason(owner, id, requestId, expectedSeason);
     }
 
     @MutationMapping
