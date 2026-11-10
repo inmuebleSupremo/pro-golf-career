@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 
 import { gqlRequest } from "@/lib/api/graphql-client";
 import {
@@ -43,9 +44,12 @@ function randomSeed(): string {
  */
 export function useCreateCareer() {
   const queryClient = useQueryClient();
+  // A retry must target the same slot if the first save succeeded but its response was lost.
+  const saveIdRef = useRef<string | null>(null);
 
   return useMutation<CreatedGolfer, Error, CreateCareerInput>({
     mutationFn: async (input) => {
+      const saveId = saveIdRef.current ?? (saveIdRef.current = `career-${crypto.randomUUID()}`);
       const { createWorld } = await gqlRequest(CreateWorldDocument, { seed: randomSeed() });
       const worldId = createWorld.id;
 
@@ -60,13 +64,17 @@ export function useCreateCareer() {
         handedness: input.handedness,
       });
 
-      const saveId = `career-${crypto.randomUUID()}`;
       await gqlRequest(SaveGameDocument, { id: worldId, saveId });
 
       // worldId is the live in-memory session (player already assigned), so the caller can
       // drop straight into the career hub rather than routing back through the saves list.
-      return { ...input, golferId: createPlayer, saveId, sessionId: worldId,
-        courseGeneratorVersion: createWorld.courseGeneratorVersion };
+      return {
+        ...input,
+        golferId: createPlayer,
+        saveId,
+        sessionId: worldId,
+        courseGeneratorVersion: createWorld.courseGeneratorVersion,
+      };
     },
     onSuccess: () => {
       // The new career should show when the player returns to their saves.
