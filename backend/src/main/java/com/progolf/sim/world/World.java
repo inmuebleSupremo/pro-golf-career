@@ -1310,11 +1310,12 @@ public final class World {
         }
 
         // 3.5. Financial season for every surviving golfer: pay/evaluate sponsors, then sign new offers.
+        // No ranking awards or eligibility change after the snapshot above; reuse its date and positions.
         for (String id : new ArrayList<>(activeGolfers)) {
             if (!careers.get(id).isRetired()) {
-                runFinancialSeason(id, season, date);
+                runFinancialSeason(id, season, date, snapshot);
                 runStaffSeason(id, season, date);
-                runEquipmentSeason(id, season, date);
+                runEquipmentSeason(id, season, date, snapshot);
             }
         }
 
@@ -1409,9 +1410,9 @@ public final class World {
      * reputation-gated offers and sign the ones a deterministic policy accepts. The economy random stream
      * is derived from an isolated per-golfer/season seed, so the world stays reproducible.
      */
-    private void runFinancialSeason(String id, int season, LocalDate date) {
+    private void runFinancialSeason(String id, int season, LocalDate date, RankingSnapshot rankingSnapshot) {
         FinancialAccount account = accounts.get(id);
-        PerformanceSnapshot snapshot = buildPerformanceSnapshot(id, date);
+        PerformanceSnapshot snapshot = buildPerformanceSnapshot(id, rankingSnapshot);
 
         for (SponsorshipAgreement agreement : account.activeAgreements(season)) {
             account.award(TransactionType.SPONSORSHIP_INCOME, agreement.perSeasonPayment(), date,
@@ -1431,7 +1432,8 @@ public final class World {
                 Seeds.deriveSeed(Seeds.deriveSeed(masterSeed, season), EconomyConstants.ECONOMY_SALT),
                 id.hashCode());
         Rng rng = new SplitMix64Rng(seed);
-        CommercialReputation reputation = CommercialReputation.fromCompetitive(competitiveReputation(id, date), rng);
+        CommercialReputation reputation = CommercialReputation.fromCompetitive(
+                competitiveReputation(id, rankingSnapshot), rng);
         List<SponsorshipOffer> offers = sponsorshipMarket.generateOffers(reputation, season + 1, rng);
         if (isPlayer(id)) {
             // The player reviews and accepts offers between advances (spec: player-control); unaccepted
@@ -1504,10 +1506,10 @@ public final class World {
      * upgrade for the weakest category; if affordable, it is purchased through the Economy, added to the
      * inventory, and selected into the loadout. Deterministic from an isolated per-golfer/season seed.
      */
-    private void runEquipmentSeason(String id, int season, LocalDate date) {
+    private void runEquipmentSeason(String id, int season, LocalDate date, RankingSnapshot rankingSnapshot) {
         // The player decides purchases (upgrades held as pending offers) and brand deals; the AI auto-buys.
         if (isPlayer(id)) {
-            runPlayerEquipmentSeason(id, season, date);
+            runPlayerEquipmentSeason(id, season, date, rankingSnapshot);
             return;
         }
         EquipmentInventory inventory = equipment.get(id);
@@ -1530,7 +1532,7 @@ public final class World {
      * term ends; as a free agent the player is offered both à-la-carte upgrades and fresh brand deals for the
      * upcoming season.
      */
-    private void runPlayerEquipmentSeason(String id, int season, LocalDate date) {
+    private void runPlayerEquipmentSeason(String id, int season, LocalDate date, RankingSnapshot rankingSnapshot) {
         EquipmentDeal active = playerActiveEquipmentDeal;
         if (active != null && active.isActiveIn(season)) {
             accounts.get(id).award(TransactionType.SPONSORSHIP_INCOME, active.perSeasonRetainer(), date,
@@ -1550,7 +1552,7 @@ public final class World {
                 Seeds.deriveSeed(masterSeed, EquipmentConstants.DEAL_SALT), season), id.hashCode()));
         playerPendingEquipmentDeals.clear();
         playerPendingEquipmentDeals.addAll(
-                EquipmentDealMarket.generateOffers(competitiveReputation(id, date), season + 1, rng));
+                EquipmentDealMarket.generateOffers(competitiveReputation(id, rankingSnapshot), season + 1, rng));
     }
 
     /**
@@ -1573,7 +1575,7 @@ public final class World {
     }
 
     /** Builds a golfer's season performance from this season's results and the current ranking. */
-    private PerformanceSnapshot buildPerformanceSnapshot(String id, LocalDate date) {
+    private PerformanceSnapshot buildPerformanceSnapshot(String id, RankingSnapshot rankingSnapshot) {
         int events = 0;
         int wins = 0;
         int madeCuts = 0;
@@ -1593,7 +1595,7 @@ public final class World {
                 }
             }
         }
-        int rankingPosition = ranking.rankingAsOf(date).positionOf(id).orElse(Integer.MAX_VALUE);
+        int rankingPosition = rankingSnapshot.positionOf(id).orElse(Integer.MAX_VALUE);
         int careerWins = careers.get(id).statistics().wins();
         return new PerformanceSnapshot(events, wins, madeCuts, best, rankingPosition, careerWins);
     }
@@ -1602,10 +1604,9 @@ public final class World {
      * A golfer's [0,1] competitive reputation from ranking position and career wins, nudged by their
      * commercial momentum (past objective outcomes). Fed to the sponsorship market (REQ-183/186).
      */
-    private double competitiveReputation(String id, LocalDate date) {
-        RankingSnapshot snapshot = ranking.rankingAsOf(date);
-        int size = Math.max(1, snapshot.size());
-        double positionReputation = snapshot.positionOf(id)
+    private double competitiveReputation(String id, RankingSnapshot rankingSnapshot) {
+        int size = Math.max(1, rankingSnapshot.size());
+        double positionReputation = rankingSnapshot.positionOf(id)
                 .map(p -> 1.0 - (p - 1.0) / size)
                 .orElse(0.0);
         int wins = careers.get(id).statistics().wins();
