@@ -98,14 +98,18 @@ function TopStat({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   );
 }
 
-function NextAction({
+export function NextAction({
   id,
   hasPendingEvent,
   pendingEventFinished,
+  hub = false,
+  eventInProgress = false,
 }: {
   id: string;
   hasPendingEvent: boolean;
   pendingEventFinished: boolean;
+  hub?: boolean;
+  eventInProgress?: boolean;
 }) {
   const router = useRouter();
   const advance = useAdvanceWeek(id);
@@ -121,7 +125,7 @@ function NextAction({
   if (seasonTransition?.sessionId === id || seasonOperation.isPending || seasonOperation.isError
       || seasonOperation.data?.seasonAdvanceOperation?.state === "RUNNING"
       || seasonOperation.data?.seasonAdvanceOperation?.state === "FAILED") {
-    return <SimSeasonControl id={id} />;
+    return hub ? <p className="text-muted-foreground text-sm">Check the header for season progression status.</p> : <SimSeasonControl id={id} />;
   }
 
   // The pending event has been played to its end (the completion screen): the primary action is to finish
@@ -144,7 +148,7 @@ function NextAction({
       }
     }
     return (
-      <div className="flex items-center gap-2">
+      <div className={hub ? "flex w-full flex-wrap items-center gap-2" : "flex items-center gap-2"}>
         {actionError ? <p role="alert" className="text-destructive text-sm">{actionError}</p> : null}
         <Button onClick={onFinish} disabled={complete.isPending || foreground.isPending}>
           <Check className="size-4" aria-hidden="true" />
@@ -159,7 +163,7 @@ function NextAction({
       <Button asChild>
         <Link href={`/career/${id}/play`}>
           <Play className="size-4" aria-hidden="true" />
-          Play event
+          {hub && eventInProgress ? "Continue event" : "Play event"}
         </Link>
       </Button>
     );
@@ -184,9 +188,9 @@ function NextAction({
 
   return (
     <>
-      <SimSeasonControl id={id} />
+      {!hub && <SimSeasonControl id={id} />}
       {actionError ? <p role="alert" className="text-destructive text-sm">{actionError}</p> : null}
-      <Button variant="secondary" onClick={onAdvance} disabled={advance.isPending || foreground.hasPendingForegroundOperation}>
+      <Button variant={hub ? "primary" : "secondary"} onClick={onAdvance} disabled={advance.isPending || foreground.hasPendingForegroundOperation}>
         {advance.isPending || foreground.isPending ? "Advancing…" : "Advance week"}
         <ArrowRight className="size-4" aria-hidden="true" />
       </Button>

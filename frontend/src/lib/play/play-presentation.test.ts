@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { HoleGeom } from "./hole-geometry";
-import { defaultPlayPresentation, playPresentation } from "./play-presentation";
+import { defaultPlayPresentation, playPresentation, tournamentPresentationHole } from "./play-presentation";
 import { resolveBiome } from "./biomes";
 import { resolveScene } from "./scene";
 
@@ -20,6 +20,64 @@ const generator8Parkland: HoleGeom = {
 };
 
 describe("normal play presentation", () => {
+  it("uses a supported host family for curated scenes without changing geometry", () => {
+    const green = { surface: "GREEN", boundary: [
+      { x: -10, y: 390 }, { x: 10, y: 390 }, { x: 0, y: 410 },
+    ] };
+    const cases = [
+      { scene: "COASTAL", family: "PARKLAND", biome: "PARKLAND", expected: "PARKLAND" },
+      { scene: "TROPICAL", family: "PARKLAND", biome: "WOODLAND", expected: "WOODLAND" },
+      { scene: "TROPICAL", family: "DESERT", biome: "DESERT", expected: "DESERT" },
+      { scene: "COASTAL", family: "HEATHLAND", biome: "HEATHLAND", expected: "HEATHLAND" },
+      { scene: "PARKLAND", family: "LINKS", biome: "LINKS", expected: "LINKS" },
+    ];
+    for (const { scene, family, biome, expected } of cases) {
+      for (const version of [8, 9]) {
+        const raw = { ...generator8Parkland, courseType: scene, courseFamily: family,
+          canonicalBiome: biome, courseGeneratorVersion: version,
+          canonicalGeometrySource: version === 8
+            ? "GENERATOR_8_PRINCIPLED_ARCHITECTURE" : "GENERATOR_9_COASTAL_LINKS",
+          geometry: { ...generator8Parkland.geometry!, regions: [green] } };
+        expect(defaultPlayPresentation(raw)).toBe("polished");
+        const playable = tournamentPresentationHole(raw)!;
+        expect(playable.courseType).toBe(expected);
+        expect(playable.geometry).toBe(raw.geometry);
+        expect(defaultPlayPresentation(playable)).toBe("premium");
+      }
+    }
+  });
+
+  it("retains deliberate fallbacks for legacy and unsupported host geometry", () => {
+    const raw = { ...generator8Parkland, courseType: "COASTAL" };
+    for (const hole of [
+      { ...raw, courseGeneratorVersion: 7 },
+      { ...raw, canonicalGeometrySource: "GENERATOR_9_COASTAL_LINKS" },
+      { ...raw, courseFamily: undefined },
+      { ...raw, canonicalBiome: "DESERT" },
+      { ...raw, geometry: { ...raw.geometry!, playableBoundary: [] } },
+      { ...raw, courseFamily: "MOUNTAIN", canonicalBiome: "MOUNTAIN" },
+      { ...raw, courseFamily: "COASTAL", canonicalBiome: "COASTAL" },
+    ]) {
+      expect(tournamentPresentationHole(hole)).toBe(hole);
+      expect(defaultPlayPresentation(hole)).toBe("polished");
+    }
+    expect(tournamentPresentationHole(generator8Parkland)).toBe(generator8Parkland);
+  });
+
+  it("uses the accepted Links renderer for a curated event on a supported Links host", () => {
+    const curatedParklandScene = { ...generator8Parkland, courseType: "PARKLAND",
+      canonicalBiome: "LINKS", courseFamily: "LINKS", courseGeneratorVersion: 9,
+      canonicalGeometrySource: "GENERATOR_9_COASTAL_LINKS" };
+    expect(defaultPlayPresentation(curatedParklandScene)).toBe("polished");
+    const playable = tournamentPresentationHole(curatedParklandScene)!;
+    expect(playable.courseType).toBe("LINKS");
+    expect(playable.geometry).toBe(curatedParklandScene.geometry);
+    expect(defaultPlayPresentation(playable)).toBe("premium");
+    expect(tournamentPresentationHole({ ...curatedParklandScene, courseGeneratorVersion: 7 }))
+      .toHaveProperty("courseType", "PARKLAND");
+    expect(tournamentPresentationHole({ ...curatedParklandScene, courseFamily: "PARKLAND" }))
+      .toHaveProperty("courseType", "PARKLAND");
+  });
   it("keeps the core and historical scene/biome routing available", () => {
     for (const [token, scene, biome] of [
       ["PARKLAND", "parkland", "parkland"],

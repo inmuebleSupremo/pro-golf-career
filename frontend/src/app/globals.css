@@ -405,6 +405,13 @@ body {
   display: none;
 }
 
+/* Short desktop viewports keep the event and weekly decisions near the first screen. */
+@media (min-width: 1024px) and (max-height: 820px) {
+  .career-hub { gap: 14px; }
+  .career-hub-hero > div { padding-block: 18px; }
+  .career-hub-week { padding-block: 10px; }
+}
+
 .practice-range-dock {
   padding: 6px 14px;
 }
