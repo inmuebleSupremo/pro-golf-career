@@ -91,8 +91,7 @@ const GROUPS: NavGroup[] = [
 
 export function Sidebar({ id }: { id: string }) {
   return (
-    <aside className="border-border hidden w-64 shrink-0 flex-col gap-6 border-r bg-[var(--background)] p-4 lg:sticky lg:top-0 lg:flex lg:h-dvh">
-      <BrandLink base={`/career/${id}`} />
+    <aside className="border-border hidden w-[13.5rem] shrink-0 flex-col border-r bg-[var(--background)] p-3 lg:sticky lg:top-[4.5rem] lg:flex lg:h-[calc(100dvh-4.5rem)] xl:w-56 2xl:w-[14.5rem]">
       <CareerNavigation id={id} />
     </aside>
   );
@@ -270,14 +269,14 @@ function NavRow({
       className={cn(
         rowClass,
         active
-          ? "bg-surface-elevated text-foreground"
-          : "text-muted-foreground hover:bg-surface hover:text-foreground",
+          ? "bg-primary/20 text-foreground"
+          : "text-muted-foreground hover:bg-primary/10 hover:text-foreground",
       )}
       aria-current={active ? "page" : undefined}
     >
       {active && (
         <span
-          className="bg-primary absolute top-2 bottom-2 -left-4 w-[3px] rounded-r"
+          className="bg-primary absolute top-2 bottom-2 -left-3 w-[3px] rounded-r"
           aria-hidden="true"
         />
       )}

@@ -95,7 +95,7 @@ it("shows the appropriate pending action and blocks advancement during season si
   expect(host.textContent).toContain("Finish event");
   state.operation = { state: "RUNNING" };
   render();
-  expect(host.textContent).toContain("Check the header for season progression status");
+  expect(host.textContent).toContain("Check Schedule for season progression status");
   expect(host.querySelector("button")).toBeNull();
   expect(state.advance).not.toHaveBeenCalled();
 });

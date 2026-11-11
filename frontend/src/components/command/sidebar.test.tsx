@@ -4,12 +4,13 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MobileCareerNavigation, Sidebar } from "./sidebar";
-import { IdentityStrip } from "./identity-strip";
+import { IdentityStrip, NextAction } from "./identity-strip";
 
 const route = vi.hoisted(() => ({ pathname: "/career/test-career" }));
 const seasonState = vi.hoisted(() => ({ pendingEvent: false, operation: null as null | {
   requestId: string; startingSeason: number; state: "RUNNING"; completedSeason: null;
 } }));
+const identityState = vi.hoisted(() => ({ populated: false }));
 
 vi.mock("next/link", () => ({
   default: (props: ComponentProps<"a">) => <a {...props} />,
@@ -18,8 +19,12 @@ vi.mock("next/navigation", () => ({ usePathname: () => route.pathname, useRouter
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 vi.mock("@/lib/api/queries", () => ({
   useCareerInbox: () => ({ data: { careerInbox: { items: [{}, {}] } } }),
-  useCareerOverview: () => ({ data: { world: { season: 1, hasPendingEvent: seasonState.pendingEvent } } }),
-  usePlayerProfile: () => ({ data: { playerProfile: null } }),
+  useCareerOverview: () => ({ data: { world: { season: 1, hasPendingEvent: seasonState.pendingEvent },
+    playerSeasonStats: identityState.populated ? [{ season: 1, wins: 0, events: 1, bestFinish: 24 }] : [] } }),
+  usePlayerProfile: () => ({ data: { playerProfile: identityState.populated ? {
+    firstName: "Ben", lastName: "Dover", tour: "DEVELOPMENT", archetype: "PRECISION_PLAYER",
+    age: 21, worldRanking: 115, availableFunds: 30725,
+  } : null } }),
 }));
 vi.mock("@/lib/api/play", () => ({
   useAdvanceWeek: () => ({ isPending: false }),
@@ -84,6 +89,7 @@ beforeEach(() => {
   route.pathname = "/career/test-career";
   seasonState.pendingEvent = false;
   seasonState.operation = null;
+  identityState.populated = false;
   window.innerWidth = 390;
   host = document.createElement("div");
   document.body.append(host);
@@ -98,11 +104,21 @@ afterEach(() => {
 });
 
 describe("career navigation", () => {
+  it("keeps the golfer identity and current career statistics in the compact header", () => {
+    identityState.populated = true;
+    render(<IdentityStrip id="test-career" />);
+    const header = host.querySelector("header")!;
+    for (const detail of ["Ben Dover", "Development", "Precision Player", "Age 21", "Season 1",
+      "World Rank", "115", "Bankroll", "$30,725", "Season Wins", "Best this yr", "24th"]) {
+      expect(header.textContent).toContain(detail);
+    }
+  });
+
   it("keeps a running season operation visible if an overview sees an intermediate event", () => {
     seasonState.pendingEvent = true;
     seasonState.operation = { requestId: "in-progress", startingSeason: 1, state: "RUNNING", completedSeason: null };
-    render(<IdentityStrip id="test-career" />);
-    expect(host.textContent).toContain("Season simulation is still running");
+    render(<NextAction id="test-career" hasPendingEvent pendingEventFinished={false} hub />);
+    expect(host.textContent).toContain("Check Schedule for season progression status");
     expect(host.textContent).not.toContain("Play event");
   });
 
@@ -127,27 +143,19 @@ describe("career navigation", () => {
     expect(host.querySelector("dialog")?.hasAttribute("open")).toBe(false);
   });
 
-  it("separates the mobile identity controls from both simulation actions at 390px", () => {
+  it("keeps the compact mobile identity controls without global simulation actions", () => {
     render(<IdentityStrip id="test-career" />);
     const header = host.querySelector("header")!;
-    const identityRow = header.children[0];
-    const actionRow = header.children[2];
+    const identityRow = header.children[1];
     const navigation = host.querySelector('button[aria-label="Open career navigation"]')!;
     const account = host.querySelector('button[aria-label="Account menu"]')!;
 
-    expect(header.className).toContain("flex-col");
-    expect(header.className).toContain("lg:flex-row");
-    expect(identityRow.className).toContain("w-full");
+    expect(header.className).toContain("lg:h-[4.5rem]");
     expect(identityRow.className).toContain("min-w-0");
     expect(identityRow.contains(navigation)).toBe(true);
-    expect(identityRow.contains(account)).toBe(true);
-    expect(account.textContent).toContain("Account");
-    expect(actionRow.className).toContain("w-full");
-    expect(actionRow.className).toContain("flex-wrap");
-    expect(actionRow.className).toContain("lg:flex-nowrap");
-    expect(actionRow.textContent).toContain("Sim season");
-    expect(actionRow.textContent).toContain("Advance week");
-    expect(identityRow.textContent).not.toContain("Sim season");
+    expect(header.contains(account)).toBe(true);
+    expect(header.textContent).not.toContain("Sim season");
+    expect(header.textContent).not.toContain("Advance week");
   });
 
   it("uses the same destinations, groups, active route and inbox badge in both surfaces", () => {

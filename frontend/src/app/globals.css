@@ -400,8 +400,8 @@ body {
 }
 
 /* Practice owns the viewport; the command shell resumes as soon as this page unmounts. */
-.command-centre:has(.practice-facility-page) > aside,
-.command-centre:has(.practice-facility-page) > div > header {
+.command-centre:has(.practice-facility-page) > header,
+.command-centre:has(.practice-facility-page) > div > aside {
   display: none;
 }
 

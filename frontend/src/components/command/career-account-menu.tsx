@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useIsMutating } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ChevronDown, FolderOpen, LogOut } from "lucide-react";
+import { FolderOpen, LogOut, Save } from "lucide-react";
 
 import { useLogoutAction } from "@/components/app/logout-button";
 import { useForegroundOperation } from "@/components/loading/foreground-loading-provider";
@@ -145,11 +145,12 @@ export function CareerAccountMenu({ id, hasPendingEvent, statusReady, statusErro
 
   return (
     <>
-      <div className="relative ml-auto shrink-0 lg:ml-2">
+      <div className="relative ml-auto shrink-0 lg:ml-0">
         <button
           ref={triggerRef}
           type="button"
           aria-label="Account menu"
+          title="Account menu"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           aria-controls="career-account-menu"
@@ -163,10 +164,9 @@ export function CareerAccountMenu({ id, hasPendingEvent, statusReady, statusErro
               setMenuOpen(false);
             }
           }}
-          className="border-border text-foreground hover:bg-surface-elevated focus-visible:outline-primary inline-flex h-10 shrink-0 items-center justify-center gap-1 rounded-lg border px-2 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 sm:px-3"
+          className="border-border text-foreground hover:border-primary/50 hover:text-primary focus-visible:outline-primary inline-flex size-10 shrink-0 items-center justify-center rounded-lg border focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 lg:w-12"
         >
-          <span className="text-sm font-semibold">Account</span>
-          <ChevronDown className="size-4" aria-hidden="true" />
+          <Save className="size-5" aria-hidden="true" />
         </button>
         {menuOpen ? (
           <div
