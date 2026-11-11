@@ -74,10 +74,10 @@ describe("career account exits", () => {
   it("offers exactly two keyboard-accessible actions from one compact desktop/mobile trigger", () => {
     render();
     const trigger = button("Account menu");
-    expect(trigger.className).toContain("h-10");
-    expect(trigger.className).toContain("px-2");
-    expect(trigger.textContent).toContain("Account");
-    expect(trigger.querySelector("span")?.className).not.toContain("hidden");
+    expect(trigger.className).toContain("size-10");
+    expect(trigger.getAttribute("title")).toBe("Account menu");
+    expect(trigger.querySelector("svg")).not.toBeNull();
+    expect(trigger.textContent).toBe("");
     expect(trigger.className).not.toContain("lg:hidden");
     expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
     expect(trigger.getAttribute("aria-expanded")).toBe("false");

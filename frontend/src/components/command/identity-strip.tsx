@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Wordmark } from "@/components/app/wordmark";
 import { MobileCareerNavigation } from "@/components/command/sidebar";
 import { CareerAccountMenu } from "@/components/command/career-account-menu";
 import { useForegroundOperation, useSeasonReviewTransition } from "@/components/loading/foreground-loading-provider";
@@ -16,8 +17,7 @@ import { formatMoney, ordinalPosition, tourTierLabel } from "@/lib/career/labels
 
 /*
  * The persistent player identity strip. Lives in the shell (not the page), so it stays
- * mounted across navigation — the who-am-I and the primary "what's next" action are
- * always in the same place. Reads from the shared query cache the hub also uses.
+ * mounted across navigation. Reads from the shared query cache the hub also uses.
  */
 export function IdentityStrip({ id }: { id: string }) {
   const careerOverview = useCareerOverview(id);
@@ -31,17 +31,20 @@ export function IdentityStrip({ id }: { id: string }) {
     : "··";
 
   return (
-    <header className="border-border bg-surface/60 sticky top-0 z-[var(--z-sticky)] flex flex-col items-stretch gap-x-6 gap-y-3 border-b px-5 py-3.5 backdrop-blur-md md:px-7 lg:flex-row lg:flex-wrap lg:items-center">
-      <div className="flex w-full min-w-0 items-center gap-2 sm:gap-3.5 lg:w-auto lg:flex-none">
+    <header className="border-border bg-surface/90 sticky top-0 z-[var(--z-sticky)] flex min-w-0 items-center gap-3 border-b px-3 py-2 backdrop-blur-md sm:px-5 lg:h-[4.5rem] lg:gap-4 lg:px-5 lg:py-0 2xl:gap-5">
+      <div className="border-border hidden shrink-0 border-r pr-4 lg:flex xl:pr-5">
+        <Wordmark href={`/career/${id}`} />
+      </div>
+      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3.5">
         <MobileCareerNavigation id={id} />
-        <span className="border-border-strong from-surface-elevated to-surface text-primary grid size-10 shrink-0 place-items-center rounded-xl border bg-gradient-to-br text-base font-bold tracking-[-0.03em] sm:size-12">
+        <span className="border-border-strong bg-surface-elevated text-primary grid size-9 shrink-0 place-items-center rounded-full border text-sm font-bold tracking-[-0.03em] sm:size-10">
           {initials}
         </span>
-        <div className="min-w-0 leading-tight">
-          <div className="truncate text-[1.03rem] font-bold tracking-[-0.02em]">
+        <div className="min-w-0 leading-tight lg:flex lg:items-center lg:gap-4">
+          <div className="truncate text-[1.03rem] font-bold tracking-[-0.02em] lg:max-w-[12rem] lg:shrink-0">
             {profile ? `${profile.firstName} ${profile.lastName}` : "—"}
           </div>
-          <div className="text-muted-foreground mt-0.5 truncate text-[0.78rem]">
+          <div className="text-muted-foreground mt-0.5 truncate text-[0.78rem] lg:mt-0 lg:min-w-0 lg:text-sm">
             {profile ? (
               <>
                 <span className="text-primary font-semibold">
@@ -58,11 +61,9 @@ export function IdentityStrip({ id }: { id: string }) {
             )}
           </div>
         </div>
-        <CareerAccountMenu id={id} hasPendingEvent={Boolean(world?.hasPendingEvent)}
-          statusReady={Boolean(world)} statusError={careerOverview.isError} />
       </div>
 
-      <div className="hidden items-stretch xl:flex">
+      <div className="hidden shrink-0 items-stretch xl:ml-auto xl:flex">
         <TopStat k="World Rank" v={profile?.worldRanking ? `${profile.worldRanking}` : "—"} accent />
         <TopStat k="Bankroll" v={profile ? formatMoney(profile.availableFunds) : "—"} />
         <TopStat k="Season Wins" v={seasonStat ? `${seasonStat.wins}` : "0"} />
@@ -72,25 +73,20 @@ export function IdentityStrip({ id }: { id: string }) {
         />
       </div>
 
-      <div className="flex w-full min-w-0 flex-wrap items-center gap-2.5 lg:ml-auto lg:w-auto lg:flex-nowrap">
-        <NextAction
-          id={id}
-          hasPendingEvent={Boolean(world?.hasPendingEvent)}
-          pendingEventFinished={Boolean(world?.pendingEventFinished)}
-        />
-      </div>
+      <CareerAccountMenu id={id} hasPendingEvent={Boolean(world?.hasPendingEvent)}
+        statusReady={Boolean(world)} statusError={careerOverview.isError} />
     </header>
   );
 }
 
 function TopStat({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   return (
-    <div className="border-border border-l px-[1.1rem] first:border-l-0">
-      <div className="text-subtle-foreground text-[0.65rem] font-semibold tracking-[0.11em] uppercase">
+    <div className="border-border border-l px-3 2xl:px-4">
+      <div className="text-subtle-foreground text-[0.625rem] font-semibold tracking-[0.11em] uppercase">
         {k}
       </div>
       <div
-        className={`mt-0.5 text-[1.15rem] font-bold tabular-nums tracking-[-0.02em] ${accent ? "text-info" : ""}`}
+        className={`mt-0.5 text-[1.1rem] font-bold tabular-nums tracking-[-0.02em] ${accent ? "text-info" : ""}`}
       >
         {v}
       </div>
@@ -125,7 +121,7 @@ export function NextAction({
   if (seasonTransition?.sessionId === id || seasonOperation.isPending || seasonOperation.isError
       || seasonOperation.data?.seasonAdvanceOperation?.state === "RUNNING"
       || seasonOperation.data?.seasonAdvanceOperation?.state === "FAILED") {
-    return hub ? <p className="text-muted-foreground text-sm">Check the header for season progression status.</p> : <SimSeasonControl id={id} />;
+    return hub ? <p className="text-muted-foreground text-sm">Check Schedule for season progression status.</p> : <SimSeasonControl id={id} />;
   }
 
   // The pending event has been played to its end (the completion screen): the primary action is to finish

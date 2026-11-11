@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SpokeEmpty, useSpokeGate } from "@/components/career/spoke";
 import { SeasonCalendar, type CalendarEntry } from "@/components/calendar/season-calendar";
+import { SimSeasonControl } from "@/components/command/identity-strip";
 import { useCareerOverview, usePinPlacementStatus, usePlayerCalendar, usePlayerFitness } from "@/lib/api/queries";
 import { useAcknowledgeScheduleReview, useAdoptV5PinPlacement, useSetResting } from "@/lib/api/manage";
 
@@ -28,7 +29,16 @@ export function CalendarView({ id }: { id: string }) {
   }, [acknowledgeScheduleReview, query.isSuccess]);
 
   const gate = useSpokeGate(query);
-  if (gate) return gate;
+  const simulation = (
+    <div className="border-border bg-surface flex flex-wrap items-center justify-between gap-3 rounded-lg border px-5 py-3">
+      <div>
+        <h2 className="font-medium">Season simulation</h2>
+        <p className="text-muted-foreground text-sm">Play out the remaining scheduled events and open Season Review.</p>
+      </div>
+      <SimSeasonControl id={id} />
+    </div>
+  );
+  if (gate) return <div className="flex flex-col gap-4">{simulation}{gate}</div>;
 
   const entries = [...((query.data?.playerCalendar as CalendarEntry[]) ?? [])].sort(
     (a, b) => a.week - b.week,
@@ -37,6 +47,7 @@ export function CalendarView({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {simulation}
       <AvailabilityBar id={id} />
       <PinPlacementBar id={id} />
 
