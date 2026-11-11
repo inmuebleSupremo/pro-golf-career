@@ -1,49 +1,41 @@
 "use client";
 
 import Image from "next/image";
-import { MapPin, Play, Trophy } from "lucide-react";
+import {
+  Activity,
+  ArrowUpRight,
+  CalendarDays,
+  Flag,
+  HeartPulse,
+  MapPin,
+  Plane,
+  Target,
+  Trophy,
+} from "lucide-react";
 
-import { Card, CardHeader } from "@/components/command/card";
-import { applySceneFallback, sceneBackdrop } from "@/lib/play/scene";
-import { useAchievements, useCareerOverview, useHallOfFame, usePlayerProfile } from "@/lib/api/queries";
+import { Card } from "@/components/command/card";
+import { NextAction } from "@/components/command/identity-strip";
+import {
+  useAchievements,
+  useCareerOverview,
+  useCareerRecords,
+  usePlayerFitness,
+  usePlayerProfile,
+} from "@/lib/api/queries";
 import {
   attributeShortLabel,
-  eventPrestigeLabel,
   formatMoney,
   ordinalPosition,
   tourTierLabel,
 } from "@/lib/career/labels";
-
-type NewsTone = "gold" | "info" | "danger" | "neutral";
-function newsTone(type: string): { tone: NewsTone; label: string } {
-  switch (type) {
-    case "TOURNAMENT_VICTORY":
-      return { tone: "gold", label: "Win" };
-    case "MAJOR_VICTORY":
-      return { tone: "gold", label: "Major" };
-    case "GOAL_ACHIEVED":
-      return { tone: "gold", label: "Goal" };
-    case "ACHIEVEMENT_UNLOCKED":
-      return { tone: "gold", label: "Feat" };
-    case "WORLD_NUMBER_ONE":
-      return { tone: "info", label: "No. 1" };
-    case "PROMOTION":
-      return { tone: "info", label: "Tour" };
-    case "RISING_PROSPECT":
-      return { tone: "info", label: "Prospect" };
-    case "MAJOR_UPSET":
-      return { tone: "info", label: "Upset" };
-    case "INJURY":
-      return { tone: "danger", label: "Injury" };
-    default:
-      return { tone: "neutral", label: type.replace(/_/g, " ").toLowerCase() };
-  }
-}
+import { lastPlayerResult, nextOpenWeek } from "@/lib/career/hub-summaries";
+import { applySceneFallback, sceneBackdrop } from "@/lib/play/scene";
 
 export function HubDashboard({ id }: { id: string }) {
   const { data, isPending, isError } = useCareerOverview(id);
   const profile = usePlayerProfile(id).data?.playerProfile ?? null;
-  const inductions = useHallOfFame(id).data?.hallOfFame ?? [];
+  const fitness = usePlayerFitness(id).data?.playerFitness ?? null;
+  const records = useCareerRecords(id);
   const achievements = useAchievements(id).data?.achievements ?? [];
 
   if (isPending) return <HubSkeleton />;
@@ -56,304 +48,374 @@ export function HubDashboard({ id }: { id: string }) {
   }
 
   const world = data.world;
-  const unlockedAchievements = achievements
-    .filter((a) => a.unlocked)
-    .sort((a, b) => (b.seasonUnlocked ?? 0) - (a.seasonUnlocked ?? 0));
-  // The card only has five slots — show the most newsworthy of the recent items (a stable sort
-  // keeps recency order among equal prominence, since the feed arrives most-recent-first).
-  const news = [...(data.newsFeed ?? [])].sort((a, b) => b.prominence - a.prominence).slice(0, 5);
-  const seasonStat = data.playerSeasonStats?.find((s) => s.season === world.season);
-  const nextEvent = (data.playerSchedule ?? [])
-    .filter((e) => e.entered && e.week >= world.week)
+  const schedule = data.playerSchedule ?? [];
+  const upcoming = schedule
+    .filter((entry) => entry.entered && entry.week >= world.week)
     .sort((a, b) => a.week - b.week)[0];
-  const eventBackdrop = nextEvent ? sceneBackdrop(nextEvent.courseType, nextEvent.name, { season: world.season }) : null;
-  const attrs = profile?.attributes ?? [];
-  const overall = attrs.length
-    ? (attrs.reduce((s, a) => s + a.value, 0) / attrs.length).toFixed(1)
-    : "—";
+  const pending = world.hasPendingEvent ? data.currentEvent : null;
+  const pendingSchedule = pending
+    ? schedule.find((entry) => entry.name === pending.name && entry.week === world.week)
+    : null;
+  const event = world.hasPendingEvent
+    ? pending
+      ? { ...pending, week: world.week, tier: pendingSchedule?.tier }
+      : pendingSchedule
+    : upcoming;
+  const travel = pending ?? upcoming;
+  const backdrop = event
+    ? sceneBackdrop(event.courseType, event.name, { season: world.season })
+    : null;
+  const seasonStat = data.playerSeasonStats?.find((stat) => stat.season === world.season);
+  const attributes = profile?.attributes ?? [];
+  // Match the existing Profile spoke's unweighted overall, without merging individual abilities.
+  const overallValue = attributes.length
+    ? attributes.reduce((sum, attribute) => sum + attribute.value, 0) / attributes.length
+    : null;
+  const overall = overallValue?.toFixed(1) ?? "—";
+  const result = lastPlayerResult(records.data?.careerRecords?.events ?? []);
+  const restWeek = nextOpenWeek(schedule, world.week);
+  const unlocked = achievements
+    .filter((achievement) => achievement.unlocked)
+    .sort((a, b) => (b.seasonUnlocked ?? 0) - (a.seasonUnlocked ?? 0));
+  const news = [...(data.newsFeed ?? [])].sort((a, b) => b.prominence - a.prominence).slice(0, 3);
+  const scorecard = data.playerScorecard;
+  const eventInProgress = Boolean(
+    scorecard &&
+    (scorecard.roundNumber > 1 || scorecard.currentHole > 1 || scorecard.totalStrokes > 0),
+  );
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-baseline gap-3">
-        <h1 className="text-[1.45rem] font-bold tracking-[-0.025em]">Hub</h1>
-        <span className="text-muted-foreground text-sm">Everything at a glance — one tap to anywhere.</span>
-        <span className="border-border bg-surface text-muted-foreground ml-auto rounded-full border px-3 py-1.5 text-xs font-semibold tabular-nums">
-          Season {world.season} · Week {world.week}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {/* Next event — the hero portal */}
-        <Card href={`/career/${id}/play`} className="sm:col-span-2">
-          <div className="relative isolate -m-5 mb-0 overflow-hidden rounded-t-xl border-b border-[var(--border)] p-5">
-            {nextEvent && eventBackdrop ? (
-              <>
-                {/* The event's course scene, matched to its style/place — the same imagery the play screen uses. */}
-                <Image
-                  src={eventBackdrop.src}
-                  alt=""
-                  fill
-                  sizes="(min-width: 640px) 50vw, 100vw"
-                  className="object-cover object-center"
-                  onError={
-                    eventBackdrop.fallbackSrc
-                      ? (event) =>
-                          applySceneFallback(event.currentTarget, eventBackdrop.fallbackSrc!)
-                      : undefined
-                  }
-                />
-                <div className="from-surface-elevated via-surface-elevated/80 absolute inset-0 bg-gradient-to-t to-transparent" />
-                <div className="from-surface-elevated/70 absolute inset-x-0 top-0 h-16 bg-gradient-to-b to-transparent" />
-              </>
-            ) : (
-              <div className="absolute inset-0 bg-[radial-gradient(130%_170%_at_88%_0%,color-mix(in_oklch,var(--gold),transparent_86%),transparent_52%)]" />
-            )}
-            <div className="relative flex min-h-[8.5rem] flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                {nextEvent && nextEvent.prestige === "MAJOR" ? (
-                  <span className="gold-metal gold-shine inline-flex rounded-md px-2 py-1 text-[0.65rem] font-bold tracking-wide uppercase">
-                    ◆ Major
-                  </span>
-                ) : nextEvent ? (
-                  <span className="border-info/30 bg-info/10 text-info inline-flex rounded-md border px-2 py-1 text-[0.65rem] font-bold tracking-wide uppercase backdrop-blur-sm">
-                    {eventPrestigeLabel(nextEvent.prestige)}
-                  </span>
-                ) : null}
-                {nextEvent && (
-                  <span className="border-info/30 bg-info/10 text-info inline-flex rounded-md border px-2 py-1 text-[0.65rem] font-bold tracking-wide uppercase backdrop-blur-sm">
-                    {tourTierLabel(nextEvent.tier)}
-                  </span>
-                )}
-              </div>
-              <h2 className="text-[1.55rem] leading-[1.08] font-bold tracking-[-0.03em] text-balance">
-                {nextEvent ? nextEvent.name : "No upcoming events"}
-              </h2>
-              {nextEvent ? (
-                <p className="text-muted-foreground flex items-center gap-1 text-[0.8rem] font-medium">
-                  <MapPin className="size-3.5" aria-hidden="true" />
-                  {nextEvent.location}
-                </p>
-              ) : null}
-              <p className="text-subtle-foreground mt-auto text-[0.8rem]">
-                {nextEvent
-                  ? `Week ${nextEvent.week} · ${tourTierLabel(nextEvent.tier)}`
-                  : "You've played or skipped every event on the calendar."}
-              </p>
-            </div>
-          </div>
-          <div className="mt-auto flex items-center gap-3 pt-5">
-            {world.hasPendingEvent ? (
-              <span className="text-primary inline-flex items-center gap-2 text-sm font-semibold">
-                <Play className="size-4" aria-hidden="true" /> Ready to play — shot-by-shot or sim
-              </span>
-            ) : nextEvent ? (
-              <span className="text-muted-foreground text-sm">Advance the week to reach it.</span>
-            ) : (
-              <span className="text-muted-foreground text-sm">Advance the season for a fresh calendar.</span>
-            )}
-          </div>
-        </Card>
-
-        {/* World rank */}
-        <Card href={`/career/${id}/rankings`}>
-          <CardHeader title="World Rank" portal />
-          <div className="text-info text-[2.25rem] leading-none font-bold tabular-nums tracking-[-0.035em]">
-            <span className="text-subtle-foreground align-[3px] text-xl">#</span>
-            {profile?.worldRanking ?? "—"}
-          </div>
-          <p className="text-muted-foreground mt-2.5 text-[0.8rem]">
-            of {world.activePopulation.toLocaleString()} professionals
-          </p>
-        </Card>
-
-        {/* Finances */}
-        <Card href={`/career/${id}/finances`}>
-          <CardHeader title="Finances" portal />
-          <div className="text-[2rem] leading-none font-bold tabular-nums tracking-[-0.03em]">
-            {profile ? formatMoney(profile.availableFunds) : "—"}
-          </div>
-          <p className="text-muted-foreground mt-2.5 text-[0.8rem]">Available funds</p>
-          <p className="text-subtle-foreground mt-1 text-[0.75rem] tabular-nums">
-            Career earnings {profile ? formatMoney(profile.careerEarnings) : "—"}
-          </p>
-        </Card>
-
-        {/* Achievements */}
-        <Card href={`/career/${id}/achievements`} className="sm:col-span-2">
-          <CardHeader
-            title="Achievements"
-            portal
-            right={
-              achievements.length > 0 ? (
-                <span className="text-subtle-foreground text-xs tabular-nums">
-                  <span className="text-gold font-semibold">{unlockedAchievements.length}</span> /{" "}
-                  {achievements.length}
-                </span>
-              ) : undefined
-            }
-          />
-          {unlockedAchievements.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              None unlocked yet — silverware, majors, and feats will land here.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {unlockedAchievements.slice(0, 4).map((a) => (
-                <div key={a.id} className="flex items-center gap-2.5 text-sm">
-                  <Trophy className="text-gold size-4 shrink-0" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate font-medium">{a.title}</span>
-                  {a.seasonUnlocked != null ? (
-                    <span className="text-subtle-foreground shrink-0 font-mono text-[0.7rem] tabular-nums">
-                      S{a.seasonUnlocked}
-                    </span>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        {/* This season */}
-        <Card href={`/career/${id}/seasons`} className="sm:col-span-2">
-          <CardHeader title={`Season ${world.season}`} portal />
-          <div className="grid grid-cols-4 gap-2">
-            <SeasonFig k="Events" v={seasonStat?.events ?? 0} />
-            <SeasonFig k="Wins" v={seasonStat?.wins ?? 0} accent />
-            <SeasonFig k="Top 10s" v={seasonStat?.topTens ?? 0} />
-            <SeasonFig
-              k="Best"
-              v={seasonStat && seasonStat.events > 0 ? ordinalPosition(seasonStat.bestFinish) : "—"}
-            />
-          </div>
-          <p className="text-subtle-foreground mt-4 text-[0.75rem] tabular-nums">
-            Earnings this season {seasonStat ? formatMoney(seasonStat.earnings) : formatMoney(0)}
-          </p>
-        </Card>
-
-        {/* Development */}
-        <Card href={`/career/${id}/manage`} className="sm:col-span-2">
-          <CardHeader
-            title="Development"
-            portal
-            right={
-              <span className="text-subtle-foreground text-xs tabular-nums">
-                Overall <span className="text-foreground font-semibold">{overall}</span>
-              </span>
-            }
-          />
-          {attrs.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Attributes appear once your golfer is set.</p>
-          ) : (
-            <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
-              {attrs.map((a) => (
-                <div key={a.attribute}>
-                  <div className="mb-1.5 flex justify-between text-[0.72rem]">
-                    <span className="text-muted-foreground">{attributeShortLabel(a.attribute)}</span>
-                    <span className="font-bold tabular-nums">{a.value}</span>
-                  </div>
-                  <div className="bg-surface-3 h-[5px] overflow-hidden rounded-full">
-                    <div
-                      className="from-info/50 to-info h-full rounded-full bg-gradient-to-r"
-                      style={{ width: `${a.value}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        {/* News — fixed height so new headlines never grow the card (zero CLS). */}
-        <Card href={`/career/${id}/news`} className="sm:col-span-2 xl:col-span-1">
-          <CardHeader title="Tour News" portal />
-          <div className="h-[13.5rem] overflow-hidden">
-            {news.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No headlines yet — the season is young.</p>
-            ) : (
-              <div className="flex flex-col">
-                {news.map((n, i) => (
-                  <NewsRow key={i} type={n.type} headline={n.headline} season={n.season} />
-                ))}
-              </div>
-            )}
-          </div>
-        </Card>
-
-        {/* Hall of Fame */}
-        <Card href={`/career/${id}/hall-of-fame`}>
-          <CardHeader title="Hall of Fame" portal />
-          {inductions.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No inductees yet.</p>
-          ) : (
+    <main className="career-hub flex min-w-0 flex-col gap-3.5 xl:gap-4">
+      <section
+        aria-label="Next event and career progression"
+        className="career-hub-hero border-border bg-surface relative isolate grid min-w-0 overflow-hidden rounded-xl border shadow-[var(--shadow-md)] lg:grid-cols-[minmax(0,1fr)_minmax(16rem,19rem)]"
+      >
+        <div className="relative isolate flex min-w-0 flex-col justify-center gap-2.5 overflow-hidden p-5 sm:p-6">
+          {backdrop && (
             <>
-              <div className="gold-metal-text inline-flex items-center gap-2 text-[1.35rem] font-bold tracking-[-0.02em]">
-                <Trophy className="text-gold size-5" aria-hidden="true" />
-                {inductions.length}
-              </div>
-              <p className="text-muted-foreground mt-2 text-[0.8rem]">
-                inducted · latest {inductions[inductions.length - 1]?.name}
-              </p>
+              <Image
+                src={backdrop.src}
+                alt=""
+                fill
+                sizes="(min-width: 1024px) 70vw, 100vw"
+                className="object-cover object-[center_58%]"
+                onError={
+                  backdrop.fallbackSrc
+                    ? (image) => applySceneFallback(image.currentTarget, backdrop.fallbackSrc!)
+                    : undefined
+                }
+              />
+              <div className="from-surface/95 via-surface/65 absolute inset-0 bg-gradient-to-r to-transparent" />
+              <div className="from-surface/30 absolute inset-0 bg-gradient-to-t to-transparent" />
             </>
           )}
+          <div className="relative flex flex-col gap-2.5">
+            <p className="text-primary text-xs font-bold tracking-[0.16em] uppercase">Next event</p>
+            <h1 className="max-w-3xl text-2xl leading-tight font-bold tracking-[-0.025em] text-balance sm:text-3xl">
+              {event?.name ?? (world.hasPendingEvent ? "Current event" : "No upcoming event")}
+            </h1>
+            {event && (
+              <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+                <span className="inline-flex items-center gap-2">
+                  <MapPin className="size-4" aria-hidden="true" />
+                  {event.location}
+                </span>
+                {event.tier && (
+                  <span className="inline-flex items-center gap-2">
+                    <Trophy className="size-4" aria-hidden="true" />
+                    {tourTierLabel(event.tier)} Tour
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-2">
+                  <CalendarDays className="size-4" aria-hidden="true" />
+                  Week {event.week}
+                </span>
+              </div>
+            )}
+            <p className="text-muted-foreground max-w-xl text-sm">
+              {world.pendingEventFinished
+                ? "Tournament complete. Finish the event to record your result."
+                : world.hasPendingEvent
+                  ? eventInProgress
+                    ? "Your tournament is in progress. Continue when ready."
+                    : "Your tournament is ready to play."
+                  : upcoming
+                    ? upcoming.week === world.week
+                      ? "This tournament is on your schedule. Advance when permitted to continue."
+                      : "Your next tournament is coming up. Prepare and play when it becomes available."
+                    : "No entered tournament is ahead on the current schedule. You can still advance your career."}
+            </p>
+          </div>
+        </div>
+        <div className="border-border bg-surface-elevated relative flex flex-col justify-center gap-2.5 border-t p-5 sm:p-6 lg:border-t-0 lg:border-l">
+          <p className="text-muted-foreground text-xs font-bold tracking-[0.16em] uppercase">
+            Career progression
+          </p>
+          <h2 className="text-2xl font-bold tabular-nums">
+            Season {world.season} · Week {world.week}
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            {world.pendingEventFinished
+              ? "Bank your result before moving on."
+              : world.hasPendingEvent
+                ? "Play the event to continue your career."
+                : "Advance to the next week when you’re ready."}
+          </p>
+          <div className="flex flex-wrap items-center gap-3 [&_a]:w-full [&_button]:w-full">
+            <NextAction
+              id={id}
+              hasPendingEvent={world.hasPendingEvent}
+              pendingEventFinished={world.pendingEventFinished}
+              eventInProgress={eventInProgress}
+              hub
+            />
+          </div>
+        </div>
+      </section>
+
+      <section
+        aria-labelledby="this-week-heading"
+        className="career-hub-week border-border bg-surface-elevated rounded-xl border px-4 py-3 shadow-[var(--shadow-md)] sm:px-5"
+      >
+        <div className="mb-2 flex items-center gap-2.5">
+          <CalendarDays className="text-primary size-4" aria-hidden="true" />
+          <h2 id="this-week-heading" className="text-sm font-bold tracking-[0.09em] uppercase">
+            This week
+          </h2>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 xl:gap-0">
+          <WeekItem
+            icon={HeartPulse}
+            label="Condition"
+            value={fitness ? `${Math.round(fitness.fitness * 100)}%` : "—"}
+            detail={
+              fitness
+                ? fitness.availability.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase())
+                : "Condition unavailable"
+            }
+          />
+          <WeekItem
+            icon={Plane}
+            label="Travel"
+            value={travel?.location ?? "—"}
+            detail={
+              pending
+                ? "Current tournament venue"
+                : upcoming
+                  ? `Next stop · Week ${upcoming.week}`
+                  : "No upcoming entered event"
+            }
+          />
+          <WeekItem
+            icon={Activity}
+            label="Next open week"
+            value={restWeek ? `Week ${restWeek}` : "—"}
+            detail={restWeek ? "No entered event that week" : "No open week confirmed"}
+          />
+          <WeekItem
+            icon={Flag}
+            label="Last result"
+            value={result?.finish ?? (records.isPending || records.isError ? "—" : "Debut pending")}
+            detail={
+              result?.eventName ??
+              (records.isPending || records.isError
+                ? "Result unavailable"
+                : "No completed tournament yet")
+            }
+          />
+        </div>
+      </section>
+
+      <div className="grid min-w-0 items-start gap-3.5 xl:grid-cols-2 xl:gap-4">
+        <Card href={`/career/${id}/profile`} className="hover:border-primary/50 min-w-0 p-4">
+          <PortalHeading title="Your golfer" />
+          <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(8rem,10rem)_minmax(0,1fr)] sm:items-center 2xl:grid-cols-[minmax(8rem,11rem)_minmax(0,1fr)]">
+            <div
+              className="flex aspect-square max-w-36 rounded-full p-2 xl:max-w-40 2xl:max-w-44"
+              style={{
+                background:
+                  overallValue == null
+                    ? "var(--border-strong)"
+                    : `conic-gradient(var(--primary) ${overallValue}%, var(--border-strong) 0)`,
+              }}
+            >
+              <div className="bg-surface flex flex-1 flex-col items-center justify-center rounded-full text-center">
+                <Target className="text-primary mb-2 size-5" aria-hidden="true" />
+                <span className="text-muted-foreground text-xs">Overall</span>
+                <strong className="text-3xl tabular-nums">{overall}</strong>
+              </div>
+            </div>
+            <div className="min-w-0 space-y-1.5">
+              {attributes.length ? (
+                attributes.slice(0, 5).map((attribute) => (
+                  <div
+                    key={attribute.attribute}
+                    className="grid grid-cols-[minmax(6rem,auto)_minmax(0,1fr)_2rem] items-center gap-2 text-xs sm:text-sm"
+                  >
+                    <span className="text-muted-foreground truncate">
+                      {attributeShortLabel(attribute.attribute)}
+                    </span>
+                    <div className="bg-surface-3 h-2 overflow-hidden rounded-full">
+                      <div
+                        className="bg-info h-full rounded-full"
+                        style={{ width: `${attribute.value}%` }}
+                      />
+                    </div>
+                    <strong className="text-right tabular-nums">{attribute.value}</strong>
+                  </div>
+                ))
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  Attributes appear once your golfer is set.
+                </p>
+              )}
+              {attributes.length > 5 && (
+                <p className="text-subtle-foreground pt-1 text-xs">
+                  Showing 5 of {attributes.length} attributes · View full profile
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        <Card href={`/career/${id}/seasons`} className="hover:border-primary/50 min-w-0 p-4">
+          <PortalHeading title="Season progress" />
+          <div className="border-border grid grid-cols-2 gap-y-3 border-b pb-3 sm:grid-cols-4">
+            <SeasonFig icon={Trophy} label="Events" value={seasonStat?.events ?? 0} />
+            <SeasonFig icon={Trophy} label="Wins" value={seasonStat?.wins ?? 0} />
+            <SeasonFig icon={Target} label="Top 10s" value={seasonStat?.topTens ?? 0} />
+            <SeasonFig
+              icon={Flag}
+              label="Best finish"
+              value={
+                seasonStat && seasonStat.events > 0 ? ordinalPosition(seasonStat.bestFinish) : "—"
+              }
+            />
+          </div>
+          <p className="mt-3 text-sm">
+            Earnings this season:{" "}
+            <strong className="ml-1 text-lg tabular-nums">
+              {formatMoney(seasonStat?.earnings ?? 0)}
+            </strong>
+          </p>
+        </Card>
+
+        <Card href={`/career/${id}/achievements`} className="hover:border-primary/50 min-w-0 p-4">
+          <PortalHeading
+            title="Achievements"
+            icon={Trophy}
+            right={
+              <span className="text-muted-foreground ml-2 text-sm tabular-nums">
+                <span className="text-gold">{unlocked.length}</span> / {achievements.length}
+              </span>
+            }
+          />
+          {unlocked.length ? (
+            <ul className="space-y-2 text-sm">
+              {unlocked.slice(0, 3).map((achievement) => (
+                <li key={achievement.id} className="flex items-center gap-2">
+                  <Trophy className="text-gold size-4 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0 truncate">{achievement.title}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              None unlocked yet — silverware, majors and feats will land here.
+            </p>
+          )}
+        </Card>
+
+        <Card href={`/career/${id}/news`} className="hover:border-primary/50 min-w-0 p-4">
+          <PortalHeading title="Tour news" icon={CalendarDays} />
+          {news.length ? (
+            <ul className="divide-border divide-y text-sm">
+              {news.map((entry, index) => (
+                <li key={`${entry.season}-${index}`} className="truncate py-2 first:pt-0 last:pb-0">
+                  {entry.headline}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground text-sm">No headlines yet — the season is young.</p>
+          )}
         </Card>
       </div>
-    </div>
+    </main>
   );
 }
 
-function SeasonFig({ k, v, accent }: { k: string; v: string | number; accent?: boolean }) {
+function WeekItem({
+  icon: Icon,
+  label,
+  value,
+  detail,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: string;
+  detail: string;
+}) {
   return (
-    <div className="border-border bg-surface rounded-lg border p-3 text-center">
-      <div className={`text-xl font-bold tabular-nums tracking-[-0.02em] ${accent ? "text-primary" : ""}`}>{v}</div>
-      <div className="text-subtle-foreground mt-1 text-[0.65rem] font-semibold tracking-wide uppercase">{k}</div>
-    </div>
-  );
-}
-
-function NewsRow({ type, headline, season }: { type: string; headline: string; season: number }) {
-  const { tone, label } = newsTone(type);
-  const toneClass =
-    tone === "gold"
-      ? "gold-metal text-[#3c2f12]"
-      : tone === "info"
-        ? "bg-info/12 text-info"
-        : tone === "danger"
-          ? "bg-destructive/14 text-destructive"
-          : "bg-surface-3 text-muted-foreground";
-  return (
-    <div className="border-border flex gap-3 border-t py-3 first:border-t-0 first:pt-0.5">
-      <span
-        className={`mt-px h-fit shrink-0 rounded-md px-1.5 py-1 text-[0.6rem] font-bold tracking-wide uppercase ${toneClass}`}
-      >
-        {label}
-      </span>
+    <div className="xl:border-border flex min-w-0 items-start gap-2.5 xl:border-l xl:px-4 xl:first:border-l-0 xl:first:pl-0 xl:last:pr-0">
+      <Icon className="text-primary mt-0.5 size-5 shrink-0" aria-hidden="true" />
       <div className="min-w-0">
-        <p className="truncate text-[0.82rem] leading-snug">{headline}</p>
-        <p className="text-subtle-foreground mt-1 text-[0.7rem]">Season {season}</p>
+        <h3 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">{label}</h3>
+        <p className="mt-0.5 text-base font-semibold break-words tabular-nums">{value}</p>
+        <p className="text-muted-foreground text-xs break-words">{detail}</p>
       </div>
+    </div>
+  );
+}
+
+function PortalHeading({
+  title,
+  icon: Icon,
+  right,
+}: {
+  title: string;
+  icon?: typeof Trophy;
+  right?: React.ReactNode;
+}) {
+  return (
+    <div className="border-border mb-3 flex items-center gap-2 border-b pb-2">
+      {Icon && <Icon className="text-primary size-5" aria-hidden="true" />}
+      <h2 className="text-base font-bold tracking-[0.08em] uppercase">{title}</h2>
+      {right}
+      <ArrowUpRight
+        className="text-muted-foreground group-hover:text-primary ml-auto size-5"
+        aria-hidden="true"
+      />
+    </div>
+  );
+}
+
+function SeasonFig({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Trophy;
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="border-border flex flex-col items-center gap-0.5 border-l px-2 text-center first:border-l-0">
+      <Icon className="text-primary size-5" aria-hidden="true" />
+      <strong className="text-xl tabular-nums">{value}</strong>
+      <span className="text-muted-foreground text-xs">{label}</span>
     </div>
   );
 }
 
 function HubSkeleton() {
   return (
-    <div className="flex flex-col gap-6">
-      <div className="h-8" />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          "sm:col-span-2 h-56",
-          "h-56",
-          "h-56",
-          "sm:col-span-2 h-44",
-          "sm:col-span-2 h-44",
-          "sm:col-span-2 h-48",
-          "sm:col-span-2 xl:col-span-1 h-48",
-          "h-48",
-        ].map((c, i) => (
-          <div
-            key={i}
-            className={`border-border bg-surface/60 animate-pulse rounded-xl border ${c}`}
-          />
+    <div className="flex animate-pulse flex-col gap-4">
+      <div className="border-border bg-surface min-h-56 rounded-xl border" />
+      <div className="border-border bg-surface min-h-28 rounded-xl border" />
+      <div className="grid gap-4 xl:grid-cols-2">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="border-border bg-surface min-h-40 rounded-xl border" />
         ))}
       </div>
     </div>

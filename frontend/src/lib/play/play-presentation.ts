@@ -21,6 +21,21 @@ export function isWoodlandVariation(hole: HoleGeom | null): boolean {
   return isParklandFamily(hole) && hole?.canonicalBiome === "WOODLAND";
 }
 
+/** Use the host's established family renderer when a curated event scene describes a different course. */
+export function tournamentPresentationHole(hole: HoleGeom | null): HoleGeom | null {
+  if (!hole) return null;
+  const hostType = hole.courseFamily === "PARKLAND"
+    && (hole.canonicalBiome === "PARKLAND" || hole.canonicalBiome === "WOODLAND")
+    ? hole.canonicalBiome
+    : hole.courseFamily === "LINKS" && hole.canonicalBiome === "LINKS" ? "LINKS"
+    : hole.courseFamily === "HEATHLAND" && hole.canonicalBiome === "HEATHLAND" ? "HEATHLAND"
+    : hole.courseFamily === "DESERT" && hole.canonicalBiome === "DESERT" ? "DESERT"
+    : null;
+  if (!hostType || resolveBiome(hole.courseType) === resolveBiome(hostType)) return hole;
+  const hostHole = { ...hole, courseType: hostType };
+  return defaultPlayPresentation(hostHole) === "premium" ? hostHole : hole;
+}
+
 /** Premium art is enabled only for supported live Generator 8 geometry; other saves retain Current. */
 export function defaultPlayPresentation(hole: HoleGeom | null): "polished" | "premium" {
   return hole

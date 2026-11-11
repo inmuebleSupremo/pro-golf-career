@@ -8,11 +8,46 @@ import { Hole2d } from "./hole-2d";
 import samples from "@/lib/play/course-family-preview-fixtures.json";
 import corpus from "@/lib/play/principled-architecture-preview-fixtures.json";
 import coastalCourse from "@/lib/play/coastal-links-course-fixture.json";
+import heathlandCourse from "@/lib/play/premium-heathland-course-fixture.json";
+import desertCourse from "@/lib/play/premium-desert-course-fixture.json";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
+import { defaultPlayPresentation, tournamentPresentationHole } from "@/lib/play/play-presentation";
 
 const cases = samples as readonly { identity: string; hole: HoleGeom }[];
 
 describe("actual Generator 8 course-family renders", () => {
+  it("keeps supported hosts full-stage under unrelated curated event scenes", () => {
+    for (const [scene, source] of [
+      ["COASTAL", cases[0].hole],
+      ["TROPICAL", cases[1].hole],
+      ["COASTAL", heathlandCourse.holes[0].hole],
+      ["TROPICAL", desertCourse.holes[0].hole],
+    ] as const) {
+      const raw = { ...source, courseType: scene } as HoleGeom;
+      expect(defaultPlayPresentation(raw)).toBe("polished");
+      const hole = tournamentPresentationHole(raw)!;
+      expect(defaultPlayPresentation(hole)).toBe("premium");
+      expect(hole.geometry).toBe(raw.geometry);
+      const svg = renderToStaticMarkup(<Hole2d hole={hole} presentation="premium"
+        stageViewport={{ width: 1600, height: 900, safeTop: 50, safeBottom: 150 }} />);
+      const [,, width, height] = svg.match(/viewBox="([^"]+)"/)![1].split(" ").map(Number);
+      expect(width / height).toBeCloseTo(1600 / 900, 8);
+    }
+  });
+
+  it("keeps a curated Parkland event on a coastal Links host in the accepted full-stage renderer", () => {
+    const generated = coastalCourse.holes.find((entry) => entry.coastal)!;
+    const raw = { ...generated.hole, courseType: "PARKLAND" } as HoleGeom;
+    const hole = tournamentPresentationHole(raw)!;
+    const presentation = defaultPlayPresentation(hole);
+    expect(presentation).toBe("premium");
+    const svg = renderToStaticMarkup(<Hole2d hole={hole} presentation={presentation}
+      stageViewport={{ width: 1600, height: 900, safeTop: 50, safeBottom: 150 }} />);
+    const [,, width, height] = svg.match(/viewBox="([^"]+)"/)![1].split(" ").map(Number);
+    expect(width / height).toBeCloseTo(1600 / 900, 8);
+    expect(svg).toContain('data-links-open-ocean="true"');
+    expect(hole.geometry).toBe(raw.geometry);
+  });
   it("renders open ocean for coastal version 9 holes and retains an inland Links view", () => {
     for (const number of [7, 8, 9, 1]) {
       const item = coastalCourse.holes[number - 1];

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useForegroundOperation } from "@/components/loading/foreground-loading-provider";
 import { applySceneFallback, sceneBackdrop, type SceneBackdrop } from "@/lib/play/scene";
 import type { HoleGeom } from "@/lib/play/hole-geometry";
+import { tournamentPresentationHole } from "@/lib/play/play-presentation";
 import { PlayMode } from "@/components/play/play-mode";
 import {
   formatScore,
@@ -30,7 +31,9 @@ export function PlayEvent({ id }: { id: string }) {
   const playerGolferId = usePlayerProfile(id).data?.playerProfile?.golferId ?? null;
 
   const hasPendingEvent = data?.world?.hasPendingEvent ?? false;
-  const playingHole = (usePlayingHole(id).data?.playingHole ?? null) as HoleGeom | null;
+  const playingHole = tournamentPresentationHole(
+    (usePlayingHole(id).data?.playingHole ?? null) as HoleGeom | null,
+  );
 
   useEffect(() => {
     if (isError && isUnauthorized(error)) {

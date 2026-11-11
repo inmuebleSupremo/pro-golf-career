@@ -107,6 +107,16 @@ export const CareerOverviewDocument = graphql(`
       pendingEventFinished
       courseGeneratorVersion
     }
+    currentEvent(id: $id) {
+      name
+      location
+      courseType
+    }
+    playerScorecard(id: $id) {
+      roundNumber
+      currentHole
+      totalStrokes
+    }
     playerSchedule(id: $id) {
       tournamentId
       week
