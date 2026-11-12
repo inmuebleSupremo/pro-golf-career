@@ -1,6 +1,7 @@
 package com.progolf.sim.course;
 
 import com.progolf.sim.core.SplitMix64Rng;
+import com.progolf.sim.core.SeasonProfile;
 import com.progolf.sim.core.Seeds;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.putt.PuttingPolicy;
@@ -118,7 +119,9 @@ public record GeneratedHole(
     public HoleModel forRound(int round, CourseSetup setup, PinPlacementVersion pinPlacementVersion, PuttingPolicy puttingPolicy) {
         CourseGeometry effectiveGeometry = geometryForWidth(setup.widthScale());
         PinPlacement placement = pinPlacementFor(round, setup, effectiveGeometry, pinPlacementVersion);
-        return new RoundHole(this, placement.pin(), setup, placement.cup(), puttingPolicy);
+        HoleModel model = new RoundHole(this, placement.pin(), setup, placement.cup(), puttingPolicy);
+        SeasonProfile.holeModelConstructed();
+        return model;
     }
 
     /** Resolves the presentation intent and authoritative cup from one explicit policy. */

@@ -1,6 +1,7 @@
 package com.progolf.sim.course;
 
 import com.progolf.sim.core.Rng;
+import com.progolf.sim.core.SeasonProfile;
 import com.progolf.sim.core.Seeds;
 import com.progolf.sim.core.SplitMix64Rng;
 import com.progolf.sim.spatial.Surface;
@@ -33,6 +34,18 @@ public final class GreenSurfaceGenerator {
     /** Explicit seam for future event policies that select a surface version and an effective green geometry. */
     public static GreenSurface generate(CourseGeometry geometry, long holeSeed, Position2d approachDirection,
                                         GreenSurfaceVersion version) {
+        SeasonProfile profile = SeasonProfile.current();
+        if (profile == null) return generateBody(geometry, holeSeed, approachDirection, version);
+        long started = System.nanoTime();
+        try {
+            return generateBody(geometry, holeSeed, approachDirection, version);
+        } finally {
+            profile.record(SeasonProfile.Metric.GREEN_GENERATION, System.nanoTime() - started);
+        }
+    }
+
+    private static GreenSurface generateBody(CourseGeometry geometry, long holeSeed, Position2d approachDirection,
+                                             GreenSurfaceVersion version) {
         Objects.requireNonNull(geometry, "geometry");
         Objects.requireNonNull(approachDirection, "approachDirection");
         Objects.requireNonNull(version, "version");
@@ -55,7 +68,9 @@ public final class GreenSurfaceGenerator {
                 fingerprint(footprint), approach);
         GreenSurface surface = new GreenSurface(provenance, footprint, bounds.minX, bounds.maxX, bounds.minY, bounds.maxY,
                 columns, rows, elevations);
-        return limitSlope(surface, center);
+        GreenSurface generated = limitSlope(surface, center);
+        SeasonProfile.greenSurfaceGenerated();
+        return generated;
     }
 
     private static GreenSurface limitSlope(GreenSurface surface, Position2d center) {

@@ -44,6 +44,7 @@ import com.progolf.sim.career.HallOfFameInduction;
 import com.progolf.sim.control.CareerGoal;
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
+import com.progolf.sim.core.SeasonProfile;
 import com.progolf.sim.economy.FinancialAccount;
 import com.progolf.sim.economy.SponsorshipOffer;
 import com.progolf.sim.equipment.EquipmentCategory;
@@ -101,6 +102,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -117,6 +120,9 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class WorldService {
+
+    private static final Logger LOG = LoggerFactory.getLogger(WorldService.class);
+    private static final String SEASON_PROFILE_PROPERTY = "progolf.profile.season";
 
     /** The reserved save id refreshed by autosave at each checkpoint (per owner). */
     public static final String AUTOSAVE_ID = "autosave";
@@ -228,7 +234,8 @@ public class WorldService {
 
     private SaveGame capture(WorldSession session, String saveId) {
         World world = session.world();
-        var snapshot = world.snapshot(); // retains the existing pending-event restriction
+        var snapshot = SeasonProfile.time(SeasonProfile.Metric.SNAPSHOT, world::snapshot);
+        // The snapshot retains the existing pending-event restriction.
         SaveMetadata metadata = new SaveMetadata(saveId, Instant.now(), world.currentSeason(), world.currentWeek(),
                 world.playerGolferId().orElse(null));
         return new SaveGame(session.seed(), world.config(), snapshot, metadata,
@@ -370,20 +377,37 @@ public class WorldService {
             return running;
         });
         if (!started.get()) return selected;
+        SeasonProfile profile = null;
+        long operationStart = 0;
+        boolean completedSuccessfully = false;
         try {
+            if (Boolean.getBoolean(SEASON_PROFILE_PROPERTY)) {
+                profile = SeasonProfile.start();
+                operationStart = System.nanoTime();
+            }
             synchronized (session.world()) {
                 if (session.world().currentSeason() != expectedSeason) {
                     throw new IllegalStateException("The career advanced before this simulation started");
                 }
-                session.world().advanceSeason();
-                autosave(ownerId, id);
+                SeasonProfile.time(SeasonProfile.Metric.WORLD, session.world()::advanceSeason);
+                SeasonProfile.time(SeasonProfile.Metric.AUTOSAVE, () -> autosave(ownerId, id));
                 SeasonAdvanceOperation completed = running.completed(session.world().currentSeason());
                 seasonAdvanceOperations.put(id, completed);
+                completedSuccessfully = true;
                 return completed;
             }
         } catch (RuntimeException | Error failure) {
             seasonAdvanceOperations.put(id, running.failed());
             throw failure;
+        } finally {
+            if (profile != null) {
+                try {
+                    LOG.info("{}", profile.summary(completedSuccessfully ? "COMPLETED" : "FAILED",
+                            System.nanoTime() - operationStart));
+                } finally {
+                    profile.close();
+                }
+            }
         }
     }
 

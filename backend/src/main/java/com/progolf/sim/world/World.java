@@ -15,6 +15,7 @@ import com.progolf.sim.control.PlayerControl;
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.Rng;
+import com.progolf.sim.core.SeasonProfile;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.core.Seeds;
 import com.progolf.sim.core.SplitMix64Rng;
@@ -886,9 +887,10 @@ public final class World {
                     var disposition = StrategyDisposition.resolve(playerControl.riskApproach(),
                             golfers.get(playerControl.golferId()).player().attributes());
                     built.tournament().setInteractiveDisposition(disposition);
-                    PlayableEvent playable = new PlayableEvent(built.tournament(),
-                            golfers.get(playerControl.golferId()), built.playerFieldIndex(),
-                            built.course(), built.weather(), masterSeed, built.season(), event.tournamentId());
+                    PlayableEvent playable = SeasonProfile.time(SeasonProfile.Metric.EVENT_SETUP,
+                            () -> new PlayableEvent(built.tournament(),
+                                    golfers.get(playerControl.golferId()), built.playerFieldIndex(),
+                                    built.course(), built.weather(), masterSeed, built.season(), event.tournamentId()));
                     pendingEvent = new PendingPlayerEvent(playable, built, weekEvents, i);
                     return; // pause the week until the player's event completes
                 }
@@ -925,7 +927,8 @@ public final class World {
             throw new IllegalStateException("The player's event is not finished");
         }
         feedConsumers(pendingEvent.built(), playable.result());
-        detectPlayerEventAchievements(playable, pendingEvent.built()); // on-course / clutch feats from the play
+        SeasonProfile.time(SeasonProfile.Metric.EVENT_RESULTS,
+                () -> detectPlayerEventAchievements(playable, pendingEvent.built()));
         List<ScheduledTournament> weekEvents = pendingEvent.weekEvents();
         int next = pendingEvent.cursor() + 1;
         pendingEvent = null;
@@ -1034,6 +1037,10 @@ public final class World {
      * interactive event (spec: playable-event); it computes no results and feeds no consumer.
      */
     private BuiltEvent buildEvent(ScheduledTournament event) {
+        return SeasonProfile.time(SeasonProfile.Metric.EVENT_SETUP, () -> buildEventBody(event));
+    }
+
+    private BuiltEvent buildEventBody(ScheduledTournament event) {
         int season = calendar.currentSeason();
         LocalDate date = calendar.dateFor(season, event.week());
 
@@ -1133,6 +1140,10 @@ public final class World {
      * result came from automatic resolution or the player's interactive event (spec: playable-event).
      */
     private void feedConsumers(BuiltEvent built, TournamentResult result) {
+        SeasonProfile.time(SeasonProfile.Metric.EVENT_RESULTS, () -> feedConsumersBody(built, result));
+    }
+
+    private void feedConsumersBody(BuiltEvent built, TournamentResult result) {
         ScheduledTournament event = built.event();
         TournamentDefinition def = built.def();
         Tier tier = built.tier();
@@ -1228,6 +1239,7 @@ public final class World {
         checkCareerGoals(); // a win/major/ranking move may complete a player goal (spec: career-goals)
         checkAchievements(); // ...and may unlock a metric-based achievement (spec: career-achievements)
         for (ProfessionalGolfer g : field) g.player().state().setPreparation(0.0);
+        SeasonProfile.eventProcessed(def.puttingPolicy().usesPhysicalPutting());
     }
 
     /**
@@ -1268,11 +1280,16 @@ public final class World {
     // --- Seasonal transition ---
 
     private void seasonalTransition() {
+        SeasonProfile.time(SeasonProfile.Metric.SEASON_END, this::seasonalTransitionBody);
+    }
+
+    private void seasonalTransitionBody() {
         int season = calendar.currentSeason();
         LocalDate date = calendar.dateFor(season, calendar.weeksPerSeason());
 
         // 1. Season-ending ranking snapshot; report a change at the very top (REQ-241/246).
-        RankingSnapshot snapshot = ranking.rankingAsOf(date);
+        RankingSnapshot snapshot = SeasonProfile.time(SeasonProfile.Metric.SEASON_RANKING,
+                () -> ranking.rankingAsOf(date));
         rankingSnapshots.add(snapshot);
         snapshot.leader().ifPresent(leader -> {
             if (!leader.golferId().equals(previousNumberOne)) {
@@ -1289,38 +1306,43 @@ public final class World {
 
         // 3. Advance every active Career one season; collect retirees; evolve survivors' attributes.
         List<String> retirees = new ArrayList<>();
-        for (String id : new ArrayList<>(activeGolfers)) {
-            Career career = careers.get(id);
-            career.advanceSeason(date); // retires at the mandatory age
-            if (!career.isRetired() && retiresByChoice(id, career.age(), season)) {
-                career.retireEarly(date);
+        SeasonProfile.time(SeasonProfile.Metric.DEVELOPMENT, () -> {
+            for (String id : new ArrayList<>(activeGolfers)) {
+                Career career = careers.get(id);
+                career.advanceSeason(date); // retires at the mandatory age
+                if (!career.isRetired() && retiresByChoice(id, career.age(), season)) {
+                    career.retireEarly(date);
+                }
+                if (career.isRetired()) {
+                    retirees.add(id);
+                    retirementSeason.putIfAbsent(id, season); // for seasons-since-retirement (spec: career-legacy)
+                    media.publish(NewsFactory.retirement(season, id, nameOf(id), career.statistics().wins()));
+                } else {
+                    evolveGolfer(golfers.get(id), career.age(), season);
+                    // Fitness drifts toward its age-based target each season, lifted by a fitness coach — so the
+                    // long-term Condition value evolves over a career rather than staying at its seeded value.
+                    double conditioning = supportTeams.get(id).effects().conditioningBonus();
+                    physicalStates.put(id,
+                            HealthSystem.evolveFitness(physicalStates.get(id), career.age(), conditioning));
+                }
             }
-            if (career.isRetired()) {
-                retirees.add(id);
-                retirementSeason.putIfAbsent(id, season); // for seasons-since-retirement (spec: career-legacy)
-                media.publish(NewsFactory.retirement(season, id, nameOf(id), career.statistics().wins()));
-            } else {
-                evolveGolfer(golfers.get(id), career.age(), season);
-                // Fitness drifts toward its age-based target each season, lifted by a fitness coach — so the
-                // long-term Condition value evolves over a career rather than staying at its seeded value.
-                double conditioning = supportTeams.get(id).effects().conditioningBonus();
-                physicalStates.put(id,
-                        HealthSystem.evolveFitness(physicalStates.get(id), career.age(), conditioning));
-            }
-        }
+        });
 
         // 3.5. Financial season for every surviving golfer: pay/evaluate sponsors, then sign new offers.
         // No ranking awards or eligibility change after the snapshot above; reuse its date and positions.
-        for (String id : new ArrayList<>(activeGolfers)) {
-            if (!careers.get(id).isRetired()) {
-                runFinancialSeason(id, season, date, snapshot);
-                runStaffSeason(id, season, date);
-                runEquipmentSeason(id, season, date, snapshot);
+        SeasonProfile.time(SeasonProfile.Metric.FINANCE, () -> {
+            for (String id : new ArrayList<>(activeGolfers)) {
+                if (!careers.get(id).isRetired()) {
+                    runFinancialSeason(id, season, date, snapshot);
+                    runStaffSeason(id, season, date);
+                    runEquipmentSeason(id, season, date, snapshot);
+                }
             }
-        }
+        });
 
         // 3.6. Media: announce rising prospects the first time they crack the top ranks (REQ-248).
-        RankingSnapshot standings = ranking.rankingAsOf(date);
+        RankingSnapshot standings = SeasonProfile.time(SeasonProfile.Metric.SEASON_RANKING,
+                () -> ranking.rankingAsOf(date));
         for (String id : activeGolfers) {
             Career career = careers.get(id);
             if (career.isRetired() || announcedProspects.contains(id)) {
