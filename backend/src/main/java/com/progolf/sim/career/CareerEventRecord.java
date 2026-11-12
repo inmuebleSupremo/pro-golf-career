@@ -13,10 +13,11 @@ import java.util.Objects;
  * <p>It answers the player-facing "career records" questions: <em>when</em> (season + week — the turn
  * coordinates, from which a realistic calendar date is derived at the read layer), <em>where</em>
  * (location), and <em>how</em> (position, scoreToPar, per-round scores, and metrics). Grouped by
- * {@link #eventName} it also reveals repetitive success — every time the player won a recurring event.
+ * {@link #catalogueId} for catalogue events, or {@link #eventName} for legacy events, it also reveals
+ * repetitive success — every time the player won a recurring event.
  *
  * @param eventName          the event's display name (stable across seasons for recurring tour events)
- * @param location           the event's display location (a fixed venue, or the host course's region)
+ * @param location           the event's display location (permanent catalogue geography or legacy host region)
  * @param prestige           the event prestige label ({@code EventPrestige.name()})
  * @param tier               the event tier label ({@code Tier.name()})
  * @param tourTier           the tour the event belongs to ({@code TourTier.name()} — PRO or DEVELOPMENT)
@@ -33,11 +34,15 @@ import java.util.Objects;
  * @param holesPlayed        holes completed in the event
  * @param putts              total putts taken
  * @param roundScores        each round's score relative to par, in order (empty when not retained)
+ * @param catalogueId        permanent Development catalogue key, null for legacy and Pro records
+ * @param hostName           selected procedural venue name, null for legacy and Pro records
+ * @param hostRegion         selected venue region, null for legacy and Pro records
  */
 public record CareerEventRecord(String eventName, String location, String prestige, String tier,
                                 String tourTier, int season, int week, int position, int scoreToPar,
                                 boolean won, boolean madeCut, double prize, int fairwaysHit, int fairwaysPossible,
-                                int greensInRegulation, int holesPlayed, int putts, List<Integer> roundScores) {
+                                int greensInRegulation, int holesPlayed, int putts, List<Integer> roundScores,
+                                String catalogueId, String hostName, String hostRegion) {
 
     public CareerEventRecord {
         Objects.requireNonNull(eventName, "eventName");

@@ -26,6 +26,8 @@ type Result = {
   won: boolean;
   madeCut: boolean;
   location: string;
+  hostName: string | null;
+  hostRegion: string | null;
   prize: number;
   fairwaysHit: number;
   fairwaysPossible: number;
@@ -447,6 +449,7 @@ function ResultLine({ result }: { result: Result }) {
       </span>
       <span className="text-subtle-foreground truncate text-xs">
         Season {result.season} · {formatEventDate(result.date)}
+        {result.hostName ? ` · ${result.hostName}, ${result.hostRegion}` : ""}
       </span>
     </li>
   );
@@ -475,6 +478,10 @@ function VictoryCard({ result }: { result: Result }) {
           </>
         ) : null}
       </div>
+
+      {result.hostName ? (
+        <p className="text-subtle-foreground text-xs">Host: {result.hostName} · {result.hostRegion}</p>
+      ) : null}
 
       {result.roundScores.length > 0 ? (
         <div className="flex items-center gap-2">

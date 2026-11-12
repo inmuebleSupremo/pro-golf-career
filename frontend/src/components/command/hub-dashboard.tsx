@@ -120,6 +120,9 @@ export function HubDashboard({ id }: { id: string }) {
                   <MapPin className="size-4" aria-hidden="true" />
                   {event.location}
                 </span>
+                {event.hostName && (
+                  <span className="text-subtle-foreground">Host: {event.hostName} · {event.hostRegion}</span>
+                )}
                 {event.tier && (
                   <span className="inline-flex items-center gap-2">
                     <Trophy className="size-4" aria-hidden="true" />

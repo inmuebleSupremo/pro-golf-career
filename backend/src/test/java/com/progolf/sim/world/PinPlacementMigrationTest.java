@@ -81,7 +81,7 @@ class PinPlacementMigrationTest {
                 s.playerControl(), s.playerPendingOffers(), s.playerPendingStaff(), s.playerPendingEquipment(),
                 s.achievedGoals(), s.staffPool(), s.playerActiveEquipmentDeal(), s.playerPendingEquipmentDeals(),
                 s.unlockedAchievements(), s.majorsWonThisSeason(), s.playerCareerRecords(), s.courseGeneratorVersion(),
-                null, s.coursePoolPolicy(), s.careerPreparation());
+                null, s.coursePoolPolicy(), s.careerPreparation(), s.developmentCatalogueVersion());
     }
 
     private static ScheduledTournament legacy(ScheduledTournament event) {

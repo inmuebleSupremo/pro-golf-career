@@ -83,7 +83,8 @@ public record WorldSnapshot(
         Integer courseGeneratorVersion,
         PinPlacementVersion defaultPinPlacementVersion,
         CoursePoolPolicy coursePoolPolicy,
-        Map<String, CareerPreparation> careerPreparation) {
+        Map<String, CareerPreparation> careerPreparation,
+        Integer developmentCatalogueVersion) {
 
     /** An archived season captured by id (its schedule is immutable; its results re-link on restore). */
     public record ArchiveSnapshot(int season, List<ScheduledTournament> schedule,

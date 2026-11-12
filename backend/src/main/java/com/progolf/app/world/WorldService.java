@@ -680,7 +680,7 @@ public class WorldService {
             EventResultDto resultDto = result.map(r -> eventResult(r, playerId)).orElse(null);
             calendar.add(new CalendarEntryDto(entry.tournamentId(), entry.week(), entry.tier().name(),
                     entry.prestige().name(), entry.entered(), entry.name(), entry.location(), entry.puttingPolicy().name(),
-                    result.isPresent(), resultDto));
+                    result.isPresent(), resultDto, entry.hostName(), entry.hostRegion()));
         }
         return calendar;
     }
@@ -874,13 +874,10 @@ public class WorldService {
                 lowestTournamentEvent == null ? null : highlight(lowestTournamentEvent, lowestTournamentToPar, null),
                 cs.totalEarnings());
 
-        // Group by the event's stable name (recurring events accumulate). Insertion order = chronological.
-        Map<String, List<CareerEventRecord>> byEvent = new LinkedHashMap<>();
-        for (CareerEventRecord r : ledger) {
-            byEvent.computeIfAbsent(r.eventName(), k -> new ArrayList<>()).add(r);
-        }
+        // Catalogue editions group by permanent identity; legacy records retain their original name grouping.
+        Map<String, List<CareerEventRecord>> byEvent = groupCareerRecords(ledger);
         List<CareerRecordsDto.EventHistory> events = new ArrayList<>();
-        byEvent.forEach((name, group) -> events.add(toEventHistory(name, group)));
+        byEvent.forEach((key, group) -> events.add(toEventHistory(group.getLast().eventName(), group)));
         // Prestige first (majors → championships → signatures → regular), then most-decorated within a band:
         // wins, then best finish, then name (stable). The UI splits by tour, preserving this order per section.
         events.sort(Comparator.comparingInt((CareerRecordsDto.EventHistory e) -> prestigeRank(e.prestige()))
@@ -888,6 +885,16 @@ public class WorldService {
                 .thenComparingInt(CareerRecordsDto.EventHistory::bestPosition)
                 .thenComparing(CareerRecordsDto.EventHistory::eventName));
         return new CareerRecordsDto(summary, events);
+    }
+
+    static Map<String, List<CareerEventRecord>> groupCareerRecords(List<CareerEventRecord> ledger) {
+        Map<String, List<CareerEventRecord>> byEvent = new LinkedHashMap<>();
+        for (CareerEventRecord record : ledger) {
+            String key = record.catalogueId() == null ? "legacy:" + record.eventName()
+                    : "catalogue:" + record.catalogueId();
+            byEvent.computeIfAbsent(key, ignored -> new ArrayList<>()).add(record);
+        }
+        return byEvent;
     }
 
     /** Sort rank for an event prestige — majors first, regular last (spec: event-prestige). */
@@ -929,7 +936,8 @@ public class WorldService {
     private static CareerRecordsDto.Result toResult(CareerEventRecord r) {
         return new CareerRecordsDto.Result(r.season(), displayDate(r.season(), r.week()), r.position(),
                 r.scoreToPar(), r.won(), r.madeCut(), r.location(), r.prize(), r.fairwaysHit(),
-                r.fairwaysPossible(), r.greensInRegulation(), r.holesPlayed(), r.putts(), r.roundScores());
+                r.fairwaysPossible(), r.greensInRegulation(), r.holesPlayed(), r.putts(), r.roundScores(),
+                r.hostName(), r.hostRegion());
     }
 
     /**
@@ -1213,7 +1221,7 @@ public class WorldService {
      */
     public CurrentEventDto currentEvent(String ownerId, String sessionId) {
         return required(ownerId, sessionId).world().currentEventScene()
-                .map(s -> new CurrentEventDto(s.name(), s.location(), s.courseType()))
+                .map(s -> new CurrentEventDto(s.name(), s.location(), s.courseType(), s.hostName(), s.hostRegion()))
                 .orElse(null);
     }
 

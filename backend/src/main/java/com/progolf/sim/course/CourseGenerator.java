@@ -12,6 +12,11 @@ public final class CourseGenerator {
     private CourseGenerator() {
     }
 
+    /** Resolves the seed-derived name without constructing eighteen holes. */
+    public static CourseIdentity identityFor(SeedCoordinate coordinate, EnvironmentClassification classification) {
+        return CourseNames.generate(Seeds.forCoordinate(coordinate), classification);
+    }
+
     /** Compatibility entry point retained for existing fixtures; new worlds pass an explicit version. */
     public static Course generate(SeedCoordinate coordinate, EnvironmentClassification classification) {
         return generate(coordinate, classification, CourseGenConstants.V1_GENERATOR_VERSION);

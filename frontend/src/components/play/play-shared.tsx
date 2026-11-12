@@ -128,7 +128,7 @@ export type Scorecard = {
   holes: HoleScore[];
 };
 
-export type CurrentEvent = { name: string; location: string; courseType: string };
+export type CurrentEvent = { name: string; location: string; courseType: string; hostName?: string | null; hostRegion?: string | null };
 
 export function formatScore(score: number): string {
   if (score === 0) return "E";

@@ -22,6 +22,8 @@ export type CalendarEntry = {
   entered: boolean;
   name: string;
   location: string;
+  hostName: string | null;
+  hostRegion: string | null;
   puttingPolicy: string;
   played: boolean;
   result: EventResult | null;
@@ -262,7 +264,9 @@ function EventChip({
           )}
           <span className="flex min-w-0 flex-col">
             <span className={nameClass}>{entry.name}</span>
-            <span className="text-subtle-foreground truncate text-[0.7rem] leading-tight">{entry.location}</span>
+            <span className="text-subtle-foreground truncate text-[0.7rem] leading-tight" title={entry.hostName ? `${entry.location} · ${entry.hostName}, ${entry.hostRegion}` : entry.location}>
+              {entry.location}{entry.hostName ? ` · ${entry.hostName}` : ""}
+            </span>
           </span>
         </span>
         <span className="text-xs font-medium">
@@ -284,7 +288,9 @@ function EventChip({
         {won ? <Trophy className="text-gold size-3.5 shrink-0" aria-hidden="true" /> : null}
         <span className="flex min-w-0 flex-col">
           <span className={nameClass}>{entry.name}</span>
-          <span className="text-subtle-foreground truncate text-[0.7rem] leading-tight">{entry.location}</span>
+          <span className="text-subtle-foreground truncate text-[0.7rem] leading-tight" title={entry.hostName ? `${entry.location} · ${entry.hostName}, ${entry.hostRegion}` : entry.location}>
+            {entry.location}{entry.hostName ? ` · ${entry.hostName}` : ""}
+          </span>
         </span>
       </span>
       <div className="flex flex-1 items-center justify-center">
