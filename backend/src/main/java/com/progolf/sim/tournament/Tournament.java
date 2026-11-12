@@ -1,6 +1,7 @@
 package com.progolf.sim.tournament;
 
 import com.progolf.sim.core.SeedCoordinate;
+import com.progolf.sim.core.SeasonProfile;
 import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.player.DecisionPolicy;
 import com.progolf.sim.player.ProfessionalGolfer;
@@ -231,9 +232,11 @@ public final class Tournament {
 
     /** Convenience: advance repeatedly until the tournament completes. */
     public TournamentResult playToCompletion() {
-        while (state != TournamentState.COMPLETED) {
-            advance();
-        }
+        SeasonProfile.time(SeasonProfile.Metric.EVENT_PLAY, () -> {
+            while (state != TournamentState.COMPLETED) {
+                advance();
+            }
+        });
         return result;
     }
 

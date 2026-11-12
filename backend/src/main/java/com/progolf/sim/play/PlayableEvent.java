@@ -1,6 +1,7 @@
 package com.progolf.sim.play;
 
 import com.progolf.sim.core.SeedCoordinate;
+import com.progolf.sim.core.SeasonProfile;
 import com.progolf.sim.course.Course;
 import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.CourseSetup;
@@ -284,14 +285,16 @@ public final class PlayableEvent {
 
     /** Sims the remainder of the event — all remaining rounds and any playoff — to completion. */
     public void simEvent() {
-        while (phase != Phase.DONE) {
-            if (phase == Phase.PLAYOFF) {
-                currentPlayoffHole.simHole();
-            } else {
-                currentRound.simRound();
+        SeasonProfile.time(SeasonProfile.Metric.EVENT_PLAY, () -> {
+            while (phase != Phase.DONE) {
+                if (phase == Phase.PLAYOFF) {
+                    currentPlayoffHole.simHole();
+                } else {
+                    currentRound.simRound();
+                }
+                syncProgress();
             }
-            syncProgress();
-        }
+        });
     }
 
     // --- Status ---

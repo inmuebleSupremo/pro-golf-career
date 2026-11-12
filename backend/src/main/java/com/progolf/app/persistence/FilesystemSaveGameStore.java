@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.progolf.sim.core.SeasonProfile;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -104,21 +105,51 @@ public class FilesystemSaveGameStore implements SaveGameStore {
                     throw new SaveConflictException(saveId);
                 }
             }
-            String payload = mapper.writeValueAsString(game);
-            SaveEnvelope envelope = new SaveEnvelope(FORMAT_VERSION, sha256(payload), payload);
-            byte[] bytes = mapper.writeValueAsBytes(envelope);
-            Path temp = Files.createTempFile(ownerDir(ownerId), saveId + "-", ".tmp");
+            SeasonProfile profile = SeasonProfile.current();
+            long started = profile == null ? 0 : System.nanoTime();
+            String payload;
             try {
-                Files.write(temp, bytes);
+                payload = mapper.writeValueAsString(game);
+            } finally {
+                if (profile != null) profile.record(SeasonProfile.Metric.SERIALIZATION, System.nanoTime() - started);
+            }
+            started = profile == null ? 0 : System.nanoTime();
+            String checksum;
+            try {
+                checksum = sha256(payload);
+            } finally {
+                if (profile != null) profile.record(SeasonProfile.Metric.CHECKSUM, System.nanoTime() - started);
+            }
+            SaveEnvelope envelope = new SaveEnvelope(FORMAT_VERSION, checksum, payload);
+            started = profile == null ? 0 : System.nanoTime();
+            byte[] bytes;
+            try {
+                bytes = mapper.writeValueAsBytes(envelope);
+            } finally {
+                if (profile != null) profile.record(SeasonProfile.Metric.SERIALIZATION, System.nanoTime() - started);
+            }
+            started = profile == null ? 0 : System.nanoTime();
+            try {
+                Path temp = Files.createTempFile(ownerDir(ownerId), saveId + "-", ".tmp");
                 try {
-                    Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-                } catch (AtomicMoveNotSupportedException atomicUnsupported) {
-                    Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+                    Files.write(temp, bytes);
+                    try {
+                        Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                    } catch (AtomicMoveNotSupportedException atomicUnsupported) {
+                        Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } finally {
+                    Files.deleteIfExists(temp);
                 }
             } finally {
-                Files.deleteIfExists(temp);
+                if (profile != null) profile.record(SeasonProfile.Metric.FILE_WRITE, System.nanoTime() - started);
             }
-            return sha256(bytes);
+            started = profile == null ? 0 : System.nanoTime();
+            try {
+                return sha256(bytes);
+            } finally {
+                if (profile != null) profile.record(SeasonProfile.Metric.CHECKSUM, System.nanoTime() - started);
+            }
         });
     }
 
