@@ -19,6 +19,7 @@ public final class RoundHole implements HoleModel {
     private final CourseGeometry geometry;
     private final Position2d cup;
     private final PuttingPolicy puttingPolicy;
+    private transient volatile GreenSurface cachedGreenSurface;
 
     RoundHole(GeneratedHole hole, PinPosition pin) {
         this(hole, pin, CourseSetup.standard());
@@ -109,9 +110,18 @@ public final class RoundHole implements HoleModel {
     @Override
     public GreenSurface greenSurface() {
         if (!puttingPolicy.usesPhysicalPutting()) return null;
-        Position2d approach = hole.spatialPlan() == null
-                ? new Position2d(geometry.greenCenter().x() - geometry.tee().x(), geometry.greenCenter().y() - geometry.tee().y())
-                : hole.spatialPlan().withLateralScale(setup.widthScale()).greenComplex().approachDirection();
-        return GreenSurfaceGenerator.generate(geometry, hole.holeSeed(), approach, puttingPolicy.surfaceVersion());
+        GreenSurface surface = cachedGreenSurface;
+        if (surface != null) return surface;
+        synchronized (this) {
+            surface = cachedGreenSurface;
+            if (surface == null) {
+                Position2d approach = hole.spatialPlan() == null
+                        ? new Position2d(geometry.greenCenter().x() - geometry.tee().x(), geometry.greenCenter().y() - geometry.tee().y())
+                        : hole.spatialPlan().withLateralScale(setup.widthScale()).greenComplex().approachDirection();
+                surface = GreenSurfaceGenerator.generate(geometry, hole.holeSeed(), approach, puttingPolicy.surfaceVersion());
+                cachedGreenSurface = surface;
+            }
+        }
+        return surface;
     }
 }
