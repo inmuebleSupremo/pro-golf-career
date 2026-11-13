@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The tournament engine (REQ-086–100). It composes lower-level domains — draws a field, plays four
@@ -34,6 +35,7 @@ public final class Tournament {
     private final TournamentDefinition definition;
     private final TournamentWeather weather;
     private final CourseSetup setup;
+    private final Map<HoleKey, HoleModel> holeModels = new ConcurrentHashMap<>();
     private final List<TournamentEntry> entries = new ArrayList<>();
     private final List<CompetitorStanding> standings = new ArrayList<>();
 
@@ -86,6 +88,16 @@ public final class Tournament {
 
     public TournamentDefinition definition() {
         return definition;
+    }
+
+    /** One immutable round-hole model per tournament, shared by the field and the interactive player. */
+    public HoleModel holeModel(int holeNumber, int round) {
+        return holeModels.computeIfAbsent(new HoleKey(round, holeNumber), key ->
+                definition.course().holeModel(key.holeNumber(), key.round(), setup,
+                        definition.pinPlacementVersion(), definition.puttingPolicy()));
+    }
+
+    private record HoleKey(int round, int holeNumber) {
     }
 
     // --- Setup ---
@@ -351,7 +363,7 @@ public final class Tournament {
         double exposure = definition.course().identity().classification().exposure() * setup.windScale();
         int strokes = 0;
         for (int hole = 1; hole <= 18; hole++) {
-            HoleModel model = definition.course().holeModel(hole, roundNo, setup, definition.pinPlacementVersion(), definition.puttingPolicy());
+            HoleModel model = holeModel(hole, roundNo);
             SeedCoordinate coord = new SeedCoordinate(
                     definition.worldSeed(), definition.seasonId(), definition.tournamentId(),
                     roundNo, s.fieldIndex(), hole, 0);
@@ -450,7 +462,7 @@ public final class Tournament {
         for (CompetitorStanding s : contenders()) {
             tied.add(new TournamentEntry(s.golfer(), s.fieldIndex()));
         }
-        return suddenDeath(definition, weather, setup, tied);
+        return suddenDeath(tied);
     }
 
     /** Calm-conditions, neutral-setup sudden death (backward-compatible entry used by standalone tests). */
@@ -465,12 +477,16 @@ public final class Tournament {
      */
     static ProfessionalGolfer suddenDeath(TournamentDefinition definition, TournamentWeather weather,
                                           CourseSetup setup, List<TournamentEntry> tied) {
+        return new Tournament(definition, weather, setup).suddenDeath(tied);
+    }
+
+    private ProfessionalGolfer suddenDeath(List<TournamentEntry> tied) {
         if (tied.isEmpty()) {
             throw new IllegalArgumentException("Playoff requires at least one competitor");
         }
         List<TournamentEntry> remaining = new ArrayList<>(tied);
         for (int ph = 1; ph <= TournamentConstants.MAX_PLAYOFF_HOLES; ph++) {
-            remaining = playSuddenDeathHole(definition, weather, setup, remaining, ph, null, null);
+            remaining = playSuddenDeathHole(remaining, ph, null, null);
             if (remaining.size() == 1) {
                 return remaining.get(0).golfer();
             }
@@ -489,8 +505,7 @@ public final class Tournament {
      * {@link #suddenDeath} loop and the interactive {@link #advancePlayoffHole} driver, so an interactive
      * playoff simmed in full reproduces the automatic winner by construction (spec: playable-event).
      */
-    private static List<TournamentEntry> playSuddenDeathHole(
-            TournamentDefinition definition, TournamentWeather weather, CourseSetup setup,
+    private List<TournamentEntry> playSuddenDeathHole(
             List<TournamentEntry> remaining, int ph, Integer interactiveFieldIndex, Integer interactiveStrokes) {
         int holeNumber = ((ph - 1) % 18) + 1;
         int playoffRound = 90 + ph; // distinct from rounds 1-4
@@ -500,7 +515,7 @@ public final class Tournament {
             int strokes = (interactiveFieldIndex != null && e.fieldIndex() == interactiveFieldIndex
                     && interactiveStrokes != null)
                     ? interactiveStrokes
-                    : playPlayoffHole(definition, weather, setup, e, holeNumber, playoffRound);
+                    : playPlayoffHole(e, holeNumber, playoffRound);
             if (strokes < best) {
                 best = strokes;
                 survivors.clear();
@@ -562,7 +577,7 @@ public final class Tournament {
         if (playoffRemaining == null) {
             throw new IllegalStateException("beginInteractivePlayoff has not been called");
         }
-        playoffRemaining = playSuddenDeathHole(definition, weather, setup, playoffRemaining, playoffHoleCounter,
+        playoffRemaining = playSuddenDeathHole(playoffRemaining, playoffHoleCounter,
                 interactiveFieldIndex, interactivePlayerStrokes);
         if (playoffRemaining.size() == 1) {
             winner = playoffRemaining.get(0).golfer();
@@ -580,11 +595,10 @@ public final class Tournament {
         playoffHoleCounter++;
     }
 
-    private static int playPlayoffHole(TournamentDefinition definition, TournamentWeather weather,
-                                       CourseSetup setup, TournamentEntry e, int holeNumber, int playoffRound) {
+    private int playPlayoffHole(TournamentEntry e, int holeNumber, int playoffRound) {
         ProfessionalGolfer g = e.golfer();
         Strategy strategy = g.policy().map(DecisionPolicy::defaultStrategy).orElse(Strategy.BALANCED);
-        HoleModel model = definition.course().holeModel(holeNumber, playoffRound, setup, definition.pinPlacementVersion(), definition.puttingPolicy());
+        HoleModel model = holeModel(holeNumber, playoffRound);
         SeedCoordinate coord = new SeedCoordinate(
                 definition.worldSeed(), definition.seasonId(), definition.tournamentId(),
                 playoffRound, e.fieldIndex(), holeNumber, 0);
