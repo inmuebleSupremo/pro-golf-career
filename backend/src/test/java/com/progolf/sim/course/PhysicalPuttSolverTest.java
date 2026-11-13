@@ -5,6 +5,7 @@ import static org.assertj.core.data.Offset.offset;
 
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Attributes;
+import com.progolf.sim.core.SeasonProfile;
 import com.progolf.sim.putt.PhysicalPuttExecutionMode;
 import com.progolf.sim.putt.PhysicalPuttIntent;
 import com.progolf.sim.putt.PhysicalPuttModelVersion;
@@ -22,6 +23,23 @@ import org.junit.jupiter.api.Test;
 class PhysicalPuttSolverTest {
     private static final Position2d START = new Position2d(0.0, 0.0);
     private static final Position2d REMOTE_CUP = new Position2d(40.0, 20.0);
+
+    @Test
+    void profilingCountsSingleAndTwoArgumentSolverCallsOnceEach() {
+        GreenSurface flat = plane(0, 0);
+        PhysicalPuttRequest request = new PhysicalPuttRequest(PhysicalPuttModelVersion.V1, flat,
+                START, REMOTE_CUP, new PhysicalPuttIntent(new Position2d(1, 0), 15),
+                Attributes.uniform(50), GolferState.fresh(), 17L, PhysicalPuttExecutionMode.IDEAL);
+        assertThat(SeasonProfile.current()).isNull();
+        PhysicalPuttOutcome plain = PhysicalPuttSolver.resolve(request);
+
+        try (SeasonProfile profile = SeasonProfile.start()) {
+            assertThat(PhysicalPuttSolver.resolve(request)).isEqualTo(plain);
+            assertThat(PhysicalPuttSolver.resolve(request, List.of(REMOTE_CUP))).isEqualTo(plain);
+            assertThat(profile.summary("TEST", 0)).contains("physicalPuttSolverCalls=2", "strategicPlanningCalls=0");
+        }
+        assertThat(SeasonProfile.current()).isNull();
+    }
 
     @Test
     void idealFlatPuttsCalibrateToTheirLevelGroundFeetAndStopNaturally() {

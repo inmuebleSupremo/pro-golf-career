@@ -3,6 +3,7 @@ package com.progolf.sim.putt;
 import com.progolf.sim.core.Attribute;
 import com.progolf.sim.core.Rng;
 import com.progolf.sim.core.SplitMix64Rng;
+import com.progolf.sim.core.SeasonProfile;
 import com.progolf.sim.course.GreenSurfaceGradient;
 import com.progolf.sim.course.GreenSurfaceLocation;
 import com.progolf.sim.course.Position2d;
@@ -39,6 +40,9 @@ public final class PhysicalPuttSolver {
 
     /** The same rolling path can be captured by any supplied cup; tournament play supplies its single cup. */
     public static PhysicalPuttOutcome resolve(PhysicalPuttRequest request, List<Position2d> cups) {
+        SeasonProfile profile = SeasonProfile.current();
+        long started = profile == null ? 0L : System.nanoTime();
+        try {
         Objects.requireNonNull(request, "request");
         cups = List.copyOf(Objects.requireNonNull(cups, "cups"));
         if (cups.isEmpty() || cups.stream().anyMatch(cup -> !request.surface().contains(cup))) {
@@ -110,6 +114,9 @@ public final class PhysicalPuttSolver {
         }
         return new PhysicalPuttOutcome(request.modelVersion(), execution, trajectory, position, false,
                 PhysicalPuttTerminalCondition.MAXIMUM_DURATION);
+        } finally {
+            if (profile != null) profile.recordCall(SeasonProfile.Metric.PHYSICAL_PUTT_SOLVER, System.nanoTime() - started);
+        }
     }
 
     private static PhysicalPuttOutcome stopped(PhysicalPuttRequest request, PhysicalPuttExecution execution,

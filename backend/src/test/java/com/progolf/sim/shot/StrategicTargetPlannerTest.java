@@ -3,6 +3,7 @@ package com.progolf.sim.shot;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.progolf.sim.core.Attributes;
+import com.progolf.sim.core.SeasonProfile;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.course.CourseGenConstants;
 import com.progolf.sim.course.CourseGenerator;
@@ -30,6 +31,24 @@ import org.junit.jupiter.api.Test;
 /** Small deterministic V4-shaped fixtures for truthful, shared strategic landing guidance. */
 class StrategicTargetPlannerTest {
     private static final Attributes PLAYER = Attributes.uniform(72);
+
+    @Test
+    void profilingCountsEachPlanningInvocationWithoutChangingOptions() {
+        HoleModel model = strategicParFive();
+        BallState tee = new BallState(model.geometry().tee(), Surface.TEE_BOX);
+        assertThat(SeasonProfile.current()).isNull();
+        var plain = StrategicTargetPlanner.options(model, tee, model.startDistance(), Surface.TEE_BOX,
+                PLAYER, Environment.calm());
+
+        try (SeasonProfile profile = SeasonProfile.start()) {
+            assertThat(StrategicTargetPlanner.options(model, tee, model.startDistance(), Surface.TEE_BOX,
+                    PLAYER, Environment.calm())).isEqualTo(plain);
+            assertThat(StrategicTargetPlanner.options(model, tee, model.startDistance(), Surface.TEE_BOX,
+                    PLAYER, Environment.calm())).isEqualTo(plain);
+            assertThat(profile.summary("TEST", 0)).contains("strategicPlanningCalls=2", "physicalPuttSolverCalls=0");
+        }
+        assertThat(SeasonProfile.current()).isNull();
+    }
 
     @Test
     void strategicParFivePublishesDistinctSafePrimaryAndAggressiveTradeOffs() {

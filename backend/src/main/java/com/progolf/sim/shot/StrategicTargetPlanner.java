@@ -1,6 +1,7 @@
 package com.progolf.sim.shot;
 
 import com.progolf.sim.core.Attributes;
+import com.progolf.sim.core.SeasonProfile;
 import com.progolf.sim.course.CourseGeometry;
 import com.progolf.sim.course.ArchitectureLandingZone;
 import com.progolf.sim.course.ArchitectureStrategyPlan;
@@ -28,6 +29,9 @@ public final class StrategicTargetPlanner {
 
     public static List<ShotGuidance.StrategicOption> options(HoleModel hole, BallState ball, double remainingDistance,
                                                                Surface lie, Attributes attributes, Environment environment) {
+        SeasonProfile profile = SeasonProfile.current();
+        long started = profile == null ? 0L : System.nanoTime();
+        try {
         Objects.requireNonNull(hole, "hole");
         Objects.requireNonNull(ball, "ball");
         Objects.requireNonNull(lie, "lie");
@@ -77,6 +81,9 @@ public final class StrategicTargetPlanner {
                     "Higher landing exposure"));
         }
         return List.copyOf(result);
+        } finally {
+            if (profile != null) profile.recordCall(SeasonProfile.Metric.STRATEGIC_PLANNING, System.nanoTime() - started);
+        }
     }
 
     private static List<ShotGuidance.StrategicOption> architectureOptions(ArchitectureStrategyPlan plan,
