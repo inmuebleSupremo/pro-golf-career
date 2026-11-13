@@ -149,7 +149,7 @@ public final class PlayableEvent {
     /**
      * The setup-specific canonical terrain for a hole in the active round/playoff, suitable for current-hole
      * projection or prefetch. The active hole returns the exact model instance used by resolution; another
-     * hole is regenerated through the same immutable setup-variant cache.
+     * hole uses the same tournament-owned round-hole model as the field.
      */
     public CourseGeometry effectiveGeometry(int holeNumber) {
         requireActive();
@@ -162,7 +162,7 @@ public final class PlayableEvent {
         if (phase == Phase.PLAYOFF && holeNumber == currentPlayoffHole.situation().holeNumber()) {
             return currentEffectiveGeometry();
         }
-        return course.holeModel(holeNumber, currentPinRound(), setup, pinPlacementVersion, puttingPolicy).geometry();
+        return tournament.holeModel(holeNumber, currentPinRound()).geometry();
     }
 
     /** The active pin for hole {@code holeNumber} in the round currently in progress, under this event's setup. */
@@ -172,7 +172,7 @@ public final class PlayableEvent {
 
     /** The authoritative V5/legacy cup coordinate used by resolution and presentation for a hole. */
     public com.progolf.sim.course.Position2d cupAt(int holeNumber) {
-        return course.holeModel(holeNumber, currentPinRound(), setup, pinPlacementVersion, puttingPolicy).cupPosition();
+        return tournament.holeModel(holeNumber, currentPinRound()).cupPosition();
     }
 
     /** The policy pinned to this event; it never changes once interactive play begins. */
@@ -182,7 +182,7 @@ public final class PlayableEvent {
 
     /** The same reconstructed height field used by physical resolution, exposed only for a physical event. */
     public GreenSurface greenSurfaceAt(int holeNumber) {
-        return course.holeModel(holeNumber, currentPinRound(), setup, pinPlacementVersion, puttingPolicy).greenSurface();
+        return tournament.holeModel(holeNumber, currentPinRound()).greenSurface();
     }
 
     /** The host course's environment classification (biome), for presentation styling. */
@@ -374,7 +374,7 @@ public final class PlayableEvent {
         PlayingConditions conditions = weather.conditionsForRound(roundNo);
         List<HoleToPlay> holes = new ArrayList<>(18);
         for (int hole = 1; hole <= 18; hole++) {
-            HoleModel model = course.holeModel(hole, roundNo, setup, pinPlacementVersion, puttingPolicy);
+            HoleModel model = tournament.holeModel(hole, roundNo);
             int par = course.holes().get(hole - 1).par();
             Environment env = conditions.environmentForHole(hole, exposure);
             holes.add(new HoleToPlay(model, par, env));
@@ -473,7 +473,7 @@ public final class PlayableEvent {
         if (playerInPlayoff()) {
             int holeNumber = tournament.playoffHoleNumber();
             long playoffRound = tournament.playoffRound();
-            HoleModel model = course.holeModel(holeNumber, (int) playoffRound, setup, pinPlacementVersion, puttingPolicy);
+            HoleModel model = tournament.holeModel(holeNumber, (int) playoffRound);
             int par = course.holes().get(holeNumber - 1).par();
             Environment env = weather.conditionsForRound((int) playoffRound).environmentForHole(holeNumber, exposure);
             SeedCoordinate coord =

@@ -189,7 +189,9 @@ class PlayableEventTest {
                 WORLD, SEASON, TOURN);
 
         assertThat(event.puttingPolicy()).isEqualTo(PuttingPolicy.PHYSICAL_V1);
-        assertThat(event.greenSurfaceAt(1)).isNotNull();
+        assertThat(event.currentEffectiveGeometry()).isSameAs(tournament.holeModel(1, 1).geometry());
+        assertThat(event.cupAt(1)).isEqualTo(tournament.holeModel(1, 1).cupPosition());
+        assertThat(event.greenSurfaceAt(1)).isSameAs(tournament.holeModel(1, 1).greenSurface());
         assertThatThrownBy(() -> event.playPutt(new PuttIntent(), event.situation().shotRevision()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("legacy putting is unavailable");
