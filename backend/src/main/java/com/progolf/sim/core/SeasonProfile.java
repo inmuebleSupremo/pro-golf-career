@@ -8,12 +8,13 @@ public final class SeasonProfile implements AutoCloseable {
     public enum Metric {
         WORLD, AUTOSAVE, EVENT_SETUP, EVENT_PLAY, EVENT_RESULTS, SEASON_END,
         SEASON_RANKING, DEVELOPMENT, FINANCE, SNAPSHOT, SERIALIZATION, CHECKSUM, FILE_WRITE,
-        GREEN_GENERATION
+        GREEN_GENERATION, STRATEGIC_PLANNING, PHYSICAL_PUTT_SOLVER
     }
 
     private static final ThreadLocal<SeasonProfile> CURRENT = new ThreadLocal<>();
 
     private final long[] nanos = new long[Metric.values().length];
+    private final long[] calls = new long[Metric.values().length];
     private long events;
     private long physicalEvents;
     private long holeModels;
@@ -62,6 +63,12 @@ public final class SeasonProfile implements AutoCloseable {
         nanos[metric.ordinal()] += elapsedNanos;
     }
 
+    /** One completed or failed invocation of a timed hot path. */
+    public void recordCall(Metric metric, long elapsedNanos) {
+        nanos[metric.ordinal()] += elapsedNanos;
+        calls[metric.ordinal()]++;
+    }
+
     public static void eventProcessed(boolean physicalPutting) {
         SeasonProfile profile = CURRENT.get();
         if (profile == null) return;
@@ -88,6 +95,8 @@ public final class SeasonProfile implements AutoCloseable {
         appendMs(result, "eventSetupMs", Metric.EVENT_SETUP);
         appendMs(result, "eventPlayMs", Metric.EVENT_PLAY);
         appendMs(result, "greenGenerationMs", Metric.GREEN_GENERATION);
+        appendMs(result, "strategicPlanningMs", Metric.STRATEGIC_PLANNING);
+        appendMs(result, "physicalPuttSolverMs", Metric.PHYSICAL_PUTT_SOLVER);
         appendMs(result, "eventResultsMs", Metric.EVENT_RESULTS);
         appendMs(result, "seasonEndMs", Metric.SEASON_END);
         appendMs(result, "seasonRankingMs", Metric.SEASON_RANKING);
@@ -101,8 +110,12 @@ public final class SeasonProfile implements AutoCloseable {
                 .append(" physicalEvents=").append(physicalEvents)
                 .append(" holeModels=").append(holeModels)
                 .append(" greenSurfaces=").append(greenSurfaces)
+                .append(" strategicPlanningCalls=").append(calls[Metric.STRATEGIC_PLANNING.ordinal()])
+                .append(" physicalPuttSolverCalls=").append(calls[Metric.PHYSICAL_PUTT_SOLVER.ordinal()])
                 .append(" timing=childrenIncludedInParents")
-                .append(" greenGenerationNestedIn=eventPlayWhereApplicable").toString();
+                .append(" greenGenerationNestedIn=eventPlayWhereApplicable")
+                .append(" hotPathsNestedIn=eventPlayWhereApplicable")
+                .append(" hotPathsDisjointFrom=greenGeneration").toString();
     }
 
     private void appendMs(StringBuilder result, String name, Metric metric) {
