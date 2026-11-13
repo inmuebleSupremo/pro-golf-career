@@ -8,7 +8,7 @@ public final class SeasonProfile implements AutoCloseable {
     public enum Metric {
         WORLD, AUTOSAVE, EVENT_SETUP, EVENT_PLAY, EVENT_RESULTS, SEASON_END,
         SEASON_RANKING, DEVELOPMENT, FINANCE, SNAPSHOT, SERIALIZATION, CHECKSUM, FILE_WRITE,
-        GREEN_GENERATION, STRATEGIC_PLANNING, PHYSICAL_PUTT_SOLVER
+        GREEN_GENERATION, STRATEGIC_PLANNING, PHYSICAL_PUTT_SOLVER, EXPOSURE
     }
 
     private static final ThreadLocal<SeasonProfile> CURRENT = new ThreadLocal<>();
@@ -96,6 +96,7 @@ public final class SeasonProfile implements AutoCloseable {
         appendMs(result, "eventPlayMs", Metric.EVENT_PLAY);
         appendMs(result, "greenGenerationMs", Metric.GREEN_GENERATION);
         appendMs(result, "strategicPlanningMs", Metric.STRATEGIC_PLANNING);
+        appendMs(result, "exposureMs", Metric.EXPOSURE);
         appendMs(result, "physicalPuttSolverMs", Metric.PHYSICAL_PUTT_SOLVER);
         appendMs(result, "eventResultsMs", Metric.EVENT_RESULTS);
         appendMs(result, "seasonEndMs", Metric.SEASON_END);
@@ -111,10 +112,12 @@ public final class SeasonProfile implements AutoCloseable {
                 .append(" holeModels=").append(holeModels)
                 .append(" greenSurfaces=").append(greenSurfaces)
                 .append(" strategicPlanningCalls=").append(calls[Metric.STRATEGIC_PLANNING.ordinal()])
+                .append(" exposureCalls=").append(calls[Metric.EXPOSURE.ordinal()])
                 .append(" physicalPuttSolverCalls=").append(calls[Metric.PHYSICAL_PUTT_SOLVER.ordinal()])
                 .append(" timing=childrenIncludedInParents")
                 .append(" greenGenerationNestedIn=eventPlayWhereApplicable")
                 .append(" hotPathsNestedIn=eventPlayWhereApplicable")
+                .append(" exposureNestedIn=strategicPlanning")
                 .append(" hotPathsDisjointFrom=greenGeneration").toString();
     }
 

@@ -167,6 +167,9 @@ public final class StrategicTargetPlanner {
 
     private static double exposure(CourseGeometry geometry, Position2d target, double distance, ClubSpec club,
                                    Attributes attributes, ShotExecutionProfile profile) {
+        SeasonProfile seasonProfile = SeasonProfile.current();
+        long started = seasonProfile == null ? 0L : System.nanoTime();
+        try {
         // The resolver's lateral uncertainty is a supported current fact. This bounded two-sigma envelope
         // deliberately reports nearby canonical trouble as exposure, not as a predicted penalty.
         double accuracyFactor = StrictMath.exp(SimConstants.ATTRIBUTE_FACTOR_K
@@ -195,6 +198,9 @@ public final class StrategicTargetPlanner {
             }
         }
         return score;
+        } finally {
+            if (seasonProfile != null) seasonProfile.recordCall(SeasonProfile.Metric.EXPOSURE, System.nanoTime() - started);
+        }
     }
 
     private static double surfaceWeight(Surface surface) {
