@@ -77,6 +77,7 @@ public record CareerRecordsDto(Summary summary, List<EventHistory> events) {
      */
     public record Result(int season, String date, int position, int scoreToPar, boolean won, boolean madeCut,
                          String location, double prize, int fairwaysHit, int fairwaysPossible,
-                         int greensInRegulation, int holesPlayed, int putts, List<Integer> roundScores) {
+                         int greensInRegulation, int holesPlayed, int putts, List<Integer> roundScores,
+                         String hostName, String hostRegion) {
     }
 }

@@ -13,7 +13,7 @@ import java.util.Objects;
  */
 public record PlayerScheduleEntry(long tournamentId, int week, TourTier tier, EventPrestige prestige,
                                   boolean entered, String name, String location, String courseType,
-                                  PuttingPolicy puttingPolicy) {
+                                  PuttingPolicy puttingPolicy, String hostName, String hostRegion) {
 
     public PlayerScheduleEntry {
         Objects.requireNonNull(tier, "tier");

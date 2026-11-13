@@ -64,6 +64,7 @@ import com.progolf.sim.staff.StaffMember;
 import com.progolf.sim.staff.StaffRole;
 import com.progolf.sim.staff.SupportTeam;
 import com.progolf.sim.course.Course;
+import com.progolf.sim.course.CourseIdentity;
 import com.progolf.sim.course.CourseSetup;
 import com.progolf.sim.course.CourseGenerator;
 import com.progolf.sim.course.PinPlacementVersion;
@@ -154,6 +155,9 @@ public final class World {
 
     private final List<Course> coursePool = new ArrayList<>();
     private final CoursePoolPolicy coursePoolPolicy;
+    private final Integer developmentCatalogueVersion;
+    /** Only selected Development venues acquire full 18-hole geometry. This cache belongs to one career world. */
+    private final Map<Integer, Course> developmentCourses = new LinkedHashMap<>();
     private final WeatherSystem weatherSystem;
     private final List<EnvironmentalRecord> environmentalHistory = new ArrayList<>();
     private final SponsorshipMarket sponsorshipMarket = new SponsorshipMarket();
@@ -225,7 +229,8 @@ public final class World {
     private long nextTournamentId = 1;
     private int replenishCounter = 0;
 
-    private World(long masterSeed, WorldConfig config, int courseGeneratorVersion, CoursePoolPolicy coursePoolPolicy) {
+    private World(long masterSeed, WorldConfig config, int courseGeneratorVersion, CoursePoolPolicy coursePoolPolicy,
+                  Integer developmentCatalogueVersion) {
         if (!CourseGenerator.supports(courseGeneratorVersion)) {
             throw new IllegalArgumentException("Unsupported course generator version: " + courseGeneratorVersion);
         }
@@ -233,6 +238,12 @@ public final class World {
         this.config = config;
         this.courseGeneratorVersion = courseGeneratorVersion;
         this.coursePoolPolicy = Objects.requireNonNull(coursePoolPolicy, "coursePoolPolicy");
+        if (developmentCatalogueVersion != null
+                && developmentCatalogueVersion != DevelopmentTourCatalogue.ORIGINAL_NAMING_VERSION
+                && developmentCatalogueVersion != DevelopmentTourCatalogue.VERSION) {
+            throw new IllegalArgumentException("Unsupported Development Tour catalogue version: " + developmentCatalogueVersion);
+        }
+        this.developmentCatalogueVersion = developmentCatalogueVersion;
         this.defaultPinPlacementVersion = PinPlacementVersion.V5_EFFECTIVE_GREEN;
         this.weatherSystem = new WeatherSystem(masterSeed);
         this.calendar = new WorldCalendar(config.weeksPerSeason(), WorldConstants.BASE_YEAR);
@@ -245,7 +256,11 @@ public final class World {
 
     /** Explicit provenance for a fresh world; restore always uses the version pinned in its snapshot. */
     public static World create(long masterSeed, WorldConfig config, int courseGeneratorVersion) {
-        World world = new World(masterSeed, config, courseGeneratorVersion, CoursePoolPolicy.FOUR_FAMILIES);
+        // The authored catalogue describes the standard 30-week cadence. Small/custom profiles retain their
+        // proportional schedule until they have an authored catalogue of their own.
+        Integer catalogueVersion = SeasonCadence.appliesTo(config) ? DevelopmentTourCatalogue.VERSION : null;
+        World world = new World(masterSeed, config, courseGeneratorVersion, CoursePoolPolicy.FOUR_FAMILIES,
+                catalogueVersion);
         world.bootstrap();
         return world;
     }
@@ -253,6 +268,10 @@ public final class World {
     /** Generator provenance for this world's fixed course pool; not a player-facing configuration control. */
     public int courseGeneratorVersion() {
         return courseGeneratorVersion;
+    }
+
+    public Integer developmentCatalogueVersion() {
+        return developmentCatalogueVersion;
     }
 
     /** Stable course-family interpretation pinned by this world's pool policy. */
@@ -288,7 +307,8 @@ public final class World {
         }
         List<ScheduledTournament> migrated = schedule.stream().map(event -> isUnstarted(event)
                 ? new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
-                event.tournamentId(), PinPlacementVersion.V5_EFFECTIVE_GREEN, event.puttingPolicy()) : event).toList();
+                event.tournamentId(), PinPlacementVersion.V5_EFFECTIVE_GREEN, event.puttingPolicy(),
+                event.catalogueId()) : event).toList();
         defaultPinPlacementVersion = PinPlacementVersion.V5_EFFECTIVE_GREEN;
         schedule = new ArrayList<>(migrated);
     }
@@ -312,7 +332,7 @@ public final class World {
                     throw new IllegalArgumentException("Putting policy can only change for an upcoming unstarted event");
                 }
                 revised.add(new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
-                        event.tournamentId(), event.pinPlacementVersion(), policy));
+                        event.tournamentId(), event.pinPlacementVersion(), policy, event.catalogueId()));
                 updated = true;
             } else {
                 revised.add(event);
@@ -333,6 +353,53 @@ public final class World {
     /** Package-visible for checking seed-derived pool provenance without changing the player-facing API. */
     Course courseAt(int index) {
         return coursePool.get(index);
+    }
+
+    /** The original shared pool occupies its unchanged prefix; catalogue indices address separate recipes. */
+    Course courseFor(int index) {
+        if (index < coursePool.size()) return coursePool.get(index);
+        if (developmentCatalogueVersion == null) throw new IllegalArgumentException("Unknown course index: " + index);
+        int venueIndex = index - coursePool.size();
+        DevelopmentTourCatalogue.Venue venue = DevelopmentTourCatalogue.venue(venueIndex);
+        return developmentCourses.computeIfAbsent(venueIndex, ignored -> {
+            Course generated = CourseGenerator.generate(developmentVenueCoordinate(venueIndex), venue.classification(), courseGeneratorVersion);
+            return new Course(developmentVenueIdentity(venueIndex), generated.holes(), generated.generatorVersion(), generated.designProfile(),
+                    generated.coursePlan(), generated.architecturePlan());
+        });
+    }
+
+    private SeedCoordinate developmentVenueCoordinate(int venueIndex) {
+        return new SeedCoordinate(masterSeed, 0x44455656454e5545L, venueIndex, 0, 0, 0, 0);
+    }
+
+    private CourseIdentity developmentVenueIdentity(int venueIndex) {
+        DevelopmentTourCatalogue.Venue venue = DevelopmentTourCatalogue.venue(venueIndex);
+        CourseIdentity generated = CourseGenerator.identityFor(developmentVenueCoordinate(venueIndex), venue.classification());
+        return new CourseIdentity(venue.id() + "-" + Long.toUnsignedString(masterSeed, 16),
+                developmentCatalogueVersion == DevelopmentTourCatalogue.VERSION
+                        ? catalogueVenueName(generated.name(), venue.classification()) : generated.name(),
+                venue.region(), generated.classification(), generated.style());
+    }
+
+    /** Version 2 changes only catalogue-host display names; version 1 and the shared pool keep their exact names. */
+    private static String catalogueVenueName(String generatedName, EnvironmentClassification classification) {
+        if (classification == EnvironmentClassification.LINKS) return generatedName;
+        if (generatedName.endsWith(" Golf Links")) {
+            return generatedName.substring(0, generatedName.length() - " Golf Links".length()) + " Golf Club";
+        }
+        if (generatedName.endsWith(" Links")) {
+            return generatedName.substring(0, generatedName.length() - " Links".length()) + " Country Club";
+        }
+        return generatedName;
+    }
+
+    /** Lightweight host identity for catalogue events; legacy event presentation remains unchanged. */
+    public CourseIdentity hostIdentityFor(ScheduledTournament event) {
+        return event.catalogueId() == null ? null : developmentVenueIdentity(event.courseIndex() - coursePool.size());
+    }
+
+    int generatedDevelopmentCourseCount() {
+        return developmentCourses.size();
     }
 
     /** Creates a default-sized World. */
@@ -381,7 +448,7 @@ public final class World {
                 playerActiveEquipmentDeal, new ArrayList<>(playerPendingEquipmentDeals),
                 new EnumMap<>(unlockedAchievements), new LinkedHashSet<>(majorsWonThisSeason),
                 playerCareerRecords.snapshot(), courseGeneratorVersion, defaultPinPlacementVersion, coursePoolPolicy,
-                new LinkedHashMap<>(careerPreparation));
+                new LinkedHashMap<>(careerPreparation), developmentCatalogueVersion);
     }
 
     /** Rebuilds an identical world from a snapshot, regenerating the seed-derived parts (spec: world-snapshot). */
@@ -389,7 +456,7 @@ public final class World {
         int version = s.courseGeneratorVersion() == null
                 ? CourseGenConstants.V1_GENERATOR_VERSION : s.courseGeneratorVersion();
         World w = new World(masterSeed, config, version, s.coursePoolPolicy() == null
-                ? CoursePoolPolicy.LEGACY_SIX : s.coursePoolPolicy());
+                ? CoursePoolPolicy.LEGACY_SIX : s.coursePoolPolicy(), s.developmentCatalogueVersion());
         w.defaultPinPlacementVersion = s.defaultPinPlacementVersion() == null
                 ? PinPlacementVersion.LEGACY_V1 : s.defaultPinPlacementVersion();
         w.generateCoursePool();
@@ -435,7 +502,8 @@ public final class World {
         }
         w.schedule = s.schedule().stream().map(event -> event.pinPlacementVersion() == null
                 ? new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
-                event.tournamentId(), PinPlacementVersion.LEGACY_V1, event.puttingPolicy()) : event).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+                event.tournamentId(), PinPlacementVersion.LEGACY_V1, event.puttingPolicy(),
+                event.catalogueId()) : event).collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         w.announcedProspects.addAll(s.announcedProspects());
         // 6) Player-control state (null/empty for an autonomous world).
         if (s.playerControl() != null) {
@@ -1069,12 +1137,13 @@ public final class World {
             committedThisWeek.add(g.player().id());
         }
 
-        Course course = coursePool.get(event.courseIndex());
+        Course course = courseFor(event.courseIndex());
         Tier tier = mapTier(event.tier());
         boolean playable = isPlayerEntered(event) && field.stream().anyMatch(g -> isPlayer(g.player().id()));
         ScheduledTournament effectiveEvent = playable && event.puttingPolicy() != PuttingPolicy.PHYSICAL_V1
                 ? new ScheduledTournament(event.week(), event.tier(), event.courseIndex(), event.prestige(),
-                        event.tournamentId(), event.pinPlacementVersion(), PuttingPolicy.PHYSICAL_V1)
+                        event.tournamentId(), event.pinPlacementVersion(), PuttingPolicy.PHYSICAL_V1,
+                        event.catalogueId())
                 : event;
 
         // The cut is sized to the actual field so it bites at any scale (~45% make the weekend); making the
@@ -1261,12 +1330,14 @@ public final class World {
             return; // the player did not compete in this event
         }
         var shots = finish.shotStats();
+        CourseIdentity hostIdentity = hostIdentityFor(built.event());
         playerCareerRecords.record(new CareerEventRecord(
                 built.def().name(), locationFor(built.event()), prestige.name(), tier.name(),
                 built.event().tier().name(), season, built.event().week(), finish.position(), finish.score(),
                 finish.position() == 1 && !finish.withdrawn(), finish.madeCut(), finish.prize(),
                 shots.fairwaysHit(), shots.fairwaysPossible(), shots.greensInRegulation(), shots.holesPlayed(),
-                shots.putts(), built.tournament().roundScoresOf(playerId)));
+                shots.putts(), built.tournament().roundScoresOf(playerId), built.event().catalogueId(),
+                hostIdentity == null ? null : hostIdentity.name(), hostIdentity == null ? null : hostIdentity.region()));
     }
 
     /** Per-event entry fee by tour tier (the top tour costs more to enter). */
@@ -1646,26 +1717,44 @@ public final class World {
         // At the standard scale, use the designed tier-specific cadence (majors at chapter weeks, signature
         // spotlights, rest weeks, a per-tour championship finale); otherwise a simple proportional schedule
         // (spec: world-schedule). Both are deterministic — courses/ids are assigned here from the seed order.
-        return SeasonCadence.appliesTo(config) ? generateStructuredSchedule() : generateProportionalSchedule();
+        return SeasonCadence.appliesTo(config) ? generateStructuredSchedule(season) : generateProportionalSchedule();
     }
 
     /** The designed 30-week cadence (spec: world-schedule structured cadence). */
-    private List<ScheduledTournament> generateStructuredSchedule() {
+    private List<ScheduledTournament> generateStructuredSchedule(int season) {
         List<ScheduledTournament> generated = new ArrayList<>();
+        Set<String> developmentHosts = new LinkedHashSet<>();
         for (SeasonCadence.Placement p : SeasonCadence.forSeason(config.weeksPerSeason())) {
-            // Marquee events keep a permanent venue across seasons (spec: world-schedule permanent venues):
-            // a major keys on its fixed week, a championship on its tour tier. Regular/signature events keep
-            // rotating by the running id (nextTournamentId still advances per event, so their indices are
-            // unchanged). A stable key -> the same course every season.
-            int courseIndex = switch (p.prestige()) {
-                case MAJOR -> marqueeCourseIndex(EventPrestige.MAJOR, p.week());
-                case TOUR_CHAMPIONSHIP -> marqueeCourseIndex(EventPrestige.TOUR_CHAMPIONSHIP, p.tier().ordinal());
-                default -> (int) (nextTournamentId % coursePool.size());
-            };
+            DevelopmentTourCatalogue.Event catalogueEvent = developmentCatalogueVersion != null
+                    && p.tier() == TourTier.DEVELOPMENT ? DevelopmentTourCatalogue.forWeek(p.week()) : null;
+            if (catalogueEvent != null && catalogueEvent.prestige() != p.prestige()) {
+                throw new IllegalStateException("Development catalogue prestige differs at week " + p.week());
+            }
+            // Legacy marquee events keep a permanent shared-pool venue; legacy regular/signature
+            // events keep rotating by the occurrence id. Catalogue Development hosts use their own registry.
+            int courseIndex = catalogueEvent != null ? catalogueHostIndex(catalogueEvent, season)
+                    : switch (p.prestige()) {
+                        case MAJOR -> marqueeCourseIndex(EventPrestige.MAJOR, p.week());
+                        case TOUR_CHAMPIONSHIP -> marqueeCourseIndex(EventPrestige.TOUR_CHAMPIONSHIP, p.tier().ordinal());
+                        default -> (int) (nextTournamentId % coursePool.size());
+                    };
+            if (catalogueEvent != null && !developmentHosts.add(DevelopmentTourCatalogue
+                    .venue(courseIndex - coursePool.size()).id())) {
+                throw new IllegalStateException("Duplicate Development Tour host in season " + season);
+            }
             generated.add(new ScheduledTournament(p.week(), p.tier(), courseIndex, p.prestige(), nextTournamentId++,
-                    defaultPinPlacementVersion));
+                    defaultPinPlacementVersion, PuttingPolicy.LEGACY,
+                    catalogueEvent == null ? null : catalogueEvent.id()));
+        }
+        if (developmentCatalogueVersion != null && developmentHosts.size() != DevelopmentTourCatalogue.events().size()) {
+            throw new IllegalStateException("Development Tour schedule does not cover the full catalogue");
         }
         return generated;
+    }
+
+    /** A seeded offset followed by a three-season cycle visits every eligible host and permits later returns. */
+    private int catalogueHostIndex(DevelopmentTourCatalogue.Event event, int season) {
+        return coursePool.size() + DevelopmentTourCatalogue.selectedVenueIndex(event, masterSeed, season);
     }
 
     /**
@@ -1729,18 +1818,20 @@ public final class World {
     /**
      * The realistic display name for a scheduled event (spec: world-schedule) — deterministic, so an event
      * reads the same on the upcoming schedule and in its completed result. Majors carry fixed fictional names
-     * ordered by their place in the season; other events take their tour or venue.
+     * ordered by their place in the season; catalogue events use permanent names; legacy events use the venue.
      */
     public String nameFor(ScheduledTournament event) {
+        if (event.catalogueId() != null) return DevelopmentTourCatalogue.forId(event.catalogueId()).name();
         Course course = coursePool.get(event.courseIndex());
         return EventNaming.name(event.prestige(), event.tier(), course, majorOrdinal(event), proEventOrdinal(event));
     }
 
     /**
      * The display location for a scheduled event (spec: world-schedule): a major's or Pro event's fixed place,
-     * or the host course's region (the Development tour). Stable the same way {@link #nameFor} is.
+     * a catalogue event's permanent geography, or a legacy Development host region.
      */
     public String locationFor(ScheduledTournament event) {
+        if (event.catalogueId() != null) return DevelopmentTourCatalogue.forId(event.catalogueId()).location();
         Course course = coursePool.get(event.courseIndex());
         return EventNaming.location(event.prestige(), event.tier(), course, majorOrdinal(event),
                 proEventOrdinal(event));
@@ -1748,6 +1839,7 @@ public final class World {
 
     /** The scene backdrop token for an event (spec: play-event imagery) — authored for curated Pro events, from the host course's environment for the Development tour. */
     public String courseTypeFor(ScheduledTournament event) {
+        if (event.catalogueId() != null) return DevelopmentTourCatalogue.forId(event.catalogueId()).classification().name();
         Course course = coursePool.get(event.courseIndex());
         return EventNaming.courseType(event.prestige(), event.tier(), course, majorOrdinal(event),
                 proEventOrdinal(event), coursePoolPolicy);
@@ -2303,9 +2395,11 @@ public final class World {
             boolean eligibleByTour = event.prestige().isMajor()
                     || tier.map(t -> t == event.tier()).orElse(false);
             if (eligibleByTour) {
+                CourseIdentity hostIdentity = hostIdentityFor(event);
                 out.add(new PlayerScheduleEntry(event.tournamentId(), event.week(), event.tier(),
                         event.prestige(), !playerSitsOut(event), nameFor(event), locationFor(event),
-                        courseTypeFor(event), event.puttingPolicy()));
+                        courseTypeFor(event), event.puttingPolicy(),
+                        hostIdentity == null ? null : hostIdentity.name(), hostIdentity == null ? null : hostIdentity.region()));
             }
         }
         return out;
@@ -2549,11 +2643,13 @@ public final class World {
             return Optional.empty();
         }
         ScheduledTournament event = pendingEvent.built().event();
-        return Optional.of(new PendingEventScene(nameFor(event), locationFor(event), courseTypeFor(event)));
+        CourseIdentity hostIdentity = hostIdentityFor(event);
+        return Optional.of(new PendingEventScene(nameFor(event), locationFor(event), courseTypeFor(event),
+                hostIdentity == null ? null : hostIdentity.name(), hostIdentity == null ? null : hostIdentity.region()));
     }
 
     /** Descriptive context for a pending interactive event: display name, place, and course-type name. */
-    public record PendingEventScene(String name, String location, String courseType) {
+    public record PendingEventScene(String name, String location, String courseType, String hostName, String hostRegion) {
     }
 
     /** The event built for the player, plus the paused week's position, held while the event is in progress. */

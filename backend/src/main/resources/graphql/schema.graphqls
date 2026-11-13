@@ -303,10 +303,14 @@ type ScheduleEntry {
     entered: Boolean!
     "The event's realistic display name."
     name: String!
-    "The event's place — a major's hinting location, or the host course's region."
+    "The tournament's location; catalogue hosts have a separate region."
     location: String!
     "The host course's environment classification (e.g. PARKLAND, LINKS, DESERT) — drives scene imagery."
     courseType: String!
+    "Selected procedural venue for catalogue events; null for legacy and Pro events."
+    hostName: String
+    "Selected venue region, separate from the tournament's permanent location."
+    hostRegion: String
     "The scheduled policy; a player-entered event is pinned to physical putting when play begins."
     puttingPolicy: String!
 }
@@ -337,8 +341,10 @@ type CalendarEntry {
     prestige: String!
     entered: Boolean!
     name: String!
-    "The event's place — a major's hinting location, or the host course's region."
+    "The tournament's location; catalogue hosts have a separate region."
     location: String!
+    hostName: String
+    hostRegion: String
     "The scheduled policy; a player-entered event is pinned to physical putting when play begins."
     puttingPolicy: String!
     "Whether the event has been played (its result is available)."
@@ -451,6 +457,8 @@ type CareerEventResult {
     won: Boolean!
     madeCut: Boolean!
     location: String!
+    hostName: String
+    hostRegion: String
     prize: Float!
     fairwaysHit: Int!
     fairwaysPossible: Int!
@@ -812,10 +820,12 @@ type HoleScore {
 type CurrentEvent {
     "The event's realistic display name."
     name: String!
-    "The event's place — a major's hinting location, or the host course's region."
+    "The tournament's location; catalogue hosts have a separate region."
     location: String!
     "The host course's environment classification (e.g. PARKLAND, LINKS, DESERT, MOUNTAIN) — drives scene imagery."
     courseType: String!
+    hostName: String
+    hostRegion: String
 }
 
 "The geometry of a hole being played, for faithful 2D rendering (spec: web-hole-visualization). Distances in yards."

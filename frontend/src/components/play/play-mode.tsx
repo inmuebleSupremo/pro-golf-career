@@ -691,6 +691,7 @@ function DetailsTab({ event, scorecard, courseGeneratorVersion, hole }: {
     <div className="grid grid-cols-2 gap-5">
       {event ? <Stat label="Event" value={event.name} /> : null}
       {event ? <Stat label="Location" value={event.location} /> : null}
+      {event?.hostName ? <Stat label="Host venue" value={`${event.hostName} · ${event.hostRegion}`} /> : null}
       {event ? <Stat label="Scene biome" value={humanize(event.courseType)} /> : null}
       {scorecard ? <Stat label="Round" value={`${scorecard.roundNumber} of ${ROUNDS_PER_EVENT}`} /> : null}
       {scorecard ? <Stat label="Hole" value={`${scorecard.currentHole} of 18`} /> : null}

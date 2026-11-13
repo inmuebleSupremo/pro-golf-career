@@ -9,10 +9,12 @@ import java.util.Objects;
 /**
  * One tournament allocated in a season schedule (REQ-101/106): the week it is played, the tour tier whose
  * members contest it (for a major, the tier of its base competitive level — its field is cross-tour), the
- * course (by pool index) it is played on, its {@link EventPrestige}, and its unique tournament id.
+ * course (by shared-pool or Development registry index) it is played on, its {@link EventPrestige},
+ * unique occurrence id, and optional permanent catalogue identity.
  */
 public record ScheduledTournament(int week, TourTier tier, int courseIndex, EventPrestige prestige,
-                                  long tournamentId, PinPlacementVersion pinPlacementVersion, PuttingPolicy puttingPolicy) {
+                                   long tournamentId, PinPlacementVersion pinPlacementVersion, PuttingPolicy puttingPolicy,
+                                   String catalogueId) {
 
     public ScheduledTournament {
         Objects.requireNonNull(tier, "tier");
@@ -23,6 +25,12 @@ public record ScheduledTournament(int week, TourTier tier, int courseIndex, Even
         if (week < 1) {
             throw new IllegalArgumentException("week must be >= 1: " + week);
         }
+    }
+
+    /** Historical schedules and Pro events have no Development catalogue identity. */
+    public ScheduledTournament(int week, TourTier tier, int courseIndex, EventPrestige prestige,
+                               long tournamentId, PinPlacementVersion pinPlacementVersion, PuttingPolicy puttingPolicy) {
+        this(week, tier, courseIndex, prestige, tournamentId, pinPlacementVersion, puttingPolicy, null);
     }
 
     /** A regular tour event of the given tier (the common case). */

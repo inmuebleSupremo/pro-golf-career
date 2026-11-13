@@ -29,10 +29,10 @@ class WorldEventNamingTest {
                 .isNotEmpty()
                 .allSatisfy(e -> assertThat(Arrays.asList(EventNaming.MAJOR_NAMES)).contains(e.name()));
 
-        // A regular event reads as "The <venue> Open"; a tour championship names its tour.
+        // New Development worlds use permanent catalogue titles; championships retain their tour title.
         assertThat(schedule).filteredOn(e -> e.prestige() == EventPrestige.REGULAR)
                 .isNotEmpty()
-                .anySatisfy(e -> assertThat(e.name()).startsWith("The ").endsWith(" Open"));
+                .anySatisfy(e -> assertThat(e.name()).isEqualTo("Carolina Gateway Open"));
         assertThat(schedule).filteredOn(e -> e.prestige() == EventPrestige.TOUR_CHAMPIONSHIP)
                 .allSatisfy(e -> assertThat(e.name()).endsWith("Tour Championship"));
     }
@@ -68,14 +68,13 @@ class WorldEventNamingTest {
     }
 
     @Test
-    void theDevelopmentTourStaysProcedurallyNamedByVenue() {
-        // The feeder tour keeps venue-derived names/regions (varies year to year), unlike the fixed Pro tour.
+    void theDevelopmentTourUsesPermanentCatalogueNames() {
         World world = World.create(1L, WorldConfig.defaults());
         world.createPlayer("Ana", "Rivera", Nationality.ESP, 20, Archetype.ALL_ROUNDER);
         assertThat(world.playerSchedule())
                 .filteredOn(e -> e.tier() == TourTier.DEVELOPMENT && e.prestige() == EventPrestige.REGULAR)
                 .isNotEmpty()
-                .allSatisfy(e -> assertThat(e.name()).startsWith("The ").endsWith(" Open"));
+                .allSatisfy(e -> assertThat(DevelopmentTourCatalogue.forWeek(e.week()).name()).isEqualTo(e.name()));
     }
 
     /** Season 1's Pro non-major/non-championship events as "week name | location", by week — via the schedule. */

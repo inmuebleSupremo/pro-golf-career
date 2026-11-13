@@ -111,6 +111,8 @@ export const CareerOverviewDocument = graphql(`
       name
       location
       courseType
+      hostName
+      hostRegion
     }
     playerScorecard(id: $id) {
       roundNumber
@@ -126,6 +128,8 @@ export const CareerOverviewDocument = graphql(`
       name
       location
       courseType
+      hostName
+      hostRegion
     }
     newsFeed(id: $id, limit: 12) {
       season
@@ -528,6 +532,8 @@ export const CareerRecordsDocument = graphql(`
           won
           madeCut
           location
+          hostName
+          hostRegion
           prize
           fairwaysHit
           fairwaysPossible
@@ -555,6 +561,8 @@ export const PlayerScheduleDocument = graphql(`
       name
       location
       courseType
+      hostName
+      hostRegion
       puttingPolicy
     }
   }
@@ -571,6 +579,8 @@ export const PlayerCalendarDocument = graphql(`
       entered
       name
       location
+      hostName
+      hostRegion
       puttingPolicy
       played
       result {
@@ -882,6 +892,8 @@ export const PlayStateDocument = graphql(`
       name
       location
       courseType
+      hostName
+      hostRegion
     }
     eventLeaderboard(id: $id) {
       position

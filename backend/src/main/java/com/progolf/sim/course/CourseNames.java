@@ -19,8 +19,8 @@ final class CourseNames {
 
     /**
      * Region pools keyed to the course's environment, so a generated course's place evokes the same geography
-     * as its style (a desert course sits in "Sonora", a links course in "Ayrshire") — this is what the
-     * Development tour shows as an event's location, so the two must agree. Names are deliberately kept clear
+     * as its style (a desert course sits in "Sonora", a links course in "Ayrshire") — legacy Development
+     * events show this as their location. Names are deliberately kept clear
      * of the real US states / countries the play-screen scene mapping keys on (Arizona, Scotland, Florida, …),
      * so a Development location never contradicts the classification-driven backdrop it resolves to.
      */
