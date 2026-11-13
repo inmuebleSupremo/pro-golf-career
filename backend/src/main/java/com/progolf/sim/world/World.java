@@ -238,7 +238,9 @@ public final class World {
         this.config = config;
         this.courseGeneratorVersion = courseGeneratorVersion;
         this.coursePoolPolicy = Objects.requireNonNull(coursePoolPolicy, "coursePoolPolicy");
-        if (developmentCatalogueVersion != null && developmentCatalogueVersion != DevelopmentTourCatalogue.VERSION) {
+        if (developmentCatalogueVersion != null
+                && developmentCatalogueVersion != DevelopmentTourCatalogue.ORIGINAL_NAMING_VERSION
+                && developmentCatalogueVersion != DevelopmentTourCatalogue.VERSION) {
             throw new IllegalArgumentException("Unsupported Development Tour catalogue version: " + developmentCatalogueVersion);
         }
         this.developmentCatalogueVersion = developmentCatalogueVersion;
@@ -374,7 +376,21 @@ public final class World {
         DevelopmentTourCatalogue.Venue venue = DevelopmentTourCatalogue.venue(venueIndex);
         CourseIdentity generated = CourseGenerator.identityFor(developmentVenueCoordinate(venueIndex), venue.classification());
         return new CourseIdentity(venue.id() + "-" + Long.toUnsignedString(masterSeed, 16),
-                generated.name(), venue.region(), generated.classification(), generated.style());
+                developmentCatalogueVersion == DevelopmentTourCatalogue.VERSION
+                        ? catalogueVenueName(generated.name(), venue.classification()) : generated.name(),
+                venue.region(), generated.classification(), generated.style());
+    }
+
+    /** Version 2 changes only catalogue-host display names; version 1 and the shared pool keep their exact names. */
+    private static String catalogueVenueName(String generatedName, EnvironmentClassification classification) {
+        if (classification == EnvironmentClassification.LINKS) return generatedName;
+        if (generatedName.endsWith(" Golf Links")) {
+            return generatedName.substring(0, generatedName.length() - " Golf Links".length()) + " Golf Club";
+        }
+        if (generatedName.endsWith(" Links")) {
+            return generatedName.substring(0, generatedName.length() - " Links".length()) + " Country Club";
+        }
+        return generatedName;
     }
 
     /** Lightweight host identity for catalogue events; legacy event presentation remains unchanged. */

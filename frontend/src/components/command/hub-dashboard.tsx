@@ -28,7 +28,7 @@ import {
   ordinalPosition,
   tourTierLabel,
 } from "@/lib/career/labels";
-import { lastPlayerResult, nextOpenWeek } from "@/lib/career/hub-summaries";
+import { formatTravelStop, lastPlayerResult, nextEnteredEventAfter, nextOpenWeek } from "@/lib/career/hub-summaries";
 import { applySceneFallback, sceneBackdrop } from "@/lib/play/scene";
 
 export function HubDashboard({ id }: { id: string }) {
@@ -61,7 +61,8 @@ export function HubDashboard({ id }: { id: string }) {
       ? { ...pending, week: world.week, tier: pendingSchedule?.tier }
       : pendingSchedule
     : upcoming;
-  const travel = pending ?? upcoming;
+  const travel = nextEnteredEventAfter(schedule, event?.week ?? null, world.week);
+  const travelSummary = travel ? formatTravelStop(travel.location, travel.week) : null;
   const backdrop = event
     ? sceneBackdrop(event.courseType, event.name, { season: world.season })
     : null;
@@ -83,6 +84,15 @@ export function HubDashboard({ id }: { id: string }) {
     scorecard &&
     (scorecard.roundNumber > 1 || scorecard.currentHole > 1 || scorecard.totalStrokes > 0),
   );
+  const eventMessage = world.pendingEventFinished
+    ? "Tournament complete. Finish the event to record your result."
+    : world.hasPendingEvent
+      ? eventInProgress
+        ? "Your tournament is in progress. Continue when ready."
+        : "Your tournament is ready to play."
+      : upcoming
+        ? null
+        : "No entered tournament is ahead on the current schedule. You can still advance your career.";
 
   return (
     <main className="career-hub flex min-w-0 flex-col gap-3.5 xl:gap-4">
@@ -115,39 +125,22 @@ export function HubDashboard({ id }: { id: string }) {
               {event?.name ?? (world.hasPendingEvent ? "Current event" : "No upcoming event")}
             </h1>
             {event && (
-              <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
-                <span className="inline-flex items-center gap-2">
-                  <MapPin className="size-4" aria-hidden="true" />
-                  {event.location}
-                </span>
+              <div className="flex min-w-0 flex-col gap-1.5 text-sm">
+                <p className="inline-flex items-start gap-2">
+                  <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                  <span>{event.location}</span>
+                </p>
+                <p className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1">
+                  {event.tier && <span>{tourTierLabel(event.tier)} Tour</span>}
+                  {event.tier && <span aria-hidden="true">·</span>}
+                  <span>Week {event.week}</span>
+                </p>
                 {event.hostName && (
-                  <span className="text-subtle-foreground">Host: {event.hostName} · {event.hostRegion}</span>
+                  <p className="text-subtle-foreground text-xs sm:text-sm">Host: {event.hostName}</p>
                 )}
-                {event.tier && (
-                  <span className="inline-flex items-center gap-2">
-                    <Trophy className="size-4" aria-hidden="true" />
-                    {tourTierLabel(event.tier)} Tour
-                  </span>
-                )}
-                <span className="inline-flex items-center gap-2">
-                  <CalendarDays className="size-4" aria-hidden="true" />
-                  Week {event.week}
-                </span>
               </div>
             )}
-            <p className="text-muted-foreground max-w-xl text-sm">
-              {world.pendingEventFinished
-                ? "Tournament complete. Finish the event to record your result."
-                : world.hasPendingEvent
-                  ? eventInProgress
-                    ? "Your tournament is in progress. Continue when ready."
-                    : "Your tournament is ready to play."
-                  : upcoming
-                    ? upcoming.week === world.week
-                      ? "This tournament is on your schedule. Advance when permitted to continue."
-                      : "Your next tournament is coming up. Prepare and play when it becomes available."
-                    : "No entered tournament is ahead on the current schedule. You can still advance your career."}
-            </p>
+            {eventMessage && <p className="text-muted-foreground max-w-xl text-sm">{eventMessage}</p>}
           </div>
         </div>
         <div className="border-border bg-surface-elevated relative flex flex-col justify-center gap-2.5 border-t p-5 sm:p-6 lg:border-t-0 lg:border-l">
@@ -200,14 +193,9 @@ export function HubDashboard({ id }: { id: string }) {
           <WeekItem
             icon={Plane}
             label="Travel"
-            value={travel?.location ?? "—"}
-            detail={
-              pending
-                ? "Current tournament venue"
-                : upcoming
-                  ? `Next stop · Week ${upcoming.week}`
-                  : "No upcoming entered event"
-            }
+            value={travelSummary?.destination ?? "No next stop scheduled"}
+            detail={travelSummary?.detail ?? ""}
+            compact
           />
           <WeekItem
             icon={Activity}
@@ -353,19 +341,21 @@ function WeekItem({
   label,
   value,
   detail,
+  compact = false,
 }: {
   icon: typeof Activity;
   label: string;
   value: string;
   detail: string;
+  compact?: boolean;
 }) {
   return (
     <div className="xl:border-border flex min-w-0 items-start gap-2.5 xl:border-l xl:px-4 xl:first:border-l-0 xl:first:pl-0 xl:last:pr-0">
       <Icon className="text-primary mt-0.5 size-5 shrink-0" aria-hidden="true" />
       <div className="min-w-0">
         <h3 className="text-muted-foreground text-xs font-bold tracking-wide uppercase">{label}</h3>
-        <p className="mt-0.5 text-base font-semibold break-words tabular-nums">{value}</p>
-        <p className="text-muted-foreground text-xs break-words">{detail}</p>
+        <p className={`mt-0.5 text-base font-semibold tabular-nums ${compact ? "overflow-x-auto whitespace-nowrap" : "break-words"}`} title={compact ? value : undefined}>{value}</p>
+        {detail && <p className={`text-muted-foreground text-xs ${compact ? "overflow-x-auto whitespace-nowrap" : "break-words"}`}>{detail}</p>}
       </div>
     </div>
   );

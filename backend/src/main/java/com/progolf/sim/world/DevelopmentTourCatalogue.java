@@ -9,9 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** Version 1 of the permanent Development Tour calendar and its lightweight venue recipes. */
+/** Permanent Development Tour calendar and lightweight venue recipes, shared by catalogue versions 1 and 2. */
 public final class DevelopmentTourCatalogue {
-    public static final int VERSION = 1;
+    public static final int ORIGINAL_NAMING_VERSION = 1;
+    public static final int VERSION = 2;
 
     public enum HostPolicy { FIXED, ROTATING }
 

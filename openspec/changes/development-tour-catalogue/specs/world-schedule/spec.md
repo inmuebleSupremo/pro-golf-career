@@ -55,3 +55,16 @@ The world snapshot SHALL pin Development catalogue provenance independently of c
 - **WHEN** a world snapshot without catalogue provenance is restored
 - **THEN** its scheduled and historical event names, hosts, results, and career records SHALL remain unchanged
 - **AND** its future Development schedules SHALL continue using the historical rotation rule.
+
+### Requirement: Versioned Development host names
+
+New catalogue worlds SHALL use version 2 host naming: Links venues MAY retain Links suffixes, while Parkland,
+Woodland, Heathland, and Desert venue names SHALL NOT end in Links or Golf Links. Catalogue version 1 SHALL
+retain its original generated venue names after restore. The naming policy SHALL NOT change the catalogue,
+venue recipe keys, host selection, course seeds, classifications, or geometry.
+
+#### Scenario: An existing catalogue career is restored
+
+- **WHEN** a catalogue version 1 world is restored
+- **THEN** each selected venue SHALL keep its original generated name, including any Links suffix
+- **AND** a new version 2 world with the same seed SHALL keep the same venue identities and geometry.

@@ -77,7 +77,7 @@ class DevelopmentTourCatalogueTest {
     @Test
     void scheduledHostsAreUniqueLazyAndStableAfterRestore() {
         World world = World.create(47L, SMALL_STANDARD);
-        assertThat(world.developmentCatalogueVersion()).isEqualTo(1);
+        assertThat(world.developmentCatalogueVersion()).isEqualTo(DevelopmentTourCatalogue.VERSION);
         List<ScheduledTournament> development = world.currentSchedule().stream()
                 .filter(e -> e.tier() == TourTier.DEVELOPMENT).toList();
         assertThat(development).hasSize(20);
@@ -119,7 +119,7 @@ class DevelopmentTourCatalogueTest {
                 CourseGenConstants.V8_PRINCIPLED_ARCHITECTURE_GENERATOR_VERSION,
                 CourseGenConstants.V9_COASTAL_LINKS_GENERATOR_VERSION}) {
             World world = World.create(91L, SMALL_STANDARD, version);
-            assertThat(world.developmentCatalogueVersion()).isEqualTo(1);
+            assertThat(world.developmentCatalogueVersion()).isEqualTo(DevelopmentTourCatalogue.VERSION);
             assertThat(world.currentSchedule().stream().filter(e -> e.tier() == TourTier.DEVELOPMENT)
                     .map(ScheduledTournament::catalogueId).toList()).hasSize(20).doesNotContainNull();
             var sandhills = world.currentSchedule().stream()
@@ -170,7 +170,7 @@ class DevelopmentTourCatalogueTest {
         World world = World.create(53L, SMALL_STANDARD);
         List<ScheduledTournament> first = world.currentSchedule();
         world.advanceSeason();
-        assertThat(world.developmentCatalogueVersion()).isEqualTo(1);
+        assertThat(world.developmentCatalogueVersion()).isEqualTo(DevelopmentTourCatalogue.VERSION);
         assertThat(world.archives()).hasSize(1);
         assertThat(world.archives().getFirst().schedule()).isEqualTo(first);
         for (ScheduledTournament original : first) {

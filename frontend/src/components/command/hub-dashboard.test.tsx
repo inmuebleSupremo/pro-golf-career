@@ -78,6 +78,8 @@ beforeEach(() => {
         tournamentId: "1",
         name: "West Bluff Open",
         location: "Sandbelt",
+        hostName: "Royal Bluff Golf Club",
+        hostRegion: "Sandbelt",
         courseType: "LINKS",
         tier: "DEVELOPMENT",
         prestige: "REGULAR",
@@ -124,11 +126,23 @@ it("shows real event, golfer, season and all four weekly summaries with existing
   expect(html).toContain("West Bluff Open");
   expect(html).toContain("Sandbelt");
   expect(html).toContain("Development Tour");
+  expect(html).toContain("Week 6");
+  expect(html).toContain("Host: Royal Bluff Golf Club");
+  expect(html.match(/Sandbelt/g)).toHaveLength(1);
+  expect(html.indexOf("West Bluff Open")).toBeLessThan(html.indexOf("Sandbelt"));
+  expect(html.indexOf("Sandbelt")).toBeLessThan(html.indexOf("Development Tour"));
+  expect(html.indexOf("Development Tour")).toBeLessThan(html.indexOf("Host: Royal Bluff Golf Club"));
+  expect(html).not.toContain("This tournament is on your schedule");
+  expect(html).toContain("career-hub-hero");
+  expect(html).toContain("career-hub-week");
+  expect(html).toContain('data-image="/scenes/links-1.jpg"');
+  expect(html).toContain("Career progression");
   expect(html).toContain('data-progression="advance"');
   expect(html).toContain("Condition");
   expect(html).toContain("92%");
   expect(html).toContain("Travel");
-  expect(html).toContain("Next stop · Week 6");
+  expect(html).toContain("Week 8");
+  expect(html).toContain("North");
   expect(html).toContain("Next open week");
   expect(html).toContain("Week 5");
   expect(html.match(/Season 1 · Week 4/g)).toHaveLength(1);
@@ -157,7 +171,7 @@ it("shows neutral first-career states and advancement without an event", () => {
   expect(html).toContain("Debut pending");
   expect(html).toContain("No open week confirmed");
   expect(html).not.toContain("Next rest window");
-  expect(html).toContain("No upcoming entered event");
+  expect(html).toContain("No next stop scheduled");
 });
 
 it("keeps pending and finished tournament actions distinct", () => {
@@ -170,6 +184,9 @@ it("keeps pending and finished tournament actions distinct", () => {
   expect(renderToStaticMarkup(<HubDashboard id="career-1" />)).toContain(
     'data-progression="continue"',
   );
+  expect(renderToStaticMarkup(<HubDashboard id="career-1" />)).toContain(
+    "Week 8",
+  );
   state.overview = {
     ...(state.overview as object),
     world: { season: 1, week: 6, hasPendingEvent: true, pendingEventFinished: true },
@@ -177,4 +194,68 @@ it("keeps pending and finished tournament actions distinct", () => {
   expect(renderToStaticMarkup(<HubDashboard id="career-1" />)).toContain(
     'data-progression="finish"',
   );
+});
+
+it("shows the current host separately and travels to the next entered tournament", () => {
+  state.overview = {
+    ...(state.overview as object),
+    world: { season: 1, week: 2, hasPendingEvent: true, pendingEventFinished: false },
+    currentEvent: {
+      name: "Sandhills Classic",
+      location: "Pinehurst region, North Carolina, USA",
+      courseType: "HEATHLAND",
+      hostName: "North Point Golf Club",
+      hostRegion: "Pinehurst region, North Carolina",
+    },
+    playerSchedule: [
+      { tournamentId: "1", name: "Sandhills Classic", location: "Pinehurst region, North Carolina, USA", tier: "DEVELOPMENT", entered: true, week: 2 },
+      { tournamentId: "2", name: "Available Open", location: "South Carolina, USA", tier: "DEVELOPMENT", entered: false, week: 3 },
+      { tournamentId: "3", name: "Later Open", location: "Arizona, USA", tier: "DEVELOPMENT", entered: true, week: 8 },
+      { tournamentId: "4", name: "Southeastern Invitational", location: "Georgia, USA", tier: "DEVELOPMENT", entered: true, week: 5 },
+    ],
+  };
+  const html = renderToStaticMarkup(<HubDashboard id="career-1" />);
+  expect(html).toContain("Sandhills Classic");
+  expect(html).toContain("Pinehurst region, North Carolina, USA");
+  expect(html.match(/Pinehurst region/g)).toHaveLength(1);
+  expect(html).toContain("Development Tour");
+  expect(html).toContain("Week 2");
+  expect(html).toContain("Host: North Point Golf Club");
+  expect(html).not.toContain("Host: North Point Golf Club · Pinehurst region");
+  expect(html).toContain("Georgia");
+  expect(html).toContain("Week 5 · USA");
+  expect(html).not.toContain("Week 8 · USA");
+});
+
+it("shows no travel commitment when only unentered events follow a legacy current event", () => {
+  state.overview = {
+    ...(state.overview as object),
+    world: { season: 1, week: 6, hasPendingEvent: true, pendingEventFinished: false },
+    currentEvent: { name: "West Bluff Open", location: "Sandbelt", courseType: "LINKS" },
+    playerSchedule: [
+      { tournamentId: "1", name: "West Bluff Open", location: "Sandbelt", tier: "DEVELOPMENT", entered: true, week: 6 },
+      { tournamentId: "2", name: "Available Open", location: "Ohio", tier: "DEVELOPMENT", entered: false, week: 7 },
+    ],
+  };
+  const html = renderToStaticMarkup(<HubDashboard id="career-1" />);
+  expect(html).toContain("No next stop scheduled");
+  expect(html).not.toContain("Host:");
+  expect(html).not.toContain("Ohio");
+  expect(html).toContain('data-progression="play"');
+});
+
+it("keeps an unfamiliar destination complete within the two compact Travel lines", () => {
+  state.overview = {
+    ...(state.overview as object),
+    playerSchedule: [
+      { tournamentId: "1", name: "Current Open", location: "Sandbelt", tier: "DEVELOPMENT", entered: true, week: 6 },
+      { tournamentId: "2", name: "Later Open", location: "Old Coast, Eastern District, Newland", tier: "DEVELOPMENT", entered: true, week: 8 },
+    ],
+  };
+  const html = renderToStaticMarkup(<HubDashboard id="career-1" />);
+  const travelBlock = html.split(">Travel</h3>")[1]?.split(">Next open week</h3>")[0];
+  expect(travelBlock).toContain("Old Coast, Eastern District, Newland");
+  expect(travelBlock).toContain("Week 8");
+  expect(travelBlock?.match(/<p /g)).toHaveLength(2);
+  expect(travelBlock).toContain("overflow-x-auto whitespace-nowrap");
 });
