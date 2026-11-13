@@ -1,7 +1,6 @@
 package com.progolf.sim.course;
 
 import com.progolf.sim.spatial.Surface;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,11 +39,17 @@ public record CourseGeometry(Position2d tee, Position2d greenCenter, List<Positi
         if (!contains(playableBoundary, position)) {
             return Surface.OUT_OF_BOUNDS;
         }
-        return regions.stream()
-                .filter(region -> region.contains(position))
-                .min(Comparator.comparingInt(region -> precedence(region.surface())))
-                .map(TerrainRegion::surface)
-                .orElse(Surface.PRIMARY_ROUGH);
+        Surface best = null;
+        int bestPrecedence = Integer.MAX_VALUE;
+        for (int i = 0; i < regions.size(); i++) {
+            TerrainRegion region = regions.get(i);
+            int candidatePrecedence = precedence(region.surface());
+            if (candidatePrecedence >= bestPrecedence || !region.contains(position)) continue;
+            best = region.surface();
+            bestPrecedence = candidatePrecedence;
+            if (bestPrecedence == 0) break;
+        }
+        return best == null ? Surface.PRIMARY_ROUGH : best;
     }
 
     private static void validateUnambiguousPrecedence(List<TerrainRegion> regions) {
