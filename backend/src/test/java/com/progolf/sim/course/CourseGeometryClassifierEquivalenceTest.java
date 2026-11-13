@@ -1,6 +1,7 @@
 package com.progolf.sim.course;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.spatial.Surface;
@@ -15,6 +16,54 @@ import org.junit.jupiter.api.Test;
 /** Compares terrain lookup with the original stream classifier, including its boundary rules. */
 class CourseGeometryClassifierEquivalenceTest {
     private static final long WORLD_SEED = 0x5445525241494e4cL;
+
+    @Test
+    void verticalExtremaAndAdjacentDoublesMatchOriginalClassifier() {
+        List<Position2d> outer = square(-10, -10, 10, 10);
+        TerrainRegion water = new TerrainRegion(Surface.WATER, square(-5, -3, 5, 3));
+        TerrainRegion bunker = new TerrainRegion(Surface.BUNKER, square(-2, 2, 2, 7));
+        CourseGeometry geometry = new CourseGeometry(new Position2d(0, 0), new Position2d(0, 8),
+                outer, List.of(water, bunker));
+        for (double extreme : new double[] {-3, 2, 3, 7}) {
+            for (double y : new double[] {Math.nextDown(extreme), extreme, Math.nextUp(extreme),
+                    extreme - 1.0e-10, extreme + 1.0e-10}) {
+                for (double x : new double[] {-5, -2, 0, 2, 5}) {
+                    assertSameClassification(geometry, new Position2d(x, y), "vertical extremum");
+                }
+            }
+        }
+        for (double y : new double[] {Math.nextDown(-10), -10, Math.nextUp(-10),
+                Math.nextDown(10), 10, Math.nextUp(10)}) {
+            assertSameClassification(geometry, new Position2d(0, y), "playable boundary extremum");
+        }
+    }
+
+    @Test
+    void preparedRegionsPreserveRecordAndListSemantics() {
+        List<Position2d> outer = square(-10, -10, 10, 10);
+        List<Position2d> supplied = new ArrayList<>(square(-5, -3, 5, 3));
+        TerrainRegion region = new TerrainRegion(Surface.WATER, supplied);
+        Position2d tee = new Position2d(0, 0);
+        Position2d green = new Position2d(0, 8);
+        CourseGeometry geometry = new CourseGeometry(tee, green, outer, List.of(region));
+        CourseGeometry equal = new CourseGeometry(tee, green, outer,
+                List.of(new TerrainRegion(Surface.WATER, List.copyOf(supplied))));
+
+        assertThat(TerrainRegion.class.isRecord()).isTrue();
+        assertThat(CourseGeometry.class.isRecord()).isTrue();
+        assertThat(region.surface()).isEqualTo(Surface.WATER);
+        assertThat(region.boundary()).isEqualTo(supplied);
+        assertThat(geometry.regions()).isEqualTo(List.of(region));
+        assertThat(geometry.regions().hashCode()).isEqualTo(List.of(region).hashCode());
+        assertThat(geometry).isEqualTo(equal).hasSameHashCodeAs(equal);
+        assertThat(geometry.toString()).isEqualTo("CourseGeometry[tee=" + tee + ", greenCenter=" + green
+                + ", playableBoundary=" + outer + ", regions=" + List.of(region) + "]");
+
+        supplied.set(0, new Position2d(-6, -4));
+        assertThat(region.boundary()).isEqualTo(square(-5, -3, 5, 3));
+        assertThat(geometry.regions()).containsExactly(region);
+        assertThatThrownBy(() -> geometry.regions().add(region)).isInstanceOf(UnsupportedOperationException.class);
+    }
 
     @Test
     void explicitPrecedenceFallbackAndBoundaryCasesMatchOriginalClassifier() {
