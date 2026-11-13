@@ -1,6 +1,7 @@
 package com.progolf.sim.course;
 
 import com.progolf.sim.spatial.Surface;
+import java.util.AbstractList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -23,7 +24,7 @@ public record CourseGeometry(Position2d tee, Position2d greenCenter, List<Positi
         Objects.requireNonNull(tee, "tee");
         Objects.requireNonNull(greenCenter, "greenCenter");
         playableBoundary = List.copyOf(Objects.requireNonNull(playableBoundary, "playableBoundary"));
-        regions = List.copyOf(Objects.requireNonNull(regions, "regions"));
+        regions = new PreparedRegions(Objects.requireNonNull(regions, "regions"));
         double boundaryArea = TerrainRegion.signedArea(playableBoundary);
         boolean simpleBoundary = TerrainRegion.isSimplePolygon(playableBoundary);
         if (playableBoundary.size() < 3 || boundaryArea <= 0.0 || !simpleBoundary) {
@@ -41,10 +42,12 @@ public record CourseGeometry(Position2d tee, Position2d greenCenter, List<Positi
         }
         Surface best = null;
         int bestPrecedence = Integer.MAX_VALUE;
+        PreparedRegions prepared = (PreparedRegions) regions;
         for (int i = 0; i < regions.size(); i++) {
             TerrainRegion region = regions.get(i);
             int candidatePrecedence = precedence(region.surface());
-            if (candidatePrecedence >= bestPrecedence || !region.contains(position)) continue;
+            if (candidatePrecedence >= bestPrecedence || !prepared.includesY(i, position.y())
+                    || !region.contains(position)) continue;
             best = region.surface();
             bestPrecedence = candidatePrecedence;
             if (bestPrecedence == 0) break;
@@ -134,6 +137,43 @@ public record CourseGeometry(Position2d tee, Position2d greenCenter, List<Positi
 
     private static Position2d scale(Position2d point, double scale) {
         return new Position2d(point.x() * scale, point.y());
+    }
+
+    /** Retains List's structural behaviour while preparing immutable vertical extents once per geometry. */
+    private static final class PreparedRegions extends AbstractList<TerrainRegion> {
+        private final List<TerrainRegion> values;
+        private final double[] minY;
+        private final double[] maxY;
+
+        private PreparedRegions(List<TerrainRegion> regions) {
+            values = List.copyOf(regions);
+            minY = new double[values.size()];
+            maxY = new double[values.size()];
+            for (int i = 0; i < values.size(); i++) {
+                double minimum = Double.POSITIVE_INFINITY;
+                double maximum = Double.NEGATIVE_INFINITY;
+                for (Position2d vertex : values.get(i).boundary()) {
+                    minimum = Math.min(minimum, vertex.y());
+                    maximum = Math.max(maximum, vertex.y());
+                }
+                minY[i] = minimum;
+                maxY[i] = maximum;
+            }
+        }
+
+        private boolean includesY(int index, double y) {
+            return y >= minY[index] && y <= maxY[index];
+        }
+
+        @Override
+        public TerrainRegion get(int index) {
+            return values.get(index);
+        }
+
+        @Override
+        public int size() {
+            return values.size();
+        }
     }
 
     private record LateralScaleKey(CourseGeometry geometry, double scale) {
