@@ -45,7 +45,13 @@ class StrategicTargetPlannerTest {
                     PLAYER, Environment.calm())).isEqualTo(plain);
             assertThat(StrategicTargetPlanner.options(model, tee, model.startDistance(), Surface.TEE_BOX,
                     PLAYER, Environment.calm())).isEqualTo(plain);
-            assertThat(profile.summary("TEST", 0)).contains("strategicPlanningCalls=2", "physicalPuttSolverCalls=0");
+            assertThat(profile.summary("TEST", 0)).contains("strategicPlanningCalls=2", "exposureCalls=6",
+                    "exposureMs=", "exposureNestedIn=strategicPlanning", "physicalPuttSolverCalls=0");
+
+            HoleModel legacy = new FixtureHole(4, null, geometry(false));
+            assertThat(StrategicTargetPlanner.options(legacy, new BallState(legacy.geometry().tee(), Surface.TEE_BOX),
+                    legacy.startDistance(), Surface.TEE_BOX, PLAYER, Environment.calm())).isEmpty();
+            assertThat(profile.summary("TEST", 0)).contains("strategicPlanningCalls=3", "exposureCalls=6");
         }
         assertThat(SeasonProfile.current()).isNull();
     }

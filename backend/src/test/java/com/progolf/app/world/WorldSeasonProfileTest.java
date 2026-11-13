@@ -71,13 +71,15 @@ class WorldSeasonProfileTest {
         assertThat(log.split("seasonProfile outcome=", -1)).hasSize(2);
         assertThat(log).contains("seasonProfile outcome=COMPLETED", "backendTotalMs=", "worldMs=",
                 "autosaveMs=", "eventSetupMs=", "eventPlayMs=", "greenGenerationMs=",
-                "strategicPlanningMs=", "strategicPlanningCalls=", "physicalPuttSolverMs=",
+                "strategicPlanningMs=", "strategicPlanningCalls=", "exposureMs=", "exposureCalls=",
+                "physicalPuttSolverMs=",
                 "physicalPuttSolverCalls=", "eventResultsMs=",
                 "seasonEndMs=", "seasonRankingMs=", "developmentMs=", "financeMs=",
                 "snapshotMs=", "serializationMs=", "checksumMs=", "fileWriteMs=",
                 "events=", "physicalEvents=", "holeModels=", "greenSurfaces=",
                 "timing=childrenIncludedInParents", "greenGenerationNestedIn=eventPlayWhereApplicable",
-                "hotPathsNestedIn=eventPlayWhereApplicable", "hotPathsDisjointFrom=greenGeneration");
+                "hotPathsNestedIn=eventPlayWhereApplicable", "exposureNestedIn=strategicPlanning",
+                "hotPathsDisjointFrom=greenGeneration");
         var greenTiming = Pattern.compile("greenGenerationMs=([0-9]+\\.[0-9]{3})").matcher(log);
         assertThat(greenTiming.find()).isTrue();
         assertThat(Double.parseDouble(greenTiming.group(1))).isPositive();
@@ -85,6 +87,7 @@ class WorldSeasonProfileTest {
                 .containsPattern("holeModels=[1-9][0-9]*")
                 .containsPattern("greenSurfaces=[1-9][0-9]*")
                 .containsPattern("strategicPlanningCalls=[1-9][0-9]*")
+                .containsPattern("exposureCalls=[1-9][0-9]*")
                 .containsPattern("physicalPuttSolverCalls=[1-9][0-9]*");
     }
 
@@ -104,8 +107,8 @@ class WorldSeasonProfileTest {
         assertThat(service.seasonAdvanceOperation(OWNER, id).state()).isEqualTo(SeasonAdvanceOperation.State.FAILED);
         assertThat(SeasonProfile.current()).isNull();
         assertThat(output.toString()).contains("seasonProfile outcome=FAILED", "greenGenerationMs=",
-                "strategicPlanningMs=", "physicalPuttSolverMs=", "strategicPlanningCalls=",
-                "physicalPuttSolverCalls=");
+                "strategicPlanningMs=", "exposureMs=", "physicalPuttSolverMs=", "strategicPlanningCalls=",
+                "exposureCalls=", "physicalPuttSolverCalls=");
     }
 
     private static WorldService service(Path savesDir) {
