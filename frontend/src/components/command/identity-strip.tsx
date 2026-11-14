@@ -13,6 +13,7 @@ import { CareerAccountMenu } from "@/components/command/career-account-menu";
 import { useForegroundOperation, useSeasonReviewTransition } from "@/components/loading/foreground-loading-provider";
 import { useCareerOverview, usePlayerProfile } from "@/lib/api/queries";
 import { useAdvanceSeason, useAdvanceWeek, useCompleteEvent, useSeasonAdvanceOperation } from "@/lib/api/play";
+import { GraphQLRequestError } from "@/lib/api/graphql-client";
 import { formatMoney, ordinalPosition, tourTierLabel } from "@/lib/career/labels";
 
 /*
@@ -114,6 +115,7 @@ export function NextAction({
   const seasonOperation = useSeasonAdvanceOperation(id);
   const seasonTransition = useSeasonReviewTransition().transition;
   const [actionError, setActionError] = useState<string | null>(null);
+  const [eventCompletedUnsaved, setEventCompletedUnsaved] = useState(false);
   const seasonBefore = useCareerOverview(id).data?.world?.season ?? null;
 
   // A season simulation can remain active after its HTTP response is lost. Keep its status visible even if
@@ -139,14 +141,19 @@ export function NextAction({
           router.push(`/career/${id}`);
         }
         router.refresh();
-      } catch {
-        setActionError("The event couldn't be finalized. Please try again.");
+      } catch (error) {
+        if (error instanceof GraphQLRequestError && error.classification === "COMPLETED_UNSAVED") {
+          setEventCompletedUnsaved(true);
+          setActionError("The event completed, but its recovery autosave was not updated. Do not finish it again. Use Save & Return if available, then review the autosave in Saves.");
+        } else {
+          setActionError("The event couldn't be finalized. Please check career status before trying again.");
+        }
       }
     }
     return (
       <div className={hub ? "flex w-full flex-wrap items-center gap-2" : "flex items-center gap-2"}>
         {actionError ? <p role="alert" className="text-destructive text-sm">{actionError}</p> : null}
-        <Button onClick={onFinish} disabled={complete.isPending || foreground.isPending}>
+        <Button onClick={onFinish} disabled={eventCompletedUnsaved || complete.isPending || foreground.isPending}>
           <Check className="size-4" aria-hidden="true" />
           {complete.isPending || foreground.isPending ? "Finishing…" : "Finish event"}
         </Button>
@@ -186,7 +193,7 @@ export function NextAction({
     <>
       {!hub && <SimSeasonControl id={id} />}
       {actionError ? <p role="alert" className="text-destructive text-sm">{actionError}</p> : null}
-      <Button variant={hub ? "primary" : "secondary"} onClick={onAdvance} disabled={advance.isPending || foreground.hasPendingForegroundOperation}>
+      <Button variant={hub ? "primary" : "secondary"} onClick={onAdvance} disabled={eventCompletedUnsaved || advance.isPending || foreground.hasPendingForegroundOperation}>
         {advance.isPending || foreground.isPending ? "Advancing…" : "Advance week"}
         <ArrowRight className="size-4" aria-hidden="true" />
       </Button>
@@ -215,12 +222,14 @@ export function SimSeasonControl({ id }: { id: string }) {
   const latest = operation.data?.seasonAdvanceOperation;
   const activeTransition = seasonTransition.transition?.sessionId === id ? seasonTransition.transition : null;
   const trackedId = requestId ?? activeTransition?.requestId
-    ?? (latest?.state === "RUNNING" || latest?.state === "FAILED" ? latest.requestId : null);
+    ?? (latest?.state === "RUNNING" || latest?.state === "FAILED" || latest?.state === "COMPLETED_UNSAVED"
+      ? latest.requestId : null);
   const trackedState = latest?.requestId === trackedId ? latest.state : null;
   const running = trackedState === "RUNNING" && !operation.isError;
   const failed = trackedState === "FAILED";
-  const unknown = !completed && !running && !failed && (uncertain || operation.isError);
-  const blocked = completed || running || failed || unknown || operation.isPending || advanceSeason.isPending
+  const unsaved = trackedState === "COMPLETED_UNSAVED";
+  const unknown = !completed && !running && !failed && !unsaved && (uncertain || operation.isError);
+  const blocked = completed || running || failed || unsaved || unknown || operation.isPending || advanceSeason.isPending
     || foreground.hasPendingForegroundOperation || startingSeason == null;
 
   const finishCompleted = useCallback(async (operationId: string) => {
@@ -242,7 +251,9 @@ export function SimSeasonControl({ id }: { id: string }) {
       if (result.isError || status?.requestId !== operationId) updateTransition(operationId, "unknown");
       else if (status.state === "RUNNING") updateTransition(operationId, "running");
       else if (status.state === "FAILED") updateTransition(operationId, "failed");
-      else if (status.state === "COMPLETED") await finishCompleted(operationId);
+      else if (status.state === "COMPLETED" || status.state === "COMPLETED_UNSAVED") {
+        await finishCompleted(operationId);
+      }
     } catch {
       updateTransition(operationId, "unknown");
     }
@@ -257,7 +268,8 @@ export function SimSeasonControl({ id }: { id: string }) {
 
   useEffect(() => {
     if (activeTransition?.stage === "refreshing" || activeTransition?.stage === "opening") return;
-    if (trackedState === "COMPLETED" && trackedId && latest?.requestId === trackedId) {
+    if ((trackedState === "COMPLETED" || trackedState === "COMPLETED_UNSAVED")
+        && trackedId && latest?.requestId === trackedId) {
       void finishCompleted(trackedId);
     } else if (activeTransition && operation.isError) {
       updateTransition(activeTransition.requestId, "unknown");
@@ -284,7 +296,8 @@ export function SimSeasonControl({ id }: { id: string }) {
     try {
       const result = await foreground.run({ label: "Simulating season", presentation: "immediate" },
         () => advanceSeason.mutateAsync({ requestId: nextRequestId, expectedSeason: startingSeason }));
-      if (result?.advanceSeason.state === "COMPLETED") {
+      if (result?.advanceSeason.state === "COMPLETED"
+          || result?.advanceSeason.state === "COMPLETED_UNSAVED") {
         await finishCompleted(nextRequestId);
       } else if (result) {
         setUncertain(true);
@@ -297,7 +310,8 @@ export function SimSeasonControl({ id }: { id: string }) {
     }
   }
 
-  const notice = completed ? "Season complete. Opening the off-season review…"
+  const notice = completed && unsaved ? "Season complete, but its recovery autosave was not updated. Opening the off-season review…"
+    : completed ? "Season complete. Opening the off-season review…"
     : running ? "Season simulation is still running. Another simulation cannot start."
     : failed ? "Season simulation stopped after progress may have changed. This session cannot safely retry."
     : unknown ? "Season completion is unknown. Check status before taking another action."

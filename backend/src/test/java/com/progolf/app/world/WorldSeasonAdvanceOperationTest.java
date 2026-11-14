@@ -131,19 +131,19 @@ class WorldSeasonAdvanceOperationTest {
     }
 
     @Test
-    void failureAfterProgressIsRecordedAndBlocksUnsafeReplay() {
+    void unsavedCompletionAfterProgressIsRecordedAndBlocksUnsafeReplay() {
         ControlledStore store = new ControlledStore(dir);
         store.failAutosave = true;
         WorldService service = new WorldService(store);
         String id = service.create(OWNER, 33L, SMALL).id();
 
-        assertThatThrownBy(() -> service.advanceSeason(OWNER, id, "failed-request", 1))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("autosave failed");
+        SeasonAdvanceOperation unsaved = service.advanceSeason(OWNER, id, "failed-request", 1);
+        assertThat(unsaved.completedSeason()).isEqualTo(2);
         assertThat(service.status(OWNER, id).season()).isEqualTo(2); // in-memory progress was not rolled back
         assertThat(service.seasonAdvanceOperation(OWNER, id).state())
-                .isEqualTo(SeasonAdvanceOperation.State.FAILED);
+                .isEqualTo(SeasonAdvanceOperation.State.COMPLETED_UNSAVED);
         assertThat(service.advanceSeason(OWNER, id, "failed-request", 1).state())
-                .isEqualTo(SeasonAdvanceOperation.State.FAILED);
+                .isEqualTo(SeasonAdvanceOperation.State.COMPLETED_UNSAVED);
         assertThatThrownBy(() -> service.advanceSeason(OWNER, id, "unsafe-retry", 2))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(service.status(OWNER, id).season()).isEqualTo(2);
@@ -170,7 +170,7 @@ class WorldSeasonAdvanceOperationTest {
         }
 
         @Override
-        public String save(String ownerId, String saveId, SaveGame game) {
+        public String saveIfUnchanged(String ownerId, String saveId, String expectedRevision, SaveGame game) {
             if (WorldService.AUTOSAVE_ID.equals(saveId)) {
                 entered.countDown();
                 if (failAutosave) throw new IllegalStateException("autosave failed after simulation");
@@ -181,7 +181,7 @@ class WorldSeasonAdvanceOperationTest {
                     throw new IllegalStateException(e);
                 }
             }
-            return super.save(ownerId, saveId, game);
+            return super.saveIfUnchanged(ownerId, saveId, expectedRevision, game);
         }
     }
 }

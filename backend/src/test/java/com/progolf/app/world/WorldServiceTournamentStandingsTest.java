@@ -1,6 +1,7 @@
 package com.progolf.app.world;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.progolf.app.persistence.FilesystemSaveGameStore;
 import com.progolf.sim.player.Archetype;
@@ -50,7 +51,29 @@ class WorldServiceTournamentStandingsTest {
         assertThat(board.getFirst().position()).isEqualTo(1);
 
         long tournamentId = official.tournamentId();
+        var beforeStatistics = session.world().careerOf(playerId).statistics().snapshot();
+        var beforeFinances = session.world().financialAccountOf(playerId).snapshot();
+        assertThat(session.world().resultOf(tournamentId)).isEmpty();
         service.completeEvent(OWNER, session.id());
         assertThat(session.world().resultOf(tournamentId)).isPresent();
+        var completed = session.world().snapshot();
+        assertThat(completed.careers().get(playerId).statistics().eventsPlayed())
+                .isEqualTo(beforeStatistics.eventsPlayed() + 1);
+        assertThat(completed.careers().get(playerId).statistics().totalEarnings())
+                .isEqualTo(beforeStatistics.totalEarnings() + playerFinish.prize());
+        assertThat(completed.accounts().get(playerId).tournamentEarnings())
+                .isEqualTo(beforeFinances.tournamentEarnings() + playerFinish.prize());
+        assertThat(completed.seasonResults().stream().filter(result -> result.tournamentId() == tournamentId))
+                .hasSize(1);
+        assertThat(completed.tours().standings()).containsKey(playerId);
+        String checkpointRevision = new FilesystemSaveGameStore(saves.toString())
+                .loadVersioned(OWNER, WorldService.AUTOSAVE_ID).revision();
+
+        assertThatThrownBy(() -> service.completeEvent(OWNER, session.id()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("No player event is pending");
+        assertThat(session.world().snapshot()).isEqualTo(completed);
+        assertThat(new FilesystemSaveGameStore(saves.toString())
+                .loadVersioned(OWNER, WorldService.AUTOSAVE_ID).revision()).isEqualTo(checkpointRevision);
     }
 }

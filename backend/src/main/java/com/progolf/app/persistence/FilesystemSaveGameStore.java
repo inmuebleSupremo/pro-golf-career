@@ -45,17 +45,17 @@ public class FilesystemSaveGameStore implements SaveGameStore {
     private static final Logger LOG = LoggerFactory.getLogger(FilesystemSaveGameStore.class);
 
     /**
-     * The current on-disk format version. The prior v2 payload remains readable as a V1-course default.
+     * The current on-disk format version. V4 adds durable career lineage; V2 and V3 remain readable.
      *
      * <p>v2: every golfer carries a {@code potential} (spec: player-development). A v1 save has no ceiling
      * recorded for anyone, and one cannot be inferred after the fact — a golfer's talent is drawn at
      * generation, and their attributes today say nothing about how much headroom they were born with. Such a
      * save is rejected rather than loaded against a guessed ceiling.
      */
-    static final int FORMAT_VERSION = 3;
+    static final int FORMAT_VERSION = 4;
     /** The envelope stores the full snapshot as one string; 256 MiB allows roughly 11x the Season 5 payload. */
     static final int MAX_SAVE_STRING_LENGTH = 256 * 1024 * 1024;
-    private static final int LEGACY_FORMAT_VERSION = 2;
+    private static final int MIN_READABLE_FORMAT_VERSION = 2;
     private static final String EXTENSION = ".json";
     private static final ConcurrentMap<Path, ReentrantLock> LOCAL_SLOT_LOCKS = new ConcurrentHashMap<>();
 
@@ -172,7 +172,7 @@ public class FilesystemSaveGameStore implements SaveGameStore {
         } catch (IOException e) {
             throw new SaveCorruptedException(saveId);
         }
-        if (envelope.formatVersion() != FORMAT_VERSION && envelope.formatVersion() != LEGACY_FORMAT_VERSION) {
+        if (envelope.formatVersion() < MIN_READABLE_FORMAT_VERSION || envelope.formatVersion() > FORMAT_VERSION) {
             throw new SaveVersionMismatchException(saveId, envelope.formatVersion(), FORMAT_VERSION);
         }
         if (!sha256(envelope.payload()).equals(envelope.checksum())) {

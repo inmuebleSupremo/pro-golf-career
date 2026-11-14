@@ -22,7 +22,7 @@ import {
   type Situation,
 } from "@/components/play/play-shared";
 import { usePlayerProfile } from "@/lib/api/queries";
-import { isNotFound, isUnauthorized } from "@/lib/api/graphql-client";
+import { GraphQLRequestError, isNotFound, isUnauthorized } from "@/lib/api/graphql-client";
 import { useCompleteEvent, usePlayingHole, usePlayState } from "@/lib/api/play";
 
 export function PlayEvent({ id }: { id: string }) {
@@ -136,6 +136,7 @@ function EventComplete({
   const complete = useCompleteEvent(id);
   const foreground = useForegroundOperation();
   const [finishError, setFinishError] = useState<string | null>(null);
+  const [completedUnsaved, setCompletedUnsaved] = useState(false);
   const playerRow = playerGolferId ? leaderboard.find((r) => r.golfer.id === playerGolferId) : null;
   const finishing = complete.isPending || foreground.isPending;
 
@@ -154,8 +155,13 @@ function EventComplete({
       }
       router.push(`/career/${id}`);
       router.refresh();
-    } catch {
-      setFinishError("The event couldn't be finalized. Please try again.");
+    } catch (error) {
+      if (error instanceof GraphQLRequestError && error.classification === "COMPLETED_UNSAVED") {
+        setCompletedUnsaved(true);
+        setFinishError("The event completed, but its recovery autosave was not updated. Do not finish it again. Open Career and use Save & Return if available; review the autosave in Saves before deleting it.");
+      } else {
+        setFinishError("The event may have completed. Check Career status before trying again.");
+      }
     }
   }
 
@@ -220,7 +226,7 @@ function EventComplete({
           </div>
 
           {finishError ? <p role="alert" className="text-destructive text-sm">{finishError}</p> : null}
-          <Button size="lg" onClick={onFinish} disabled={finishing}>
+          <Button size="lg" onClick={onFinish} disabled={finishing || completedUnsaved}>
             {finishing ? "Finishing…" : "Finish event"}
           </Button>
         </div>

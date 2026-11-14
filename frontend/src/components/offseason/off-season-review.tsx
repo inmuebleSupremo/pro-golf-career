@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { SpokeMessage, useSpokeGate } from "@/components/career/spoke";
 import { useSeasonReviewTransition } from "@/components/loading/foreground-loading-provider";
 import { useCareerInbox, useCareerOverview, useSeasonReview } from "@/lib/api/queries";
+import { useSeasonAdvanceOperation } from "@/lib/api/play";
 import { formatMoney, ordinalPosition } from "@/lib/career/labels";
 import { humanize } from "@/lib/play/options";
 
@@ -48,6 +49,7 @@ export function OffSeasonReview({ id }: { id: string }) {
   const router = useRouter();
   const query = useSeasonReview(id);
   const inbox = useCareerInbox(id);
+  const unsavedCheckpoint = useSeasonAdvanceOperation(id).data?.seasonAdvanceOperation?.state === "COMPLETED_UNSAVED";
   const nextSeason = useCareerOverview(id).data?.world?.season ?? null;
   const { transition, update, finish } = useSeasonReviewTransition();
 
@@ -109,6 +111,13 @@ export function OffSeasonReview({ id }: { id: string }) {
 
   return (
     <OffSeasonShell>
+      {unsavedCheckpoint ? (
+        <p role="alert" className="text-destructive text-sm">
+          The season completed, but its recovery autosave was not updated. Keep this session open and use
+          Save &amp; Return for your named career if available. Review the existing autosave in Saves before
+          deleting it.
+        </p>
+      ) : null}
       <Hero season={review.season} stats={review.stats} onContinue={continueCareer} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

@@ -5,7 +5,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { SimSeasonControl } from "./identity-strip";
 
-type Operation = { requestId: string; startingSeason: number; state: "RUNNING" | "COMPLETED" | "FAILED"; completedSeason: number | null };
+type Operation = { requestId: string; startingSeason: number;
+  state: "RUNNING" | "COMPLETED" | "COMPLETED_UNSAVED" | "FAILED"; completedSeason: number | null };
 type Transition = { sessionId: string; requestId: string; expectedSeason: number; stage: string;
   checkStatus: () => void; openReview: () => void };
 const state = vi.hoisted(() => ({
@@ -153,6 +154,33 @@ it("reconciles a lost response when the backend already completed", async () => 
   expect(state.invalidate).toHaveBeenCalledTimes(1);
   expect(state.transition?.stage).toBe("opening");
   expect(host.textContent).not.toContain("couldn't be completed");
+});
+
+it("opens Season Review after a completed but unsaved response without offering another simulation", async () => {
+  state.mutate.mockImplementation(async ({ requestId }: { requestId: string }) => {
+    state.operation = { requestId, startingSeason: 1, state: "COMPLETED_UNSAVED", completedSeason: 2 };
+    return { advanceSeason: state.operation };
+  });
+  await confirm();
+  render();
+  expect(state.push).toHaveBeenCalledExactlyOnceWith("/career/career-session/offseason");
+  expect(host.textContent).toContain("recovery autosave was not updated");
+  expect(button("Confirm").disabled).toBe(true);
+  expect(state.mutate).toHaveBeenCalledTimes(1);
+});
+
+it("reconciles an unsaved completion after the original response is lost", async () => {
+  state.mutate.mockRejectedValue(new TypeError("fetch failed"));
+  state.refetch.mockImplementation(async () => {
+    const requestId = state.mutate.mock.calls[0][0].requestId;
+    state.operation = { requestId, startingSeason: 1, state: "COMPLETED_UNSAVED", completedSeason: 2 };
+    return { data: { seasonAdvanceOperation: state.operation } };
+  });
+  await confirm();
+  render();
+  expect(state.push).toHaveBeenCalledExactlyOnceWith("/career/career-session/offseason");
+  expect(button("Confirm").disabled).toBe(true);
+  expect(state.mutate).toHaveBeenCalledTimes(1);
 });
 
 it("shows a running operation, blocks resubmission and later completes", async () => {

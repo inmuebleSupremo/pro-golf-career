@@ -2,6 +2,7 @@ package com.progolf.app.api;
 
 import com.progolf.app.persistence.SaveConflictException;
 import com.progolf.app.persistence.SaveNotFoundException;
+import com.progolf.app.world.CompletedWithoutAutosaveException;
 import com.progolf.app.world.WorldSessionNotFoundException;
 import graphql.ErrorClassification;
 import graphql.GraphQLError;
@@ -33,6 +34,9 @@ public class GraphQlErrorResolver extends DataFetcherExceptionResolverAdapter {
     }
 
     private static ErrorClassification classify(Throwable ex) {
+        if (ex instanceof CompletedWithoutAutosaveException) {
+            return ErrorClassification.errorClassification("COMPLETED_UNSAVED");
+        }
         if (ex instanceof SaveConflictException) {
             return ErrorClassification.errorClassification("CONFLICT");
         }

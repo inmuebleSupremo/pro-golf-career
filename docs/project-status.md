@@ -52,6 +52,7 @@ Some OpenSpec change directories remain unarchived with checked tasks, including
 | P2 · design decision | Career count | Revisit whether a maximum number of named careers is desirable. No limit has been approved. |
 | P2 · candidate | Season Review | Review duplicated Continue actions and the bottom panel covering review content; confirm exact behavior in the browser before scoping a correction. |
 | P1 · confirmed limitation | Season simulation | Advancing a season can exceed the GraphQL proxy's response-header timeout. Duplicate-operation protection and safe reconciliation are merged; performance or transport optimization is still open. |
+| P2 · known limitation | Finish Event response | The Finish Event UI handles a received `COMPLETED_UNSAVED` error, but an entirely lost completion response has no event-operation query for reconciliation. The outcome must be checked from current career state before any retry; this is a recovery/clarity gap, not evidence that an event was recorded twice. |
 | P2 · confirmed limitation | Save growth | Save loading uses a bounded 256 MiB JSON payload-string limit. Long-term snapshot growth remains a scaling concern. Save listing currently reads full save envelopes and parses snapshot payloads to extract metadata; metadata access could be made cheaper. |
 | P3 · accepted deferral | Greens | Broader procedural green-shape and contour variety remains later work, as recorded in [player experience](backend/player-experience.md#physical-putting-v1-first-playable-milestone). |
 

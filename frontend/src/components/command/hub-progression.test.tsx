@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { NextAction } from "./identity-strip";
+import { GraphQLRequestError } from "@/lib/api/graphql-client";
 
 const state = vi.hoisted(() => ({
   push: vi.fn(),
@@ -98,4 +99,17 @@ it("shows the appropriate pending action and blocks advancement during season si
   expect(host.textContent).toContain("Check Schedule for season progression status");
   expect(host.querySelector("button")).toBeNull();
   expect(state.advance).not.toHaveBeenCalled();
+});
+
+it("reports a completed event with an unsaved autosave without offering Finish again", async () => {
+  state.complete.mockRejectedValue(new GraphQLRequestError("checkpoint rejected", 200, "COMPLETED_UNSAVED"));
+  render(true, true);
+  await act(async () => {
+    host.querySelector("button")?.click();
+    await Promise.resolve();
+  });
+  expect(state.complete).toHaveBeenCalledTimes(1);
+  expect(host.textContent).toContain("event completed, but its recovery autosave was not updated");
+  expect(host.querySelector("button")?.disabled).toBe(true);
+  expect(state.push).not.toHaveBeenCalled();
 });
