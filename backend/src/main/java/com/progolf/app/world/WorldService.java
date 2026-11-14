@@ -31,6 +31,7 @@ import com.progolf.app.api.dto.SeasonStatDto;
 import com.progolf.app.api.dto.WorldStatusDto;
 import com.progolf.app.api.dto.PinPlacementStatusDto;
 import com.progolf.app.persistence.SaveConflictException;
+import com.progolf.app.persistence.SaveNotFoundException;
 import com.progolf.app.persistence.SaveGame;
 import com.progolf.app.persistence.SaveGameStore;
 import com.progolf.app.persistence.SaveMetadata;
@@ -89,6 +90,7 @@ import com.progolf.sim.world.PlayerScheduleEntry;
 import com.progolf.sim.world.World;
 import com.progolf.sim.world.WorldConfig;
 import com.progolf.sim.world.WorldConstants;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -178,9 +180,13 @@ public class WorldService {
         WorldSession session = required(ownerId, sessionId);
         synchronized (session.world()) {
             session = required(ownerId, sessionId);
+            if (AUTOSAVE_ID.equals(saveId)) {
+                saveAutosave(ownerId, session);
+                return;
+            }
             SaveGame game = capture(session, saveId);
             String revision;
-            if (!AUTOSAVE_ID.equals(saveId) && saveId.equals(session.originSaveId())) {
+            if (saveId.equals(session.originSaveId())) {
                 if (session.originRevision() == null) {
                     throw new IllegalStateException("This session has no revision for its original save");
                 }
@@ -190,12 +196,57 @@ public class WorldService {
             }
             // The original explicit-save API remains available for creation and existing callers. A write to
             // another slot never changes provenance; a successful write to the source advances its revision.
-            if (!AUTOSAVE_ID.equals(saveId)) {
-                WorldSession current = session;
-                sessions.computeIfPresent(sessionId, (id, stored) -> stored.originSaveId() == null
-                        || saveId.equals(stored.originSaveId())
-                        ? new WorldSession(id, current.ownerId(), current.seed(), current.world(), saveId, revision)
-                        : stored);
+            WorldSession current = session;
+            sessions.computeIfPresent(sessionId, (id, stored) -> stored.originSaveId() == null
+                    || saveId.equals(stored.originSaveId())
+                    ? new WorldSession(id, current.ownerId(), current.seed(), current.world(), saveId, revision,
+                            current.careerLineageId(), current.autosaveGeneration())
+                    : stored);
+        }
+    }
+
+    private void saveAutosave(String ownerId, WorldSession session) {
+        SaveGame snapshot = capture(session, AUTOSAVE_ID);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            VersionedSave current;
+            try {
+                current = saveStore.loadVersioned(ownerId, AUTOSAVE_ID);
+            } catch (SaveNotFoundException absent) {
+                current = null;
+            }
+            Map<String, Long> heads = new LinkedHashMap<>();
+            if (current != null) {
+                SaveGame stored = current.game();
+                if (stored.autosaveHeads() != null) heads.putAll(stored.autosaveHeads());
+                String storedLineage = stored.careerLineageId();
+                if (storedLineage == null) {
+                    // A legacy autosave has no provable relationship to any named career. Only a session
+                    // descended from this exact recovery file may replace it without an owner decision.
+                    storedLineage = legacyLineageId(ownerId, AUTOSAVE_ID, current.revision());
+                }
+                heads.putIfAbsent(storedLineage, stored.autosaveGeneration());
+                if ((stored.careerLineageId() == null || storedLineage.startsWith("legacy-autosave-"))
+                        && !session.careerLineageId().equals(storedLineage)) {
+                    throw new SaveConflictException(AUTOSAVE_ID);
+                }
+            }
+            Long head = heads.get(session.careerLineageId());
+            if (head != null && head != session.autosaveGeneration()) {
+                throw new SaveConflictException(AUTOSAVE_ID);
+            }
+            long nextGeneration = Math.addExact(session.autosaveGeneration(), 1);
+            heads.put(session.careerLineageId(), nextGeneration);
+            SaveGame checkpoint = new SaveGame(snapshot.seed(), snapshot.config(), snapshot.snapshot(),
+                    snapshot.metadata(), snapshot.scheduleReviewAcknowledgedSeason(),
+                    snapshot.staffReviewAcknowledgedSeason(), snapshot.careerLineageId(), nextGeneration, heads);
+            try {
+                saveStore.saveIfUnchanged(ownerId, AUTOSAVE_ID, current == null ? null : current.revision(),
+                        checkpoint);
+                sessions.put(session.id(), new WorldSession(session.id(), ownerId, session.seed(), session.world(),
+                        session.originSaveId(), session.originRevision(), session.careerLineageId(), nextGeneration));
+                return;
+            } catch (SaveConflictException changedDuringWrite) {
+                if (attempt == 4) throw changedDuringWrite;
             }
         }
     }
@@ -216,7 +267,8 @@ public class WorldService {
                     try {
                         String revision = saveStore.saveIfUnchanged(ownerId, namedId, null, game);
                         sessions.put(sessionId, new WorldSession(session.id(), ownerId, session.seed(),
-                                session.world(), namedId, revision));
+                                session.world(), namedId, revision, session.careerLineageId(),
+                                session.autosaveGeneration()));
                         return game.metadata();
                     } catch (SaveConflictException collision) {
                         // A generated id collided with an existing slot. Try a different id; never overwrite it.
@@ -227,7 +279,7 @@ public class WorldService {
             SaveGame game = capture(session, origin);
             String revision = saveStore.saveIfUnchanged(ownerId, origin, session.originRevision(), game);
             sessions.put(sessionId, new WorldSession(session.id(), ownerId, session.seed(), session.world(),
-                    origin, revision));
+                    origin, revision, session.careerLineageId(), session.autosaveGeneration()));
             return game.metadata();
         }
     }
@@ -239,7 +291,8 @@ public class WorldService {
         SaveMetadata metadata = new SaveMetadata(saveId, Instant.now(), world.currentSeason(), world.currentWeek(),
                 world.playerGolferId().orElse(null));
         return new SaveGame(session.seed(), world.config(), snapshot, metadata,
-                scheduleReviewAcknowledgements.get(session.id()), staffReviewAcknowledgements.get(session.id()));
+                scheduleReviewAcknowledgements.get(session.id()), staffReviewAcknowledgements.get(session.id()),
+                session.careerLineageId(), session.autosaveGeneration(), null);
     }
 
     /** Loads one of the owner's saves into a new session they own and returns it (the world continues identically). */
@@ -248,7 +301,12 @@ public class WorldService {
         SaveGame game = loaded.game();
         World world = World.restore(game.seed(), game.config(), game.snapshot());
         String sessionId = UUID.randomUUID().toString();
-        WorldSession session = new WorldSession(sessionId, ownerId, game.seed(), world, saveId, loaded.revision());
+        String lineageId = game.careerLineageId();
+        if (lineageId == null) {
+            lineageId = legacyLineageId(ownerId, saveId, loaded.revision());
+        }
+        WorldSession session = new WorldSession(sessionId, ownerId, game.seed(), world, saveId,
+                loaded.revision(), lineageId, game.autosaveGeneration());
         sessions.put(sessionId, session);
         if (game.scheduleReviewAcknowledgedSeason() != null) {
             scheduleReviewAcknowledgements.put(sessionId, game.scheduleReviewAcknowledgedSeason());
@@ -257,6 +315,14 @@ public class WorldService {
             staffReviewAcknowledgements.put(sessionId, game.staffReviewAcknowledgedSeason());
         }
         return session;
+    }
+
+    private static String legacyLineageId(String ownerId, String saveId, String revision) {
+        // The saved file revision is stable across independent loads. Separate namespaces prevent an old
+        // autosave from being mistaken for a named career whose ancestry was never recorded.
+        String source = "pro-golf-career/legacy-lineage/v1\0" + ownerId + "\0" + saveId + "\0" + revision;
+        String kind = AUTOSAVE_ID.equals(saveId) ? "legacy-autosave-" : "legacy-named-";
+        return kind + UUID.nameUUIDFromBytes(source.getBytes(StandardCharsets.UTF_8));
     }
 
     /** The metadata of every save owned by {@code ownerId}, newest first. */
@@ -379,7 +445,7 @@ public class WorldService {
         if (!started.get()) return selected;
         SeasonProfile profile = null;
         long operationStart = 0;
-        boolean completedSuccessfully = false;
+        String outcome = "FAILED";
         try {
             if (Boolean.getBoolean(SEASON_PROFILE_PROPERTY)) {
                 profile = SeasonProfile.start();
@@ -390,10 +456,19 @@ public class WorldService {
                     throw new IllegalStateException("The career advanced before this simulation started");
                 }
                 SeasonProfile.time(SeasonProfile.Metric.WORLD, session.world()::advanceSeason);
-                SeasonProfile.time(SeasonProfile.Metric.AUTOSAVE, () -> autosave(ownerId, id));
+                try {
+                    SeasonProfile.time(SeasonProfile.Metric.AUTOSAVE, () -> autosave(ownerId, id));
+                } catch (RuntimeException | Error checkpointFailure) {
+                    SeasonAdvanceOperation unsaved = running.completedUnsaved(session.world().currentSeason());
+                    seasonAdvanceOperations.put(id, unsaved);
+                    outcome = "COMPLETED_UNSAVED";
+                    LOG.warn("Season completed for session {} but its autosave was not written: {}", id,
+                            checkpointFailure.toString());
+                    return unsaved;
+                }
                 SeasonAdvanceOperation completed = running.completed(session.world().currentSeason());
                 seasonAdvanceOperations.put(id, completed);
-                completedSuccessfully = true;
+                outcome = "COMPLETED";
                 return completed;
             }
         } catch (RuntimeException | Error failure) {
@@ -402,7 +477,7 @@ public class WorldService {
         } finally {
             if (profile != null) {
                 try {
-                    LOG.info("{}", profile.summary(completedSuccessfully ? "COMPLETED" : "FAILED",
+                    LOG.info("{}", profile.summary(outcome,
                             System.nanoTime() - operationStart));
                 } finally {
                     profile.close();
@@ -1337,8 +1412,15 @@ public class WorldService {
 
     /** Completes the player's finished event so its result counts and the paused week resumes, then autosaves. */
     public void completeEvent(String ownerId, String sessionId) {
-        required(ownerId, sessionId).world().completePlayerEvent();
-        autosave(ownerId, sessionId);
+        WorldSession session = required(ownerId, sessionId);
+        synchronized (session.world()) {
+            session.world().completePlayerEvent();
+            try {
+                autosave(ownerId, sessionId);
+            } catch (RuntimeException | Error checkpointFailure) {
+                throw new CompletedWithoutAutosaveException("Player event", checkpointFailure);
+            }
+        }
     }
 
     private PlayableEvent playerEvent(String ownerId, String sessionId) {

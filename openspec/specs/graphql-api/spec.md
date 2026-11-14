@@ -33,7 +33,7 @@ The GraphQL schema SHALL expose only application-layer DTO types. No raw simulat
 
 ### Requirement: World Lifecycle Mutations
 
-The API SHALL let a client create and advance world sessions. It SHALL create a session from a seed, optionally with an explicit world configuration, and SHALL advance an existing session by a single week or a full season, returning the resulting status.
+The API SHALL let a client create and advance world sessions. It SHALL create a session from a seed, optionally with an explicit world configuration. Advance Week SHALL return world status; Sim Season SHALL return a session-scoped season-advance operation with its request id, starting season, state and completed season when available.
 
 #### Scenario: A world is created from a seed
 
@@ -45,10 +45,31 @@ The API SHALL let a client create and advance world sessions. It SHALL create a 
 - **WHEN** a client runs the create-world mutation with a seed and a configuration input
 - **THEN** a new session SHALL be created honoring the supplied configuration fields, with unset fields taking engine defaults
 
-#### Scenario: A world is advanced
+#### Scenario: A week is advanced
 
-- **WHEN** a client runs the advance-season or advance-week mutation for a known session id
-- **THEN** the session SHALL advance accordingly and the returned status SHALL reflect the new season and week
+- **WHEN** a client runs the advance-week mutation for a known session id outside an active season simulation
+- **THEN** the session SHALL advance according to the existing week rules and the returned world status SHALL reflect its new season and week
+
+### Requirement: Season Advance Operation Outcome And Reconciliation
+
+Sim Season SHALL register an operation for the owner and session before advancing the world. The same request id and starting season SHALL return the existing operation without advancing again. A different request SHALL NOT start while an operation is running, failed or completed without a saved checkpoint. The operation-status query SHALL expose the latest operation without waiting for the long-running world lock, so a client whose mutation response times out can discover its outcome. Successful gameplay followed by a durable autosave SHALL report `COMPLETED`; successful gameplay whose autosave fails or is rejected SHALL report `COMPLETED_UNSAVED` with the completed season. A gameplay failure SHALL remain distinct from either completion outcome.
+
+#### Scenario: Completed season is durably checkpointed
+
+- **WHEN** Sim Season finishes gameplay and its automatic checkpoint succeeds
+- **THEN** the operation SHALL report `COMPLETED` and the autosave SHALL contain the completed season
+
+#### Scenario: Completed season has no accepted checkpoint
+
+- **WHEN** Sim Season finishes gameplay but its automatic checkpoint is rejected or fails
+- **THEN** the operation SHALL report `COMPLETED_UNSAVED` and the completed season SHALL remain available in the live session
+- **AND THEN** a new Sim Season submission SHALL NOT replay or advance that session again
+
+#### Scenario: Lost mutation response is reconciled
+
+- **WHEN** the season-advance response times out or its connection is interrupted while the backend operation continues
+- **THEN** the client SHALL be able to query the session's operation and distinguish running, durably completed, completed-but-unsaved and failed outcomes
+- **AND THEN** repeating the original request id SHALL NOT advance another season
 
 ### Requirement: World Status Query
 
@@ -108,7 +129,7 @@ The API SHALL list the stored saved games as DTOs, newest first, each carrying t
 
 ### Requirement: Error Classification
 
-The API SHALL translate known engine-boundary failures into typed GraphQL errors rather than opaque server errors. A request naming an unknown world session SHALL yield a not-found-classified error, and a read for an unknown save SHALL likewise be not-found-classified.
+The API SHALL translate known engine-boundary failures into typed GraphQL errors rather than opaque server errors. A request naming an unknown world session SHALL yield a not-found-classified error, and a read for an unknown save SHALL likewise be not-found-classified. Save revision or autosave-generation conflicts SHALL be classified as `CONFLICT`. A player event whose gameplay completed but whose checkpoint failed SHALL instead be classified as `COMPLETED_UNSAVED`, distinct from both a gameplay failure and a durable completion.
 
 #### Scenario: An unknown session is queried
 
@@ -135,12 +156,24 @@ The API SHALL expose the player's standing management decisions as mutations, ea
 - **THEN** the engine SHALL apply the decision when affordable/valid and the corresponding pending list SHALL no longer contain it
 
 ### Requirement: Playable-Event Mutations
-The API SHALL let the player play or sim their paused event: play the current shot with a ball-strike intent, sim the current shot, sim the rest of the current hole, round, or event, and complete the finished event. Playing or visibly simming one canonical shot SHALL return its resolved outcome and materialized trace; completing the event SHALL resume the paused week and return world status. Playing SHALL authorize the session and reject stale intents before a stroke is resolved.
+The API SHALL let the player play or sim their paused event: play the current shot with a ball-strike intent, sim the current shot, sim the rest of the current hole, round, or event, and complete the finished event. Playing or visibly simming one canonical shot SHALL return its resolved outcome and materialized trace; completing the event SHALL resume the paused week, and a successful automatic checkpoint SHALL allow the mutation to return world status. Playing SHALL authorize the session and reject stale intents before a stroke is resolved. Completion of one pending event, its result feed and its automatic checkpoint SHALL be serialized on that session's world lock so concurrent Finish Event requests cannot record or checkpoint the same event twice.
 
 #### Scenario: Stale intent contains no trace
 - **WHEN** a client submits a stale ball-strike revision
 - **THEN** the typed stale result SHALL have no outcome and no trace
 - **AND THEN** no spatial or scoring state changes.
+
+#### Scenario: Concurrent Finish Event requests complete once
+
+- **WHEN** two Finish Event requests reach the same session while one finished player event is pending
+- **THEN** at most one SHALL complete and record that event, and the other SHALL be rejected after the pending event is cleared
+- **AND THEN** the rejected request SHALL NOT attempt another autosave
+
+#### Scenario: Player event completes without an accepted checkpoint
+
+- **WHEN** Finish Event completes gameplay but its automatic checkpoint is rejected or fails
+- **THEN** gameplay SHALL remain completed, and GraphQL SHALL return a `COMPLETED_UNSAVED`-classified error instead of a successful world status
+- **AND THEN** a further Finish Event request SHALL NOT replay the completed result
 
 ### Requirement: Persistence-Write Mutations
 

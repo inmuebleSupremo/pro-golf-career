@@ -66,6 +66,25 @@ class FilesystemSaveGameStoreTest {
     }
 
     @Test
+    void v4EnvelopeRetainsLineageAndExistingSaveProvenanceFields() throws Exception {
+        World world = World.create(124L, SMALL);
+        SaveGame base = gameFrom(world, 124L, "lineage");
+        SaveGame game = new SaveGame(base.seed(), base.config(), base.snapshot(), base.metadata(),
+                2, 3, "career-lineage-124");
+        store.save(OWNER, "lineage", game);
+
+        SaveEnvelope envelope = mapper.readValue(Files.readString(dir.resolve(OWNER).resolve("lineage.json")),
+                SaveEnvelope.class);
+        assertThat(envelope.formatVersion()).isEqualTo(4);
+        var payload = mapper.readTree(envelope.payload());
+        assertThat(payload.get("careerLineageId").asText()).isEqualTo("career-lineage-124");
+        assertThat(payload.get("scheduleReviewAcknowledgedSeason").asInt()).isEqualTo(2);
+        assertThat(payload.get("staffReviewAcknowledgedSeason").asInt()).isEqualTo(3);
+        assertThat(payload.get("metadata").get("saveId").asText()).isEqualTo("lineage");
+        assertThat(store.load(OWNER, "lineage")).isEqualTo(game);
+    }
+
+    @Test
     void aPayloadBeyondTheOldJacksonLimitIsListedAndLoadedWithCorrectMetadata() throws Exception {
         World world = World.create(123L, SMALL);
         world.advanceSeason();

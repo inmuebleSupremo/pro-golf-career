@@ -31,6 +31,11 @@ Each save SHALL record a format version and a checksum of its payload. On load, 
 - **WHEN** a save recorded with a format version the store does not support is loaded
 - **THEN** the load SHALL fail with a version-mismatch error
 
+#### Scenario: Earlier supported envelopes remain readable
+
+- **WHEN** a version 2 or 3 save envelope is loaded by the version 4 store
+- **THEN** its supported world and application state SHALL remain readable, with missing career-lineage provenance handled by the legacy policy below
+
 ### Requirement: Multiple Independent Saves
 
 The store SHALL hold multiple independent saves, each addressable by its own id within its owner's scope, without one affecting another. It SHALL be able to list the available saves for an owner (with their metadata) and delete a save. Saves SHALL be scoped to their owner: listing returns only that owner's saves, and loading or deleting a save the caller does not own SHALL report it as not found.
@@ -52,17 +57,63 @@ The store SHALL hold multiple independent saves, each addressable by its own id 
 
 ### Requirement: Autosave At Checkpoints
 
-The application SHALL autosave to a reserved slot, per owner, at natural checkpoints — after each season advance and after a player event completes — so ordinary progress is not lost. The autosave SHALL be an ordinary save (same format and guarantees) under a reserved id within the owner's scope, overwritten at each checkpoint, and loadable like any other. One owner's autosave SHALL NOT affect another's.
+The application SHALL attempt to autosave to one reserved slot per owner at natural checkpoints — after each season advance and after a player event completes. A successful autosave SHALL be an ordinary, loadable save with the same format and integrity guarantees. A rejected or failed checkpoint SHALL NOT be reported as durably saved. One owner's autosave SHALL NOT affect another's.
 
-#### Scenario: Advancing a season refreshes the autosave
+#### Scenario: Successful season checkpoint refreshes the autosave
 
-- **WHEN** a session advances a season
-- **THEN** the owner's reserved autosave slot SHALL be written with the world's current state, replacing that owner's previous autosave
+- **WHEN** a session completes a season and its autosave is accepted
+- **THEN** the owner's reserved autosave slot SHALL hold the completed world's current state
 
 #### Scenario: Autosaves are independent across owners
 
-- **WHEN** two owners each advance a season
+- **WHEN** two owners each complete an accepted season checkpoint
 - **THEN** each owner's reserved autosave SHALL hold their own world
+
+### Requirement: Career Lineage And Conditional Autosave Writes
+
+Application save provenance SHALL carry a stable career-lineage id, separate from the deterministic world snapshot. A new career SHALL receive a distinct lineage; ordinary save/load, Save As, and adoption of an autosave into a named career SHALL preserve it. The owner's single autosave payload SHALL retain the latest successful generation for each lineage it has checkpointed, including lineages that no longer occupy the slot. When a stored generation exists for a lineage, a session SHALL checkpoint only if its expected generation matches it; a lineage with no stored head MAY first take the slot. Success SHALL advance that generation, while rejection SHALL leave both the stored autosave and the session's generation unchanged. The store SHALL conditionally replace the autosave against its file revision atomically, retrying a bounded number of times if another writer changes the slot during the attempt. Named-save revision conflicts SHALL remain independent of autosave generations.
+
+#### Scenario: Stale session cannot replace newer recovery progress
+
+- **WHEN** two sessions load the same career and one writes a newer autosave before the other attempts a checkpoint from its older generation
+- **THEN** the older checkpoint SHALL be rejected without replacing the newer snapshot, even if the sessions are in the same season and week
+- **AND THEN** loading the autosave into a new session SHALL restore the newer persisted progress
+
+#### Scenario: Current session advances its own checkpoints
+
+- **WHEN** a session writes successive accepted checkpoints for its lineage
+- **THEN** each checkpoint SHALL advance its expected generation and remain eligible for the next write
+
+#### Scenario: Different careers share the slot without forgetting prior generations
+
+- **WHEN** an owner checkpoints a different career, then returns to a previously checkpointed career
+- **THEN** the different career SHALL be allowed to occupy the single autosave slot, and a current session of the prior lineage SHALL be allowed to retake it
+- **AND THEN** an older session of either checkpointed lineage SHALL remain stale
+
+#### Scenario: Concurrent slot changes preserve the accepted checkpoint
+
+- **WHEN** two sessions attempt conflicting autosave writes concurrently
+- **THEN** atomic conditional replacement SHALL prevent an older same-lineage snapshot from replacing the accepted checkpoint
+
+### Requirement: Legacy Save Lineage Compatibility
+
+Supported earlier save envelopes SHALL remain readable. A named save without lineage metadata SHALL receive a stable transitional lineage derived from its owner, save slot and saved-file revision, so independent loads of that exact file share identity. An unlineaged legacy autosave SHALL remain distinguishable from a named career of unproven ancestry. A session loaded from that recovery autosave MAY checkpoint its own lineage, but another career SHALL NOT replace the ambiguous recovery data through ordinary progression. The owner SHALL explicitly delete that autosave before another career can take the slot. Deleting the autosave SHALL also remove its stored lineage-generation history, because that history resides in the single autosave payload.
+
+#### Scenario: Legacy named career loads consistently
+
+- **WHEN** two sessions independently load the same supported named save without lineage metadata
+- **THEN** they SHALL receive the same transitional lineage without inferring identity from golfer name, seed, season, week or world similarity
+
+#### Scenario: Ambiguous legacy recovery is preserved
+
+- **WHEN** an unlineaged legacy autosave occupies the slot and a different career attempts to checkpoint
+- **THEN** the checkpoint SHALL be rejected and the recovery save SHALL remain readable and unchanged
+- **AND THEN** the owner MAY continue saving the named career to its own slot or explicitly delete the autosave before replacing it
+
+#### Scenario: Deleting the autosave resets its history
+
+- **WHEN** the owner explicitly deletes the autosave and a career then checkpoints to the empty slot
+- **THEN** the new autosave SHALL start a new stored lineage-generation history without retaining heads from the deleted payload
 
 ### Requirement: Engine Stays Serialization-Free
 

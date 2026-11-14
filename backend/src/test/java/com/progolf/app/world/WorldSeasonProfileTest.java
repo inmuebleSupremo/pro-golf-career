@@ -1,7 +1,6 @@
 package com.progolf.app.world;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.progolf.app.persistence.FilesystemSaveGameStore;
 import com.progolf.sim.core.SeasonProfile;
@@ -92,21 +91,23 @@ class WorldSeasonProfileTest {
     }
 
     @Test
-    void failedAutosaveLogsFailureAndClearsRequestScope(CapturedOutput output) {
+    void unsavedCompletionLogsCheckpointFailureAndClearsRequestScope(CapturedOutput output) {
         System.setProperty(PROPERTY, "true");
         WorldService service = new WorldService(new FilesystemSaveGameStore(dir.resolve("failure").toString()) {
             @Override
-            public String save(String ownerId, String saveId, com.progolf.app.persistence.SaveGame game) {
+            public String saveIfUnchanged(String ownerId, String saveId, String expectedRevision,
+                                          com.progolf.app.persistence.SaveGame game) {
                 throw new IllegalStateException("deliberate autosave failure");
             }
         });
         String id = service.create(OWNER, 13L, TINY).id();
 
-        assertThatThrownBy(() -> service.advanceSeason(OWNER, id, "failed", 1))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("deliberate autosave failure");
-        assertThat(service.seasonAdvanceOperation(OWNER, id).state()).isEqualTo(SeasonAdvanceOperation.State.FAILED);
+        assertThat(service.advanceSeason(OWNER, id, "failed", 1).state())
+                .isEqualTo(SeasonAdvanceOperation.State.COMPLETED_UNSAVED);
+        assertThat(service.seasonAdvanceOperation(OWNER, id).state())
+                .isEqualTo(SeasonAdvanceOperation.State.COMPLETED_UNSAVED);
         assertThat(SeasonProfile.current()).isNull();
-        assertThat(output.toString()).contains("seasonProfile outcome=FAILED", "greenGenerationMs=",
+        assertThat(output.toString()).contains("seasonProfile outcome=COMPLETED_UNSAVED", "greenGenerationMs=",
                 "strategicPlanningMs=", "exposureMs=", "physicalPuttSolverMs=", "strategicPlanningCalls=",
                 "exposureCalls=", "physicalPuttSolverCalls=");
     }

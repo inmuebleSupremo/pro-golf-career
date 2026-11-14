@@ -272,7 +272,7 @@ type WorldStatus {
     pendingEventFinished: Boolean!
 }
 
-enum SeasonAdvanceState { RUNNING COMPLETED FAILED }
+enum SeasonAdvanceState { RUNNING COMPLETED COMPLETED_UNSAVED FAILED }
 
 type SeasonAdvanceOperation {
     requestId: ID!
