@@ -419,7 +419,21 @@ public class WorldService {
 
     /** Advances one of the owner's sessions by one week. */
     public void advanceWeek(String ownerId, String id) {
-        required(ownerId, id).world().advanceWeek();
+        WorldSession session = required(ownerId, id);
+        // Check before taking the world lock: a request made during Sim Season must not queue behind it
+        // and then advance the newly opened season after the operation becomes COMPLETED.
+        SeasonAdvanceOperation observed = seasonAdvanceOperations.get(id);
+        if (observed != null && observed.state() == SeasonAdvanceOperation.State.RUNNING) {
+            throw new IllegalStateException("Advance Week is unavailable while a season simulation is running");
+        }
+        synchronized (session.world()) {
+            // A simulation may have registered or completed while this request waited for the world lock.
+            // Reject that overlap even if its latest state is already COMPLETED.
+            if (seasonAdvanceOperations.get(id) != observed) {
+                throw new IllegalStateException("Advance Week overlapped a season simulation");
+            }
+            session.world().advanceWeek();
+        }
     }
 
     /** A read-only status view of one of the owner's sessions. */
