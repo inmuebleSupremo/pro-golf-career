@@ -114,8 +114,9 @@ least 32 characters.
 
 - **Saves** and **user accounts** are stored as JSON files on disk, not in a database.
   - Users → `backend/users/` (`PROGOLF_USERS_DIR`), Saves → `backend/saves/` (`PROGOLF_SAVES_DIR`).
-  - Implemented by `FilesystemUserStore` and `FilesystemSaveGameStore`; a whole `WorldSession` is snapshotted
-    via Jackson (`SimSnapshotModule`) and re-hydrated on load.
+  - Implemented by `FilesystemUserStore` and `FilesystemSaveGameStore`; saves contain the world snapshot and
+    application save provenance. Jackson uses `SimSnapshotModule` for engine values; loading creates a new
+    `WorldSession`.
 - **Auth**: Spring Security + JWT (HS256, Nimbus) — short-lived access token (15 min) + long-lived refresh
   token (14 days), BCrypt password hashing. The frontend keeps tokens in httpOnly cookies.
 

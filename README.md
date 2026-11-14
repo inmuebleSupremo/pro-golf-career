@@ -34,7 +34,7 @@ Completed events feed into a persistent career history with results, round score
 - **Browser/API boundary:** Next.js route handlers act as a backend-for-frontend layer. The browser talks to the BFF, which calls the Spring GraphQL API server-side and maintains the session in httpOnly cookies.
 - **Simulation boundary:** `com.progolf.sim.*` contains the framework-free game engine. Spring, GraphQL resolvers, authentication, and persistence live in `com.progolf.app.*`; an architecture test guards that separation.
 - **Physical putting:** current play uses a deterministic, backend-authoritative GreenSurface and putting solver. The frontend presents controls and playback; it does not evaluate the roll or decide whether the ball was holed.
-- **Persistence:** there is currently no database. User accounts and career saves are stored as JSON files, and a full world session is snapshotted and restored through the save-game store.
+- **Persistence:** there is currently no database. User accounts and career saves are stored as JSON files; the save-game store persists the world snapshot and application save provenance, then loads them into a new session.
 
 The GraphQL schema is checked in at [`backend/src/main/resources/graphql/schema.graphqls`](backend/src/main/resources/graphql/schema.graphqls). Frontend operation types are generated from that schema before frontend development, type-checking, and production builds.
 

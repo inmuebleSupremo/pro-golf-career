@@ -96,8 +96,9 @@ The consumer hook prevents duplicate submissions for enrolled actions; tracking 
 **Current (as built):** filesystem JSON, no database.
 
 * User accounts → JSON files under `PROGOLF_USERS_DIR` (`FilesystemUserStore`).
-* Career saves → JSON files under `PROGOLF_SAVES_DIR` (`FilesystemSaveGameStore`); a full `WorldSession` is
-  snapshotted/rehydrated via Jackson (`SimSnapshotModule`).
+* Career saves → JSON files under `PROGOLF_SAVES_DIR` (`FilesystemSaveGameStore`); each save contains a world
+  snapshot and application save provenance. Jackson uses `SimSnapshotModule` for engine values; loading creates
+  a new `WorldSession`.
 
 **Planned:** PostgreSQL 17 as a store adapter behind the existing `UserStore` / `SaveGameStore` interfaces —
 for persistent world state, accounts, saves, and historical data. Not yet wired in.
