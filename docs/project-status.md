@@ -1,16 +1,16 @@
 # Project status and observation backlog
 
-**Snapshot: 14 November 2026.** This is the current handover and observation backlog, not a replacement for the [product requirements](backend/explore.md), [player decision surface](backend/player-experience.md), or applicable [OpenSpec specifications](../openspec/specs/). Update this page after each accepted workstream. Git and code remain the evidence for implementation; observations below are not all approved changes.
+**Status updated: 25 November 2026.** This is the current handover and observation backlog, not a replacement for the [product requirements](backend/explore.md), [player decision surface](backend/player-experience.md), or applicable [OpenSpec specifications](../openspec/specs/). Update this page after each accepted workstream. Git and code remain the evidence for implementation; observations below are not all approved changes.
 
 ## Current phase and next task
 
-**Observation-led Gameplay and Interface Completion.** The end-to-end career is playable. Improve existing gameplay and interface behavior through bounded corrections based on observed issues. No new major feature or immediate production-deployment phase has been approved.
+**Gradual production maturation.** The end-to-end career is playable. Improve the existing application through targeted reliability, security, performance, user experience, maintainability, deployment, and operational-readiness work. Preserve gameplay, save compatibility, and deterministic simulation. Previously discussed new gameplay systems and broad redesigns are deferred, not active roadmap commitments.
 
-**Recommended next workstream: career navigation hierarchy and grouping.** Review the current sidebar destinations, their frequency and importance, and the hub cards. Produce a design recommendation for user review first; implementation is not yet authorized. A larger career calendar and time-progression redesign is a separate future task.
+**Recommended next engineering priority: backend career-session lifecycle and resource management.** Investigate the in-memory sessions and related operation and practice state held by [WorldService](../backend/src/main/java/com/progolf/app/world/WorldService.java) under representative use before scoping a correction. This recommendation does not authorize implementation. The owner has closed the career-navigation investigation without a redesign and accepts the current Season Review for now.
 
 ## Integration and verification snapshot
 
-At this snapshot, local `develop` and `origin/develop` both point to `4e05a66`; the working tree was clean before this documentation task. The merge commits below are on `develop`'s first-parent history. “Merged” means integrated in Git; browser acceptance is identified separately where the owner reported it. The cited implementation commits include focused tests, which were not rerun for this documentation-only task.
+At the 14 November handover, local `develop` and `origin/develop` both pointed to `4e05a66`. The owner subsequently verified a clean, synchronized `9f30130` baseline on `develop`; this documentation-only closeout did not perform Git operations to recheck it. The merge commits below are historical integration evidence on `develop`'s first-parent history. “Merged” means integrated in Git; browser acceptance is identified separately where the owner reported it. The cited implementation commits include focused tests, which were not rerun for this documentation-only task.
 
 | Completed work | Integration evidence on `develop` | Verification boundary |
 | --- | --- | --- |
@@ -30,11 +30,15 @@ Successful recovery of a **Season 5 career** is a user-reported Docker/browser a
 
 The merged autosave safeguard keeps one slot per owner and prevents a stale session of the same career lineage from replacing a newer checkpoint. A different career may take the slot, except when it contains ambiguous legacy recovery data without lineage provenance. That legacy autosave remains loadable; the owner must review and explicitly delete it before a different career can use the slot. Deletion also resets the slot's stored lineage-generation history. Named-save revision checks remain separate.
 
+The owner and ChatGPT completed and accepted an isolated filesystem backup-and-restoration rehearsal with synthetic data. Both account authentication and named-career loading succeeded after restoration. The owner advanced the restored career from Season 1 Week 2 to Week 3, used Save & Return, and reopened the progressed career; named and recovery saves were present. The archive was verified before restoration, and the restored files matched it. See the [filesystem backup and recovery procedure](operations/filesystem-backup-and-recovery.md) for the evidence boundary, consistency requirements, and limitations. This acceptance does not establish an automated backup schedule or certify recovery of every historical save.
+
+The career-navigation source investigation and owner-led browser review are closed without implementation. The owner identified no need for a navigation redesign. Season Review is acceptable for now. These decisions supersede the earlier navigation and Season Review recommendations below without erasing their historical observations.
+
 Some OpenSpec change directories remain unarchived with checked tasks, including presentation and career-inbox work. Their presence is not evidence that they are the current priority or that every manual check is finished; read their own `tasks.md` before resuming them. The [player-experience roadmap](backend/player-experience.md) describes longer-term possibilities, not the current task order.
 
 ## Working principles
 
-- Preserve existing gameplay functionality, save compatibility, saved careers, and progression. Favor narrow fixes with an observed failure or clear decision benefit.
+- Preserve existing gameplay functionality, save compatibility, saved careers, and progression. Favor narrow fixes with an observed failure or clear decision benefit. Defer new gameplay systems and foundational redesigns.
 - Keep human and AI golfers consistent where rules require parity; retain backend authority, deterministic simulation, and the pure `sim.*` / application boundary.
 - Avoid broad redesign from vague instructions. Review an observation, agree on scope, then implement a focused change. Avoid new major features until the existing experience has been reviewed and improved.
 - Codex investigates and implements focused repository work. The user performs Docker/browser acceptance and manual SourceTree version control. Leave Codex changes uncommitted unless separately instructed.
@@ -45,16 +49,18 @@ Some OpenSpec change directories remain unarchived with checked tasks, including
 
 | Priority / state | Area | Observation or decision to review |
 | --- | --- | --- |
-| P2 · candidate | Career navigation | Review sidebar destination hierarchy and grouping; separate frequent career actions from secondary records and information. Review the usefulness and order of hub bento cards. Mobile navigation and account access are already implemented. |
-| P2 · design decision | Career time | Consider moving career-time simulation controls from the top bar into Schedule/Calendar. Explore a deliberate FIFA-style week/month/season flow with checkpoints for training, development, equipment, entries, and other meaningful decisions. Preserve existing in-round simulation controls. This is separate from the next navigation review. |
+| P2 · closed without implementation | Career navigation | The earlier investigation considered sidebar destination hierarchy, grouping, and hub cards; mobile navigation and account access were already implemented. The owner reviewed the running application and found no need for a navigation redesign. |
+| P2 · accepted deferral | Career time | The earlier observation considered moving career-time simulation controls into Schedule/Calendar and a week/month/season flow with decision checkpoints while preserving in-round controls. Time-control redesign is deferred and is not an active roadmap commitment. |
+| P2 · candidate | Week 1 event navigation | Owner-observed potentially inconsistent navigation into a Week 1 event. Capture the exact career state, route, and action sequence before treating this as a confirmed defect or scoping a correction. |
+| P2 · candidate | Post-event career summary | Owner observed bankroll and last-result information that appeared stale immediately after event completion and corrected after reopening the career. Verify the affected surfaces and refresh timing before scoping a correction. |
 | P2 · candidate | Schedule | Review labels, filters, and information that may be unnecessary to players, including “Corrected flag placement.” |
 | P2 · candidate | Golfer creation | Improve the long scrolling setup; consider responsive steps while retaining every current choice and gameplay effect. |
 | P1 · candidate | Play information | Make wind speed and direction easier to see while deciding a shot. |
 | P3 · candidate | Course presentation | Review Full Hole lighting, fade, and course presentation; keep the stronger Putting and Around the Green treatments where appropriate. Review Free Practice background and lighting consistency. |
-| P1 · candidate | Practice parity | Consider greenside wedge parity in Free Practice after reviewing current play and training behavior. This is not an approved implementation slice. |
+| P1 · accepted deferral | Practice parity | The earlier candidate considered greenside wedge parity in Free Practice after reviewing current play and training behavior. This would expand gameplay and is deferred; it is not an approved implementation slice. |
 | P2 · candidate | Saved careers | Make careers easier to identify by golfer name where useful. Review exit availability in immersive Play and Practice. |
-| P2 · design decision | Career count | Revisit whether a maximum number of named careers is desirable. No limit has been approved. |
-| P2 · candidate | Season Review | Review duplicated Continue actions and the bottom panel covering review content; confirm exact behavior in the browser before scoping a correction. |
+| P2 · accepted deferral | Career count | The earlier design question asked whether a maximum number of named careers is desirable. No limit has been approved; this is deferred. |
+| P2 · accepted for now | Season Review | The earlier observation concerned duplicated Continue actions and the bottom panel covering review content. The owner reviewed Season Review and accepts it for now; no correction is currently scoped. |
 | P1 · confirmed limitation | Season simulation | Advancing a season can exceed the GraphQL proxy's response-header timeout. Duplicate-operation protection and safe reconciliation are merged; performance or transport optimization is still open. |
 | P2 · known limitation | Finish Event response | The Finish Event UI handles a received `COMPLETED_UNSAVED` error, but an entirely lost completion response has no event-operation query for reconciliation. The outcome must be checked from current career state before any retry; this is a recovery/clarity gap, not evidence that an event was recorded twice. |
 | P2 · known limitation | Legacy autosave | An ambiguous legacy recovery autosave remains readable and protected; replacing it with another career requires explicit owner deletion after reviewing the recovery data. Deletion resets the slot's stored lineage-generation history. |
@@ -68,4 +74,4 @@ Promote a candidate to an implementation task only after an observed example, in
 1. Ask the new ChatGPT or Codex conversation to read `AGENTS.md`, this page, `README.md`, and the relevant directory `AGENTS.md`. For product questions, read `docs/backend/explore.md` and `docs/backend/player-experience.md`; for UI work, read the relevant `docs/frontend/` guides and OpenSpec specifications/active change.
 2. Run `git status --short --branch` and `git log --oneline --decorate --first-parent -15` to verify the actual branch, working tree, and integration state. Do not infer a merge from a prior conversation.
 3. Use **this page's Observation-led backlog** for active observations and the **Current phase and next task** section for the current recommendation. Treat merge commits and code/tests as repository evidence, and the cited browser checks and Season 5 recovery as owner-reported acceptance. Cross-session autosave protection is merged at `4e05a66`; retain the legacy-autosave deletion policy and the lost-response Finish Event limitation when discussing recovery.
-4. The existing next product priority is a **design review of career navigation hierarchy and grouping**; implementation is not yet authorized. Keep the larger calendar/time-simulation redesign separate. Leave changes uncommitted for the user's SourceTree review unless explicitly instructed otherwise.
+4. The next proposed engineering priority is **backend career-session lifecycle and resource management**. The navigation investigation is closed without implementation, Season Review is accepted for now, and new gameplay features and time-control redesign remain deferred. Leave changes uncommitted for the user's SourceTree review unless explicitly instructed otherwise.

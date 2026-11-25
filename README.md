@@ -109,4 +109,5 @@ Focused frontend behaviour tests run with Vitest through `pnpm test`; linting, T
 - [Player experience and game decision surfaces](docs/backend/player-experience.md)
 - [Physical putting architecture and compatibility boundary](docs/backend/physical-putting.md)
 - [Technology stack notes](docs/backend/tech_stack.md)
+- [Filesystem backup and recovery procedure](docs/operations/filesystem-backup-and-recovery.md)
 - [Frontend design documentation](docs/frontend/)
