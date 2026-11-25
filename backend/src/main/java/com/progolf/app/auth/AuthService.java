@@ -37,7 +37,7 @@ public class AuthService {
         }
         UserAccount account = new UserAccount(UUID.randomUUID().toString(), username,
                 passwordEncoder.encode(password), Instant.now());
-        userStore.save(account);
+        userStore.create(account);
         return account;
     }
 
