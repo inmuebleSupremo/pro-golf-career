@@ -57,10 +57,14 @@ function useInvalidatePlay(id: string) {
 
 export function useAdvanceWeek(id: string) {
   const invalidate = useInvalidatePlay(id);
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => gqlRequest(AdvanceWeekDocument, { id }),
     networkMode: "always",
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["profile", id] });
+    },
   });
 }
 
@@ -160,9 +164,14 @@ export function useSimEvent(id: string) {
 
 export function useCompleteEvent(id: string) {
   const invalidate = useInvalidatePlay(id);
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => gqlRequest(CompleteEventDocument, { id }),
     networkMode: "always",
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["profile", id] });
+      queryClient.invalidateQueries({ queryKey: ["careerRecords", id] });
+    },
   });
 }
