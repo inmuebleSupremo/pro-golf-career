@@ -2152,6 +2152,11 @@ public final class World {
         requirePlayer().setResting(resting);
     }
 
+    /** The player's standing blanket sit-out decision, distinct from physical availability. */
+    public boolean isPlayerResting() {
+        return requirePlayer().isResting();
+    }
+
     /**
      * Sets whether the player's golfer competes through a recovering injury instead of sitting it out
      * (spec: injury-recovery play-through). Off by default — grinding costs real shot impairment, and every

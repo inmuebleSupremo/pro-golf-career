@@ -32,6 +32,9 @@ type Query {
     "The player's reviewable schedule of eligible upcoming events (empty when no player is assigned)."
     playerSchedule(id: ID!): [ScheduleEntry!]!
 
+    "The player's standing blanket rest choice; distinct from fitness availability, null when no player is assigned."
+    playerResting(id: ID!): Boolean
+
     "Current, actionable career attention for the human player; this read never changes career state."
     careerInbox(id: ID!): CareerInbox!
 

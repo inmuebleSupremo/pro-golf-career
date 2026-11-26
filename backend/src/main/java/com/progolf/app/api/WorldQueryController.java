@@ -88,6 +88,12 @@ public class WorldQueryController {
     }
 
     @QueryMapping
+    public Boolean playerResting(@Argument String id) {
+        String owner = AuthenticatedUser.requireId();
+        return worldService.hasPlayer(owner, id) ? worldService.playerResting(owner, id) : null;
+    }
+
+    @QueryMapping
     public CareerInboxDto careerInbox(@Argument String id) {
         return worldService.careerInbox(AuthenticatedUser.requireId(), id);
     }

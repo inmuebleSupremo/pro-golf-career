@@ -663,6 +663,11 @@ public class WorldService {
         required(ownerId, sessionId).world().setResting(resting);
     }
 
+    /** Reads the player's standing blanket sit-out decision from the world. */
+    public boolean playerResting(String ownerId, String sessionId) {
+        return required(ownerId, sessionId).world().isPlayerResting();
+    }
+
     /** The player's reviewable eligible schedule (each event's prestige and entry status). */
     public List<PlayerScheduleEntry> playerSchedule(String ownerId, String sessionId) {
         return required(ownerId, sessionId).world().playerSchedule();

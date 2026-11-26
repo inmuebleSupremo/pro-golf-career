@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { SpokeEmpty, useSpokeGate } from "@/components/career/spoke";
@@ -48,7 +48,7 @@ export function CalendarView({ id }: { id: string }) {
   return (
     <div className="flex flex-col gap-4">
       {simulation}
-      <AvailabilityBar id={id} />
+      <AvailabilityBar id={id} resting={query.data?.playerResting ?? null} />
       <PinPlacementBar id={id} />
 
       {entries.length === 0 ? (
@@ -105,20 +105,16 @@ const AVAILABILITY_TONE: Record<string, { label: string; dot: string }> = {
 };
 
 /**
- * Season availability: the golfer's current status (fitness-derived) plus the season-long rest
- * decision. Resting is write-only on the backend, so the toggle reflects the last choice made this
- * session (defaults to playing).
+ * Season availability: physical status and the authoritative standing rest decision.
  */
-function AvailabilityBar({ id }: { id: string }) {
+function AvailabilityBar({ id, resting }: { id: string; resting: boolean | null }) {
   const availability = usePlayerFitness(id).data?.playerFitness?.availability ?? null;
   const tone = availability ? AVAILABILITY_TONE[availability] : null;
 
-  const [resting, setResting] = useState(false);
   const setRestingMutation = useSetResting(id);
 
   function choose(next: boolean) {
-    if (setRestingMutation.isPending) return;
-    setResting(next);
+    if (resting === null || setRestingMutation.isPending) return;
     setRestingMutation.mutate(next);
   }
 
@@ -130,14 +126,15 @@ function AvailabilityBar({ id }: { id: string }) {
           {tone ? tone.label : "Availability"}
         </span>
         <span className="text-muted-foreground text-sm">
-          {resting ? "Resting — sitting out every event this season." : "Playing your schedule."}
+          {resting === null ? "Season decision unavailable." : resting
+            ? "Resting — sitting out every event this season." : "Playing your schedule."}
         </span>
       </div>
       <Button
         variant="secondary"
         size="sm"
         onClick={() => choose(!resting)}
-        disabled={setRestingMutation.isPending}
+        disabled={resting === null || setRestingMutation.isPending}
       >
         {resting ? "Resume playing" : "Rest this season"}
       </Button>
