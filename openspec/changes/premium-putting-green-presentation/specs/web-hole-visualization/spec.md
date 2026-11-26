@@ -1,3 +1,5 @@
+## ADDED Requirements
+
 ### Requirement: Shared premium physical putting terrain
 
 For supported physical putting on current Parkland, Links, Heathland and Desert Generator 8 holes, the play stage SHALL display one shared premium green presentation over canonical green and fringe geometry. Family materials and decoration SHALL change only the surrounding scene. Canonical cup, ball, hazard geometry, projector scale, aim direction, and returned ball trajectory SHALL remain authoritative.
