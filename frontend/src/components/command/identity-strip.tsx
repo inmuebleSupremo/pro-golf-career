@@ -183,7 +183,7 @@ export function NextAction({
         router.push(`/career/${id}/offseason`);
         return;
       }
-      if (result.advanceWeek.hasPendingEvent) router.push(`/career/${id}/play`);
+      // The refreshed hub presents Play event when the week pauses at a tournament.
     } catch {
       setActionError("The week couldn't be advanced. Please try again.");
     }

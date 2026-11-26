@@ -88,6 +88,22 @@ it("advances without an upcoming event and preserves the off-season transition",
   expect(state.push).not.toHaveBeenCalledWith("/career/career-1/play");
 });
 
+it.each([1, 4])("keeps the player on the hub when week %i opens an event", async (week) => {
+  state.advance.mockResolvedValue({ advanceWeek: { season: 1, week, hasPendingEvent: true } });
+  render();
+  await act(async () => {
+    host.querySelector("button")?.click();
+    await Promise.resolve();
+  });
+  expect(state.advance).toHaveBeenCalledTimes(1);
+  expect(state.push).not.toHaveBeenCalled();
+
+  // The invalidated career overview reports the pending event on the same hub.
+  render(true);
+  expect(host.textContent).toContain("Play event");
+  expect(host.querySelector('a[href="/career/career-1/play"]')).not.toBeNull();
+});
+
 it("shows the appropriate pending action and blocks advancement during season simulation", () => {
   render(true, false, true);
   expect(host.textContent).toContain("Continue event");

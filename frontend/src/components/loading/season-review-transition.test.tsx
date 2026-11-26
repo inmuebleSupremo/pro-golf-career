@@ -35,6 +35,9 @@ vi.mock("@/lib/api/queries", () => ({
     error: null, data: { careerInbox: { items: [] } } }),
   useCareerOverview: () => ({ data: { world: { season: 3 } } }),
 }));
+vi.mock("@/lib/api/play", () => ({
+  useSeasonAdvanceOperation: () => ({ data: null }),
+}));
 
 let host: HTMLDivElement;
 let root: Root;
