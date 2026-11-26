@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.shot.Environment;
+import com.progolf.sim.shot.Club;
 import com.progolf.sim.shot.GolferState;
 import com.progolf.sim.shot.HoleModel;
 import com.progolf.sim.shot.RoundResolver;
 import com.progolf.sim.shot.SimConstants;
+import com.progolf.sim.shot.ShotDecision;
 import com.progolf.sim.shot.Strategy;
 import com.progolf.sim.spatial.LateralRegion;
 import com.progolf.sim.spatial.ShotZoneProfile;
@@ -60,7 +62,8 @@ class WaterDropTest {
         PlayableHole hole = playable(hazardHole(Surface.WATER));
 
         assertThat(hole.situation().distanceToPin()).isEqualTo(TEE_DISTANCE);
-        assertThat(hole.simShot().finalSurface()).isEqualTo(Surface.PRIMARY_ROUGH);
+        // This legacy zone fixture reports contact as finalSurface; the playable lie is in situation().
+        assertThat(hole.simShot().contactSurface()).isEqualTo(Surface.WATER);
 
         // The drop advances the ball toward the hole (not a replay from the tee) and lands in rough.
         ShotSituation afterDrop = hole.situation();
@@ -72,12 +75,35 @@ class WaterDropTest {
     void outOfBoundsReplaysFromThePreviousSpot() {
         PlayableHole hole = playable(hazardHole(Surface.OUT_OF_BOUNDS));
 
-        assertThat(hole.simShot().finalSurface()).isEqualTo(Surface.TEE_BOX);
+        assertThat(hole.simShot().contactSurface()).isEqualTo(Surface.OUT_OF_BOUNDS);
 
         // Stroke-and-distance: the next shot is played from the same spot, losing the distance.
         ShotSituation afterOob = hole.situation();
         assertThat(afterOob.distanceToPin()).isEqualTo(TEE_DISTANCE);
         assertThat(afterOob.lie()).isEqualTo(Surface.TEE_BOX);
+    }
+
+    @Test
+    void outOfBoundsKeepsThePreviousNonTeeLie() {
+        HoleModel model = new HoleModel() {
+            @Override public double startDistance() { return TEE_DISTANCE; }
+            @Override public int par() { return 3; }
+            @Override public ShotZoneProfile zoneProfileFor(double remainingDistance) {
+                Surface surface = remainingDistance > 100.0 ? Surface.FAIRWAY : Surface.OUT_OF_BOUNDS;
+                return new ShotZoneProfile(List.of(new ZoneBand(0.0, 600.0,
+                        List.of(new LateralRegion(200.0, surface)))));
+            }
+        };
+        PlayableHole hole = playable(model);
+        hole.playShot(ShotDecision.straight(Club.IRON, 150.0, Strategy.BALANCED));
+        ShotSituation beforeOob = hole.situation();
+        assertThat(beforeOob.lie()).isEqualTo(Surface.FAIRWAY);
+        assertThat(beforeOob.distanceToPin()).isLessThan(100.0);
+
+        assertThat(hole.playShot(ShotDecision.straight(Club.WEDGE, 80.0, Strategy.BALANCED))
+                .contactSurface()).isEqualTo(Surface.OUT_OF_BOUNDS);
+        assertThat(hole.situation().distanceToPin()).isEqualTo(beforeOob.distanceToPin());
+        assertThat(hole.situation().lie()).isEqualTo(beforeOob.lie());
     }
 
     @Test
@@ -101,5 +127,32 @@ class WaterDropTest {
 
         assertThat(hole.isComplete()).isTrue();
         assertThat(hole.strokes()).isEqualTo(automatic);
+    }
+
+    @Test
+    void anAutomaticReplayUsesTheSamePreviousLieAsInteractivePlay() {
+        HoleModel model = hazardHole(Surface.OUT_OF_BOUNDS);
+        var automatic = RoundResolver.resolveHole(model, Attributes.uniform(60), GolferState.fresh(),
+                Environment.calm(), Strategy.BALANCED, COORD);
+        PlayableHole hole = playable(model);
+
+        assertThat(hole.simShot().contactSurface()).isEqualTo(Surface.OUT_OF_BOUNDS);
+        assertThat(hole.situation().lie()).isEqualTo(Surface.TEE_BOX);
+        var replay = hole.simShot();
+        assertThat(replay.contactSurface()).isEqualTo(Surface.OUT_OF_BOUNDS);
+        assertThat(replay.carry()).isEqualTo(automatic.shots().get(1).carry());
+        assertThat(replay.lateral()).isEqualTo(automatic.shots().get(1).lateral());
+    }
+
+    @Test
+    void playableRoundRestoresTheTeeLieAfterOutOfBounds() {
+        HoleModel model = hazardHole(Surface.OUT_OF_BOUNDS);
+        PlayableRound round = new PlayableRound(Attributes.uniform(60), GolferState.fresh(),
+                java.util.Collections.nCopies(18, new HoleToPlay(model, 3, Environment.calm())),
+                COORD.withHole(0), Strategy.BALANCED);
+
+        assertThat(round.simShot().contactSurface()).isEqualTo(Surface.OUT_OF_BOUNDS);
+        assertThat(round.situation().distanceToPin()).isEqualTo(TEE_DISTANCE);
+        assertThat(round.situation().lie()).isEqualTo(Surface.TEE_BOX);
     }
 }

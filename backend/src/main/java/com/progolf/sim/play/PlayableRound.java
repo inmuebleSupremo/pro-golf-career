@@ -239,6 +239,7 @@ public final class PlayableRound {
 
     private ShotOutcome applyOutcome(ShotOutcome outcome, double preShotRemaining) {
         HoleToPlay hole = holes.get(holeIndex);
+        Surface preShotLie = lie;
         totalStrokes += outcome.strokes();
         strokesThisHole += outcome.strokes();
         currentHoleShots.add(outcome);
@@ -256,6 +257,7 @@ public final class PlayableRound {
                 lie = Surface.PRIMARY_ROUGH; // dropped in rough near the hazard
             } else {
                 remaining = preShotRemaining; // out of bounds: stroke-and-distance
+                lie = preShotLie;
             }
         } else {
             remaining = outcome.distanceRemaining();

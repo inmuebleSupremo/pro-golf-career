@@ -46,6 +46,7 @@ public final class RoundResolver {
 
         for (int shotNo = 1; shotNo <= SimConstants.MAX_SHOTS_PER_HOLE; shotNo++) {
             double preShotRemaining = remaining;
+            Surface preShotLie = lie;
             ShotOutcome outcome;
             if (lie == Surface.GREEN && hole.puttingPolicy().usesPhysicalPutting()
                     || PhysicalPuttPlanner.shouldPuttFromFringe(hole, ball, remaining)) {
@@ -79,6 +80,7 @@ public final class RoundResolver {
                 } else {
                     // Out of Bounds: stroke-and-distance — play resumes from the previous position.
                     remaining = preShotRemaining;
+                    lie = preShotLie;
                 }
             } else {
                 remaining = outcome.distanceRemaining();
