@@ -6,10 +6,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.progolf.sim.core.SeedCoordinate;
 import com.progolf.sim.spatial.Surface;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class CourseDesignTest {
     private static final long WORLD = 0xBEEF_CAFE_1234_5678L;
+    // Original six persisted classifications, in their historical order. HEATHLAND was added later.
+    private static final List<EnvironmentClassification> LEGACY_V1_CLASSIFICATIONS = List.of(
+            EnvironmentClassification.LINKS, EnvironmentClassification.PARKLAND,
+            EnvironmentClassification.DESERT, EnvironmentClassification.MOUNTAIN,
+            EnvironmentClassification.COASTAL, EnvironmentClassification.WOODLAND);
 
     @Test
     void v1RemainsExplicitlyReproducibleAndV2CarriesAnInternalPlan() {
@@ -48,7 +54,7 @@ class CourseDesignTest {
     }
 
     @Test
-    void fixedFortyEightCoordinateCorpusPreservesV1AndValidatesEveryV2Profile() {
+    void fixedEightCoordinatesPerClassificationPreserveV1AndValidateEveryV2Profile() {
         for (EnvironmentClassification classification : EnvironmentClassification.values()) {
             for (int coordinateId = 0; coordinateId < 8; coordinateId++) {
                 SeedCoordinate coordinate = new SeedCoordinate(WORLD, 1,
@@ -108,7 +114,10 @@ class CourseDesignTest {
 
     @Test
     void lockedV1BaselineAndV2CalibrationContract() {
+        assertThat(Arrays.asList(EnvironmentClassification.values()).subList(0, LEGACY_V1_CLASSIFICATIONS.size()))
+                .containsExactlyElementsOf(LEGACY_V1_CLASSIFICATIONS);
         java.util.List<Course> v1 = v1Corpus();
+        assertThat(v1).hasSize(48);
         assertThat(sha256(v1.toString())).isEqualTo("7958abda6d8f2007f2da9d540d6b5d1108f2920f962d81044f0925a844c0aef4");
         assertThat(v1.stream().flatMap(course -> course.holes().stream()).mapToDouble(GeneratedHole::length).average().orElseThrow())
                 .isEqualTo(381.4284300017833);
@@ -155,7 +164,7 @@ class CourseDesignTest {
     }
 
     private static java.util.List<Course> v1Corpus() {
-        return Arrays.stream(EnvironmentClassification.values()).flatMap(classification -> java.util.stream.IntStream.range(0, 8)
+        return LEGACY_V1_CLASSIFICATIONS.stream().flatMap(classification -> java.util.stream.IntStream.range(0, 8)
                 .mapToObj(id -> CourseGenerator.generate(new SeedCoordinate(WORLD, 1,
                         classification.ordinal() * 8L + id, 0, 0, 0, 0), classification,
                         CourseGenConstants.V1_GENERATOR_VERSION))).toList();
