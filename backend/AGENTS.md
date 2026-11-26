@@ -53,4 +53,7 @@ mvn package           # runnable jar
 - Keep it pure and immutable-leaning (records where sensible). Determinism from the seed matters — several
   tests are statistical/regression harnesses (scoring realism, attribute-value balance, world player success).
   If a realism harness goes red, that's a signal, not flakiness — investigate.
-- Run `mvn test` after engine changes.
+- After engine changes, run relevant focused domain tests and `ArchitecturePurityTest`. The backend-wide
+  `mvn test` baseline has confirmed pre-existing failures; see
+  [`../docs/project-status.md`](../docs/project-status.md#backend-automated-test-baseline) before treating it as a
+  release gate. The owner controls broad verification and manual acceptance.

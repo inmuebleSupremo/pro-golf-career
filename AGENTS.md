@@ -124,11 +124,16 @@ least 32 characters.
 
 ## Conventions
 
-- **Branch + PR per unit of work.** `develop` is the main branch. Feature branches are `feat/<slug>`; commit
-  messages are conventional (`feat(scope): …`, `docs(scope): …`). Do not commit or push unless asked.
+- **Workflow ownership.** The owner controls Docker environments, manual end-to-end browser testing, and version
+  control in SourceTree (branches, commits, merges, and PRs). Codex handles scoped implementation and focused
+  automated verification. Do not perform Docker or Git operations unless the owner explicitly delegates them.
+  `develop` is the main branch; feature branches are `feat/<slug>` and commit messages are conventional
+  (`feat(scope): …`, `docs(scope): …`).
 - **Backend**: keep `sim.*` pure; put Spring/I/O in `app.*`. Prefer records + immutability in the engine. Tests
   are first-class — there is heavy coverage and calibration/regression harnesses for realism (scoring, attribute
-  balance, world success). If you touch the engine, run `mvn test`.
+  balance, world success). If you touch the engine, run relevant focused tests and `ArchitecturePurityTest`.
+  The backend-wide `mvn test` baseline has confirmed pre-existing failures; see [`docs/project-status.md`](docs/project-status.md#backend-automated-test-baseline)
+  before treating a full-suite result as a release gate. The owner controls broad verification and acceptance.
 - **Frontend**: this is **not stock Next.js** — it pins Next 16 with renamed APIs (e.g. middleware → "proxy").
   Follow the design system in [`docs/frontend/`](docs/frontend/) (technology, boundaries, design-tokens,
   references) before any UI work — it is a real, enforced house style (tokens only, no default shadcn styling,

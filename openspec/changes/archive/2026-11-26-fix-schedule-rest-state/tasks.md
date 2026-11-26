@@ -10,7 +10,9 @@
 
 ## 3. Verify
 
-- [x] 3.1 Run focused tests, frontend codegen/typecheck, backend tests, and strict OpenSpec validation. The full backend suite also ran but failed on assertions outside the changed rest-state path; see the final verification report.
+- [x] 3.1 Run focused tests, frontend codegen/typecheck, backend tests, and strict OpenSpec validation. The 12 observed backend-wide failures were reproduced unchanged on the pre-correction `develop` baseline; see the [project status and baseline record](../../../../docs/project-status.md#backend-automated-test-baseline).
 - [x] 3.2 Record minimum browser acceptance for navigation, refresh, and reopening a save.
 
 Browser acceptance: in an isolated test career, select “Rest this season” on Schedule, navigate away and back, refresh Schedule, then save and reopen that career. Each time, the control should read “Resume playing” and the text should state the golfer is resting. Select “Resume playing” and confirm the playing state survives the same navigation and refresh. No live career data is required.
+
+The owner reports that browser acceptance passed and the correction was merged into `develop` at `4fd1eb0`.
