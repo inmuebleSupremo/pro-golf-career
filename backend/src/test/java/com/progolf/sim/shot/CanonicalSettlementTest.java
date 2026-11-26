@@ -55,13 +55,28 @@ class CanonicalSettlementTest {
         assertThat(outcome.settlement().ball()).isEqualTo(new BallState(TEE, Surface.TEE_BOX));
     }
 
+    @Test
+    void outOfBoundsReplaysTheExactNonTeeBallState() {
+        BallState preShot = new BallState(new Position2d(0, 80), Surface.PRIMARY_ROUGH);
+        ShotOutcome outcome = resolve(geometry(square(-100, -10, 100, 100), List.of()), preShot);
+
+        assertThat(outcome.contactSurface()).isEqualTo(Surface.OUT_OF_BOUNDS);
+        assertThat(outcome.finalSurface()).isEqualTo(preShot.lie());
+        assertThat(outcome.settlement().recoveryKind()).isEqualTo(RecoveryKind.OUT_OF_BOUNDS_REPLAY);
+        assertThat(outcome.settlement().ball()).isEqualTo(preShot);
+    }
+
     private static ShotOutcome resolve(CourseGeometry geometry) {
+        return resolve(geometry, new BallState(TEE, Surface.TEE_BOX));
+    }
+
+    private static ShotOutcome resolve(CourseGeometry geometry, BallState preShot) {
         ShotZoneProfile profile = new ShotZoneProfile(List.of(new ZoneBand(0, 500,
                 List.of(new LateralRegion(500, Surface.FAIRWAY)))));
         return ShotResolver.resolveShot(new ShotContext(Attributes.uniform(60), GolferState.fresh(), Environment.calm(),
-                200, profile, ShotDecision.straight(Club.WEDGE, 120, Strategy.BALANCED),
-                new SeedCoordinate(7L, 1, 1, 1, 1, 1, 0), Surface.TEE_BOX, 0,
-                new BallState(TEE, Surface.TEE_BOX), geometry, CUP));
+                preShot.position().distanceTo(CUP), profile, ShotDecision.straight(Club.WEDGE, 120, Strategy.BALANCED),
+                new SeedCoordinate(7L, 1, 1, 1, 1, 1, 0), preShot.lie(), 0,
+                preShot, geometry, CUP));
     }
 
     private static CourseGeometry geometry(List<Position2d> boundary, List<TerrainRegion> regions) {

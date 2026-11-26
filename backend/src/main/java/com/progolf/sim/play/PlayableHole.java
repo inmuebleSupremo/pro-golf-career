@@ -166,6 +166,7 @@ public final class PlayableHole {
     }
 
     private ShotOutcome applyOutcome(ShotOutcome outcome, double preShotRemaining) {
+        Surface preShotLie = lie;
         strokes += outcome.strokes();
         lie = outcome.finalSurface();
         boolean holed = outcome.holed();
@@ -180,6 +181,7 @@ public final class PlayableHole {
                 lie = Surface.PRIMARY_ROUGH; // dropped in rough near the hazard
             } else {
                 remaining = preShotRemaining; // out of bounds: stroke-and-distance
+                lie = preShotLie;
             }
         } else {
             remaining = outcome.distanceRemaining();
