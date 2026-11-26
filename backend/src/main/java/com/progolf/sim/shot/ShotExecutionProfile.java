@@ -60,7 +60,7 @@ public record ShotExecutionProfile(
         return 0.15 + 0.85 * firmness;
     }
 
-    /** Advisory release estimate for strategic target planning; actual settlement uses ShotResolver ground physics. */
+    /** Legacy advisory release estimate; strategic forecasts and settlement use ShotResolver ground physics. */
     public double rollYardsOn(Surface contactSurface) {
         if (baseGroundResponseYards <= 0 || !contactSurface.isPlayable()) return 0.0;
         return baseGroundResponseYards * switch (contactSurface) {

@@ -151,7 +151,8 @@ public final class StrategicTargetPlanner {
                 .min(Comparator.comparingDouble(ClubSpec::baseCarry)).orElse(null);
         if (club == null) return null;
         ShotExecutionProfile profile = ShotExecutionProfile.derive(lie, club, ShotFamily.FULL, attributes, environment);
-        Position2d nominalRest = nominalRest(ball, target, geometry, profile.rollYardsOn(landing));
+        double release = ShotResolver.nominalGroundRelease(club, ShotFamily.FULL, lie, landing, environment, distance);
+        Position2d nominalRest = nominalRest(ball, target, geometry, release);
         double exposure = exposure(geometry, target, distance, club, attributes, profile);
         return new Candidate(role, target, club, landing, exposure, nominalRest.distanceTo(cup));
     }

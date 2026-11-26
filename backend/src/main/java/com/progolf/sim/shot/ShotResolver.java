@@ -346,12 +346,24 @@ public final class ShotResolver {
 
     /** Fixed first contact remains the sampled carry/lateral result; only post-contact motion uses this model. */
     static GroundResponse groundResponse(ShotContext context, Surface surface, double carryYards, double spinRpm) {
-        ShotFamily family = context.decision().shotFamily();
+        return groundResponse(context.decision().clubSpec(), context.decision().shotFamily(),
+                context.environment(), surface, carryYards, spinRpm);
+    }
+
+    /** Deterministic planning estimate for an intended first contact; execution still samples carry and line. */
+    static double nominalGroundRelease(ClubSpec club, ShotFamily family, Surface lie, Surface contactSurface,
+                                       Environment environment, double carryYards) {
+        double spinRpm = backspinRpm(club, family, lie, environment, carryYards);
+        return groundResponse(club, family, environment, contactSurface, carryYards, spinRpm).totalYards();
+    }
+
+    private static GroundResponse groundResponse(ClubSpec club, ShotFamily family, Environment environment,
+                                                 Surface surface, double carryYards, double spinRpm) {
         if (!ordinaryPlayable(surface) || carryYards <= 0 || family == ShotFamily.BUNKER) {
             return new GroundResponse(spinRpm, 0, 0, 0);
         }
-        LandingVelocity landing = landingVelocity(context.decision().clubSpec(), family, carryYards, spinRpm);
-        double firmness = context.environment().groundFirmness();
+        LandingVelocity landing = landingVelocity(club, family, carryYards, spinRpm);
+        double firmness = environment.groundFirmness();
         double spinSurfaceSpeed = spinRpm * 2 * StrictMath.PI / 60 * 0.02135;
         double spinFraction = Math.min(1, spinRpm / 9000);
         double restitution = (0.08 + 0.14 * firmness) * (1 - 0.55 * spinFraction);
@@ -390,18 +402,23 @@ public final class ShotResolver {
     }
 
     private static double backspinRpm(ShotContext context, double carryYards) {
-        ShotDecision decision = context.decision();
-        if (decision.shotFamily() == ShotFamily.BUNKER || carryYards <= 0) return 0;
-        if (decision.shotFamily() == ShotFamily.CHIP) {
+        return backspinRpm(context.decision().clubSpec(), context.decision().shotFamily(), context.lie(),
+                context.environment(), carryYards);
+    }
+
+    private static double backspinRpm(ClubSpec club, ShotFamily family, Surface lie, Environment environment,
+                                     double carryYards) {
+        if (family == ShotFamily.BUNKER || carryYards <= 0) return 0;
+        if (family == ShotFamily.CHIP) {
             return Math.min(2500, 1400 * StrictMath.sqrt(carryYards / 11.6));
         }
-        double base = decision.clubSpec().baseCarry();
+        double base = club.baseCarry();
         double spin = clubInterpolation(base, 9000, 6200, 2500)
                 * StrictMath.sqrt(carryYards / (base * 0.91));
-        if (decision.shotFamily() == ShotFamily.CONTROLLED) spin *= 0.90;
-        if (decision.shotFamily() == ShotFamily.PITCH) spin *= 0.80;
-        spin *= 0.75 + 0.25 * context.environment().lieQuality();
-        spin *= switch (context.lie()) {
+        if (family == ShotFamily.CONTROLLED) spin *= 0.90;
+        if (family == ShotFamily.PITCH) spin *= 0.80;
+        spin *= 0.75 + 0.25 * environment.lieQuality();
+        spin *= switch (lie) {
             case PRIMARY_ROUGH, FIRST_CUT -> 0.85;
             case DEEP_ROUGH, TREES, RECOVERY_AREA -> 0.65;
             default -> 1.0;
