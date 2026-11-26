@@ -42,6 +42,8 @@ class RoleBasedHazardGenerationTest {
     @Test
     void fixedV4CorpusRetainsHazardProvenanceAndSafeCoresAcrossProfiles() {
         long courses = 0;
+        long legacyCourses = 0;
+        long heathlandCourses = 0;
         long water = 0;
         long recovery = 0;
         long greenGuards = 0;
@@ -84,11 +86,15 @@ class RoleBasedHazardGenerationTest {
                         bailoutBoundaries += course.holes().stream().flatMap(hole -> hole.hazardPlan().features().stream())
                                 .filter(feature -> feature.role() == HazardRole.BAILOUT_BOUNDARY).count();
                         courses++;
+                        if (classification == EnvironmentClassification.HEATHLAND) heathlandCourses++;
+                        else legacyCourses++;
                     }
                 }
             }
         }
-        assertThat(courses).isEqualTo(162);
+        assertThat(legacyCourses).isEqualTo(162);
+        assertThat(heathlandCourses).isEqualTo(27);
+        assertThat(courses).isEqualTo(legacyCourses + heathlandCourses);
         assertThat(water).isPositive();
         assertThat(recovery).isPositive();
         assertThat(greenGuards).isPositive().isLessThan(courses * 18L);

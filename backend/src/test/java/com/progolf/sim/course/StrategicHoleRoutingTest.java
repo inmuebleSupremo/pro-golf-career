@@ -91,6 +91,8 @@ class StrategicHoleRoutingTest {
     @Test
     void allProfileCombinationsPassTheFixedV3GeometryAndFeasibilityCorpus() {
         long courses = 0;
+        long legacyCourses = 0;
+        long heathlandCourses = 0;
         for (StrategicEmphasis strategic : StrategicEmphasis.values()) {
             for (WidthTendency width : WidthTendency.values()) {
                 for (RecoverySeverity recovery : RecoverySeverity.values()) {
@@ -111,12 +113,16 @@ class StrategicHoleRoutingTest {
                                 assertThat(hole.geometry().surfaceAt(hole.geometry().greenCenter())).isEqualTo(Surface.GREEN);
                             });
                             courses++;
+                            if (classification == EnvironmentClassification.HEATHLAND) heathlandCourses++;
+                            else legacyCourses++;
                         }
                     }
                 }
             }
         }
-        assertThat(courses).isEqualTo(1_296);
+        assertThat(legacyCourses).isEqualTo(1_296);
+        assertThat(heathlandCourses).isEqualTo(216);
+        assertThat(courses).isEqualTo(legacyCourses + heathlandCourses);
     }
 
     @Test
