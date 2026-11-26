@@ -99,6 +99,17 @@ class TournamentScoringConsistencyTest {
         played.simRound();
         assertThat(played.holeScores()).containsExactlyElementsOf(automaticHoleScores);
         assertThat(played.totalStrokes()).isEqualTo(automaticHoleScores.stream().mapToInt(Integer::intValue).sum());
+    }
+
+    @Test
+    void fixedSeedRoundRetainsHistoricalScoreCalibrationAnchor() {
+        Course course = course();
+        ProfessionalGolfer golfer = field().get(0);
+        PlayableRound played = new PlayableRound(golfer.player().attributes(), golfer.player().toGolferState(0),
+                holes(course), coordinate(0, 0), Strategy.BALANCED);
+        played.simRound();
+
+        // Historical absolute-score fingerprint; review independently of automatic/interactive parity.
         assertThat(played.scoreVsPar()).isEqualTo(-1);
     }
 

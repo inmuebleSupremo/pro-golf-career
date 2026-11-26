@@ -1,6 +1,7 @@
 package com.progolf.sim.shot;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.data.Offset.offset;
 
 import com.progolf.sim.core.Attributes;
 import com.progolf.sim.core.SeasonProfile;
@@ -78,6 +79,50 @@ class StrategicTargetPlannerTest {
         assertThat(aggressive.suggestedFamily()).isEqualTo(ShotFamily.FULL);
         assertThat(model.geometry().surfaceAt(position(aggressive.aimPoint()))).isNotIn(Surface.WATER,
                 Surface.OUT_OF_BOUNDS, Surface.BUNKER, Surface.TREES, Surface.RECOVERY_AREA);
+    }
+
+    @Test
+    void nextShotSummaryUsesTheSpinAwareNominalRelease() {
+        HoleModel model = strategicParFive();
+        BallState tee = new BallState(model.geometry().tee(), Surface.TEE_BOX);
+        ShotGuidance.StrategicOption primary = option(StrategicTargetPlanner.options(model, tee,
+                model.startDistance(), Surface.TEE_BOX, PLAYER, Environment.calm()), LandingZoneRole.PRIMARY);
+        Position2d target = position(primary.aimPoint());
+        double carry = tee.position().distanceTo(target);
+        ClubSpec club = ClubSpec.of(primary.suggestedClub());
+        Surface landing = model.geometry().surfaceAt(target);
+        double release = ShotResolver.nominalGroundRelease(club, ShotFamily.FULL, Surface.TEE_BOX,
+                landing, Environment.calm(), carry);
+        double previousEstimate = ShotExecutionProfile.derive(Surface.TEE_BOX, club, ShotFamily.FULL,
+                PLAYER, Environment.calm()).rollYardsOn(landing);
+        Position2d nominalRest = ShotFrame.toward(tee.position(), target).project(carry + release, 0.0);
+
+        assertThat(release).isGreaterThan(previousEstimate + 10.0);
+        assertThat(primary.routeSummary()).contains("about " + Math.round(nominalRest.distanceTo(model.cupPosition()))
+                + " yd");
+    }
+
+    @Test
+    void nominalReleaseMatchesAnUnclampedResolvedShotAtItsSampledCarry() {
+        HoleModel model = positionalParFour();
+        BallState tee = new BallState(model.geometry().tee(), Surface.TEE_BOX);
+        ShotGuidance.StrategicOption primary = option(StrategicTargetPlanner.options(model, tee,
+                model.startDistance(), Surface.TEE_BOX, PLAYER, Environment.calm()), LandingZoneRole.PRIMARY);
+        Position2d target = position(primary.aimPoint());
+        BallStrikeIntent intent = new BallStrikeIntent(primary.suggestedClub(), primary.aimPoint(), ShotFamily.FULL);
+        ShotContext context = new ShotContext(PLAYER, GolferState.fresh(), Environment.calm(), model.startDistance(),
+                model.zoneProfileFor(model.startDistance()),
+                ShotDecision.fromIntent(intent, tee.position().distanceTo(target), Strategy.BALANCED),
+                new SeedCoordinate(4, 4, 4, 4, 4, 4, 4), Surface.TEE_BOX, 0.0, tee,
+                model.geometry(), model.cupPosition(), target);
+        ShotOutcome outcome = ShotResolver.resolveShot(context);
+
+        assertThat(outcome.contactSurface()).isEqualTo(Surface.FAIRWAY);
+        double actualRelease = outcome.settlement().contact().position()
+                .distanceTo(outcome.settlement().ball().position());
+        double nominalAtActualCarry = ShotResolver.nominalGroundRelease(ClubSpec.of(primary.suggestedClub()),
+                ShotFamily.FULL, Surface.TEE_BOX, outcome.contactSurface(), Environment.calm(), outcome.carry());
+        assertThat(actualRelease).isCloseTo(nominalAtActualCarry, offset(1.0e-6));
     }
 
     @Test
