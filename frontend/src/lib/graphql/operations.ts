@@ -571,6 +571,7 @@ export const PlayerScheduleDocument = graphql(`
 /** The player's season calendar with per-event results — the calendar page's source of truth. */
 export const PlayerCalendarDocument = graphql(`
   query PlayerCalendar($id: ID!) {
+    playerResting(id: $id)
     playerCalendar(id: $id) {
       tournamentId
       week

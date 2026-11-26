@@ -80,6 +80,17 @@ class WorldGraphQlMutationsTest {
                 .variable("id", session.id()).execute()
                 .path("resting").entity(Boolean.class).isEqualTo(true)
                 .path("focus").entity(Boolean.class).isEqualTo(true);
+
+        graphQlTester.document("query($id: ID!){ playerResting(id: $id) }")
+                .variable("id", session.id()).execute()
+                .path("playerResting").entity(Boolean.class).isEqualTo(true);
+
+        graphQlTester.document("mutation($id: ID!){ setResting(id: $id, resting: false) }")
+                .variable("id", session.id()).execute()
+                .path("setResting").entity(Boolean.class).isEqualTo(true);
+        graphQlTester.document("query($id: ID!){ playerResting(id: $id) }")
+                .variable("id", session.id()).execute()
+                .path("playerResting").entity(Boolean.class).isEqualTo(false);
     }
 
     @Test

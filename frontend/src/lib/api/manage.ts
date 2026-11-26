@@ -86,8 +86,8 @@ export function useEnterEvent(id: string) {
 }
 
 /**
- * Rest (or un-rest) the golfer for the rest of the season. Write-only on the backend —
- * no query reflects the persisted flag — so callers track the intended state locally.
+ * Rest (or un-rest) the golfer for the rest of the season. Refresh the calendar's
+ * authoritative standing decision after the mutation succeeds.
  */
 export function useSetResting(id: string) {
   const invalidate = useInvalidateManage(id);
