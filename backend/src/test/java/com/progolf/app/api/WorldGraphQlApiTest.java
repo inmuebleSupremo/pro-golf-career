@@ -174,28 +174,35 @@ class WorldGraphQlApiTest {
                 .variable("id", id).execute()
                 .path("practiceRange.expectedReaches[0].yards").entity(Double.class)
                 .satisfies(value -> org.assertj.core.api.Assertions.assertThat(value).isPositive());
-        String start = "mutation($id: ID!){ startPlayerTraining(id: $id, focus: \"WEDGES\") { id status nextChallenge baseProgress bonusProgress fatigueBefore fatigueAfter ratingChanges { attribute before after } challenges { number putting target { x y } suggestedClub suggestedFamily targetLabel landingZone } } }";
+        String start = "mutation($id: ID!){ startPlayerTraining(id: $id, focus: \"WEDGES\") { id status nextChallenge baseProgress bonusProgress fatigueBefore fatigueAfter ratingChanges { attribute before after } challenges { number putting greenside target { x y } suggestedClub suggestedFamily targetLabel landingZone } } }";
         graphQlTester.document(start).variable("id", id).execute()
                 .path("startPlayerTraining.status").entity(String.class).isEqualTo("ACTIVE")
                 .path("startPlayerTraining.nextChallenge").entity(Integer.class).isEqualTo(1)
                 .path("startPlayerTraining.baseProgress").entity(Double.class).isEqualTo(0.95)
                 .path("startPlayerTraining.fatigueBefore").entity(Double.class).isEqualTo(0.0)
                 .path("startPlayerTraining.fatigueAfter").entity(Double.class).isEqualTo(0.035)
+                .path("startPlayerTraining.challenges[0].greenside").entity(Boolean.class).isEqualTo(true)
                 .path("startPlayerTraining.challenges[0].landingZone").entity(Boolean.class).isEqualTo(false)
                 .path("startPlayerTraining.challenges[0].targetLabel").entity(String.class)
-                .satisfies(label -> org.assertj.core.api.Assertions.assertThat(label).endsWith(" flag"))
+                .satisfies(label -> org.assertj.core.api.Assertions.assertThat(label).matches("Hole [1-9][0-9]* cup"))
                 .path("startPlayerTraining.ratingChanges").entityList(Object.class).hasSize(0);
         var session = worldService.playerTrainingSession(OWNER, id);
         var challenge = session.challenges().get(0);
-        org.assertj.core.api.Assertions.assertThat(com.progolf.sim.practice.PracticeRange.targets().stream()
-                .map(com.progolf.sim.practice.PracticeRange.Target::position)).contains(challenge.target());
-        org.assertj.core.api.Assertions.assertThat(com.progolf.sim.practice.PracticeRange.bays())
-                .contains(challenge.start());
+        org.assertj.core.api.Assertions.assertThat(challenge.greenside()).isTrue();
+        graphQlTester.document("query($id: ID!){ playerTrainingGreensideHole(id: $id) { holeNumber geometry { cup { x y } } ball { position { x y } } } }")
+                .variable("id", id).execute()
+                .path("playerTrainingGreensideHole.holeNumber").entity(Integer.class).isEqualTo(challenge.holeNumber())
+                .path("playerTrainingGreensideHole.geometry.cup.x").entity(Double.class).isEqualTo(challenge.target().x())
+                .path("playerTrainingGreensideHole.geometry.cup.y").entity(Double.class).isEqualTo(challenge.target().y())
+                .path("playerTrainingGreensideHole.ball.position.x").entity(Double.class).isEqualTo(challenge.start().x())
+                .path("playerTrainingGreensideHole.ball.position.y").entity(Double.class).isEqualTo(challenge.start().y());
         graphQlTester.document(start).variable("id", id).execute()
                 .path("startPlayerTraining.id").entity(String.class).isEqualTo(session.id());
-        graphQlTester.document("query($id: ID!){ playerTrainingSession(id: $id) { id status nextChallenge challenges { number } } }")
+        graphQlTester.document("query($id: ID!){ playerTrainingSession(id: $id) { id status nextChallenge challenges { number targetLabel } } }")
                 .variable("id", id).execute()
-                .path("playerTrainingSession.id").entity(String.class).isEqualTo(session.id());
+                .path("playerTrainingSession.id").entity(String.class).isEqualTo(session.id())
+                .path("playerTrainingSession.challenges[0].targetLabel").entity(String.class)
+                .isEqualTo("Hole " + challenge.holeNumber() + " cup");
         graphQlTester.document("query($id: ID!){ playerTrainingChallengePlayable(id: $id) }")
                 .variable("id", id).execute()
                 .path("playerTrainingChallengePlayable").entity(Boolean.class).isEqualTo(true);
